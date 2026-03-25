@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Routes, Route, NavLink, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import PlannerPage      from './PlannerPage'
 import MyPlansPage      from './MyPlansPage'
-import CalendarPage     from './CalendarPage'
+import CalendarPage         from './CalendarPage'
+import NotificationsPage   from './NotificationsPage'
 import GuideEditorPage  from './GuideEditorPage'
 import ProfileModal     from '../components/ProfileModal'
 
@@ -13,6 +14,27 @@ export default function DashboardPage({ session, teacher, setTeacher }) {
   const navigate = useNavigate()
 
   const isAdmin = teacher.role === 'admin'
+  const [unread, setUnread] = useState(0)
+
+  useEffect(() => {
+    async function fetchUnread() {
+      const query = supabase
+        .from('notifications')
+        .select('id', { count: 'exact', head: true })
+        .eq('read', false)
+        .eq('school_id', teacher.school_id)
+      if (isAdmin) {
+        query.eq('to_role', 'admin')
+      } else {
+        query.eq('from_id', teacher.id).eq('to_role', 'teacher')
+      }
+      const { count } = await query
+      setUnread(count || 0)
+    }
+    fetchUnread()
+    const interval = setInterval(fetchUnread, 60000)
+    return () => clearInterval(interval)
+  }, [teacher.id, isAdmin])
 
   async function handleLogout() {
     await supabase.auth.signOut()
@@ -54,6 +76,13 @@ export default function DashboardPage({ session, teacher, setTeacher }) {
           {isAdmin && (
             <>
               <div className="sb-nav-divider" />
+              <NavLink to="/notifications"
+                className={({ isActive }) => isActive ? 'active' : ''}
+                onClick={closeSidebar}>
+                <span className="dot" style={{ background: '#C0504D' }} />
+                Notificaciones
+                {unread > 0 && <span className="sb-notif-badge">{unread}</span>}
+              </NavLink>
               <NavLink to="/calendar"
                 className={({ isActive }) => isActive ? 'active' : ''}
                 onClick={closeSidebar}>
@@ -82,7 +111,10 @@ export default function DashboardPage({ session, teacher, setTeacher }) {
           <Route path="/plans"         element={<MyPlansPage     teacher={teacher} />} />
           <Route path="/editor/:id"    element={<GuideEditorPage teacher={teacher} />} />
           {isAdmin && (
-            <Route path="/calendar"   element={<CalendarPage    teacher={teacher} />} />
+            <>
+              <Route path="/calendar"       element={<CalendarPage       teacher={teacher} />} />
+              <Route path="/notifications"  element={<NotificationsPage  teacher={teacher} onRead={() => setUnread(0)} />} />
+            </>
           )}
         </Routes>
       </div>

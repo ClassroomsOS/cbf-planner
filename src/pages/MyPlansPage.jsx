@@ -18,6 +18,7 @@ export default function MyPlansPage({ teacher }) {
   const [filterStatus,  setFilterStatus]  = useState('all')
   const [duplicating,   setDuplicating]   = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
+  const [previewId,    setPreviewId]    = useState(null)
 
   useEffect(() => { fetchPlans() }, [teacher.id])
 
@@ -40,11 +41,63 @@ export default function MyPlansPage({ teacher }) {
     const nextSt = STATUS_ORDER[(idx + 1) % STATUS_ORDER.length]
     await supabase.from('lesson_plans').update({ status: nextSt }).eq('id', plan.id)
     setPlans(prev => prev.map(p => p.id === plan.id ? { ...p, status: nextSt } : p))
+
+    // Notify admin when submitted
+    if (nextSt === 'submitted') {
+      await supabase.from('notifications').insert({
+        school_id: teacher.school_id,
+        from_id:   teacher.id,
+        to_role:   'admin',
+        type:      'plan_submitted',
+        plan_id:   plan.id,
+        message:   `${teacher.full_name} envió la guía de ${plan.subject} — ${plan.grade}, Semana ${plan.week_number}`,
+      })
+    }
+    // Notify teacher when approved
+    if (nextSt === 'approved') {
+      await supabase.from('notifications').insert({
+        school_id: teacher.school_id,
+        from_id:   teacher.id,
+        to_role:   'teacher',
+        type:      'plan_approved',
+        plan_id:   plan.id,
+        message:   `Tu guía de ${plan.subject} — ${plan.grade}, Semana ${plan.week_number} fue aprobada ✅`,
+      })
+    }
   }
 
   async function duplicatePlan(plan, e) {
     e.stopPropagation()
     setDuplicating(plan.id)
+
+    // Calculate next week monday
+    const nextMonday = plan.monday_date
+      ? (() => {
+          const d = new Date(plan.monday_date + 'T12:00:00')
+          d.setDate(d.getDate() + 7)
+          return d.toISOString().slice(0, 10)
+        })()
+      : null
+
+    // Calculate next date_range label
+    function fmtRange(mondayISO) {
+      if (!mondayISO) return ''
+      const MONTHS = ['Ene.','Feb.','Mar.','Abr.','May.','Jun.','Jul.','Ago.','Sep.','Oct.','Nov.','Dic.']
+      const mon = new Date(mondayISO + 'T12:00:00')
+      const fri = new Date(mon); fri.setDate(fri.getDate() + 4)
+      const m1 = MONTHS[mon.getMonth()], m2 = MONTHS[fri.getMonth()]
+      if (m1 === m2) return `${m1} ${mon.getDate()}–${fri.getDate()}, ${mon.getFullYear()}`
+      return `${m1} ${mon.getDate()} – ${m2} ${fri.getDate()}, ${fri.getFullYear()}`
+    }
+
+    // Deep clone content and clear day data (fresh week)
+    const newContent = plan.content ? JSON.parse(JSON.stringify(plan.content)) : {}
+    if (newContent.days) newContent.days = {}
+    if (newContent.info) {
+      newContent.info.semana  = String((plan.week_number || 1) + 1)
+      newContent.info.fechas  = fmtRange(nextMonday)
+    }
+
     const { data: newPlan } = await supabase
       .from('lesson_plans')
       .insert({
@@ -54,9 +107,10 @@ export default function MyPlansPage({ teacher }) {
         subject:     plan.subject,
         period:      plan.period,
         week_number: (plan.week_number || 1) + 1,
-        date_range:  '',
+        monday_date: nextMonday,
+        date_range:  fmtRange(nextMonday),
         status:      'draft',
-        content:     plan.content || {},
+        content:     newContent,
       })
       .select()
       .single()
@@ -175,6 +229,11 @@ export default function MyPlansPage({ teacher }) {
                       <span className="mp-arrow">→</span>
                     </div>
                   </div>
+
+                  {/* Preview panel */}
+                  {previewId === plan.id && (
+                    <PlanPreview plan={plan} />
+                  )}
                 )
               })}
             </div>
@@ -195,6 +254,83 @@ export default function MyPlansPage({ teacher }) {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+
+// ── Plan Preview ─────────────────────────────────────────────────────────────
+function PlanPreview({ plan }) {
+  const content = plan.content || {}
+  const days    = Object.entries(content.days || {})
+    .sort(([a],[b]) => a.localeCompare(b))
+    .filter(([, d]) => d.active !== false)
+
+  const SECTIONS = [
+    { key: 'subject',    label: 'Subject',    color: '#4F81BD' },
+    { key: 'motivation', label: 'Motivation', color: '#4BACC6' },
+    { key: 'activity',   label: 'Activity',   color: '#F79646' },
+    { key: 'skill',      label: 'Skill',      color: '#8064A2' },
+    { key: 'closing',    label: 'Closing',    color: '#9BBB59' },
+    { key: 'assignment', label: 'Assignment', color: '#4E84A2' },
+  ]
+
+  const DAYS_EN = ['Monday','Tuesday','Wednesday','Thursday','Friday']
+
+  function getDayName(iso) {
+    const d = new Date(iso + 'T12:00:00')
+    return DAYS_EN[d.getDay() - 1] || iso
+  }
+
+  function stripHtml(html) {
+    return (html || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+  }
+
+  if (!days.length) {
+    return (
+      <div className="mp-preview">
+        <p style={{ color: '#aaa', fontSize: '12px', fontStyle: 'italic' }}>
+          Esta guía no tiene días con contenido aún.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="mp-preview">
+      {content.objetivo?.general && (
+        <div className="mp-preview-objective">
+          <span className="mp-preview-label">🎯 Objetivo:</span>
+          {stripHtml(content.objetivo.general).slice(0, 200)}
+          {stripHtml(content.objetivo.general).length > 200 ? '…' : ''}
+        </div>
+      )}
+      <div className="mp-preview-days">
+        {days.map(([iso, day]) => (
+          <div key={iso} className="mp-preview-day">
+            <div className="mp-preview-day-header">
+              📅 {getDayName(iso)}
+              {day.unit && <span className="mp-preview-unit">· {day.unit}</span>}
+            </div>
+            <div className="mp-preview-sections">
+              {SECTIONS.map(s => {
+                const sec = day.sections?.[s.key]
+                const text = stripHtml(sec?.content)
+                if (!text) return null
+                return (
+                  <div key={s.key} className="mp-preview-section">
+                    <span className="mp-preview-sec-dot" style={{ background: s.color }} />
+                    <span className="mp-preview-sec-label">{s.label}:</span>
+                    <span className="mp-preview-sec-text">
+                      {text.slice(0, 120)}{text.length > 120 ? '…' : ''}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
