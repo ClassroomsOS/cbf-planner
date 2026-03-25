@@ -227,6 +227,14 @@ export default function MyPlansPage({ teacher }) {
                           onClick={e => { e.stopPropagation(); setConfirmDelete(plan.id) }}
                           title="Eliminar">🗑</button>
                       )}
+                      {/* Preview toggle */}
+                      <button
+                        className="mp-action-btn"
+                        onClick={e => { e.stopPropagation(); setPreviewId(previewId === plan.id ? null : plan.id) }}
+                        title="Vista previa">
+                        {previewId === plan.id ? '▲' : '▼'}
+                      </button>
+                      {/* Open arrow */}
                       <span className="mp-arrow">→</span>
                     </div>
                   </div>
