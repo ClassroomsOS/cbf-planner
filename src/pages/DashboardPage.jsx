@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { Routes, Route, NavLink, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
-import PlannerPage   from './PlannerPage'
-import MyPlansPage   from './MyPlansPage'
-import CalendarPage  from './CalendarPage'
-import ProfileModal  from '../components/ProfileModal'
+import PlannerPage      from './PlannerPage'
+import MyPlansPage      from './MyPlansPage'
+import CalendarPage     from './CalendarPage'
+import GuideEditorPage  from './GuideEditorPage'
+import ProfileModal     from '../components/ProfileModal'
 
 export default function DashboardPage({ session, teacher, setTeacher }) {
   const [showProfile, setShowProfile] = useState(false)
@@ -26,17 +27,10 @@ export default function DashboardPage({ session, teacher, setTeacher }) {
   return (
     <div className="app">
 
-      <button
-        className="btn-hamburger"
-        onClick={() => setSidebarOpen(o => !o)}
-        aria-label="Abrir menú">
-        ☰
-      </button>
+      <button className="btn-hamburger"
+        onClick={() => setSidebarOpen(o => !o)} aria-label="Abrir menú">☰</button>
 
-      <div
-        className={`sidebar-overlay ${sidebarOpen ? 'visible' : ''}`}
-        onClick={closeSidebar}
-      />
+      <div className={`sidebar-overlay ${sidebarOpen ? 'visible' : ''}`} onClick={closeSidebar} />
 
       <div className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="sb-logo">
@@ -51,14 +45,12 @@ export default function DashboardPage({ session, teacher, setTeacher }) {
             <span className="dot" style={{ background: '#2E5598' }} />
             Nueva Guía
           </NavLink>
-
           <NavLink to="/plans"
             className={({ isActive }) => isActive ? 'active' : ''}
             onClick={closeSidebar}>
             <span className="dot" style={{ background: '#9BBB59' }} />
             Mis Guías
           </NavLink>
-
           {isAdmin && (
             <>
               <div className="sb-nav-divider" />
@@ -86,10 +78,11 @@ export default function DashboardPage({ session, teacher, setTeacher }) {
 
       <div className="main">
         <Routes>
-          <Route path="/"         element={<PlannerPage  teacher={teacher} />} />
-          <Route path="/plans"    element={<MyPlansPage  teacher={teacher} />} />
+          <Route path="/"              element={<PlannerPage     teacher={teacher} />} />
+          <Route path="/plans"         element={<MyPlansPage     teacher={teacher} />} />
+          <Route path="/editor/:id"    element={<GuideEditorPage teacher={teacher} />} />
           {isAdmin && (
-            <Route path="/calendar" element={<CalendarPage teacher={teacher} />} />
+            <Route path="/calendar"   element={<CalendarPage    teacher={teacher} />} />
           )}
         </Routes>
       </div>
