@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import RichEditor from '../components/RichEditor'
+import { exportGuideDocx } from '../utils/exportDocx'
+
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -288,6 +290,10 @@ export default function GuideEditorPage({ teacher }) {
           </span>
           <button className="btn-primary" onClick={doSave} disabled={saveStatus === 'saving'}>
             💾 Guardar
+          </button>
+          <button className="btn-primary btn-save"
+            onClick={async () => { await doSave(); exportGuideDocx(contentRef.current) }}>
+            📄 Exportar DOCX
           </button>
         </div>
       </div>
