@@ -734,3 +734,113 @@ input:focus, select:focus, textarea:focus {
   body { font-size: 15px; }
   .planner-wrap { max-width: 1300px; }
 }
+
+/* ================================================================
+   CALENDAR PAGE (admin)
+   ================================================================ */
+
+.cal-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.cal-filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex: 1;
+}
+.cal-filters select {
+  width: auto;
+  min-width: 140px;
+  flex: 1;
+}
+
+.cal-form-box {
+  background: #f8fbff;
+  border: 1.5px solid #dde5f0;
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 18px;
+}
+.cal-form-title {
+  font-size: 12px; font-weight: 700;
+  color: #2E5598; margin-bottom: 12px;
+}
+
+/* Month groups */
+.cal-month-group  { margin-bottom: 20px; }
+.cal-month-header {
+  font-size: 12px; font-weight: 700;
+  color: #1F3864;
+  text-transform: uppercase; letter-spacing: .5px;
+  padding: 6px 10px;
+  background: #D6E4F0;
+  border-radius: 6px;
+  margin-bottom: 8px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.cal-month-count {
+  font-size: 10px; color: #666; font-weight: 400; text-transform: none;
+}
+
+/* Entry row */
+.cal-entry {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border-left: 4px solid #ccc;
+  margin-bottom: 6px;
+}
+.cal-entry-left  { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
+.cal-entry-emoji { font-size: 20px; flex-shrink: 0; }
+.cal-entry-name  { font-size: 13px; font-weight: 700; color: #222; }
+.cal-entry-meta  {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; color: #666; margin-top: 3px;
+  flex-wrap: wrap;
+}
+.cal-entry-type-badge {
+  padding: 2px 8px; border-radius: 10px;
+  font-size: 10px; font-weight: 700;
+}
+.cal-entry-actions {
+  display: flex; align-items: center; gap: 6px;
+  flex-shrink: 0;
+}
+.btn-cal-confirm {
+  padding: 4px 10px; border-radius: 5px;
+  background: #cc3333; color: #fff;
+  border: none; font-size: 11px; font-weight: 700; cursor: pointer;
+}
+.btn-cal-cancel {
+  padding: 4px 10px; border-radius: 5px;
+  background: #eee; color: #444;
+  border: none; font-size: 11px; font-weight: 700; cursor: pointer;
+}
+
+/* ── Admin elements in sidebar ── */
+.sb-nav-divider {
+  height: 1px;
+  background: rgba(255,255,255,0.12);
+  margin: 6px 16px;
+}
+.sb-admin-badge {
+  margin-left: auto;
+  font-size: 9px; font-weight: 700;
+  background: #C9A84C; color: #fff;
+  padding: 2px 6px; border-radius: 8px;
+  text-transform: uppercase; letter-spacing: .4px;
+}
+
+/* ── Responsive ── */
+@media (max-width: 479px) {
+  .cal-toolbar { flex-direction: column; align-items: stretch; }
+  .cal-entry   { flex-wrap: wrap; }
+  .cal-entry-actions { width: 100%; justify-content: flex-end; }
+}
