@@ -190,7 +190,8 @@ export default function MyPlansPage({ teacher }) {
                 const activeDays = Object.values(days).filter(d => d.active !== false).length
                 const totalDays  = Object.keys(days).length
                 return (
-                  <div key={plan.id} className="mp-card" onClick={() => openPlan(plan.id)}>
+                  <div key={plan.id}>
+                  <div className="mp-card" onClick={() => openPlan(plan.id)}>
                     <div className="mp-card-left">
                       <div className="mp-card-title">
                         {plan.subject || '—'}
@@ -234,8 +235,9 @@ export default function MyPlansPage({ teacher }) {
                   {previewId === plan.id && (
                     <PlanPreview plan={plan} />
                   )}
-                )
-              })}
+                </div>
+              )
+            })}
             </div>
           ))
         )}
