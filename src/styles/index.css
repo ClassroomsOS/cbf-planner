@@ -157,3 +157,38 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: #4BACC6
 
 /* ── MISC ── */
 .coming-soon-notice { background: #f5f5f5; border: 2px dashed #ccc; border-radius: 8px; padding: 16px; text-align: center; color: #888; font-size: 12px; margin-top: 10px; }
+/* ── Asignación de materias por clase (csa = class-subject-assign) ── */
+
+.csa-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.csa-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e8e8e8;
+}
+
+.csa-label {
+  min-width: 90px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #4B5C3A;
+  padding-top: 4px;
+  white-space: nowrap;
+}
+
+/* Chips pequeños para asignación por clase */
+.chip.chip-sm {
+  font-size: 11px;
+  padding: 3px 9px;
+  border-radius: 12px;
+  margin: 2px;
+}

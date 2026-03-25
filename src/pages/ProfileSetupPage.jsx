@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 
 const GRADE_LEVELS = [
-  { label: 'Elementary', grades: ['1.°','2.°','3.°','4.°','5.°'] },
+  { label: 'Elementary',   grades: ['1.°','2.°','3.°','4.°','5.°'] },
   { label: 'Middle School', grades: ['6.°','7.°','8.°'] },
-  { label: 'High School', grades: ['9.°','10.°','11.°'] },
+  { label: 'High School',  grades: ['9.°','10.°','11.°'] },
 ]
 
 const DEFAULT_SUBJECTS = [
@@ -13,22 +13,27 @@ const DEFAULT_SUBJECTS = [
 ]
 
 export default function ProfileSetupPage({ session, onComplete }) {
-  const [step, setStep]           = useState(1)
-  const [schools, setSchools]     = useState([])
-  const [loading, setLoading]     = useState(false)
-  const [error, setError]         = useState(null)
+  const [step, setStep]         = useState(1)
+  const [schools, setSchools]   = useState([])
+  const [loading, setLoading]   = useState(false)
+  const [error, setError]       = useState(null)
 
-  // Form state
-  const [schoolId, setSchoolId]   = useState('')
-  const [fullName, setFullName]   = useState('')
-  const [initials, setInitials]   = useState('')
-  const [subjects, setSubjects]   = useState(['Language Arts'])
+  // Step 1
+  const [schoolId, setSchoolId] = useState('')
+  const [fullName, setFullName] = useState('')
+  const [initials, setInitials] = useState('')
+
+  // Step 2
+  const [subjects, setSubjects]     = useState(['Language Arts'])
   const [newSubject, setNewSubject] = useState('')
-  const [sections, setSections]   = useState([])  // from selected school
-  const [myClasses, setMyClasses] = useState(new Set()) // "8.°|Blue"
-  const [defClass, setDefClass]   = useState('')
+  const [sections, setSections]     = useState([])
+  // Single source of truth: [{grade, section, subjects:[]}]
+  const [classSubjects, setClassSubjects] = useState([])
+
+  // Step 3
+  const [defClass,   setDefClass]   = useState('')
   const [defSubject, setDefSubject] = useState('')
-  const [defPeriod, setDefPeriod] = useState('1.er Período 2026')
+  const [defPeriod,  setDefPeriod]  = useState('1.er Período 2026')
 
   useEffect(() => {
     supabase.from('schools').select('id, name, short_name, sections')
@@ -38,9 +43,10 @@ export default function ProfileSetupPage({ session, onComplete }) {
   useEffect(() => {
     const school = schools.find(s => s.id === schoolId)
     setSections(school?.sections || [])
-    setMyClasses(new Set())
+    setClassSubjects([])
   }, [schoolId])
 
+  // ── Subjects helpers ──────────────────────────────────────
   function toggleSubject(sub) {
     setSubjects(prev =>
       prev.includes(sub) ? prev.filter(s => s !== sub) : [...prev, sub]
@@ -53,22 +59,39 @@ export default function ProfileSetupPage({ session, onComplete }) {
     setNewSubject('')
   }
 
+  // ── Class×Subject helpers ─────────────────────────────────
+  function getClassEntry(grade, section) {
+    return classSubjects.find(cs => cs.grade === grade && cs.section === section)
+  }
+
   function toggleClass(grade, section) {
-    const key = `${grade}|${section}`
-    setMyClasses(prev => {
-      const next = new Set(prev)
-      next.has(key) ? next.delete(key) : next.add(key)
-      return next
-    })
+    const exists = getClassEntry(grade, section)
+    if (exists) {
+      setClassSubjects(prev =>
+        prev.filter(cs => !(cs.grade === grade && cs.section === section))
+      )
+    } else {
+      setClassSubjects(prev => [...prev, { grade, section, subjects: [] }])
+    }
   }
 
-  function getMyClassLabels() {
-    return [...myClasses].map(k => {
-      const [g, s] = k.split('|')
-      return `${g} ${s}`
-    })
+  function toggleSubjectInClass(grade, section, sub) {
+    setClassSubjects(prev =>
+      prev.map(cs => {
+        if (cs.grade !== grade || cs.section !== section) return cs
+        const newSubs = cs.subjects.includes(sub)
+          ? cs.subjects.filter(s => s !== sub)
+          : [...cs.subjects, sub]
+        return { ...cs, subjects: newSubs }
+      })
+    )
   }
 
+  function getClassLabels() {
+    return classSubjects.map(cs => `${cs.grade} ${cs.section}`)
+  }
+
+  // ── Save ──────────────────────────────────────────────────
   async function handleSave() {
     if (!schoolId || !fullName.trim()) {
       setError('Completa el nombre y el colegio.')
@@ -77,8 +100,8 @@ export default function ProfileSetupPage({ session, onComplete }) {
     setLoading(true)
     setError(null)
 
-    const classLabels = getMyClassLabels()
-    const { error } = await supabase.from('teachers').insert({
+    const classLabels = getClassLabels()
+    const { error: insertError } = await supabase.from('teachers').insert({
       id:              session.user.id,
       school_id:       schoolId,
       full_name:       fullName.trim(),
@@ -86,15 +109,14 @@ export default function ProfileSetupPage({ session, onComplete }) {
                        fullName.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase(),
       email:           session.user.email,
       subjects,
-      my_classes:      classLabels,
+      class_subjects:  classSubjects,
       default_class:   defClass || classLabels[0] || '',
       default_subject: defSubject || subjects[0] || '',
       default_period:  defPeriod,
     })
 
-    if (error) { setError(error.message); setLoading(false); return }
+    if (insertError) { setError(insertError.message); setLoading(false); return }
 
-    // Reload teacher
     const { data } = await supabase
       .from('teachers')
       .select('*, schools(*)')
@@ -104,7 +126,9 @@ export default function ProfileSetupPage({ session, onComplete }) {
     setLoading(false)
   }
 
-  // ── Render steps ─────────────────────────────────────────
+  // ── Render ────────────────────────────────────────────────
+  const selectedSchool = schools.find(s => s.id === schoolId)
+
   return (
     <div className="setup-bg">
       <div className="setup-card">
@@ -121,7 +145,7 @@ export default function ProfileSetupPage({ session, onComplete }) {
           ))}
         </div>
 
-        {/* ── Step 1: Personal info + school ── */}
+        {/* ── Step 1: Datos personales ── */}
         {step === 1 && (
           <div className="setup-body">
             <div className="form-field">
@@ -133,7 +157,7 @@ export default function ProfileSetupPage({ session, onComplete }) {
               <label>Iniciales <span className="field-hint">(para tu avatar)</span></label>
               <input value={initials} onChange={e => setInitials(e.target.value)}
                 placeholder="EB" maxLength={3}
-                style={{textTransform:'uppercase',maxWidth:'80px'}} />
+                style={{ textTransform: 'uppercase', maxWidth: '80px' }} />
             </div>
             <div className="form-field">
               <label>Colegio</label>
@@ -147,9 +171,11 @@ export default function ProfileSetupPage({ session, onComplete }) {
           </div>
         )}
 
-        {/* ── Step 2: Subjects + classes ── */}
+        {/* ── Step 2: Materias + Clases ── */}
         {step === 2 && (
           <div className="setup-body">
+
+            {/* Materias */}
             <div className="form-section-title">📚 Materias que dictas</div>
             <div className="chips-wrap">
               {DEFAULT_SUBJECTS.map(sub => (
@@ -157,6 +183,11 @@ export default function ProfileSetupPage({ session, onComplete }) {
                   className={`chip ${subjects.includes(sub) ? 'selected' : ''}`}
                   onClick={() => toggleSubject(sub)}>
                   {sub}
+                </div>
+              ))}
+              {subjects.filter(s => !DEFAULT_SUBJECTS.includes(s)).map(sub => (
+                <div key={sub} className="chip selected" onClick={() => toggleSubject(sub)}>
+                  {sub} <span style={{ marginLeft: '4px', opacity: .7 }}>✕</span>
                 </div>
               ))}
             </div>
@@ -167,56 +198,88 @@ export default function ProfileSetupPage({ session, onComplete }) {
               <button onClick={addSubject}>+ Agregar</button>
             </div>
 
-            <div className="form-section-title" style={{marginTop:'18px'}}>
+            {/* Matriz de clases */}
+            <div className="form-section-title" style={{ marginTop: '20px' }}>
               🏫 Mis clases
-              <span className="field-hint"> — secciones de {schools.find(s=>s.id===schoolId)?.short_name}: {sections.join(', ')}</span>
+              {selectedSchool && (
+                <span className="field-hint"> — secciones: {sections.join(', ')}</span>
+              )}
             </div>
-            <div className="class-matrix">
-              {/* Header */}
-              <div className="cm-row cm-header">
-                <div className="cm-cell cm-grade-lbl"></div>
-                {sections.map(sec => (
-                  <div key={sec} className="cm-cell cm-sec-hdr">{sec}</div>
-                ))}
-              </div>
-              {GRADE_LEVELS.map(lvl => (
-                <div key={lvl.label}>
-                  <div className="cm-level-label">{lvl.label}</div>
-                  {lvl.grades.map(grade => (
-                    <div key={grade} className="cm-row">
-                      <div className="cm-cell cm-grade-lbl">{grade}</div>
-                      {sections.map(sec => {
-                        const key = `${grade}|${sec}`
-                        const checked = myClasses.has(key)
-                        return (
-                          <div key={sec} className="cm-cell">
-                            <div
-                              className={`cm-check-lbl ${checked ? 'cm-checked' : ''}`}
-                              onClick={() => toggleClass(grade, sec)}>
-                              {checked ? '✓' : ''}
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
+
+            {sections.length === 0 ? (
+              <p style={{ fontSize: '13px', color: '#999' }}>Selecciona un colegio en el paso 1.</p>
+            ) : (
+              <div className="class-matrix">
+                {/* Header */}
+                <div className="cm-row cm-header">
+                  <div className="cm-cell cm-grade-lbl" />
+                  {sections.map(sec => (
+                    <div key={sec} className="cm-cell cm-sec-hdr">{sec}</div>
                   ))}
                 </div>
-              ))}
-            </div>
+                {GRADE_LEVELS.map(lvl => (
+                  <div key={lvl.label}>
+                    <div className="cm-level-label">{lvl.label}</div>
+                    {lvl.grades.map(grade => (
+                      <div key={grade} className="cm-row">
+                        <div className="cm-cell cm-grade-lbl">{grade}</div>
+                        {sections.map(sec => {
+                          const entry = getClassEntry(grade, sec)
+                          return (
+                            <div key={sec} className="cm-cell">
+                              <div
+                                className={`cm-check-lbl ${entry ? 'cm-checked' : ''}`}
+                                onClick={() => toggleClass(grade, sec)}>
+                                {entry ? '✓' : ''}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Asignación de materias por clase */}
+            {classSubjects.length > 0 && (
+              <div className="csa-container">
+                <div className="form-section-title" style={{ marginTop: '20px', marginBottom: '10px' }}>
+                  🗂️ ¿Qué materias das en cada clase?
+                </div>
+                {classSubjects.map(cs => (
+                  <div key={`${cs.grade}-${cs.section}`} className="csa-row">
+                    <div className="csa-label">{cs.grade} {cs.section}</div>
+                    <div className="chips-wrap" style={{ flex: 1 }}>
+                      {subjects.map(sub => (
+                        <div
+                          key={sub}
+                          className={`chip chip-sm ${cs.subjects.includes(sub) ? 'selected' : ''}`}
+                          onClick={() => toggleSubjectInClass(cs.grade, cs.section, sub)}>
+                          {sub}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
           </div>
         )}
 
         {/* ── Step 3: Defaults ── */}
         {step === 3 && (
           <div className="setup-body">
-            <p style={{fontSize:'13px',color:'#555',marginBottom:'16px'}}>
+            <p style={{ fontSize: '13px', color: '#555', marginBottom: '16px' }}>
               Estos valores se precargan automáticamente cada vez que creas una nueva guía.
             </p>
             <div className="form-field">
               <label>Clase predeterminada</label>
               <select value={defClass} onChange={e => setDefClass(e.target.value)}>
                 <option value="">— Sin predeterminado —</option>
-                {getMyClassLabels().map(c => <option key={c} value={c}>{c}</option>)}
+                {getClassLabels().map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
             <div className="form-field">
@@ -240,14 +303,14 @@ export default function ProfileSetupPage({ session, onComplete }) {
           </div>
         )}
 
-        {/* Footer buttons */}
+        {/* Footer */}
         <div className="setup-footer">
           {step > 1 && (
             <button className="btn-secondary" onClick={() => setStep(s => s - 1)}>
               ← Atrás
             </button>
           )}
-          <div style={{flex:1}} />
+          <div style={{ flex: 1 }} />
           {step < 3 ? (
             <button className="btn-primary"
               disabled={step === 1 && (!fullName || !schoolId)}

@@ -17,6 +17,13 @@ export default function ProfileModal({ teacher, onClose, onSave }) {
   const [loading,    setLoading]    = useState(false)
   const [saved,      setSaved]      = useState(false)
 
+  // class_subjects: [{grade, section, subjects:[]}]
+  const [classSubjects, setClassSubjects] = useState(teacher.class_subjects || [])
+
+  // Derive class labels for defaults dropdown
+  const classLabels = classSubjects.map(cs => `${cs.grade} ${cs.section}`)
+
+  // ── Subjects ─────────────────────────────────────────────
   function toggleSubject(sub) {
     setSubjects(prev =>
       prev.includes(sub) ? prev.filter(s => s !== sub) : [...prev, sub]
@@ -29,12 +36,27 @@ export default function ProfileModal({ teacher, onClose, onSave }) {
     setNewSub('')
   }
 
+  // ── Class subjects ────────────────────────────────────────
+  function toggleSubjectInClass(grade, section, sub) {
+    setClassSubjects(prev =>
+      prev.map(cs => {
+        if (cs.grade !== grade || cs.section !== section) return cs
+        const newSubs = cs.subjects.includes(sub)
+          ? cs.subjects.filter(s => s !== sub)
+          : [...cs.subjects, sub]
+        return { ...cs, subjects: newSubs }
+      })
+    )
+  }
+
+  // ── Save ─────────────────────────────────────────────────
   async function handleSave() {
     setLoading(true)
     const updates = {
       full_name:       fullName.trim(),
       initials:        initials.trim().toUpperCase(),
       subjects,
+      class_subjects:  classSubjects,
       default_class:   defClass,
       default_subject: defSubject,
       default_period:  defPeriod,
@@ -68,9 +90,10 @@ export default function ProfileModal({ teacher, onClose, onSave }) {
 
         <div className="prof-body">
 
+          {/* Datos personales */}
           <div className="prof-section">
             <div className="prof-section-title">📋 Datos personales</div>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 80px',gap:'10px'}}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px', gap: '10px' }}>
               <div className="prof-field">
                 <label>Nombre completo</label>
                 <input value={fullName} onChange={e => setFullName(e.target.value)} />
@@ -78,15 +101,17 @@ export default function ProfileModal({ teacher, onClose, onSave }) {
               <div className="prof-field">
                 <label>Iniciales</label>
                 <input value={initials} onChange={e => setInitials(e.target.value)}
-                  maxLength={3} style={{textTransform:'uppercase',textAlign:'center',fontWeight:700,fontSize:'16px'}} />
+                  maxLength={3}
+                  style={{ textTransform: 'uppercase', textAlign: 'center', fontWeight: 700, fontSize: '16px' }} />
               </div>
             </div>
             <div className="prof-field">
               <label>Email</label>
-              <input value={teacher.email || ''} disabled style={{color:'#999'}} />
+              <input value={teacher.email || ''} disabled style={{ color: '#999' }} />
             </div>
           </div>
 
+          {/* Materias */}
           <div className="prof-section">
             <div className="prof-section-title">📚 Materias</div>
             <div className="chips-wrap">
@@ -99,7 +124,7 @@ export default function ProfileModal({ teacher, onClose, onSave }) {
               ))}
               {subjects.filter(s => !DEFAULT_SUBJECTS.includes(s)).map(sub => (
                 <div key={sub} className="chip selected" onClick={() => toggleSubject(sub)}>
-                  {sub} <span style={{marginLeft:'4px',opacity:.7}}>✕</span>
+                  {sub} <span style={{ marginLeft: '4px', opacity: .7 }}>✕</span>
                 </div>
               ))}
             </div>
@@ -111,6 +136,31 @@ export default function ProfileModal({ teacher, onClose, onSave }) {
             </div>
           </div>
 
+          {/* Materias por clase */}
+          {classSubjects.length > 0 && (
+            <div className="prof-section">
+              <div className="prof-section-title">🗂️ Materias por clase</div>
+              <div className="csa-container">
+                {classSubjects.map(cs => (
+                  <div key={`${cs.grade}-${cs.section}`} className="csa-row">
+                    <div className="csa-label">{cs.grade} {cs.section}</div>
+                    <div className="chips-wrap" style={{ flex: 1 }}>
+                      {subjects.map(sub => (
+                        <div
+                          key={sub}
+                          className={`chip chip-sm ${cs.subjects.includes(sub) ? 'selected' : ''}`}
+                          onClick={() => toggleSubjectInClass(cs.grade, cs.section, sub)}>
+                          {sub}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Valores por defecto */}
           <div className="prof-section">
             <div className="prof-section-title">⚙️ Valores por defecto</div>
             <div className="prof-defaults">
@@ -118,7 +168,7 @@ export default function ProfileModal({ teacher, onClose, onSave }) {
                 <label>Clase predeterminada</label>
                 <select value={defClass} onChange={e => setDefClass(e.target.value)}>
                   <option value="">— Sin predeterminado —</option>
-                  {teacher.my_classes?.map(c => <option key={c} value={c}>{c}</option>)}
+                  {classLabels.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
               <div className="prof-field">
@@ -142,8 +192,8 @@ export default function ProfileModal({ teacher, onClose, onSave }) {
         </div>
 
         <div className="prof-footer">
-          <div style={{flex:1}} />
-          {saved && <span style={{color:'#9BBB59',fontWeight:600}}>✅ Guardado</span>}
+          <div style={{ flex: 1 }} />
+          {saved && <span style={{ color: '#9BBB59', fontWeight: 600 }}>✅ Guardado</span>}
           <button className="btn-save-prof" onClick={handleSave} disabled={loading}>
             {loading ? '⏳ Guardando...' : '💾 Guardar perfil'}
           </button>
