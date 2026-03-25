@@ -1497,3 +1497,46 @@ input:focus, select:focus, textarea:focus {
   .rte-btn       { font-size: 11px; padding: 3px 7px; height: 26px; }
   .rte-toolbar   { gap: 3px; padding: 5px 6px; }
 }
+
+/* ================================================================
+   IMAGE UPLOADER
+   ================================================================ */
+
+.img-uploader { display: flex; flex-direction: column; gap: 8px; }
+
+.img-thumbs {
+  display: flex; flex-wrap: wrap; gap: 8px;
+}
+.img-thumb-wrap {
+  position: relative; display: inline-block;
+}
+.img-thumb {
+  height: 80px; width: auto;
+  border-radius: 6px;
+  border: 1.5px solid #dde5f0;
+  object-fit: cover;
+  display: block;
+}
+.img-thumb-del {
+  position: absolute; top: 2px; left: 2px;
+  background: rgba(190,0,0,0.88); color: #fff;
+  border: none; border-radius: 50%;
+  width: 18px; height: 18px;
+  font-size: 10px; font-weight: 700;
+  cursor: pointer; display: flex;
+  align-items: center; justify-content: center;
+  padding: 0; line-height: 1;
+}
+
+.img-upload-area {
+  border: 2px dashed #dde5f0;
+  border-radius: 6px;
+  padding: 10px 14px;
+  text-align: center;
+  cursor: pointer;
+  background: #f8fbff;
+  font-size: 12px; color: #888;
+  transition: all .15s;
+}
+.img-upload-area:hover   { border-color: #4BACC6; background: #eef7ff; color: #2E5598; }
+.img-upload-area.uploading { border-color: #C9A84C; background: #fffbf0; cursor: not-allowed; }

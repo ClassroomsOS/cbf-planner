@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import RichEditor from '../components/RichEditor'
 import { exportGuideDocx } from '../utils/exportDocx'
+import ImageUploader from '../components/ImageUploader'
 
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -120,14 +121,21 @@ export default function GuideEditorPage({ teacher }) {
   }, [id])
 
   async function buildDaysFromDB(data, c) {
-    const year       = new Date().getFullYear()
-    const schoolStart = new Date(year, 1, 2)
-    const day0       = schoolStart.getDay()
-    const diff0      = day0 === 0 ? -6 : 1 - day0
-    const firstMonday = new Date(schoolStart)
-    firstMonday.setDate(schoolStart.getDate() + diff0)
-    const weekMonday = new Date(firstMonday)
-    weekMonday.setDate(firstMonday.getDate() + ((data.week_number || 1) - 1) * 7)
+    // Use monday_date if available (reliable), fallback to week_number hack
+    let weekMonday
+    if (data.monday_date) {
+      weekMonday = new Date(data.monday_date + 'T12:00:00')
+    } else {
+      const year        = new Date().getFullYear()
+      const schoolStart = new Date(year, 1, 2)
+      const day0        = schoolStart.getDay()
+      const diff0       = day0 === 0 ? -6 : 1 - day0
+      const firstMonday = new Date(schoolStart)
+      firstMonday.setDate(schoolStart.getDate() + diff0)
+      weekMonday = new Date(firstMonday)
+      weekMonday.setDate(firstMonday.getDate() + ((data.week_number || 1) - 1) * 7)
+    }
+
     const weekDays = Array.from({ length: 5 }, (_, i) => {
       const d = new Date(weekMonday); d.setDate(d.getDate() + i); return d
     })
@@ -387,6 +395,7 @@ export default function GuideEditorPage({ teacher }) {
               toggleDayActive={toggleDayActive}
               openSections={openSections}
               toggleSection={toggleSection}
+              planId={id}
             />
           )}
 
@@ -409,7 +418,7 @@ export default function GuideEditorPage({ teacher }) {
 
 // ── DayPanel ─────────────────────────────────────────────────────────────────
 
-function DayPanel({ iso, day, setContentField, toggleDayActive, openSections, toggleSection }) {
+function DayPanel({ iso, day, setContentField, toggleDayActive, openSections, toggleSection, planId }) {
   const base = ['days', iso]
 
   return (
@@ -481,8 +490,18 @@ function DayPanel({ iso, day, setContentField, toggleDayActive, openSections, to
                         minHeight={120}
                       />
                     </div>
+                    <div className="ge-field">
+                      <label>Imágenes</label>
+                      <ImageUploader
+                        planId={planId}
+                        dayIso={iso}
+                        sectionKey={s.key}
+                        images={section.images || []}
+                        onChange={imgs => setContentField([...base,'sections',s.key,'images'], imgs)}
+                      />
+                    </div>
                     <div className="ge-phase2-notice">
-                      🖼️ Imágenes · 🔊 Audio · 🎬 Video · 🧩 Smart Blocks — Fase 2
+                      🔊 Audio · 🎬 Video · 🧩 Smart Blocks — próximamente
                     </div>
                   </div>
                 )}

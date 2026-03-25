@@ -44,9 +44,24 @@ function formatRange(days) {
   return `${m1} ${first.getDate()} – ${m2} ${last.getDate()}, ${last.getFullYear()}`
 }
 
+function toWeekInputValue(monday) {
+  const d = new Date(monday)
+  d.setHours(0,0,0,0)
+  d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7))
+  const week1 = new Date(d.getFullYear(), 0, 4)
+  const weekNum = 1 + Math.round(((d - week1) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7)
+  return `${d.getFullYear()}-W${String(weekNum).padStart(2, '0')}`
+}
 
-
-
+function fromWeekInputValue(val) {
+  if (!val) return getMondayOf(new Date())
+  const [year, week] = val.split('-W').map(Number)
+  const jan4 = new Date(year, 0, 4)
+  const startOfWeek1 = getMondayOf(jan4)
+  const monday = new Date(startOfWeek1)
+  monday.setDate(startOfWeek1.getDate() + (week - 1) * 7)
+  return monday
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -130,6 +145,7 @@ export default function PlannerPage({ teacher }) {
         subject,
         period,
         week_number: weekNumber,
+        monday_date: toISO(monday),
         date_range:  dateRange,
         status:      'draft',
         content:     {},
@@ -187,14 +203,9 @@ export default function PlannerPage({ teacher }) {
             <button className="btn-week-nav"
               onClick={() => { const d = new Date(monday); d.setDate(d.getDate()-7); setMonday(d) }}>‹</button>
             <div className="week-input-wrap">
-              <label>Ir a semana del</label>
-              <input
-                type="date"
-                value={toISO(monday)}
-                onChange={e => {
-                  if (e.target.value) setMonday(getMondayOf(new Date(e.target.value + 'T12:00:00')))
-                }}
-              />
+              <label>Semana del</label>
+              <input type="week" value={toWeekInputValue(monday)}
+                onChange={e => setMonday(fromWeekInputValue(e.target.value))} />
             </div>
             <button className="btn-week-nav"
               onClick={() => { const d = new Date(monday); d.setDate(d.getDate()+7); setMonday(d) }}>›</button>
