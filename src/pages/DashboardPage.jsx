@@ -7,6 +7,7 @@ import ProfileModal from '../components/ProfileModal'
 
 export default function DashboardPage({ session, teacher, setTeacher }) {
   const [showProfile, setShowProfile] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const navigate = useNavigate()
 
   async function handleLogout() {
@@ -14,33 +15,57 @@ export default function DashboardPage({ session, teacher, setTeacher }) {
     navigate('/login')
   }
 
+  function closeSidebar() {
+    setSidebarOpen(false)
+  }
+
   const ini = teacher.initials ||
-    teacher.full_name.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase()
+    teacher.full_name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
 
   return (
     <div className="app">
 
+      {/* ── Hamburger (mobile only) ── */}
+      <button
+        className="btn-hamburger"
+        onClick={() => setSidebarOpen(o => !o)}
+        aria-label="Abrir menú"
+      >
+        ☰
+      </button>
+
+      {/* ── Overlay (mobile tap-outside to close) ── */}
+      <div
+        className={`sidebar-overlay ${sidebarOpen ? 'visible' : ''}`}
+        onClick={closeSidebar}
+      />
+
       {/* ── Sidebar ── */}
-      <div className="sidebar">
+      <div className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="sb-logo">
           <h1>{teacher.schools?.short_name || 'CBF'} PLANNER</h1>
           <p>{teacher.schools?.name}</p>
         </div>
 
         <nav className="sb-nav">
-          <NavLink to="/" end className={({isActive}) => isActive ? 'active' : ''}>
-            <span className="dot" style={{background:'#2E5598'}} />
+          <NavLink to="/" end
+            className={({ isActive }) => isActive ? 'active' : ''}
+            onClick={closeSidebar}>
+            <span className="dot" style={{ background: '#2E5598' }} />
             Nueva Guía
           </NavLink>
-          <NavLink to="/plans" className={({isActive}) => isActive ? 'active' : ''}>
-            <span className="dot" style={{background:'#9BBB59'}} />
+          <NavLink to="/plans"
+            className={({ isActive }) => isActive ? 'active' : ''}
+            onClick={closeSidebar}>
+            <span className="dot" style={{ background: '#9BBB59' }} />
             Mis Guías
           </NavLink>
         </nav>
 
         {/* Profile bar */}
         <div className="sb-profile-bar">
-          <button className="btn-profile has-profile" onClick={() => setShowProfile(true)}>
+          <button className="btn-profile has-profile"
+            onClick={() => { setShowProfile(true); closeSidebar() }}>
             <span className="sb-avatar">{ini}</span>
             <span className="sb-name">{teacher.full_name.split(' ')[0]}</span>
             <span className="prof-edit-icon">✎</span>
@@ -54,8 +79,8 @@ export default function DashboardPage({ session, teacher, setTeacher }) {
       {/* ── Main content ── */}
       <div className="main">
         <Routes>
-          <Route path="/"       element={<PlannerPage teacher={teacher} />} />
-          <Route path="/plans"  element={<MyPlansPage teacher={teacher} />} />
+          <Route path="/"      element={<PlannerPage teacher={teacher} />} />
+          <Route path="/plans" element={<MyPlansPage teacher={teacher} />} />
         </Routes>
       </div>
 
