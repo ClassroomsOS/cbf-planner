@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import RichEditor from '../components/RichEditor'
 import { exportGuideDocx } from '../utils/exportDocx'
+import { exportHtml, exportPdf } from '../utils/exportHtml'
 import ImageUploader from '../components/ImageUploader'
 
 
@@ -89,6 +90,7 @@ export default function GuideEditorPage({ teacher }) {
   const [activePanel,  setActivePanel]  = useState('header')
   const [openSections, setOpenSections] = useState({})
   const [saveStatus,   setSaveStatus]   = useState('saved')
+  const [exportOpen,   setExportOpen]   = useState(false)
   const [loading,      setLoading]      = useState(true)
 
   const dirtyRef   = useRef(false)
@@ -299,10 +301,25 @@ export default function GuideEditorPage({ teacher }) {
           <button className="btn-primary" onClick={doSave} disabled={saveStatus === 'saving'}>
             💾 Guardar
           </button>
-          <button className="btn-primary btn-save"
-            onClick={async () => { await doSave(); exportGuideDocx(contentRef.current) }}>
-            📄 Exportar DOCX
-          </button>
+          <div className="ge-export-wrap">
+            <button className="btn-primary btn-save"
+              onClick={() => setExportOpen(o => !o)}>
+              📄 Exportar ▾
+            </button>
+            {exportOpen && (
+              <div className="ge-export-menu" onMouseLeave={() => setExportOpen(false)}>
+                <button onClick={async () => { setExportOpen(false); await doSave(); exportGuideDocx(contentRef.current) }}>
+                  📄 Word (.docx)
+                </button>
+                <button onClick={() => { setExportOpen(false); exportHtml(contentRef.current) }}>
+                  🌐 HTML
+                </button>
+                <button onClick={() => { setExportOpen(false); exportPdf(contentRef.current) }}>
+                  🖨️ PDF (imprimir)
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

@@ -1,7 +1,7 @@
 import {
-  Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
+  Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, ImageRun,
   AlignmentType, BorderStyle, WidthType, ShadingType, VerticalAlign,
-  PageBreak, HeadingLevel,
+  PageBreak,
 } from 'docx'
 import { saveAs } from 'file-saver'
 
@@ -152,10 +152,20 @@ function htmlToParas(html, baseSize = 20) {
 
 // ── Section row builder ───────────────────────────────────────────────────────
 
-function buildSectionRow(s, sectionData) {
-  const dCols = [1760, 9040]
-  const content = sectionData?.content || ''
-  const time    = sectionData?.time    || s.time
+async function fetchImageData(url) {
+  try {
+    const res  = await fetch(url)
+    const buf  = await res.arrayBuffer()
+    const type = url.toLowerCase().endsWith('.png') ? 'png' : 'jpg'
+    return { data: buf, type }
+  } catch { return null }
+}
+
+async function buildSectionRow(s, sectionData) {
+  const dCols  = [1760, 9040]
+  const text   = sectionData?.content || ''
+  const time   = sectionData?.time    || s.time
+  const images = sectionData?.images  || []
 
   const labelCell = mkCell([
     mkP(mkR(s.label, { bold: true, size: 17, color: 'FFFFFF' })),
@@ -167,9 +177,25 @@ function buildSectionRow(s, sectionData) {
     margins: { top: 100, bottom: 80, left: 100, right: 80 },
   })
 
-  const contentParas = htmlToParas(content, 18)
+  const contentParas = htmlToParas(text, 18)
 
-  const contentCell = mkCell(contentParas, dCols[1], {
+  // Fetch and embed images
+  const imgParas = []
+  for (const img of images) {
+    const imgData = await fetchImageData(img.url)
+    if (imgData) {
+      imgParas.push(new Paragraph({
+        spacing: { before: 60, after: 40 },
+        children: [new ImageRun({
+          data: imgData.data,
+          type: imgData.type,
+          transformation: { width: 200, height: 150 },
+        })],
+      }))
+    }
+  }
+
+  const contentCell = mkCell([...contentParas, ...imgParas], dCols[1], {
     borders: allB(bGray),
     va:      VerticalAlign.TOP,
     margins: { top: 100, bottom: 80, left: 140, right: 120 },
@@ -180,7 +206,7 @@ function buildSectionRow(s, sectionData) {
 
 // ── Day table builder ─────────────────────────────────────────────────────────
 
-function buildDayTable(iso, day) {
+async function buildDayTable(iso, day) {
   const dCols  = [1760, 9040]
   const dTotal = 10800
 
@@ -219,9 +245,9 @@ function buildDayTable(iso, day) {
     ],
   })
 
-  // Section rows
-  const sectionRows = SECTIONS.map(s =>
-    buildSectionRow(s, day.sections?.[s.key])
+  // Section rows (async — fetch images)
+  const sectionRows = await Promise.all(
+    SECTIONS.map(s => buildSectionRow(s, day.sections?.[s.key]))
   )
 
   return new Table({
@@ -359,14 +385,15 @@ export async function exportGuideDocx(content, filename) {
     .sort(([a], [b]) => a.localeCompare(b))
     .filter(([, day]) => day.active !== false)
 
-  sortedDays.forEach(([iso, day], idx) => {
-    children.push(buildDayTable(iso, day))
+  for (let idx = 0; idx < sortedDays.length; idx++) {
+    const [iso, day] = sortedDays[idx]
+    children.push(await buildDayTable(iso, day))
     children.push(emptyPara())
     // Page break between days (except last)
     if (idx < sortedDays.length - 1) {
       children.push(new Paragraph({ children: [new PageBreak()] }))
     }
-  })
+  }
 
   // ── Summary ──
   if (s.done || s.next) {
