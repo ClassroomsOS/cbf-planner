@@ -5,6 +5,7 @@ import RichEditor from '../components/RichEditor'
 import { exportGuideDocx } from '../utils/exportDocx'
 import { exportHtml, exportPdf } from '../utils/exportHtml'
 import ImageUploader from '../components/ImageUploader'
+import SmartBlocksList from '../components/SmartBlocks'
 
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -517,8 +518,15 @@ function DayPanel({ iso, day, setContentField, toggleDayActive, openSections, to
                         onChange={imgs => setContentField([...base,'sections',s.key,'images'], imgs)}
                       />
                     </div>
+                    <div className="ge-field">
+                      <label>🧩 Bloques Inteligentes</label>
+                      <SmartBlocksList
+                        blocks={section.smartBlocks || []}
+                        onChange={blocks => setContentField([...base,'sections',s.key,'smartBlocks'], blocks)}
+                      />
+                    </div>
                     <div className="ge-phase2-notice">
-                      🔊 Audio · 🎬 Video · 🧩 Smart Blocks — próximamente
+                      🔊 Audio · 🎬 Video — próximamente
                     </div>
                   </div>
                 )}

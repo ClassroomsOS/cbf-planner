@@ -1628,3 +1628,117 @@ input:focus, select:focus, textarea:focus {
 .ge-export-menu button + button {
   border-top: 1px solid #eee;
 }
+
+
+/* ================================================================
+   SMART BLOCKS
+   ================================================================ */
+
+.sb-list { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+
+.sb-chip { border-radius: 8px; overflow: hidden; border: 1.5px solid #dde5f0; }
+.sb-chip-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 12px; font-size: 11px; font-weight: 700;
+  color: #fff;
+}
+.sb-chip-type   { background: rgba(255,255,255,0.2); border-radius: 3px; padding: 1px 7px; font-size: 10px; }
+.sb-chip-model  { opacity: .75; font-size: 10px; font-weight: 400; }
+.sb-chip-actions { margin-left: auto; display: flex; gap: 4px; }
+.sb-chip-actions button {
+  background: rgba(255,255,255,0.15); border: none; color: #fff;
+  border-radius: 3px; padding: 2px 8px; font-size: 10px; cursor: pointer;
+}
+.sb-chip-actions button:hover { background: rgba(255,255,255,0.3); }
+.sb-chip-preview { padding: 10px 12px; background: #fff; font-size: 11px; color: #333; }
+
+.sb-add-btn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 14px;
+  background: #1F3864; color: #fff;
+  border: none; border-radius: 6px;
+  font-size: 11px; font-weight: 700;
+  cursor: pointer; transition: all .15s;
+  width: fit-content; margin-top: 4px;
+}
+.sb-add-btn:hover { background: #2E5598; transform: translateY(-1px); }
+.sb-add-btn span  { font-size: 16px; line-height: 1; }
+
+/* ── Modal ── */
+.sb-modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(10,20,40,0.65);
+  z-index: 9000;
+  display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(2px);
+  padding: 12px;
+}
+.sb-modal {
+  background: #fff; border-radius: 14px;
+  width: 100%; max-width: 720px;
+  max-height: 92dvh;
+  overflow: hidden; display: flex; flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+}
+.sb-modal-header {
+  background: #1F3864; color: #fff;
+  padding: 16px 22px;
+  display: flex; align-items: center; justify-content: space-between;
+  flex-shrink: 0;
+}
+.sb-modal-header h2 { font-size: 14px; font-weight: 700; }
+.sb-modal-header button {
+  background: none; border: none; color: #fff;
+  font-size: 20px; cursor: pointer; opacity: .7; padding: 0 4px;
+}
+.sb-modal-header button:hover { opacity: 1; }
+
+.sb-modal-steps {
+  display: flex; flex-shrink: 0;
+}
+.sb-step {
+  flex: 1; padding: 8px 4px; text-align: center;
+  font-size: 11px; font-weight: 600; color: #aaa;
+  border-bottom: 3px solid #eee;
+}
+.sb-step.active { color: #2E5598; border-bottom-color: #2E5598; }
+.sb-step.done   { color: #9BBB59; border-bottom-color: #9BBB59; }
+
+.sb-modal-body { flex: 1; overflow-y: auto; padding: 20px; }
+
+.sb-modal-footer {
+  padding: 14px 22px; border-top: 1px solid #eee;
+  display: flex; gap: 10px; flex-shrink: 0;
+}
+
+/* Type grid */
+.sb-type-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+@media (max-width: 479px) {
+  .sb-type-grid { grid-template-columns: repeat(2, 1fr); }
+}
+.sb-type-card {
+  border: 2px solid #eee; border-radius: 10px;
+  padding: 14px; cursor: pointer;
+  transition: all .15s; text-align: center; background: #fafcff;
+}
+.sb-type-card:hover   { border-color: #2E5598; background: #eef4ff; transform: translateY(-2px); }
+.sb-type-card.selected { border-color: #2E5598; background: #e8f0ff; }
+.sb-type-icon { font-size: 28px; margin-bottom: 6px; }
+.sb-type-name { font-size: 12px; font-weight: 700; color: #1F3864; }
+.sb-type-desc { font-size: 10px; color: #888; margin-top: 3px; line-height: 1.4; }
+
+/* Model grid */
+.sb-model-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.sb-model-card {
+  border: 2px solid #eee; border-radius: 8px;
+  padding: 12px 14px; cursor: pointer;
+  transition: all .15s; background: #fafcff;
+}
+.sb-model-card:hover   { border-color: #4BACC6; background: #f0faff; }
+.sb-model-card.selected { border-color: #4BACC6; background: #e0f5ff; }
+.sb-model-name { font-size: 12px; font-weight: 700; color: #1F3864; }
+.sb-model-sub  { font-size: 10px; color: #888; margin-top: 2px; }
