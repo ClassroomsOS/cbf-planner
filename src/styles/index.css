@@ -1377,3 +1377,123 @@ input:focus, select:focus, textarea:focus {
   .mp-card        { gap: 8px; }
   .mp-card-right  { width: 100%; justify-content: flex-end; }
 }
+/* ================================================================
+   RICH TEXT EDITOR (Tiptap) — rte-* classes
+   ================================================================ */
+
+.rte-wrap {
+  border: 1.5px solid #dde5f0;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #fafcff;
+  transition: border-color .2s;
+}
+.rte-wrap:focus-within {
+  border-color: #4BACC6;
+  background: #fff;
+}
+
+/* ── Toolbar ── */
+.rte-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  background: #1a2f52;
+  flex-wrap: wrap;
+}
+
+.rte-btn {
+  background: rgba(255,255,255,0.08);
+  border: 1.5px solid rgba(255,255,255,0.2);
+  border-radius: 5px;
+  color: #fff;
+  font-size: 12px;
+  padding: 4px 9px;
+  cursor: pointer;
+  height: 28px;
+  min-width: 28px;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .12s;
+  user-select: none;
+  white-space: nowrap;
+  font-family: inherit;
+}
+.rte-btn:hover  { background: rgba(255,255,255,0.22); border-color: rgba(255,255,255,0.5); }
+.rte-btn.active { background: rgba(75,172,198,0.45); border-color: #4BACC6; }
+
+.rte-sep {
+  width: 1px; height: 20px;
+  background: rgba(255,255,255,0.2);
+  margin: 0 2px;
+  flex-shrink: 0;
+}
+
+.rte-color-btn {
+  display: flex; align-items: center; gap: 4px;
+  background: rgba(255,255,255,0.08);
+  border: 1.5px solid rgba(255,255,255,0.2);
+  border-radius: 5px;
+  color: #fff; font-size: 13px;
+  padding: 3px 7px; height: 28px;
+  cursor: pointer;
+  transition: all .12s;
+}
+.rte-color-btn:hover { background: rgba(255,255,255,0.2); }
+.rte-color-btn input[type=color] {
+  width: 20px; height: 20px;
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 3px;
+  padding: 1px; cursor: pointer;
+  background: none;
+}
+
+/* ── Editor area ── */
+.rte-editor-wrap {
+  padding: 10px 12px;
+}
+
+/* Tiptap injects a div.tiptap */
+.rte-editor-wrap .tiptap {
+  outline: none;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #222;
+  font-family: inherit;
+}
+
+/* Placeholder */
+.rte-editor-wrap .tiptap p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: #aaa;
+  pointer-events: none;
+  float: left;
+  height: 0;
+}
+
+/* Lists */
+.rte-editor-wrap .tiptap ul,
+.rte-editor-wrap .tiptap ol {
+  padding-left: 22px;
+  margin: 4px 0;
+}
+.rte-editor-wrap .tiptap li { margin: 2px 0; }
+.rte-editor-wrap .tiptap ul li { list-style-type: disc; }
+.rte-editor-wrap .tiptap ol li { list-style-type: decimal; }
+
+/* Links */
+.rte-editor-wrap .tiptap a {
+  color: #2E5598;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Paragraphs */
+.rte-editor-wrap .tiptap p { margin: 0 0 4px; }
+.rte-editor-wrap .tiptap p:last-child { margin-bottom: 0; }
+
+/* Mobile — toolbar wraps naturally, already handled by flex-wrap */
+@media (max-width: 479px) {
+  .rte-btn       { font-size: 11px; padding: 3px 7px; height: 26px; }
+  .rte-toolbar   { gap: 3px; padding: 5px 6px; }
+}
