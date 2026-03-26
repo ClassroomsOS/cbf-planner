@@ -1,65 +1,26 @@
 import { useState } from 'react'
 import { supabase } from '../supabase'
 
-const DEFAULT_SUBJECTS = [
-  'Language Arts','Science','Cosmovisión Bíblica','Biblical Worldview',
-  'Matemáticas','Sociales','Inglés','Ética','Ed. Física','Artes',
-]
-
 export default function ProfileModal({ teacher, onClose, onSave }) {
   const [fullName,   setFullName]   = useState(teacher.full_name || '')
   const [initials,   setInitials]   = useState(teacher.initials || '')
-  const [subjects,   setSubjects]   = useState(teacher.subjects || [])
-  const [defClass,   setDefClass]   = useState(teacher.default_class || '')
-  const [defSubject, setDefSubject] = useState(teacher.default_subject || '')
-  const [defPeriod,  setDefPeriod]  = useState(teacher.default_period || '')
-  const [newSub,     setNewSub]     = useState('')
+  const [defPeriod,  setDefPeriod]  = useState(teacher.default_period || '1.er Período 2026')
   const [loading,    setLoading]    = useState(false)
   const [saved,      setSaved]      = useState(false)
 
-  // class_subjects: [{grade, section, subjects:[]}]
-  const [classSubjects, setClassSubjects] = useState(teacher.class_subjects || [])
+  // Password change
+  const [showPwd,    setShowPwd]    = useState(false)
+  const [newPwd,     setNewPwd]     = useState('')
+  const [confirmPwd, setConfirmPwd] = useState('')
+  const [pwdError,   setPwdError]   = useState(null)
+  const [pwdSaved,   setPwdSaved]   = useState(false)
 
-  // Derive class labels for defaults dropdown
-  const classLabels = classSubjects.map(cs => `${cs.grade} ${cs.section}`)
-
-  // ── Subjects ─────────────────────────────────────────────
-  function toggleSubject(sub) {
-    setSubjects(prev =>
-      prev.includes(sub) ? prev.filter(s => s !== sub) : [...prev, sub]
-    )
-  }
-
-  function addSubject() {
-    const v = newSub.trim()
-    if (v && !subjects.includes(v)) setSubjects(prev => [...prev, v])
-    setNewSub('')
-  }
-
-  // ── Class subjects ────────────────────────────────────────
-  function toggleSubjectInClass(grade, section, sub) {
-    setClassSubjects(prev =>
-      prev.map(cs => {
-        if (cs.grade !== grade || cs.section !== section) return cs
-        const newSubs = cs.subjects.includes(sub)
-          ? cs.subjects.filter(s => s !== sub)
-          : [...cs.subjects, sub]
-        return { ...cs, subjects: newSubs }
-      })
-    )
-  }
-
-  // ── Save ─────────────────────────────────────────────────
   async function handleSave() {
     setLoading(true)
     const updates = {
-      full_name:       fullName.trim(),
-      initials:        initials.trim().toUpperCase(),
-      subjects,
-      class_subjects:  classSubjects,
-      default_class:   defClass,
-      default_subject: defSubject,
-      default_period:  defPeriod,
+      full_name:      fullName.trim(),
+      initials:       initials.trim().toUpperCase(),
+      default_period: defPeriod,
     }
     const { data, error } = await supabase
       .from('teachers')
@@ -75,6 +36,22 @@ export default function ProfileModal({ teacher, onClose, onSave }) {
       setTimeout(onClose, 900)
     }
   }
+
+  async function handlePasswordChange() {
+    setPwdError(null)
+    if (newPwd.length < 8) { setPwdError('La contraseña debe tener al menos 8 caracteres.'); return }
+    if (newPwd !== confirmPwd) { setPwdError('Las contraseñas no coinciden.'); return }
+
+    const { error } = await supabase.auth.updateUser({ password: newPwd })
+    if (error) { setPwdError(error.message); return }
+
+    setPwdSaved(true)
+    setNewPwd(''); setConfirmPwd('')
+    setTimeout(() => { setPwdSaved(false); setShowPwd(false) }, 2000)
+  }
+
+  // Read-only assignment display
+  const assignments = teacher.class_subjects || []
 
   return (
     <div className="prof-overlay open" onClick={e => e.target === e.currentTarget && onClose()}>
@@ -111,82 +88,76 @@ export default function ProfileModal({ teacher, onClose, onSave }) {
             </div>
           </div>
 
-          {/* Materias */}
-          <div className="prof-section">
-            <div className="prof-section-title">📚 Materias</div>
-            <div className="chips-wrap">
-              {DEFAULT_SUBJECTS.map(sub => (
-                <div key={sub}
-                  className={`chip ${subjects.includes(sub) ? 'selected' : ''}`}
-                  onClick={() => toggleSubject(sub)}>
-                  {sub}
-                </div>
-              ))}
-              {subjects.filter(s => !DEFAULT_SUBJECTS.includes(s)).map(sub => (
-                <div key={sub} className="chip selected" onClick={() => toggleSubject(sub)}>
-                  {sub} <span style={{ marginLeft: '4px', opacity: .7 }}>✕</span>
-                </div>
-              ))}
-            </div>
-            <div className="chip-add-row">
-              <input value={newSub} onChange={e => setNewSub(e.target.value)}
-                placeholder="Agregar materia…"
-                onKeyDown={e => e.key === 'Enter' && addSubject()} />
-              <button onClick={addSubject}>+ Agregar</button>
-            </div>
-          </div>
-
-          {/* Materias por clase */}
-          {classSubjects.length > 0 && (
+          {/* Mis clases (solo lectura — asignadas por admin) */}
+          {assignments.length > 0 && (
             <div className="prof-section">
-              <div className="prof-section-title">🗂️ Materias por clase</div>
-              <div className="csa-container">
-                {classSubjects.map(cs => (
-                  <div key={`${cs.grade}-${cs.section}`} className="csa-row">
-                    <div className="csa-label">{cs.grade} {cs.section}</div>
-                    <div className="chips-wrap" style={{ flex: 1 }}>
-                      {subjects.map(sub => (
-                        <div
-                          key={sub}
-                          className={`chip chip-sm ${cs.subjects.includes(sub) ? 'selected' : ''}`}
-                          onClick={() => toggleSubjectInClass(cs.grade, cs.section, sub)}>
-                          {sub}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
+              <div className="prof-section-title">📚 Mis clases asignadas</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                {assignments.map((cs, i) =>
+                  (cs.subjects || []).map(sub => (
+                    <span key={`${i}-${sub}`} style={{
+                      fontSize: '11px', fontWeight: 600,
+                      background: '#D6E4F0', color: '#1F3864',
+                      padding: '3px 10px', borderRadius: '12px',
+                    }}>
+                      {cs.grade} {cs.section} · {sub}
+                    </span>
+                  ))
+                )}
+              </div>
+              <div style={{ fontSize: '11px', color: '#aaa', marginTop: '8px', fontStyle: 'italic' }}>
+                Las asignaciones las gestiona el coordinador.
               </div>
             </div>
           )}
 
-          {/* Valores por defecto */}
+          {/* Período actual */}
           <div className="prof-section">
-            <div className="prof-section-title">⚙️ Valores por defecto</div>
-            <div className="prof-defaults">
-              <div className="prof-field">
-                <label>Clase predeterminada</label>
-                <select value={defClass} onChange={e => setDefClass(e.target.value)}>
-                  <option value="">— Sin predeterminado —</option>
-                  {classLabels.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-              <div className="prof-field">
-                <label>Materia predeterminada</label>
-                <select value={defSubject} onChange={e => setDefSubject(e.target.value)}>
-                  <option value="">— Sin predeterminado —</option>
-                  {subjects.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
-              <div className="prof-field">
-                <label>Período actual</label>
-                <select value={defPeriod} onChange={e => setDefPeriod(e.target.value)}>
-                  {['1.er Período 2026','2.do Período 2026','3.er Período 2026','4.to Período 2026'].map(p =>
-                    <option key={p} value={p}>{p}</option>
-                  )}
-                </select>
-              </div>
+            <div className="prof-section-title">⚙️ Preferencias</div>
+            <div className="prof-field">
+              <label>Período actual</label>
+              <select value={defPeriod} onChange={e => setDefPeriod(e.target.value)}>
+                {['1.er Período 2026','2.do Período 2026','3.er Período 2026','4.to Período 2026'].map(p =>
+                  <option key={p} value={p}>{p}</option>
+                )}
+              </select>
             </div>
+          </div>
+
+          {/* Cambiar contraseña */}
+          <div className="prof-section">
+            <div className="prof-section-title">🔒 Seguridad</div>
+            {!showPwd ? (
+              <button className="btn-secondary" onClick={() => setShowPwd(true)}
+                style={{ fontSize: '12px' }}>
+                🔑 Cambiar contraseña
+              </button>
+            ) : (
+              <div>
+                <div className="prof-field">
+                  <label>Nueva contraseña</label>
+                  <input type="password" value={newPwd}
+                    placeholder="Mínimo 8 caracteres"
+                    onChange={e => setNewPwd(e.target.value)} />
+                </div>
+                <div className="prof-field">
+                  <label>Confirmar contraseña</label>
+                  <input type="password" value={confirmPwd}
+                    placeholder="Repite la contraseña"
+                    onChange={e => setConfirmPwd(e.target.value)} />
+                </div>
+                {pwdError && <div className="alert alert-error">{pwdError}</div>}
+                {pwdSaved && <div className="alert alert-success">✅ Contraseña actualizada</div>}
+                <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                  <button className="btn-primary btn-save" onClick={handlePasswordChange}>
+                    Actualizar
+                  </button>
+                  <button className="btn-secondary" onClick={() => { setShowPwd(false); setPwdError(null) }}>
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
         </div>

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
+import { AIGeneratorModal } from '../components/AIComponents'
 
 // ── Date helpers (same as before) ────────────────────────────────────────────
 function getMondayOf(date) {
@@ -66,11 +67,20 @@ function fromWeekInputValue(val) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function PlannerPage({ teacher }) {
-  const school        = teacher.schools || {}
-  const classSubjects = teacher.class_subjects || []
-  const allSubjects   = teacher.subjects || []
-  const classLabels   = classSubjects.map(cs => `${cs.grade} ${cs.section}`)
-  const navigate      = useNavigate()
+  const school   = teacher.schools || {}
+  const navigate = useNavigate()
+
+  // Fetch assignments from teacher_assignments (admin-controlled)
+  const [assignments, setAssignments] = useState([])
+  useEffect(() => {
+    supabase.from('teacher_assignments')
+      .select('*')
+      .eq('teacher_id', teacher.id)
+      .then(({ data }) => setAssignments(data || []))
+  }, [teacher.id])
+
+  // Derive class labels and subjects from assignments
+  const classLabels = [...new Set(assignments.map(a => `${a.grade} ${a.section}`))]
 
   const [grade,   setGrade]   = useState(teacher.default_class   || '')
   const [subject, setSubject] = useState(teacher.default_subject || '')
@@ -80,13 +90,16 @@ export default function PlannerPage({ teacher }) {
   const [calLoading, setCalLoading] = useState(false)
   const [creating, setCreating]     = useState(false)
   const [error,    setError]        = useState(null)
+  const [showGenerator, setShowGenerator] = useState(false)
 
   const weekDays   = getWeekDays(monday)
   const weekNumber = getSchoolWeek(monday)
   const dateRange  = formatRange(weekDays)
 
-  const selectedEntry     = classSubjects.find(cs => `${cs.grade} ${cs.section}` === grade)
-  const availableSubjects = selectedEntry?.subjects?.length ? selectedEntry.subjects : allSubjects
+  // Subjects available for selected class (from assignments)
+  const availableSubjects = grade
+    ? assignments.filter(a => `${a.grade} ${a.section}` === grade).map(a => a.subject)
+    : []
 
   useEffect(() => {
     if (subject && !availableSubjects.includes(subject)) setSubject('')
@@ -261,8 +274,122 @@ export default function PlannerPage({ teacher }) {
             disabled={creating || !grade || !subject}>
             {creating ? '⏳ Creando…' : '✏️ Crear / Abrir guía →'}
           </button>
+          {grade && subject && (
+            <button
+              className="btn-primary"
+              style={{ background: '#8064A2' }}
+              onClick={() => setShowGenerator(true)}
+              disabled={creating}>
+              🤖 Generar con IA
+            </button>
+          )}
         </div>
       </div>
+      {showGenerator && (
+        <AIGeneratorModal
+          grade={grade}
+          subject={subject}
+          period={period}
+          activeDays={activeDays.map(d => toISO(d))}
+          onApply={async (generated) => {
+            setShowGenerator(false)
+            setCreating(true)
+            // Create plan first
+            const { data: existing } = await supabase
+              .from('lesson_plans')
+              .select('id')
+              .eq('teacher_id', teacher.id)
+              .eq('grade', grade)
+              .eq('subject', subject)
+              .eq('week_number', weekNumber)
+              .maybeSingle()
+
+            let planId = existing?.id
+
+            if (!planId) {
+              const { data: newPlan } = await supabase
+                .from('lesson_plans')
+                .insert({
+                  teacher_id: teacher.id,
+                  school_id:  teacher.school_id,
+                  grade, subject, period,
+                  week_number: weekNumber,
+                  monday_date: toISO(monday),
+                  date_range:  dateRange,
+                  status:      'draft',
+                  content:     {},
+                })
+                .select().single()
+              planId = newPlan?.id
+            }
+
+            if (planId) {
+              // Fetch current content and merge AI generated
+              const { data: planData } = await supabase
+                .from('lesson_plans')
+                .select('content')
+                .eq('id', planId)
+                .single()
+
+              const currentContent = planData?.content || {}
+
+              // Merge generated days into content
+              const mergedDays = {}
+              activeDays.forEach(d => {
+                const iso = toISO(d)
+                const existing = currentContent.days?.[iso] || buildEmptyDay(iso)
+                const generated = generated.days?.[iso] || {}
+                // Merge sections
+                const mergedSections = {}
+                SECTIONS_KEYS.forEach(key => {
+                  mergedSections[key] = {
+                    ...(existing.sections?.[key] || { time: '', content: '', images: [], audios: [], videos: [], smartBlocks: [] }),
+                    content: generated.sections?.[key]?.content || existing.sections?.[key]?.content || '',
+                  }
+                })
+                mergedDays[iso] = { ...existing, unit: generated.unit || existing.unit, sections: mergedSections }
+              })
+
+              const newContent = {
+                ...currentContent,
+                days: mergedDays,
+                objetivo: generated.objetivo ? {
+                  ...currentContent.objetivo,
+                  general:   generated.objetivo.general   || currentContent.objetivo?.general   || '',
+                  indicador: generated.objetivo.indicador || currentContent.objetivo?.indicador || '',
+                  principio: currentContent.objetivo?.principio || '',
+                } : currentContent.objetivo,
+                summary: generated.summary ? {
+                  ...currentContent.summary,
+                  next: generated.summary.next || currentContent.summary?.next || '',
+                } : currentContent.summary,
+              }
+
+              await supabase.from('lesson_plans')
+                .update({ content: newContent })
+                .eq('id', planId)
+
+              navigate(`/editor/${planId}`)
+            }
+            setCreating(false)
+          }}
+          onClose={() => setShowGenerator(false)}
+        />
+      )}
     </div>
   )
+}
+
+const SECTIONS_KEYS = ['subject','motivation','activity','skill','closing','assignment']
+
+function buildEmptyDay(isoDate) {
+  const MONTHS_EN = ['January','February','March','April','May','June','July','August','September','October','November','December']
+  const DAYS_EN   = ['Monday','Tuesday','Wednesday','Thursday','Friday']
+  const [y,m,d]   = isoDate.split('-').map(Number)
+  const suf       = [,'st','nd','rd'][d] || 'th'
+  const dateLabel = `${MONTHS_EN[m-1]} ${d}${suf}, ${y}`
+  const sections  = {}
+  const times     = { subject:'~8 min', motivation:'~8 min', activity:'~15 min', skill:'~40 min', closing:'~8 min', assignment:'~5 min' }
+  SECTIONS_KEYS.forEach(k => { sections[k] = { time: times[k], content: '', images: [], audios: [], videos: [], smartBlocks: [] } })
+  return { active: true, date_label: dateLabel, class_periods: '', unit: '', sections }
 }

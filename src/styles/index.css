@@ -1821,3 +1821,136 @@ input:focus, select:focus, textarea:focus {
   .rte-btn       { font-size: 11px; padding: 3px 7px; height: 26px; }
   .rte-toolbar   { gap: 3px; padding: 5px 6px; }
 }
+
+/* ================================================================
+   ADMIN ASSIGNMENT GRID
+   ================================================================ */
+
+.asgn-card {
+  border: 1.5px solid #dde5f0;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 14px;
+}
+.asgn-card-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px;
+  background: #f0f4ff;
+  border-bottom: 1px solid #dde5f0;
+  flex-wrap: wrap;
+}
+.asgn-title { font-size: 13px; color: #1F3864; }
+
+/* Schedule grid */
+.asgn-schedule { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.asgn-sch-header,
+.asgn-sch-row {
+  display: flex; align-items: center;
+  border-bottom: 1px solid #eee;
+  min-width: 460px;
+}
+.asgn-sch-row:last-child { border-bottom: none; }
+.asgn-sch-header { background: #1F3864; }
+
+.asgn-period-col {
+  width: 120px; min-width: 120px;
+  padding: 8px 12px;
+  display: flex; flex-direction: column; gap: 2px;
+  border-right: 1.5px solid #dde5f0;
+}
+.asgn-sch-header .asgn-period-col { border-right-color: rgba(255,255,255,0.15); }
+
+.asgn-period-num  { font-size: 12px; font-weight: 700; color: #1F3864; }
+.asgn-period-time { font-size: 10px; color: #888; }
+.asgn-sch-header .asgn-period-num { color: rgba(255,255,255,0.5); font-size: 10px; }
+
+.asgn-day-col {
+  flex: 1; min-width: 60px;
+  display: flex; align-items: center; justify-content: center;
+  padding: 6px 4px;
+  border-right: 1px solid #eee;
+  font-size: 11px; font-weight: 700;
+  color: rgba(255,255,255,0.85);
+}
+.asgn-day-col:last-child { border-right: none; }
+
+.asgn-cell {
+  width: 34px; height: 28px;
+  border: 1.5px solid #dde5f0;
+  border-radius: 5px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  background: #fafcff;
+  font-size: 13px; color: #9BBB59; font-weight: 700;
+  transition: all .15s; user-select: none;
+}
+.asgn-cell:hover  { border-color: #4BACC6; }
+.asgn-cell.active { background: #2E5598; border-color: #1F3864; color: #fff; }
+
+@media (max-width: 479px) {
+  .asgn-period-col { width: 90px; min-width: 90px; }
+  .asgn-period-time { display: none; }
+}
+
+/* ================================================================
+   AI COMPONENTS
+   ================================================================ */
+
+/* ── Punto 1: Inline suggest button ── */
+.ai-suggest-wrap {
+  margin-top: 8px;
+  position: relative;
+}
+
+.ai-suggest-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 14px;
+  background: linear-gradient(135deg, #7B5EA7, #8064A2);
+  color: #fff; border: none; border-radius: 20px;
+  font-size: 11px; font-weight: 700;
+  cursor: pointer; transition: all .15s;
+  box-shadow: 0 2px 8px rgba(123,94,167,0.3);
+}
+.ai-suggest-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(123,94,167,0.4);
+}
+.ai-suggest-btn:disabled { opacity: .6; cursor: not-allowed; }
+
+.ai-suggest-panel {
+  margin-top: 8px;
+  border: 1.5px solid #c5b0e0;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 4px 20px rgba(123,94,167,0.15);
+}
+.ai-suggest-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px;
+  background: linear-gradient(135deg, #7B5EA7, #8064A2);
+  color: #fff; font-size: 12px; font-weight: 700;
+}
+.ai-suggest-header button {
+  background: none; border: none; color: #fff;
+  font-size: 16px; cursor: pointer; opacity: .7; padding: 0 4px;
+}
+.ai-suggest-header button:hover { opacity: 1; }
+
+.ai-suggest-loading {
+  display: flex; align-items: center; gap: 10px;
+  padding: 16px; font-size: 12px; color: #888;
+}
+.ai-suggest-content {
+  padding: 14px 16px;
+  font-size: 13px; color: #333; line-height: 1.7;
+  white-space: pre-wrap;
+  max-height: 300px; overflow-y: auto;
+  background: #fafaff;
+}
+.ai-suggest-footer {
+  display: flex; gap: 8px; justify-content: flex-end;
+  padding: 10px 14px;
+  border-top: 1px solid #eee;
+  background: #f8f4ff;
+}

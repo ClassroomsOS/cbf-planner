@@ -4,7 +4,9 @@ import { supabase } from '../supabase'
 import PlannerPage      from './PlannerPage'
 import MyPlansPage      from './MyPlansPage'
 import CalendarPage         from './CalendarPage'
-import NotificationsPage   from './NotificationsPage'
+import NotificationsPage    from './NotificationsPage'
+import AdminTeachersPage   from './AdminTeachersPage'
+import AIUsagePage         from './AIUsagePage'
 import GuideEditorPage  from './GuideEditorPage'
 import ProfileModal     from '../components/ProfileModal'
 
@@ -73,9 +75,23 @@ export default function DashboardPage({ session, teacher, setTeacher }) {
             <span className="dot" style={{ background: '#9BBB59' }} />
             Mis Guías
           </NavLink>
+          <div className="sb-nav-divider" />
+          <NavLink to="/ai-usage"
+            className={({ isActive }) => isActive ? 'active' : ''}
+            onClick={closeSidebar}>
+            <span className="dot" style={{ background: '#8064A2' }} />
+            Uso de IA
+          </NavLink>
+
           {isAdmin && (
             <>
               <div className="sb-nav-divider" />
+              <NavLink to="/teachers"
+                className={({ isActive }) => isActive ? 'active' : ''}
+                onClick={closeSidebar}>
+                <span className="dot" style={{ background: '#9BBB59' }} />
+                Docentes
+              </NavLink>
               <NavLink to="/notifications"
                 className={({ isActive }) => isActive ? 'active' : ''}
                 onClick={closeSidebar}>
@@ -110,10 +126,13 @@ export default function DashboardPage({ session, teacher, setTeacher }) {
           <Route path="/"              element={<PlannerPage     teacher={teacher} />} />
           <Route path="/plans"         element={<MyPlansPage     teacher={teacher} />} />
           <Route path="/editor/:id"    element={<GuideEditorPage teacher={teacher} />} />
+          <Route path="/ai-usage" element={<AIUsagePage teacher={teacher} />} />
+
           {isAdmin && (
             <>
               <Route path="/calendar"       element={<CalendarPage       teacher={teacher} />} />
               <Route path="/notifications"  element={<NotificationsPage  teacher={teacher} onRead={() => setUnread(0)} />} />
+              <Route path="/teachers"       element={<AdminTeachersPage  teacher={teacher} />} />
             </>
           )}
         </Routes>
