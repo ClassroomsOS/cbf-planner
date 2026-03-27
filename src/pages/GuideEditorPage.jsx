@@ -130,12 +130,62 @@ export default function GuideEditorPage({ teacher }) {
       } else if (!c.days || Object.keys(c.days).length === 0) {
         c.days = await buildDaysFromDB(data, c)
       }
+      // ── Integrar horario del schedule ──
+      c.days = await applyScheduleToDays(c.days, data.grade, data.subject)
       setContent(c)
       contentRef.current = c
       setLoading(false)
     }
     load()
   }, [id])
+
+  // ── Aplicar schedule de teacher_assignments a los días ──
+  async function applyScheduleToDays(days, grade, subject) {
+    const DAY_KEYS = { 1:'mon', 2:'tue', 3:'wed', 4:'thu', 5:'fri' }
+    try {
+      const { data: assign } = await supabase
+        .from('teacher_assignments')
+        .select('schedule')
+        .eq('teacher_id', teacher.id)
+        .eq('school_id', teacher.school_id)
+        .ilike('grade', grade || '')
+        .ilike('subject', subject || '')
+        .maybeSingle()
+
+      if (!assign?.schedule) return days
+
+      const schedule = assign.schedule // { mon: ['1st'], thu: ['3rd','4th'], ... }
+      const updated = { ...days }
+
+      Object.keys(updated).forEach(iso => {
+        const d = new Date(iso + 'T12:00:00')
+        const dayKey = DAY_KEYS[d.getDay()]
+        if (!dayKey) return
+
+        const periods = schedule[dayKey] // e.g. ['3rd','4th'] or undefined
+        const day = { ...updated[iso] }
+
+        if (!periods || periods.length === 0) {
+          // No class this day according to schedule — mark inactive
+          // Only if class_periods is empty (respect manual edits)
+          if (!day.class_periods) {
+            day.active = false
+          }
+        } else {
+          // Pre-fill class_periods only if empty
+          if (!day.class_periods) {
+            day.class_periods = periods.join(' + ')
+          }
+          day.active = true
+        }
+        updated[iso] = day
+      })
+
+      return updated
+    } catch {
+      return days
+    }
+  }
 
   async function buildDaysFromDB(data, c) {
     let weekMonday
