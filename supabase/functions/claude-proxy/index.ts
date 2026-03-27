@@ -1,6 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 
-const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY')
+const GROQ_API_KEY = Deno.env.get('GROQ_API_KEY')
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -8,35 +8,42 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  // CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    if (!ANTHROPIC_API_KEY) {
-      throw new Error('ANTHROPIC_API_KEY not configured')
+    if (!GROQ_API_KEY) {
+      throw new Error('GROQ_API_KEY not configured')
     }
 
     const body = await req.json()
 
-    // AIAssistant.js sends: { system, message (string), max_tokens }
-    // Convert to Anthropic messages array format
-    const messages = body.messages
-      ? body.messages
-      : [{ role: 'user', content: body.message || '' }]
+    // Build messages array (OpenAI/Groq format)
+    const messages = []
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    // System message
+    if (body.system) {
+      messages.push({ role: 'system', content: body.system })
+    }
+
+    // User message — AIAssistant.js sends `message` (string)
+    if (body.messages) {
+      messages.push(...body.messages)
+    } else {
+      messages.push({ role: 'user', content: body.message || '' })
+    }
+
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
+        'Authorization': `Bearer ${GROQ_API_KEY}`,
       },
       body: JSON.stringify({
-        model: body.model || 'claude-opus-4-6',
+        model: 'llama-3.3-70b-versatile',
         max_tokens: body.max_tokens || 1024,
-        system: body.system || '',
+        temperature: 0.7,
         messages,
       }),
     })
@@ -44,13 +51,13 @@ serve(async (req) => {
     const data = await response.json()
 
     if (!response.ok) {
-      throw new Error(data.error?.message || 'Anthropic API error')
+      throw new Error(data.error?.message || 'Groq API error')
     }
 
     // AIAssistant.js expects: data.text
-    const text = data.content?.[0]?.text || ''
+    const text = data.choices?.[0]?.message?.content || ''
 
-    return new Response(JSON.stringify({ text, raw: data }), {
+    return new Response(JSON.stringify({ text }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
 
