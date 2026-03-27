@@ -171,9 +171,11 @@ Usa texto plano, no HTML.`
   const raw = await callClaude({ type: 'generate', system, message, planId, maxTokens: 1000 })
 
   try {
-    const clean = raw.replace(/```json|```/g, '').trim()
+    // Extraer JSON aunque Groq agregue texto extra alrededor
+    const match = raw.match(/\{[\s\S]*\}/)
+    if (!match) throw new Error('No JSON found')
+    const clean = match[0].trim()
     return JSON.parse(clean)
   } catch {
     throw new Error('La IA no devolvió un JSON válido. Intenta de nuevo.')
   }
-}
