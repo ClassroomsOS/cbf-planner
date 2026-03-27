@@ -20,6 +20,12 @@ serve(async (req) => {
 
     const body = await req.json()
 
+    // AIAssistant.js sends: { system, message (string), max_tokens }
+    // Convert to Anthropic messages array format
+    const messages = body.messages
+      ? body.messages
+      : [{ role: 'user', content: body.message || '' }]
+
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -31,7 +37,7 @@ serve(async (req) => {
         model: body.model || 'claude-opus-4-6',
         max_tokens: body.max_tokens || 1024,
         system: body.system || '',
-        messages: body.messages,
+        messages,
       }),
     })
 
@@ -41,7 +47,10 @@ serve(async (req) => {
       throw new Error(data.error?.message || 'Anthropic API error')
     }
 
-    return new Response(JSON.stringify(data), {
+    // AIAssistant.js expects: data.text
+    const text = data.content?.[0]?.text || ''
+
+    return new Response(JSON.stringify({ text, raw: data }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
 
