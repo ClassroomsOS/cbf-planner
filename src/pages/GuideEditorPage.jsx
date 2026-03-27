@@ -81,39 +81,6 @@ function buildInitialContent({ grade, subject, period, week, dateRange }, teache
 }
 
 
-// ── Pure function — fuera del componente para evitar conflictos de minificación ──
-function applyGeneratedToContent(prev, generatedPreview) {
-  var next = JSON.parse(JSON.stringify(prev))
-  if (generatedPreview.objetivo) {
-    if (generatedPreview.objetivo.general)
-      next.objetivo.general = generatedPreview.objetivo.general
-    if (generatedPreview.objetivo.indicador)
-      next.objetivo.indicador = generatedPreview.objetivo.indicador
-  }
-  if (generatedPreview.days) {
-    var dayKeys = Object.keys(generatedPreview.days)
-    for (var d = 0; d < dayKeys.length; d++) {
-      var dayIso = dayKeys[d]
-      var gDay = generatedPreview.days[dayIso]
-      if (!next.days[dayIso]) continue
-      if (gDay.unit) next.days[dayIso].unit = gDay.unit
-      if (gDay.sections) {
-        var sKeys = Object.keys(gDay.sections)
-        for (var s = 0; s < sKeys.length; s++) {
-          var sKey = sKeys[s]
-          var gSec = gDay.sections[sKey]
-          if (next.days[dayIso].sections && next.days[dayIso].sections[sKey] && gSec.content) {
-            next.days[dayIso].sections[sKey].content = gSec.content
-          }
-        }
-      }
-    }
-  }
-  if (generatedPreview.summary && generatedPreview.summary.next) {
-    next.summary.next = generatedPreview.summary.next
-  }
-  return next
-}
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
@@ -236,18 +203,12 @@ export default function GuideEditorPage({ teacher }) {
     setOpenSections(prev => ({ ...prev, [key]: !prev[key] }))
   }
 
-  // ── IA: aplicar guía generada ──
-  function handleApplyGenerated(gPreview) {
-    try {
-      var current = contentRef.current
-      var next = applyGeneratedToContent(current, gPreview)
-      contentRef.current = next
-      dirtyRef.current = true
-      setContent(next)
-      setSaveStatus('unsaved')
-    } catch(err) {
-      alert('Error aplicando: ' + err.message)
-    }
+  // ── IA: aplicar guía generada — recibe contenido ya mezclado ──
+  function handleApplyGenerated(mergedContent) {
+    contentRef.current = mergedContent
+    dirtyRef.current = true
+    setContent(mergedContent)
+    setSaveStatus('unsaved')
   }
 
   // ── Save ──
@@ -545,6 +506,7 @@ export default function GuideEditorPage({ teacher }) {
           subject={content.info.asignatura}
           period={content.info.periodo}
           activeDays={activeDays}
+          currentContent={contentRef.current}
           onApply={handleApplyGenerated}
           onClose={() => setShowGenerator(false)}
         />

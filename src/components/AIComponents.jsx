@@ -104,14 +104,12 @@ export function AIAnalyzerModal({ content, onClose }) {
     ]
 
     let result = text
-    for (var fIdx = 0; fIdx < sections.length; fIdx++) {
-      var fs = sections[fIdx]
-      var escaped = fs.marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    sections.forEach(s => {
       result = result.replace(
-        new RegExp('(' + escaped + ')', 'g'),
-        '\n§SECTION§' + fs.marker + '§' + fs.color + '§' + fs.bg + '§'
+        new RegExp(`(${s.marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'g'),
+        `\n§SECTION§${s.marker}§${s.color}§${s.bg}§`
       )
-    }
+    })
 
     return result.split('\n§SECTION§').map((block, i) => {
       if (i === 0) return block ? (
@@ -184,7 +182,7 @@ export function AIAnalyzerModal({ content, onClose }) {
 // ══════════════════════════════════════════════════════════════
 // PUNTO 3 — AIGeneratorModal (generar guía desde objetivo)
 // ══════════════════════════════════════════════════════════════
-export function AIGeneratorModal({ grade, subject, period, activeDays, onApply, onClose }) {
+export function AIGeneratorModal({ grade, subject, period, activeDays, currentContent, onApply, onClose }) {
   const [objective, setObjective] = useState('')
   const [unit,      setUnit]      = useState('')
   const [loading,   setLoading]   = useState(false)
@@ -212,10 +210,35 @@ export function AIGeneratorModal({ grade, subject, period, activeDays, onApply, 
   }
 
   function handleApply() {
-    if (preview) {
-      onApply(preview)
-      onClose()
+    if (!preview || !currentContent) return
+    // Merge preview into currentContent here — avoids minification issues in parent
+    var base = JSON.parse(JSON.stringify(currentContent))
+    if (preview.objetivo) {
+      if (preview.objetivo.general)   base.objetivo.general   = preview.objetivo.general
+      if (preview.objetivo.indicador) base.objetivo.indicador = preview.objetivo.indicador
     }
+    if (preview.days) {
+      var dKeys = Object.keys(preview.days)
+      for (var di = 0; di < dKeys.length; di++) {
+        var dIso = dKeys[di]
+        var pDay = preview.days[dIso]
+        if (!base.days[dIso]) continue
+        if (pDay.unit) base.days[dIso].unit = pDay.unit
+        if (pDay.sections) {
+          var sKeys = Object.keys(pDay.sections)
+          for (var si = 0; si < sKeys.length; si++) {
+            var sKey = sKeys[si]
+            var pSec = pDay.sections[sKey]
+            if (base.days[dIso].sections && base.days[dIso].sections[sKey] && pSec.content) {
+              base.days[dIso].sections[sKey].content = pSec.content
+            }
+          }
+        }
+      }
+    }
+    if (preview.summary && preview.summary.next) base.summary.next = preview.summary.next
+    onApply(base)
+    onClose()
   }
 
   return (
@@ -300,8 +323,8 @@ export function AIGeneratorModal({ grade, subject, period, activeDays, onApply, 
 
               {/* Days preview */}
               {Object.entries(preview.days || {})
-                .sort(function(ea, eb) { return ea[0].localeCompare(eb[0]) })
-                .map(function(de) { var iso=de[0], day=de[1];
+                .sort(([a],[b]) => a.localeCompare(b))
+                .map(([iso, day]) => {
                   const d = new Date(iso + 'T12:00:00')
                   const names = ['Lunes','Martes','Miércoles','Jueves','Viernes']
                   return (
@@ -310,12 +333,12 @@ export function AIGeneratorModal({ grade, subject, period, activeDays, onApply, 
                         📅 {names[d.getDay()-1]} — {iso}
                         {day.unit && <span style={{ opacity: .7, fontWeight: 400, marginLeft: '8px' }}>· {day.unit}</span>}
                       </div>
-                      {Object.entries(day.sections || {}).map(function(se) { var key=se[0], s=se[1]; return (
+                      {Object.entries(day.sections || {}).map(([key, s]) => (
                         <div key={key} style={{ padding: '8px 14px', borderBottom: '1px solid #eee', fontSize: '12px' }}>
                           <span style={{ fontWeight: 700, color: '#2E5598', marginRight: '8px' }}>{SECTION_LABELS[key]}:</span>
                           <span style={{ color: '#444', lineHeight: 1.5 }}>{s.content}</span>
                         </div>
-                      )})}}
+                      ))}
                     </div>
                   )
                 })}
