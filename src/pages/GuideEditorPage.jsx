@@ -237,7 +237,8 @@ export default function GuideEditorPage({ teacher }) {
   }
 
   // ── IA: aplicar guía generada ──
-  function handleApplyGenerated(gPreview) {
+function handleApplyGenerated(gPreview) {
+  try {
     setContent(function(prev) {
       var next = applyGeneratedToContent(prev, gPreview)
       contentRef.current = next
@@ -245,7 +246,10 @@ export default function GuideEditorPage({ teacher }) {
       setSaveStatus('unsaved')
       return next
     })
+  } catch(err) {
+    alert('Error: ' + err.message + '\n' + err.stack)
   }
+}
 
   // ── Save ──
   const doSave = useCallback(async () => {
