@@ -101,6 +101,10 @@ export default function PlannerPage({ teacher }) {
     ? assignments.filter(a => `${a.grade} ${a.section}` === grade).map(a => a.subject)
     : []
 
+  const selectedAssignment = assignments.find(a => `${a.grade} ${a.section}` === grade && a.subject === subject)
+  const section = selectedAssignment?.section || ''
+  const DAY_KEY_MAP = ['mon','tue','wed','thu','fri']
+
   useEffect(() => {
     if (subject && !availableSubjects.includes(subject)) setSubject('')
   }, [grade])
@@ -123,9 +127,13 @@ export default function PlannerPage({ teacher }) {
     fetchCalendar()
   }, [monday])
 
-  const activeDays = weekDays.filter(d => {
+  const activeDays = weekDays.filter((d, i) => {
     const cal = calData[toISO(d)]
-    return !cal || cal.is_school_day !== false
+    if (cal && cal.is_school_day === false) return false
+    if (selectedAssignment?.schedule && Object.keys(selectedAssignment.schedule).length > 0) {
+      return !!selectedAssignment.schedule[DAY_KEY_MAP[i]]
+    }
+    return true
   })
 
   async function handleCreateGuide() {
@@ -155,9 +163,7 @@ export default function PlannerPage({ teacher }) {
       .insert({
         teacher_id:  teacher.id,
         school_id:   teacher.school_id,
-        grade,
-        subject,
-        period,
+        grade, subject, section, period,
         week_number: weekNumber,
         monday_date: toISO(monday),
         date_range:  dateRange,
@@ -318,7 +324,7 @@ export default function PlannerPage({ teacher }) {
                 .insert({
                   teacher_id: teacher.id,
                   school_id:  teacher.school_id,
-                  grade, subject, period,
+                  grade, subject, section, period,
                   week_number: weekNumber,
                   monday_date: toISO(monday),
                   date_range:  dateRange,

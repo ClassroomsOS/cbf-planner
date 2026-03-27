@@ -146,75 +146,74 @@ export default function GuideEditorPage({ teacher }) {
     load()
   }, [id])
 
-async function buildDaysFromDB(data, c) {
-  let weekMonday
-  if (data.monday_date) {
-    weekMonday = new Date(data.monday_date + 'T12:00:00')
-  } else {
-    const year        = new Date().getFullYear()
-    const schoolStart = new Date(year, 1, 2)
-    const day0        = schoolStart.getDay()
-    const diff0       = day0 === 0 ? -6 : 1 - day0
-    const firstMonday = new Date(schoolStart)
-    firstMonday.setDate(schoolStart.getDate() + diff0)
-    weekMonday = new Date(firstMonday)
-    weekMonday.setDate(firstMonday.getDate() + ((data.week_number || 1) - 1) * 7)
-  }
-
-  const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri']
-
-  // ── Consultar schedule desde teacher_assignments ──
-  let scheduledDayKeys = null
-  let scheduleMap = null
-
-  const { data: assignment } = await supabase
-    .from('teacher_assignments')
-    .select('schedule')
-    .eq('teacher_id', teacher.id)
-    .eq('grade', data.grade)
-    .eq('section', data.section)
-    .eq('subject', data.subject)
-    .maybeSingle()
-
-  if (assignment?.schedule && Object.keys(assignment.schedule).length > 0) {
-    scheduleMap = assignment.schedule
-    scheduledDayKeys = DAY_KEYS.filter(k => scheduleMap[k])
-  }
-
-  // ── Si no hay schedule, usar los 5 días (fallback) ──
-  const activeDayIndices = scheduledDayKeys
-    ? scheduledDayKeys.map(k => DAY_KEYS.indexOf(k))
-    : [0, 1, 2, 3, 4]
-
-  const isos = activeDayIndices.map(i => {
-    const d = new Date(weekMonday); d.setDate(d.getDate() + i); return toISO(d)
-  })
-
-  if (!isos.length) return {}
-
-  // ── Filtrar festivos del calendario escolar ──
-  const { data: calData } = await supabase
-    .from('school_calendar').select('date, is_school_day, name')
-    .eq('school_id', teacher.school_id).in('date', isos)
-  const holMap = {}
-  if (calData) calData.forEach(r => { holMap[r.date] = r })
-
-  const days = {}
-  isos.forEach((iso, idx) => {
-    const cal = holMap[iso]
-    if (!cal || cal.is_school_day !== false) {
-      const dayKey  = scheduledDayKeys ? scheduledDayKeys[idx] : DAY_KEYS[activeDayIndices[idx]]
-      const periods = scheduleMap?.[dayKey] || []
-      const emptyDay = c.days?.[iso] || buildEmptyDay(iso)
-      // Pre-llenar class_periods si el schedule lo sabe y el campo está vacío
-      if (periods.length > 0 && !emptyDay.class_periods) {
-        emptyDay.class_periods = periods.join(' + ')
-      }
-      days[iso] = emptyDay
+  async function buildDaysFromDB(data, c) {
+    let weekMonday
+    if (data.monday_date) {
+      weekMonday = new Date(data.monday_date + 'T12:00:00')
+    } else {
+      const year        = new Date().getFullYear()
+      const schoolStart = new Date(year, 1, 2)
+      const day0        = schoolStart.getDay()
+      const diff0       = day0 === 0 ? -6 : 1 - day0
+      const firstMonday = new Date(schoolStart)
+      firstMonday.setDate(schoolStart.getDate() + diff0)
+      weekMonday = new Date(firstMonday)
+      weekMonday.setDate(firstMonday.getDate() + ((data.week_number || 1) - 1) * 7)
     }
-  })
-  return days
-}
+
+    const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri']
+
+    // ── Consultar schedule desde teacher_assignments ──
+    let scheduledDayKeys = null
+    let scheduleMap = null
+
+    const { data: assignment } = await supabase
+      .from('teacher_assignments')
+      .select('schedule')
+      .eq('teacher_id', teacher.id)
+      .eq('grade', data.grade)
+      .eq('section', data.section)
+      .eq('subject', data.subject)
+      .maybeSingle()
+
+    if (assignment?.schedule && Object.keys(assignment.schedule).length > 0) {
+      scheduleMap = assignment.schedule
+      scheduledDayKeys = DAY_KEYS.filter(k => scheduleMap[k])
+    }
+
+    // ── Si no hay schedule, usar los 5 días (fallback) ──
+    const activeDayIndices = scheduledDayKeys
+      ? scheduledDayKeys.map(k => DAY_KEYS.indexOf(k))
+      : [0, 1, 2, 3, 4]
+
+    const isos = activeDayIndices.map(i => {
+      const d = new Date(weekMonday); d.setDate(d.getDate() + i); return toISO(d)
+    })
+
+    if (!isos.length) return {}
+
+    // ── Filtrar festivos del calendario escolar ──
+    const { data: calData } = await supabase
+      .from('school_calendar').select('date, is_school_day, name')
+      .eq('school_id', teacher.school_id).in('date', isos)
+    const holMap = {}
+    if (calData) calData.forEach(r => { holMap[r.date] = r })
+
+    const days = {}
+    isos.forEach((iso, idx) => {
+      const cal = holMap[iso]
+      if (!cal || cal.is_school_day !== false) {
+        const dayKey  = scheduledDayKeys ? scheduledDayKeys[idx] : DAY_KEYS[activeDayIndices[idx]]
+        const periods = scheduleMap?.[dayKey] || []
+        const emptyDay = c.days?.[iso] || buildEmptyDay(iso)
+        if (periods.length > 0 && !emptyDay.class_periods) {
+          emptyDay.class_periods = periods.join(' + ')
+        }
+        days[iso] = emptyDay
+      }
+    })
+    return days
+  }
 
   // ── Content updaters ──
   function deepClone(obj) { return JSON.parse(JSON.stringify(obj)) }
