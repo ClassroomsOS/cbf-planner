@@ -22,7 +22,7 @@ async function callClaude({ type, system, message, planId, maxTokens }) {
         system,
         message,
         plan_id:    planId    || null,
-        max_tokens: maxTokens || 1000,
+        max_tokens: maxTokens || 2000,
       }),
     }
   )
@@ -107,7 +107,7 @@ RESUMEN:
 
 Dame un análisis pedagógico completo.`
 
-  return callClaude({ type: 'analyze', system, message, planId, maxTokens: 1000 })
+  return callClaude({ type: 'analyze', system, message, planId, maxTokens: 4000 })
 }
 
 // ── Punto 3: Generar estructura completa desde objetivo ───────────────────────
@@ -168,7 +168,7 @@ Las actividades deben progresar lógicamente durante la semana.
 El contenido debe estar en el idioma apropiado para la materia (inglés para Language Arts, español para otras).
 Usa texto plano, no HTML.`
 
-  const raw = await callClaude({ type: 'generate', system, message, planId, maxTokens: 1000 })
+  const raw = await callClaude({ type: 'generate', system, message, planId, maxTokens: 4000 })
 
   try {
     // Extraer JSON aunque Groq agregue texto extra alrededor
