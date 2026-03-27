@@ -9,6 +9,7 @@ import SmartBlocksList from '../components/SmartBlocks'
 import { AISuggestButton, AIAnalyzerModal, AIGeneratorModal } from '../components/AIComponents'
 import CommentsPanel from '../components/CommentsPanel'
 import SectionPreview from '../components/SectionPreview'
+import { useFeatures } from '../context/FeaturesContext'
 import CorrectionRequestModal from '../components/CorrectionRequestModal'
 
 
@@ -91,6 +92,7 @@ export default function GuideEditorPage({ teacher }) {
   const { id }   = useParams()
   const navigate = useNavigate()
   const school   = teacher.schools || {}
+  const { features } = useFeatures()
 
   const [plan,          setPlan]          = useState(null)
   const [content,       setContent]       = useState(null)
@@ -334,18 +336,22 @@ export default function GuideEditorPage({ teacher }) {
           <button className="btn-primary" onClick={doSave} disabled={saveStatus === 'saving'}>
             💾 Guardar
           </button>
-          <button
-            className="btn-secondary"
-            onClick={() => setShowComments(o => !o)}
-            style={{ fontSize: '12px' }}>
-            💬 Comentarios
-          </button>
-          <button
-            className="btn-secondary"
-            onClick={() => setShowCorrections(true)}
-            style={{ fontSize: '12px' }}>
-            🔧 Correcciones
-          </button>
+          {features.comments !== false && (
+            <button
+              className="btn-secondary"
+              onClick={() => setShowComments(o => !o)}
+              style={{ fontSize: '12px' }}>
+              💬 Comentarios
+            </button>
+          )}
+          {features.corrections !== false && (
+            <button
+              className="btn-secondary"
+              onClick={() => setShowCorrections(true)}
+              style={{ fontSize: '12px' }}>
+              🔧 Correcciones
+            </button>
+          )}
           <div className="ge-export-wrap">
             <button className="btn-primary btn-save"
               onClick={() => setExportOpen(o => !o)}>
@@ -363,12 +369,16 @@ export default function GuideEditorPage({ teacher }) {
                   🖨️ PDF (imprimir)
                 </button>
                 <hr style={{ margin: '4px 0', border: 'none', borderTop: '1px solid #e0e6f0' }} />
-                <button onClick={() => { setExportOpen(false); setShowAnalyzer(true) }}>
-                  🔍 Analizar con IA
-                </button>
-                <button onClick={() => { setExportOpen(false); setShowGenerator(true) }}>
-                  🤖 Generar guía con IA
-                </button>
+                {features.ai_analyze !== false && (
+                  <button onClick={() => { setExportOpen(false); setShowAnalyzer(true) }}>
+                    🔍 Analizar con IA
+                  </button>
+                )}
+                {features.ai_generate !== false && (
+                  <button onClick={() => { setExportOpen(false); setShowGenerator(true) }}>
+                    🤖 Generar guía con IA
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -560,6 +570,7 @@ export default function GuideEditorPage({ teacher }) {
 // ── DayPanel ─────────────────────────────────────────────────────────────────
 
 function DayPanel({ iso, day, setContentField, toggleDayActive, openSections, toggleSection, planId, grade, subject, objective, showPreview, setShowPreview }) {
+  const { features } = useFeatures()
   const base = ['days', iso]
 
   return (
@@ -641,7 +652,7 @@ function DayPanel({ iso, day, setContentField, toggleDayActive, openSections, to
                         placeholder="Describe las actividades de esta sección…"
                         minHeight={120}
                       />
-                      {showPreview && (section.content || (section.images && section.images.length > 0)) && (
+                      {features.wysiwyg !== false && showPreview && (section.content || (section.images && section.images.length > 0)) && (
                         <SectionPreview
                           section={section}
                           sectionMeta={s}
@@ -650,7 +661,7 @@ function DayPanel({ iso, day, setContentField, toggleDayActive, openSections, to
                     </div>
 
                     {/* ── Sugerencia IA por sección ── */}
-                    <AISuggestButton
+                    {features.ai_suggest !== false && <AISuggestButton
                       section={s}
                       grade={grade}
                       subject={subject}
@@ -659,7 +670,7 @@ function DayPanel({ iso, day, setContentField, toggleDayActive, openSections, to
                       dayName={getDayName(iso)}
                       existingContent={section.content}
                       onInsert={val => setContentField([...base,'sections',s.key,'content'], val)}
-                    />
+                    />}
 
                     <div className="ge-field">
                       <label>Imágenes</label>

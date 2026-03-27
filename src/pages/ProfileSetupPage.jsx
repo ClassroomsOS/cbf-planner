@@ -32,6 +32,8 @@ export default function ProfileSetupPage({ session, onComplete }) {
       subjects:  [],
       class_subjects: [],
       default_period: '1.er Período 2026',
+      status:    'pending',
+      role:      'teacher',
     })
 
     if (insertError) { setError(insertError.message); setLoading(false); return }
@@ -79,9 +81,8 @@ export default function ProfileSetupPage({ session, onComplete }) {
 
           {error && <div className="alert alert-error">⚠️ {error}</div>}
 
-          <div style={{ background: '#f0f4ff', border: '1px solid #c5d5f0', borderRadius: '8px', padding: '12px 14px', fontSize: '12px', color: '#2E5598', marginTop: '8px' }}>
-            ℹ️ Una vez registrado, el coordinador asignará tus clases y materias.
-            Mientras tanto podrás explorar la app.
+          <div style={{ background: '#fff9f0', border: '1px solid #F79646', borderRadius: '8px', padding: '12px 14px', fontSize: '12px', color: '#8a4f00', marginTop: '8px' }}>
+            ⏳ Tu cuenta quedará pendiente de aprobación por el coordinador antes de poder acceder.
           </div>
         </div>
 

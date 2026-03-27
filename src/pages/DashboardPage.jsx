@@ -10,6 +10,8 @@ import AIUsagePage         from './AIUsagePage'
 import GuideEditorPage     from './GuideEditorPage'
 import MessagesPage        from './MessagesPage'
 import ProfileModal        from '../components/ProfileModal'
+import SettingsPage         from './SettingsPage'
+import { FeaturesProvider } from '../context/FeaturesContext'
 
 export default function DashboardPage({ session, teacher, setTeacher }) {
   const [showProfile, setShowProfile] = useState(false)
@@ -17,6 +19,7 @@ export default function DashboardPage({ session, teacher, setTeacher }) {
   const navigate = useNavigate()
 
   const isAdmin = teacher.role === 'admin'
+  const { features } = useFeatures()
   const [unread,        setUnread]        = useState(0)
   const [unreadMessages, setUnreadMessages] = useState(0)
 
@@ -69,6 +72,7 @@ export default function DashboardPage({ session, teacher, setTeacher }) {
     teacher.full_name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
 
   return (
+    <FeaturesProvider schoolId={teacher.school_id}>
     <div className="app">
       <button className="btn-hamburger"
         onClick={() => setSidebarOpen(o => !o)} aria-label="Abrir menú">☰</button>
@@ -97,17 +101,19 @@ export default function DashboardPage({ session, teacher, setTeacher }) {
 
           <div className="sb-nav-divider" />
 
-          <NavLink to="/messages"
-            className={({ isActive }) => isActive ? 'active' : ''}
-            onClick={closeSidebar}>
-            <span className="dot" style={{ background: '#4BACC6' }} />
-            Mensajes
-            {unreadMessages > 0 && (
-              <span className="sb-notif-badge" style={{ background: '#4BACC6' }}>
-                {unreadMessages}
-              </span>
-            )}
-          </NavLink>
+          {features.messages !== false && (
+            <NavLink to="/messages"
+              className={({ isActive }) => isActive ? 'active' : ''}
+              onClick={closeSidebar}>
+              <span className="dot" style={{ background: '#4BACC6' }} />
+              Mensajes
+              {unreadMessages > 0 && (
+                <span className="sb-notif-badge" style={{ background: '#4BACC6' }}>
+                  {unreadMessages}
+                </span>
+              )}
+            </NavLink>
+          )}
 
           <NavLink to="/ai-usage"
             className={({ isActive }) => isActive ? 'active' : ''}
@@ -139,6 +145,13 @@ export default function DashboardPage({ session, teacher, setTeacher }) {
                 Calendario
                 <span className="sb-admin-badge">Admin</span>
               </NavLink>
+              <NavLink to="/settings"
+                className={({ isActive }) => isActive ? 'active' : ''}
+                onClick={closeSidebar}>
+                <span className="dot" style={{ background: '#555' }} />
+                ⚙️ Panel de control
+                <span className="sb-admin-badge">Admin</span>
+              </NavLink>
             </>
           )}
         </nav>
@@ -166,6 +179,7 @@ export default function DashboardPage({ session, teacher, setTeacher }) {
               <Route path="/calendar"      element={<CalendarPage      teacher={teacher} />} />
               <Route path="/notifications" element={<NotificationsPage teacher={teacher} onRead={() => setUnread(0)} />} />
               <Route path="/teachers"      element={<AdminTeachersPage teacher={teacher} />} />
+              <Route path="/settings"      element={<SettingsPage      teacher={teacher} />} />
             </>
           )}
         </Routes>
@@ -179,5 +193,6 @@ export default function DashboardPage({ session, teacher, setTeacher }) {
         />
       )}
     </div>
+    </FeaturesProvider>
   )
 }

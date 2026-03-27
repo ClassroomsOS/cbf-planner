@@ -84,8 +84,67 @@ export default function AdminTeachersPage({ teacher: admin }) {
           </span>
         </div>
 
+        {/* ── Pending approvals ── */}
+        {teachers.filter(t => t.status === 'pending').length > 0 && (
+          <div style={{
+            background: '#fff9f0', border: '2px solid #F79646',
+            borderRadius: '10px', padding: '14px', marginBottom: '16px',
+          }}>
+            <div style={{ fontWeight: 700, fontSize: '13px', color: '#8a4f00', marginBottom: '10px' }}>
+              ⏳ Solicitudes pendientes de aprobación ({teachers.filter(t => t.status === 'pending').length})
+            </div>
+            {teachers.filter(t => t.status === 'pending').map(t => (
+              <div key={t.id} style={{
+                display: 'flex', alignItems: 'center', gap: '10px',
+                padding: '10px 12px', background: '#fff', borderRadius: '8px',
+                border: '1px solid #fde8c8', marginBottom: '6px',
+              }}>
+                <div style={{
+                  width: '36px', height: '36px', borderRadius: '50%',
+                  background: '#F79646', color: '#fff',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: '13px', fontWeight: 700, flexShrink: 0,
+                }}>
+                  {t.initials || t.full_name.slice(0,2).toUpperCase()}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#1F3864' }}>{t.full_name}</div>
+                  <div style={{ fontSize: '11px', color: '#888' }}>{t.email}</div>
+                </div>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <button
+                    onClick={async () => {
+                      await supabase.from('teachers').update({ status: 'approved' }).eq('id', t.id)
+                      setTeachers(prev => prev.map(x => x.id === t.id ? { ...x, status: 'approved' } : x))
+                    }}
+                    style={{
+                      background: '#9BBB59', color: '#fff', border: 'none',
+                      padding: '5px 12px', borderRadius: '6px', fontSize: '12px',
+                      fontWeight: 700, cursor: 'pointer',
+                    }}>
+                    ✅ Aprobar
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (!confirm(`¿Rechazar a ${t.full_name}?`)) return
+                      await supabase.from('teachers').update({ status: 'rejected' }).eq('id', t.id)
+                      setTeachers(prev => prev.map(x => x.id === t.id ? { ...x, status: 'rejected' } : x))
+                    }}
+                    style={{
+                      background: '#C0504D', color: '#fff', border: 'none',
+                      padding: '5px 12px', borderRadius: '6px', fontSize: '12px',
+                      fontWeight: 700, cursor: 'pointer',
+                    }}>
+                    ❌ Rechazar
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {teachers.map(t => {
+          {teachers.filter(t => t.status !== 'pending').map(t => {
             const tas = getTeacherAssignments(t.id)
             const isAdmin = t.role === 'admin'
             return (
@@ -127,28 +186,7 @@ export default function AdminTeachersPage({ teacher: admin }) {
                     )}
                   </div>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-end', flexShrink: 0 }}>
-                  {!isAdmin && <span className="mp-arrow">→</span>}
-                  {t.id !== admin.id && (
-                    <button
-                      onClick={async e => {
-                        e.stopPropagation()
-                        const newRole = t.role === 'admin' ? 'teacher' : 'admin'
-                        if (!confirm(`¿Cambiar rol de ${t.full_name} a ${newRole === 'admin' ? 'Admin' : 'Docente'}?`)) return
-                        await supabase.from('teachers').update({ role: newRole }).eq('id', t.id)
-                        setTeachers(prev => prev.map(x => x.id === t.id ? { ...x, role: newRole } : x))
-                      }}
-                      style={{
-                        fontSize: '10px', padding: '3px 8px', borderRadius: '6px',
-                        border: `1px solid ${isAdmin ? '#C0504D' : '#2E5598'}`,
-                        background: 'transparent',
-                        color: isAdmin ? '#C0504D' : '#2E5598',
-                        cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap',
-                      }}>
-                      {isAdmin ? '↓ Quitar admin' : '↑ Hacer admin'}
-                    </button>
-                  )}
-                </div>
+                {!isAdmin && <span className="mp-arrow">→</span>}
               </div>
             )
           })}

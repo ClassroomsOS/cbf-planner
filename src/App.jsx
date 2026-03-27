@@ -4,6 +4,8 @@ import { supabase } from './supabase'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 import ProfileSetupPage from './pages/ProfileSetupPage'
+import PendingPage from './pages/PendingPage'
+import RejectedPage from './pages/RejectedPage'
 
 export default function App() {
   const [session, setSession] = useState(undefined) // undefined = loading
@@ -61,11 +63,27 @@ export default function App() {
           <ProfileSetupPage session={session} onComplete={setTeacher} />
         } />
 
+        {/* Pending approval */}
+        <Route path="/pending" element={
+          !session ? <Navigate to="/login" replace /> :
+          !teacher ? <Navigate to="/setup" replace /> :
+          teacher.status !== 'pending' ? <Navigate to="/" replace /> :
+          <PendingPage teacher={teacher} />
+        } />
+
         {/* Main app */}
         <Route path="/*" element={
           !session ? <Navigate to="/login" replace /> :
           !teacher ? <Navigate to="/setup" replace /> :
+          teacher.status === 'pending' ? <Navigate to="/pending" replace /> :
+          teacher.status === 'rejected' ? <Navigate to="/rejected" replace /> :
           <DashboardPage session={session} teacher={teacher} setTeacher={setTeacher} />
+        } />
+
+        {/* Rejected */}
+        <Route path="/rejected" element={
+          !session ? <Navigate to="/login" replace /> :
+          <RejectedPage />
         } />
       </Routes>
     </BrowserRouter>

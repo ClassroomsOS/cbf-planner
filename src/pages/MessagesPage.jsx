@@ -1,7 +1,19 @@
 import { useState, useEffect } from 'react'
+import { useFeatures } from '../context/FeaturesContext'
 import { supabase } from '../supabase'
 
 export default function MessagesPage({ teacher }) {
+  const { features } = useFeatures()
+  if (features.messages === false) return (
+    <div className="planner-wrap">
+      <div className="card">
+        <div className="empty-state">
+          <div style={{ fontSize: '48px' }}>🔒</div>
+          <p>Los mensajes están desactivados para este colegio.</p>
+        </div>
+      </div>
+    </div>
+  )
   const [messages,    setMessages]    = useState([])
   const [teachers,    setTeachers]    = useState([])
   const [loading,     setLoading]     = useState(true)
