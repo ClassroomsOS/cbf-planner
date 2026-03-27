@@ -44,7 +44,7 @@ function formatRange(days) {
   if (m1 === m2) return `${m1} ${first.getDate()}–${last.getDate()}, ${first.getFullYear()}`
   return `${m1} ${first.getDate()} – ${m2} ${last.getDate()}, ${last.getFullYear()}`
 }
-
+/* 
 function toWeekInputValue(monday) {
   const d = new Date(monday)
   d.setHours(0,0,0,0)
@@ -63,7 +63,7 @@ function fromWeekInputValue(val) {
   monday.setDate(startOfWeek1.getDate() + (week - 1) * 7)
   return monday
 }
-
+*/
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function PlannerPage({ teacher }) {
@@ -216,9 +216,14 @@ export default function PlannerPage({ teacher }) {
             <button className="btn-week-nav"
               onClick={() => { const d = new Date(monday); d.setDate(d.getDate()-7); setMonday(d) }}>‹</button>
             <div className="week-input-wrap">
-              <label>Semana del</label>
-              <input type="week" value={toWeekInputValue(monday)}
-                onChange={e => setMonday(fromWeekInputValue(e.target.value))} />
+              <label>Ir a semana del</label>
+              <input
+                type="date"
+                value={toISO(monday)}
+                onChange={e => {
+                  if (e.target.value) setMonday(getMondayOf(new Date(e.target.value + 'T12:00:00')))
+                }}
+              />
             </div>
             <button className="btn-week-nav"
               onClick={() => { const d = new Date(monday); d.setDate(d.getDate()+7); setMonday(d) }}>›</button>
