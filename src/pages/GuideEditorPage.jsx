@@ -8,6 +8,7 @@ import ImageUploader from '../components/ImageUploader'
 import SmartBlocksList from '../components/SmartBlocks'
 import { AISuggestButton, AIAnalyzerModal, AIGeneratorModal } from '../components/AIComponents'
 import CommentsPanel from '../components/CommentsPanel'
+import SectionPreview from '../components/SectionPreview'
 import CorrectionRequestModal from '../components/CorrectionRequestModal'
 
 
@@ -103,6 +104,7 @@ export default function GuideEditorPage({ teacher }) {
   const [showGenerator,   setShowGenerator]   = useState(false)
   const [showComments,    setShowComments]    = useState(false)
   const [showCorrections, setShowCorrections] = useState(false)
+  const [showPreview,     setShowPreview]     = useState(true)
 
   const dirtyRef   = useRef(false)
   const contentRef = useRef(null)
@@ -130,62 +132,12 @@ export default function GuideEditorPage({ teacher }) {
       } else if (!c.days || Object.keys(c.days).length === 0) {
         c.days = await buildDaysFromDB(data, c)
       }
-      // ── Integrar horario del schedule ──
-      c.days = await applyScheduleToDays(c.days, data.grade, data.subject)
       setContent(c)
       contentRef.current = c
       setLoading(false)
     }
     load()
   }, [id])
-
-  // ── Aplicar schedule de teacher_assignments a los días ──
-  async function applyScheduleToDays(days, grade, subject) {
-    const DAY_KEYS = { 1:'mon', 2:'tue', 3:'wed', 4:'thu', 5:'fri' }
-    try {
-      const { data: assign } = await supabase
-        .from('teacher_assignments')
-        .select('schedule')
-        .eq('teacher_id', teacher.id)
-        .eq('school_id', teacher.school_id)
-        .ilike('grade', grade || '')
-        .ilike('subject', subject || '')
-        .maybeSingle()
-
-      if (!assign?.schedule) return days
-
-      const schedule = assign.schedule // { mon: ['1st'], thu: ['3rd','4th'], ... }
-      const updated = { ...days }
-
-      Object.keys(updated).forEach(iso => {
-        const d = new Date(iso + 'T12:00:00')
-        const dayKey = DAY_KEYS[d.getDay()]
-        if (!dayKey) return
-
-        const periods = schedule[dayKey] // e.g. ['3rd','4th'] or undefined
-        const day = { ...updated[iso] }
-
-        if (!periods || periods.length === 0) {
-          // No class this day according to schedule — mark inactive
-          // Only if class_periods is empty (respect manual edits)
-          if (!day.class_periods) {
-            day.active = false
-          }
-        } else {
-          // Pre-fill class_periods only if empty
-          if (!day.class_periods) {
-            day.class_periods = periods.join(' + ')
-          }
-          day.active = true
-        }
-        updated[iso] = day
-      })
-
-      return updated
-    } catch {
-      return days
-    }
-  }
 
   async function buildDaysFromDB(data, c) {
     let weekMonday
@@ -545,6 +497,8 @@ export default function GuideEditorPage({ teacher }) {
               grade={content.info.grado}
               subject={content.info.asignatura}
               objective={content.objetivo.general}
+              showPreview={showPreview}
+              setShowPreview={setShowPreview}
             />
           )}
 
@@ -604,7 +558,7 @@ export default function GuideEditorPage({ teacher }) {
 
 // ── DayPanel ─────────────────────────────────────────────────────────────────
 
-function DayPanel({ iso, day, setContentField, toggleDayActive, openSections, toggleSection, planId, grade, subject, objective }) {
+function DayPanel({ iso, day, setContentField, toggleDayActive, openSections, toggleSection, planId, grade, subject, objective, showPreview, setShowPreview }) {
   const base = ['days', iso]
 
   return (
@@ -668,13 +622,30 @@ function DayPanel({ iso, day, setContentField, toggleDayActive, openSections, to
                         onChange={e => setContentField([...base,'sections',s.key,'time'], e.target.value)} />
                     </div>
                     <div className="ge-field">
-                      <label>Contenido / Actividades</label>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                        <label style={{ margin: 0 }}>Contenido / Actividades</label>
+                        <button
+                          onClick={() => setShowPreview(v => !v)}
+                          style={{
+                            fontSize: '11px', padding: '2px 8px', borderRadius: '6px',
+                            border: '1px solid #c5d5f0', background: showPreview ? '#f0f4ff' : '#fff',
+                            color: '#2E5598', cursor: 'pointer', fontWeight: 600,
+                          }}>
+                          {showPreview ? '👁 Ocultar preview' : '👁 Ver preview'}
+                        </button>
+                      </div>
                       <RichEditor
                         value={section.content || ''}
                         onChange={val => setContentField([...base,'sections',s.key,'content'], val)}
                         placeholder="Describe las actividades de esta sección…"
                         minHeight={120}
                       />
+                      {showPreview && (section.content || (section.images && section.images.length > 0)) && (
+                        <SectionPreview
+                          section={section}
+                          sectionMeta={s}
+                        />
+                      )}
                     </div>
 
                     {/* ── Sugerencia IA por sección ── */}
