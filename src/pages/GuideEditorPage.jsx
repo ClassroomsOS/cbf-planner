@@ -112,6 +112,7 @@ export default function GuideEditorPage({ teacher }) {
       if (error || !data) { navigate('/'); return }
       setPlan(data)
       let c = data.content || {}
+      const savedDays = c.days && Object.keys(c.days).length > 0 ? c.days : null
       if (!c.header) {
         c = buildInitialContent(
           { grade: data.grade, subject: data.subject, period: data.period,
@@ -119,7 +120,10 @@ export default function GuideEditorPage({ teacher }) {
           teacher, school
         )
       }
-      if (!c.days || Object.keys(c.days).length === 0) {
+      // Restore AI-generated days if they existed before buildInitialContent
+      if (savedDays) {
+        c.days = savedDays
+      } else if (!c.days || Object.keys(c.days).length === 0) {
         c.days = await buildDaysFromDB(data, c)
       }
       setContent(c)
