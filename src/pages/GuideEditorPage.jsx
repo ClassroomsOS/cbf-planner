@@ -7,6 +7,8 @@ import { exportHtml, exportPdf } from '../utils/exportHtml'
 import ImageUploader from '../components/ImageUploader'
 import SmartBlocksList from '../components/SmartBlocks'
 import { AISuggestButton, AIAnalyzerModal, AIGeneratorModal } from '../components/AIComponents'
+import CommentsPanel from '../components/CommentsPanel'
+import CorrectionRequestModal from '../components/CorrectionRequestModal'
 
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -98,7 +100,9 @@ export default function GuideEditorPage({ teacher }) {
   const [loading,       setLoading]       = useState(true)
   // ── IA modals ──
   const [showAnalyzer,  setShowAnalyzer]  = useState(false)
-  const [showGenerator, setShowGenerator] = useState(false)
+  const [showGenerator,   setShowGenerator]   = useState(false)
+  const [showComments,    setShowComments]    = useState(false)
+  const [showCorrections, setShowCorrections] = useState(false)
 
   const dirtyRef   = useRef(false)
   const contentRef = useRef(null)
@@ -327,6 +331,18 @@ export default function GuideEditorPage({ teacher }) {
           <button className="btn-primary" onClick={doSave} disabled={saveStatus === 'saving'}>
             💾 Guardar
           </button>
+          <button
+            className="btn-secondary"
+            onClick={() => setShowComments(o => !o)}
+            style={{ fontSize: '12px' }}>
+            💬 Comentarios
+          </button>
+          <button
+            className="btn-secondary"
+            onClick={() => setShowCorrections(true)}
+            style={{ fontSize: '12px' }}>
+            🔧 Correcciones
+          </button>
           <div className="ge-export-wrap">
             <button className="btn-primary btn-save"
               onClick={() => setExportOpen(o => !o)}>
@@ -501,6 +517,22 @@ export default function GuideEditorPage({ teacher }) {
         <AIAnalyzerModal
           content={contentRef.current}
           onClose={() => setShowAnalyzer(false)}
+        />
+      )}
+
+      {showComments && (
+        <CommentsPanel
+          planId={id}
+          teacher={teacher}
+          onClose={() => setShowComments(false)}
+        />
+      )}
+
+      {showCorrections && (
+        <CorrectionRequestModal
+          planId={id}
+          teacher={teacher}
+          onClose={() => setShowCorrections(false)}
         />
       )}
 

@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react'
 import { Routes, Route, NavLink, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
-import PlannerPage      from './PlannerPage'
-import MyPlansPage      from './MyPlansPage'
-import CalendarPage         from './CalendarPage'
-import NotificationsPage    from './NotificationsPage'
+import PlannerPage         from './PlannerPage'
+import MyPlansPage         from './MyPlansPage'
+import CalendarPage        from './CalendarPage'
+import NotificationsPage   from './NotificationsPage'
 import AdminTeachersPage   from './AdminTeachersPage'
 import AIUsagePage         from './AIUsagePage'
-import GuideEditorPage  from './GuideEditorPage'
-import ProfileModal     from '../components/ProfileModal'
+import GuideEditorPage     from './GuideEditorPage'
+import MessagesPage        from './MessagesPage'
+import ProfileModal        from '../components/ProfileModal'
 
 export default function DashboardPage({ session, teacher, setTeacher }) {
   const [showProfile, setShowProfile] = useState(false)
@@ -16,27 +17,42 @@ export default function DashboardPage({ session, teacher, setTeacher }) {
   const navigate = useNavigate()
 
   const isAdmin = teacher.role === 'admin'
-  const [unread, setUnread] = useState(0)
+  const [unread,        setUnread]        = useState(0)
+  const [unreadMessages, setUnreadMessages] = useState(0)
 
   useEffect(() => {
-    async function fetchUnread() {
-      const query = supabase
-        .from('notifications')
-        .select('id', { count: 'exact', head: true })
-        .eq('read', false)
-        .eq('school_id', teacher.school_id)
-      if (isAdmin) {
-        query.eq('to_role', 'admin')
-      } else {
-        query.eq('from_id', teacher.id).eq('to_role', 'teacher')
-      }
-      const { count } = await query
-      setUnread(count || 0)
-    }
     fetchUnread()
-    const interval = setInterval(fetchUnread, 60000)
+    fetchUnreadMessages()
+    const interval = setInterval(() => {
+      fetchUnread()
+      fetchUnreadMessages()
+    }, 60000)
     return () => clearInterval(interval)
   }, [teacher.id, isAdmin])
+
+  async function fetchUnread() {
+    const query = supabase
+      .from('notifications')
+      .select('id', { count: 'exact', head: true })
+      .eq('read', false)
+      .eq('school_id', teacher.school_id)
+    if (isAdmin) {
+      query.eq('to_role', 'admin')
+    } else {
+      query.eq('from_id', teacher.id).eq('to_role', 'teacher')
+    }
+    const { count } = await query
+    setUnread(count || 0)
+  }
+
+  async function fetchUnreadMessages() {
+    const { count } = await supabase
+      .from('messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('to_id', teacher.id)
+      .eq('read', false)
+    setUnreadMessages(count || 0)
+  }
 
   async function handleLogout() {
     await supabase.auth.signOut()
@@ -50,7 +66,6 @@ export default function DashboardPage({ session, teacher, setTeacher }) {
 
   return (
     <div className="app">
-
       <button className="btn-hamburger"
         onClick={() => setSidebarOpen(o => !o)} aria-label="Abrir menú">☰</button>
 
@@ -75,7 +90,21 @@ export default function DashboardPage({ session, teacher, setTeacher }) {
             <span className="dot" style={{ background: '#9BBB59' }} />
             Mis Guías
           </NavLink>
+
           <div className="sb-nav-divider" />
+
+          <NavLink to="/messages"
+            className={({ isActive }) => isActive ? 'active' : ''}
+            onClick={closeSidebar}>
+            <span className="dot" style={{ background: '#4BACC6' }} />
+            Mensajes
+            {unreadMessages > 0 && (
+              <span className="sb-notif-badge" style={{ background: '#4BACC6' }}>
+                {unreadMessages}
+              </span>
+            )}
+          </NavLink>
+
           <NavLink to="/ai-usage"
             className={({ isActive }) => isActive ? 'active' : ''}
             onClick={closeSidebar}>
@@ -123,16 +152,16 @@ export default function DashboardPage({ session, teacher, setTeacher }) {
 
       <div className="main">
         <Routes>
-          <Route path="/"              element={<PlannerPage     teacher={teacher} />} />
-          <Route path="/plans"         element={<MyPlansPage     teacher={teacher} />} />
-          <Route path="/editor/:id"    element={<GuideEditorPage teacher={teacher} />} />
-          <Route path="/ai-usage" element={<AIUsagePage teacher={teacher} />} />
-
+          <Route path="/"           element={<PlannerPage     teacher={teacher} />} />
+          <Route path="/plans"      element={<MyPlansPage     teacher={teacher} />} />
+          <Route path="/editor/:id" element={<GuideEditorPage teacher={teacher} />} />
+          <Route path="/ai-usage"   element={<AIUsagePage     teacher={teacher} />} />
+          <Route path="/messages"   element={<MessagesPage    teacher={teacher} onUpdate={fetchUnreadMessages} />} />
           {isAdmin && (
             <>
-              <Route path="/calendar"       element={<CalendarPage       teacher={teacher} />} />
-              <Route path="/notifications"  element={<NotificationsPage  teacher={teacher} onRead={() => setUnread(0)} />} />
-              <Route path="/teachers"       element={<AdminTeachersPage  teacher={teacher} />} />
+              <Route path="/calendar"      element={<CalendarPage      teacher={teacher} />} />
+              <Route path="/notifications" element={<NotificationsPage teacher={teacher} onRead={() => setUnread(0)} />} />
+              <Route path="/teachers"      element={<AdminTeachersPage teacher={teacher} />} />
             </>
           )}
         </Routes>
