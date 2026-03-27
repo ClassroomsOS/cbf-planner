@@ -270,13 +270,36 @@ export async function exportGuideDocx(content, filename) {
 
   // ── TABLE 0: Institutional header ──
   const hCols = [1400, 8000, 1400]
+
+  // Fetch logo if available
+  let logoCell
+  if (h.logo_url) {
+    try {
+      const logoData = await fetchImageData(h.logo_url)
+      if (logoData) {
+        logoCell = mkCell([new Paragraph({
+          alignment: AlignmentType.CENTER,
+          spacing: { before: 0, after: 0 },
+          children: [new ImageRun({
+            data: logoData.data,
+            type: logoData.type,
+            transformation: { width: 80, height: 80 },
+          })],
+        })], hCols[0], { borders: allB(bBlue), margins: { top: 60, bottom: 60, left: 80, right: 80 } })
+      }
+    } catch {}
+  }
+  if (!logoCell) {
+    logoCell = mkCell([mkP(mkR('LOGO', { size: 18, color: '999999' }), AlignmentType.CENTER)],
+      hCols[0], { borders: allB(bBlue), margins: { top: 200, bottom: 200, left: 100, right: 100 } })
+  }
+
   const headerTable = new Table({
     width:        { size: PW, type: WidthType.DXA },
     columnWidths: hCols,
     rows: [
       new TableRow({ children: [
-        mkCell([mkP(mkR('LOGO', { size: 18, color: '999999' }), AlignmentType.CENTER)],
-          hCols[0], { borders: allB(bBlue), margins: { top: 200, bottom: 200, left: 100, right: 100 } }),
+        logoCell,
         mkCell([
           mkP(mkR(h.school || 'COLEGIO BOSTON FLEXIBLE', { bold: true, size: 24, color: '1F3864' }), AlignmentType.CENTER),
           mkP(mkR(h.dane   || '', { size: 16, color: '666666' }), AlignmentType.CENTER),

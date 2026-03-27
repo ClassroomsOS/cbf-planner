@@ -121,7 +121,12 @@ export function buildHtml(content) {
 <!-- Encabezado institucional -->
 <table style="width:100%;border:2px solid #2E5598;border-collapse:collapse;margin-bottom:12px">
   <tr>
-    <td style="width:120px;border:1px solid #2E5598;padding:8px;text-align:center;color:#aaa;font-size:12px">LOGO</td>
+    <td style="width:120px;border:1px solid #2E5598;padding:8px;text-align:center">
+      ${h.logo_url
+        ? `<img src="${h.logo_url}" style="max-height:80px;max-width:100px;width:auto;height:auto;object-fit:contain">`
+        : '<div style="color:#aaa;font-size:11px">LOGO</div>'
+      }
+    </td>
     <td style="border:1px solid #2E5598;padding:8px;text-align:center">
       <div style="font-weight:700;font-size:16px">${esc(h.school)}</div>
       <div style="font-size:11px;color:#555;margin-top:2px">${esc(h.dane)}</div>

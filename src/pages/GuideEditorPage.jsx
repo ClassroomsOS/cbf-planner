@@ -355,7 +355,37 @@ export default function GuideEditorPage({ teacher }) {
                 {inputField('Versión', content.header.version, ['header','version'], 'Versión 02 Febrero 2022')}
               </div>
               {inputField('Proceso', content.header.proceso, ['header','proceso'])}
-              <div className="ge-info-box">💡 El logo se integrará en la exportación DOCX en la Fase 2.</div>
+              <div className="ge-field">
+                <label>Logo del colegio</label>
+                {content.header.logo_url ? (
+                  <div className="logo-preview-wrap">
+                    <img src={content.header.logo_url} alt="Logo" className="logo-preview-img" />
+                    <button className="logo-remove-btn"
+                      onClick={() => setContentField(['header','logo_url'], null)}>
+                      ✕ Quitar logo
+                    </button>
+                  </div>
+                ) : (
+                  <label className="logo-upload-area">
+                    <input type="file" accept="image/*" style={{ display:'none' }}
+                      onChange={async e => {
+                        const file = e.target.files[0]
+                        if (!file) return
+                        const ext  = file.name.split('.').pop()
+                        const path = `logos/${teacher.school_id}/${Date.now()}.${ext}`
+                        const { error } = await supabase.storage
+                          .from('guide-images')
+                          .upload(path, file, { upsert: true })
+                        if (!error) {
+                          const { data: urlData } = supabase.storage
+                            .from('guide-images').getPublicUrl(path)
+                          setContentField(['header','logo_url'], urlData.publicUrl)
+                        }
+                      }} />
+                    🏫 Clic para subir logo del colegio
+                  </label>
+                )}
+              </div>
             </div>
           )}
 

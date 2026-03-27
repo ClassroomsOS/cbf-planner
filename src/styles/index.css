@@ -1954,3 +1954,31 @@ input:focus, select:focus, textarea:focus {
   border-top: 1px solid #eee;
   background: #f8f4ff;
 }
+
+/* ── Logo uploader in header panel ── */
+.logo-upload-area {
+  display: flex; align-items: center; justify-content: center;
+  border: 2px dashed #dde5f0; border-radius: 8px;
+  padding: 20px; cursor: pointer;
+  background: #f8fbff; font-size: 13px; color: #888;
+  transition: all .15s;
+}
+.logo-upload-area:hover { border-color: #4BACC6; background: #eef7ff; color: #2E5598; }
+
+.logo-preview-wrap {
+  display: flex; align-items: center; gap: 16px;
+  padding: 12px; background: #f8fbff;
+  border: 1.5px solid #dde5f0; border-radius: 8px;
+}
+.logo-preview-img {
+  max-height: 80px; max-width: 120px;
+  width: auto; height: auto; object-fit: contain;
+  border-radius: 4px;
+}
+.logo-remove-btn {
+  background: none; border: 1.5px solid #cc3333;
+  color: #cc3333; border-radius: 6px;
+  padding: 5px 12px; font-size: 12px; font-weight: 700;
+  cursor: pointer; transition: all .15s;
+}
+.logo-remove-btn:hover { background: #fff0f0; }
