@@ -19,21 +19,17 @@ serve(async (req) => {
 
     const body = await req.json()
 
-    // Build messages array (OpenAI/Groq format)
     const messages = []
-
-    // System message
     if (body.system) {
       messages.push({ role: 'system', content: body.system })
     }
-
-    // User message — AIAssistant.js sends `message` (string)
     if (body.messages) {
       messages.push(...body.messages)
     } else {
       messages.push({ role: 'user', content: body.message || '' })
     }
 
+    // Use llama-3.1-8b-instant: 20000 TPM free — much higher limits than 70b
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -41,8 +37,8 @@ serve(async (req) => {
         'Authorization': `Bearer ${GROQ_API_KEY}`,
       },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        max_tokens: body.max_tokens || 1024,
+        model: 'llama-3.1-8b-instant',
+        max_tokens: body.max_tokens || 2000,
         temperature: 0.7,
         messages,
       }),
@@ -51,13 +47,14 @@ serve(async (req) => {
     const data = await response.json()
 
     if (!response.ok) {
-      throw new Error(data.error?.message || 'Groq API error')
+      throw new Error(data.error?.message || `Groq error ${response.status}`)
     }
 
-    // AIAssistant.js expects: data.text
     const text = data.choices?.[0]?.message?.content || ''
+    const finish_reason = data.choices?.[0]?.finish_reason || ''
 
-    return new Response(JSON.stringify({ text }), {
+    // Return text + debug info
+    return new Response(JSON.stringify({ text, finish_reason, usage: data.usage }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
 
