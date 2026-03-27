@@ -104,12 +104,14 @@ export function AIAnalyzerModal({ content, onClose }) {
     ]
 
     let result = text
-    sections.forEach(s => {
+    for (var fIdx = 0; fIdx < sections.length; fIdx++) {
+      var fs = sections[fIdx]
+      var escaped = fs.marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
       result = result.replace(
-        new RegExp(`(${s.marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'g'),
-        `\n§SECTION§${s.marker}§${s.color}§${s.bg}§`
+        new RegExp('(' + escaped + ')', 'g'),
+        '\n§SECTION§' + fs.marker + '§' + fs.color + '§' + fs.bg + '§'
       )
-    })
+    }
 
     return result.split('\n§SECTION§').map((block, i) => {
       if (i === 0) return block ? (
@@ -298,8 +300,8 @@ export function AIGeneratorModal({ grade, subject, period, activeDays, onApply, 
 
               {/* Days preview */}
               {Object.entries(preview.days || {})
-                .sort(([a],[b]) => a.localeCompare(b))
-                .map(([iso, day]) => {
+                .sort(function(ea, eb) { return ea[0].localeCompare(eb[0]) })
+                .map(function(de) { var iso=de[0], day=de[1];
                   const d = new Date(iso + 'T12:00:00')
                   const names = ['Lunes','Martes','Miércoles','Jueves','Viernes']
                   return (
@@ -308,12 +310,12 @@ export function AIGeneratorModal({ grade, subject, period, activeDays, onApply, 
                         📅 {names[d.getDay()-1]} — {iso}
                         {day.unit && <span style={{ opacity: .7, fontWeight: 400, marginLeft: '8px' }}>· {day.unit}</span>}
                       </div>
-                      {Object.entries(day.sections || {}).map(([key, s]) => (
+                      {Object.entries(day.sections || {}).map(function(se) { var key=se[0], s=se[1]; return (
                         <div key={key} style={{ padding: '8px 14px', borderBottom: '1px solid #eee', fontSize: '12px' }}>
                           <span style={{ fontWeight: 700, color: '#2E5598', marginRight: '8px' }}>{SECTION_LABELS[key]}:</span>
                           <span style={{ color: '#444', lineHeight: 1.5 }}>{s.content}</span>
                         </div>
-                      ))}
+                      )})}}
                     </div>
                   )
                 })}
