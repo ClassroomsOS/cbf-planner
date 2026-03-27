@@ -210,8 +210,8 @@ export function AIGeneratorModal({ grade, subject, period, activeDays, currentCo
   }
 
   function handleApply() {
-    if (!preview || !currentContent) return
-    // Merge preview into currentContent here — avoids minification issues in parent
+    if (!preview) { alert('No preview'); return }
+    if (!currentContent) { alert('currentContent is null/undefined — prop not received'); return }
     var base = JSON.parse(JSON.stringify(currentContent))
     if (preview.objetivo) {
       if (preview.objetivo.general)   base.objetivo.general   = preview.objetivo.general
