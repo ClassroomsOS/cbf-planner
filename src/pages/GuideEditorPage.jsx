@@ -6,6 +6,7 @@ import { exportGuideDocx } from '../utils/exportDocx'
 import { exportHtml, exportPdf } from '../utils/exportHtml'
 import ImageUploader from '../components/ImageUploader'
 import SmartBlocksList from '../components/SmartBlocks'
+import { AISuggestButton, AIAnalyzerModal, AIGeneratorModal } from '../components/AIComponents'
 
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -86,13 +87,16 @@ export default function GuideEditorPage({ teacher }) {
   const navigate = useNavigate()
   const school   = teacher.schools || {}
 
-  const [plan,         setPlan]         = useState(null)
-  const [content,      setContent]      = useState(null)
-  const [activePanel,  setActivePanel]  = useState('header')
-  const [openSections, setOpenSections] = useState({})
-  const [saveStatus,   setSaveStatus]   = useState('saved')
-  const [exportOpen,   setExportOpen]   = useState(false)
-  const [loading,      setLoading]      = useState(true)
+  const [plan,          setPlan]          = useState(null)
+  const [content,       setContent]       = useState(null)
+  const [activePanel,   setActivePanel]   = useState('header')
+  const [openSections,  setOpenSections]  = useState({})
+  const [saveStatus,    setSaveStatus]    = useState('saved')
+  const [exportOpen,    setExportOpen]    = useState(false)
+  const [loading,       setLoading]       = useState(true)
+  // ── IA modals ──
+  const [showAnalyzer,  setShowAnalyzer]  = useState(false)
+  const [showGenerator, setShowGenerator] = useState(false)
 
   const dirtyRef   = useRef(false)
   const contentRef = useRef(null)
@@ -124,7 +128,6 @@ export default function GuideEditorPage({ teacher }) {
   }, [id])
 
   async function buildDaysFromDB(data, c) {
-    // Use monday_date if available (reliable), fallback to week_number hack
     let weekMonday
     if (data.monday_date) {
       weekMonday = new Date(data.monday_date + 'T12:00:00')
@@ -198,6 +201,36 @@ export default function GuideEditorPage({ teacher }) {
     setOpenSections(prev => ({ ...prev, [key]: !prev[key] }))
   }
 
+  // ── IA: aplicar guía generada ──
+  function handleApplyGenerated(preview) {
+    setContent(prev => {
+      const next = deepClone(prev)
+      if (preview.objetivo) {
+        if (preview.objetivo.general)   next.objetivo.general   = preview.objetivo.general
+        if (preview.objetivo.indicador) next.objetivo.indicador = preview.objetivo.indicador
+      }
+      if (preview.days) {
+        Object.entries(preview.days).forEach(([iso, day]) => {
+          if (next.days[iso]) {
+            if (day.unit) next.days[iso].unit = day.unit
+            if (day.sections) {
+              Object.entries(day.sections).forEach(([key, s]) => {
+                if (next.days[iso].sections?.[key] && s.content) {
+                  next.days[iso].sections[key].content = s.content
+                }
+              })
+            }
+          }
+        })
+      }
+      if (preview.summary?.next) next.summary.next = preview.summary.next
+      contentRef.current = next
+      dirtyRef.current = true
+      setSaveStatus('unsaved')
+      return next
+    })
+  }
+
   // ── Save ──
   const doSave = useCallback(async () => {
     if (!dirtyRef.current) return
@@ -244,6 +277,14 @@ export default function GuideEditorPage({ teacher }) {
     })),
     { key: 'summary', label: '★ Resumen', dot: '#8064A2' },
   ]
+
+  // ── Días activos (para AIGeneratorModal) ──
+  const activeDays = content
+    ? Object.entries(content.days || {})
+        .filter(([, day]) => day.active !== false)
+        .map(([iso]) => iso)
+        .sort()
+    : []
 
   // ── Field helpers ──
   function inputField(label, value, path, placeholder = '') {
@@ -317,6 +358,13 @@ export default function GuideEditorPage({ teacher }) {
                 </button>
                 <button onClick={() => { setExportOpen(false); exportPdf(contentRef.current) }}>
                   🖨️ PDF (imprimir)
+                </button>
+                <hr style={{ margin: '4px 0', border: 'none', borderTop: '1px solid #e0e6f0' }} />
+                <button onClick={() => { setExportOpen(false); setShowAnalyzer(true) }}>
+                  🔍 Analizar con IA
+                </button>
+                <button onClick={() => { setExportOpen(false); setShowGenerator(true) }}>
+                  🤖 Generar guía con IA
                 </button>
               </div>
             )}
@@ -444,6 +492,9 @@ export default function GuideEditorPage({ teacher }) {
               openSections={openSections}
               toggleSection={toggleSection}
               planId={id}
+              grade={content.info.grado}
+              subject={content.info.asignatura}
+              objective={content.objetivo.general}
             />
           )}
 
@@ -460,13 +511,33 @@ export default function GuideEditorPage({ teacher }) {
 
         </div>
       </div>
+
+      {/* ── Modales IA ── */}
+      {showAnalyzer && (
+        <AIAnalyzerModal
+          content={contentRef.current}
+          onClose={() => setShowAnalyzer(false)}
+        />
+      )}
+
+      {showGenerator && (
+        <AIGeneratorModal
+          grade={content.info.grado}
+          subject={content.info.asignatura}
+          period={content.info.periodo}
+          activeDays={activeDays}
+          onApply={handleApplyGenerated}
+          onClose={() => setShowGenerator(false)}
+        />
+      )}
+
     </div>
   )
 }
 
 // ── DayPanel ─────────────────────────────────────────────────────────────────
 
-function DayPanel({ iso, day, setContentField, toggleDayActive, openSections, toggleSection, planId }) {
+function DayPanel({ iso, day, setContentField, toggleDayActive, openSections, toggleSection, planId, grade, subject, objective }) {
   const base = ['days', iso]
 
   return (
@@ -538,6 +609,19 @@ function DayPanel({ iso, day, setContentField, toggleDayActive, openSections, to
                         minHeight={120}
                       />
                     </div>
+
+                    {/* ── Sugerencia IA por sección ── */}
+                    <AISuggestButton
+                      section={s}
+                      grade={grade}
+                      subject={subject}
+                      objective={objective}
+                      unit={day.unit}
+                      dayName={getDayName(iso)}
+                      existingContent={section.content}
+                      onInsert={val => setContentField([...base,'sections',s.key,'content'], val)}
+                    />
+
                     <div className="ge-field">
                       <label>Imágenes</label>
                       <ImageUploader
