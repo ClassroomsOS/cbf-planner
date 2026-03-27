@@ -127,7 +127,28 @@ export default function AdminTeachersPage({ teacher: admin }) {
                     )}
                   </div>
                 </div>
-                {!isAdmin && <span className="mp-arrow">→</span>}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-end', flexShrink: 0 }}>
+                  {!isAdmin && <span className="mp-arrow">→</span>}
+                  {t.id !== admin.id && (
+                    <button
+                      onClick={async e => {
+                        e.stopPropagation()
+                        const newRole = t.role === 'admin' ? 'teacher' : 'admin'
+                        if (!confirm(`¿Cambiar rol de ${t.full_name} a ${newRole === 'admin' ? 'Admin' : 'Docente'}?`)) return
+                        await supabase.from('teachers').update({ role: newRole }).eq('id', t.id)
+                        setTeachers(prev => prev.map(x => x.id === t.id ? { ...x, role: newRole } : x))
+                      }}
+                      style={{
+                        fontSize: '10px', padding: '3px 8px', borderRadius: '6px',
+                        border: `1px solid ${isAdmin ? '#C0504D' : '#2E5598'}`,
+                        background: 'transparent',
+                        color: isAdmin ? '#C0504D' : '#2E5598',
+                        cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap',
+                      }}>
+                      {isAdmin ? '↓ Quitar admin' : '↑ Hacer admin'}
+                    </button>
+                  )}
+                </div>
               </div>
             )
           })}
