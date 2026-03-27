@@ -179,3 +179,4 @@ Usa texto plano, no HTML.`
   } catch {
     throw new Error('La IA no devolvió un JSON válido. Intenta de nuevo.')
   }
+}
