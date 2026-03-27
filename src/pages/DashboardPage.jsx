@@ -9,18 +9,28 @@ import AdminTeachersPage   from './AdminTeachersPage'
 import AIUsagePage         from './AIUsagePage'
 import GuideEditorPage     from './GuideEditorPage'
 import MessagesPage        from './MessagesPage'
+import SettingsPage        from './SettingsPage'
 import ProfileModal        from '../components/ProfileModal'
-import SettingsPage         from './SettingsPage'
-import { FeaturesProvider } from '../context/FeaturesContext'
+import { FeaturesProvider, useFeatures } from '../context/FeaturesContext'
 
+// ── Wrapper — provides context ────────────────────────────────
 export default function DashboardPage({ session, teacher, setTeacher }) {
+  return (
+    <FeaturesProvider schoolId={teacher.school_id}>
+      <DashboardInner session={session} teacher={teacher} setTeacher={setTeacher} />
+    </FeaturesProvider>
+  )
+}
+
+// ── Inner — consumes context ──────────────────────────────────
+function DashboardInner({ session, teacher, setTeacher }) {
   const [showProfile, setShowProfile] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const navigate = useNavigate()
-
-  const isAdmin = teacher.role === 'admin'
+  const isAdmin  = teacher.role === 'admin'
   const { features } = useFeatures()
-  const [unread,        setUnread]        = useState(0)
+
+  const [unread,         setUnread]         = useState(0)
   const [unreadMessages, setUnreadMessages] = useState(0)
 
   useEffect(() => {
@@ -40,11 +50,7 @@ export default function DashboardPage({ session, teacher, setTeacher }) {
         .select('id', { count: 'exact', head: true })
         .eq('read', false)
         .eq('school_id', teacher.school_id)
-      if (isAdmin) {
-        query = query.eq('to_role', 'admin')
-      } else {
-        query = query.eq('to_id', teacher.id)
-      }
+      query = isAdmin ? query.eq('to_role', 'admin') : query.eq('to_id', teacher.id)
       const { count } = await query
       setUnread(count || 0)
     } catch { setUnread(0) }
@@ -72,7 +78,6 @@ export default function DashboardPage({ session, teacher, setTeacher }) {
     teacher.full_name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
 
   return (
-    <FeaturesProvider schoolId={teacher.school_id}>
     <div className="app">
       <button className="btn-hamburger"
         onClick={() => setSidebarOpen(o => !o)} aria-label="Abrir menú">☰</button>
@@ -86,15 +91,11 @@ export default function DashboardPage({ session, teacher, setTeacher }) {
         </div>
 
         <nav className="sb-nav">
-          <NavLink to="/" end
-            className={({ isActive }) => isActive ? 'active' : ''}
-            onClick={closeSidebar}>
+          <NavLink to="/" end className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
             <span className="dot" style={{ background: '#2E5598' }} />
             Nueva Guía
           </NavLink>
-          <NavLink to="/plans"
-            className={({ isActive }) => isActive ? 'active' : ''}
-            onClick={closeSidebar}>
+          <NavLink to="/plans" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
             <span className="dot" style={{ background: '#9BBB59' }} />
             Mis Guías
           </NavLink>
@@ -102,22 +103,16 @@ export default function DashboardPage({ session, teacher, setTeacher }) {
           <div className="sb-nav-divider" />
 
           {features.messages !== false && (
-            <NavLink to="/messages"
-              className={({ isActive }) => isActive ? 'active' : ''}
-              onClick={closeSidebar}>
+            <NavLink to="/messages" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
               <span className="dot" style={{ background: '#4BACC6' }} />
               Mensajes
               {unreadMessages > 0 && (
-                <span className="sb-notif-badge" style={{ background: '#4BACC6' }}>
-                  {unreadMessages}
-                </span>
+                <span className="sb-notif-badge" style={{ background: '#4BACC6' }}>{unreadMessages}</span>
               )}
             </NavLink>
           )}
 
-          <NavLink to="/ai-usage"
-            className={({ isActive }) => isActive ? 'active' : ''}
-            onClick={closeSidebar}>
+          <NavLink to="/ai-usage" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
             <span className="dot" style={{ background: '#8064A2' }} />
             Uso de IA
           </NavLink>
@@ -125,29 +120,21 @@ export default function DashboardPage({ session, teacher, setTeacher }) {
           {isAdmin && (
             <>
               <div className="sb-nav-divider" />
-              <NavLink to="/teachers"
-                className={({ isActive }) => isActive ? 'active' : ''}
-                onClick={closeSidebar}>
+              <NavLink to="/teachers" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
                 <span className="dot" style={{ background: '#9BBB59' }} />
                 Docentes
               </NavLink>
-              <NavLink to="/notifications"
-                className={({ isActive }) => isActive ? 'active' : ''}
-                onClick={closeSidebar}>
+              <NavLink to="/notifications" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
                 <span className="dot" style={{ background: '#C0504D' }} />
                 Notificaciones
                 {unread > 0 && <span className="sb-notif-badge">{unread}</span>}
               </NavLink>
-              <NavLink to="/calendar"
-                className={({ isActive }) => isActive ? 'active' : ''}
-                onClick={closeSidebar}>
+              <NavLink to="/calendar" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
                 <span className="dot" style={{ background: '#C9A84C' }} />
                 Calendario
                 <span className="sb-admin-badge">Admin</span>
               </NavLink>
-              <NavLink to="/settings"
-                className={({ isActive }) => isActive ? 'active' : ''}
-                onClick={closeSidebar}>
+              <NavLink to="/settings" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
                 <span className="dot" style={{ background: '#555' }} />
                 ⚙️ Panel de control
                 <span className="sb-admin-badge">Admin</span>
@@ -193,6 +180,5 @@ export default function DashboardPage({ session, teacher, setTeacher }) {
         />
       )}
     </div>
-    </FeaturesProvider>
   )
 }
