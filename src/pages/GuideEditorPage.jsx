@@ -237,19 +237,18 @@ export default function GuideEditorPage({ teacher }) {
   }
 
   // ── IA: aplicar guía generada ──
-function handleApplyGenerated(gPreview) {
-  try {
-    setContent(function(prev) {
-      var next = applyGeneratedToContent(prev, gPreview)
+  function handleApplyGenerated(gPreview) {
+    try {
+      var current = contentRef.current
+      var next = applyGeneratedToContent(current, gPreview)
       contentRef.current = next
       dirtyRef.current = true
+      setContent(next)
       setSaveStatus('unsaved')
-      return next
-    })
-  } catch(err) {
-    alert('Error: ' + err.message + '\n' + err.stack)
+    } catch(err) {
+      alert('Error aplicando: ' + err.message)
+    }
   }
-}
 
   // ── Save ──
   const doSave = useCallback(async () => {
