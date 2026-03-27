@@ -42,18 +42,34 @@ export default function ImageUploader({ planId, dayIso, sectionKey, images = [],
     onChange(images.filter(i => i.path !== img.path))
   }
 
+  function updateLink(img, link) {
+    onChange(images.map(i => i.path === img.path ? { ...i, link } : i))
+  }
+
   return (
     <div className="img-uploader">
       {/* Thumbnails */}
       {images.length > 0 && (
         <div className="img-thumbs">
           {images.map(img => (
-            <div key={img.path} className="img-thumb-wrap">
+            <div key={img.path} className="img-thumb-wrap" style={{ position: 'relative' }}>
               <img src={img.url} alt={img.name} className="img-thumb" />
               <button
                 className="img-thumb-del"
                 onClick={() => removeImage(img)}
                 title="Eliminar imagen">✕</button>
+              <input
+                type="url"
+                placeholder="🔗 Link (opcional)"
+                value={img.link || ''}
+                onChange={e => updateLink(img, e.target.value)}
+                style={{
+                  display: 'block', width: '100%', marginTop: '4px',
+                  fontSize: '11px', padding: '3px 6px', borderRadius: '5px',
+                  border: '1px solid #c5d5f0', boxSizing: 'border-box',
+                  color: '#2E5598',
+                }}
+              />
             </div>
           ))}
         </div>

@@ -17,9 +17,21 @@ function esc(str) {
   return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
 }
 
+function getEmbedUrl(url) {
+  if (!url) return null
+  // YouTube
+  const yt = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
+  if (yt) return `https://www.youtube.com/embed/${yt[1]}`
+  // Vimeo
+  const vi = url.match(/vimeo\.com\/(\d+)/)
+  if (vi) return `https://player.vimeo.com/video/${vi[1]}`
+  return null
+}
+
 function sectionContent(section) {
   const html    = section?.content || ''
   const images  = section?.images  || []
+  const videos  = section?.videos  || []
 
   const textHtml = html
     ? `<div style="font-size:12px;line-height:1.8;color:#222">${html}</div>`
@@ -31,13 +43,30 @@ function sectionContent(section) {
   const plainLen = html.replace(/<[^>]+>/g, '').length
   const layout   = plainLen < 400 ? 'side' : 'stack'
 
-  const thumbs = images.map(img =>
-    `<div style="margin-bottom:4px">
-      <img src="${img.url}" alt="${esc(img.name)}"
+  const thumbs = images.map(img => {
+    const imgTag = `<img src="${img.url}" alt="${esc(img.name)}"
         style="max-width:220px;max-height:160px;width:auto;height:auto;
-               border-radius:5px;border:1px solid #ddd;display:block;object-fit:contain">
-    </div>`
-  ).join('')
+               border-radius:5px;border:1px solid #ddd;display:block;object-fit:contain">`
+    const inner = img.link
+      ? `<a href="${esc(img.link)}" target="_blank" rel="noopener" style="display:inline-block">${imgTag}</a>`
+      : imgTag
+    return `<div style="margin-bottom:6px;display:inline-block">${inner}</div>`
+  }).join('')
+
+  const videoHtml = videos.length > 0
+    ? videos.map(v => {
+        const embedUrl = getEmbedUrl(v.url || v)
+        if (!embedUrl) return ''
+        const label = v.label ? `<div style="font-size:11px;font-weight:600;color:#2E5598;margin-bottom:4px">${esc(v.label)}</div>` : ''
+        return `<div style="margin-top:10px">
+          ${label}
+          <div style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;border-radius:6px;border:1px solid #ddd">
+            <iframe src="${embedUrl}" frameborder="0" allowfullscreen
+              style="position:absolute;top:0;left:0;width:100%;height:100%"></iframe>
+          </div>
+        </div>`
+      }).join('')
+    : ''
 
   if (layout === 'side') {
     return `<table style="width:100%;border-collapse:collapse;table-layout:fixed">
@@ -45,14 +74,14 @@ function sectionContent(section) {
         <td style="vertical-align:top;width:62%;padding-right:12px">${textHtml}</td>
         <td style="vertical-align:top;width:38%">${thumbs}</td>
       </tr>
-    </table>`
+    </table>` + videoHtml
   }
 
-  return textHtml + `
+  return textHtml + (images.length ? `
     <div style="margin-top:10px;padding-top:8px;border-top:2px dashed #e0e8f4;
                 display:flex;flex-wrap:wrap;gap:8px">
       ${thumbs}
-    </div>`
+    </div>` : '') + videoHtml
 }
 
 function buildDayBlock(iso, day) {

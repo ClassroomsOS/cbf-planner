@@ -742,8 +742,12 @@ function DayPanel({ iso, day, setContentField, toggleDayActive, openSections, to
                         onChange={blocks => setContentField([...base,'sections',s.key,'smartBlocks'], blocks)}
                       />
                     </div>
-                    <div className="ge-phase2-notice">
-                      🔊 Audio · 🎬 Video — próximamente
+                    <div className="ge-field">
+                      <label>🎬 Videos (YouTube / Vimeo)</label>
+                      <VideoList
+                        videos={section.videos || []}
+                        onChange={vids => setContentField([...base,'sections',s.key,'videos'], vids)}
+                      />
                     </div>
                   </div>
                 )}
@@ -752,6 +756,82 @@ function DayPanel({ iso, day, setContentField, toggleDayActive, openSections, to
           })}
         </>
       )}
+    </div>
+  )
+}
+
+
+// ── VideoList ─────────────────────────────────────────────────────────────────
+
+function getEmbedUrl(url) {
+  if (!url) return null
+  const yt = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
+  if (yt) return `https://www.youtube.com/embed/${yt[1]}`
+  const vi = url.match(/vimeo\.com\/(\d+)/)
+  if (vi) return `https://player.vimeo.com/video/${vi[1]}`
+  return null
+}
+
+function VideoList({ videos = [], onChange }) {
+  function addVideo() {
+    onChange([...videos, { url: '', label: '' }])
+  }
+  function updateVideo(idx, field, value) {
+    onChange(videos.map((v, i) => i === idx ? { ...v, [field]: value } : v))
+  }
+  function removeVideo(idx) {
+    onChange(videos.filter((_, i) => i !== idx))
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      {videos.map((v, idx) => {
+        const embedUrl = getEmbedUrl(v.url)
+        return (
+          <div key={idx} style={{ border: '1px solid #c5d5f0', borderRadius: '8px', padding: '10px', background: '#f8faff' }}>
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '6px' }}>
+              <input
+                type="url"
+                placeholder="URL de YouTube o Vimeo"
+                value={v.url || ''}
+                onChange={e => updateVideo(idx, 'url', e.target.value)}
+                style={{ flex: 1, fontSize: '12px', padding: '5px 8px', borderRadius: '6px', border: '1px solid #c5d5f0' }}
+              />
+              <input
+                type="text"
+                placeholder="Título (opcional)"
+                value={v.label || ''}
+                onChange={e => updateVideo(idx, 'label', e.target.value)}
+                style={{ width: '140px', fontSize: '12px', padding: '5px 8px', borderRadius: '6px', border: '1px solid #c5d5f0' }}
+              />
+              <button
+                onClick={() => removeVideo(idx)}
+                style={{ background: '#fee', border: '1px solid #fcc', borderRadius: '6px', padding: '4px 8px', color: '#c00', cursor: 'pointer', fontWeight: 700 }}>
+                ✕
+              </button>
+            </div>
+            {embedUrl ? (
+              <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0, overflow: 'hidden', borderRadius: '6px' }}>
+                <iframe
+                  src={embedUrl}
+                  frameBorder="0"
+                  allowFullScreen
+                  title={v.label || 'Video'}
+                  style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
+                />
+              </div>
+            ) : v.url ? (
+              <div style={{ fontSize: '11px', color: '#e07000', padding: '4px 0' }}>⚠️ URL no reconocida — usa un link de YouTube o Vimeo</div>
+            ) : null}
+          </div>
+        )
+      })}
+      <button
+        onClick={addVideo}
+        style={{ alignSelf: 'flex-start', fontSize: '12px', padding: '5px 12px', borderRadius: '7px',
+                 border: '1px solid #c5d5f0', background: '#f0f4ff', color: '#2E5598', cursor: 'pointer', fontWeight: 600 }}>
+        + Agregar video
+      </button>
     </div>
   )
 }
