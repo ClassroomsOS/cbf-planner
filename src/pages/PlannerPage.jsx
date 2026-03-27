@@ -109,6 +109,7 @@ export default function PlannerPage({ teacher }) {
     async function fetchCalendar() {
       setCalLoading(true)
       const dates = weekDays.map(toISO)
+      if (!dates.length) { setCalData({}); setCalLoading(false); return }
       const { data } = await supabase
         .from('school_calendar')
         .select('date, name, type, is_school_day')

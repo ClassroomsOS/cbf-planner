@@ -31,27 +31,31 @@ export default function DashboardPage({ session, teacher, setTeacher }) {
   }, [teacher.id, isAdmin])
 
   async function fetchUnread() {
-    const query = supabase
-      .from('notifications')
-      .select('id', { count: 'exact', head: true })
-      .eq('read', false)
-      .eq('school_id', teacher.school_id)
-    if (isAdmin) {
-      query.eq('to_role', 'admin')
-    } else {
-      query.eq('from_id', teacher.id).eq('to_role', 'teacher')
-    }
-    const { count } = await query
-    setUnread(count || 0)
+    try {
+      let query = supabase
+        .from('notifications')
+        .select('id', { count: 'exact', head: true })
+        .eq('read', false)
+        .eq('school_id', teacher.school_id)
+      if (isAdmin) {
+        query = query.eq('to_role', 'admin')
+      } else {
+        query = query.eq('to_id', teacher.id)
+      }
+      const { count } = await query
+      setUnread(count || 0)
+    } catch { setUnread(0) }
   }
 
   async function fetchUnreadMessages() {
-    const { count } = await supabase
-      .from('messages')
-      .select('id', { count: 'exact', head: true })
-      .eq('to_id', teacher.id)
-      .eq('read', false)
-    setUnreadMessages(count || 0)
+    try {
+      const { count } = await supabase
+        .from('messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('to_id', teacher.id)
+        .eq('read', false)
+      setUnreadMessages(count || 0)
+    } catch { setUnreadMessages(0) }
   }
 
   async function handleLogout() {

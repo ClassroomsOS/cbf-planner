@@ -158,6 +158,7 @@ export default function GuideEditorPage({ teacher }) {
       const d = new Date(weekMonday); d.setDate(d.getDate() + i); return d
     })
     const isos = weekDays.map(toISO)
+    if (!isos.length) return {}
     const { data: calData } = await supabase
       .from('school_calendar').select('date, is_school_day, name')
       .eq('school_id', teacher.school_id).in('date', isos)
