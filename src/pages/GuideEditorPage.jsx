@@ -58,11 +58,12 @@ function buildEmptyDay(isoDate) {
 function buildInitialContent({ grade, subject, period, week, dateRange }, teacher, school) {
   return {
     header: {
-      school:  school?.name     || 'COLEGIO BOSTON FLEXIBLE',
-      dane:    `DANE: ${school?.dane || '308001800455'} — RESOLUCIÓN ${school?.resolution || '09685 DE 2019'}`,
-      codigo:  school?.plan_code    || 'CBF-G AC-01',
-      version: school?.plan_version || 'Versión 02 Febrero 2022',
-      proceso: 'PROCESO: GESTIÓN ACADÉMICA Y CURRICULAR',
+      school:   school?.name     || 'COLEGIO BOSTON FLEXIBLE',
+      dane:     `DANE: ${school?.dane || '308001800455'} — RESOLUCIÓN ${school?.resolution || '09685 DE 2019'}`,
+      codigo:   school?.plan_code    || 'CBF-G AC-01',
+      version:  school?.plan_version || 'Versión 02 Febrero 2022',
+      proceso:  'PROCESO: GESTIÓN ACADÉMICA Y CURRICULAR',
+      logo_url: school?.logo_url || null,
     },
     info: {
       grado:      grade   || '',
@@ -133,6 +134,10 @@ export default function GuideEditorPage({ teacher }) {
         c.days = savedDays
       } else if (!c.days || Object.keys(c.days).length === 0) {
         c.days = await buildDaysFromDB(data, c)
+      }
+      // Always ensure logo is loaded from school (not per-guide)
+      if (!c.header.logo_url && school?.logo_url) {
+        c.header.logo_url = school.logo_url
       }
       setContent(c)
       contentRef.current = c
@@ -440,7 +445,13 @@ export default function GuideEditorPage({ teacher }) {
                         if (!error) {
                           const { data: urlData } = supabase.storage
                             .from('guide-images').getPublicUrl(path)
-                          setContentField(['header','logo_url'], urlData.publicUrl)
+                          const logoUrl = urlData.publicUrl
+                          // Save to guide content
+                          setContentField(['header','logo_url'], logoUrl)
+                          // Also save to school so all future guides use it
+                          await supabase.from('schools')
+                            .update({ logo_url: logoUrl })
+                            .eq('id', teacher.school_id)
                         }
                       }} />
                     🏫 Clic para subir logo del colegio
