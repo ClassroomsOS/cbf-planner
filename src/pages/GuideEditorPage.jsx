@@ -186,9 +186,16 @@ export default function GuideEditorPage({ teacher }) {
       ? scheduledDayKeys.map(k => DAY_KEYS.indexOf(k))
       : [0, 1, 2, 3, 4]
 
-    const isos = activeDayIndices.map(i => {
-      const d = new Date(weekMonday); d.setDate(d.getDate() + i); return toISO(d)
-    })
+    // ── Generar ISOs para 1 o 2 semanas ──
+    const weekCount = data.week_count || 1
+    const isos = []
+    for (let w = 0; w < weekCount; w++) {
+      activeDayIndices.forEach(i => {
+        const d = new Date(weekMonday)
+        d.setDate(d.getDate() + w * 7 + i)
+        isos.push(toISO(d))
+      })
+    }
 
     if (!isos.length) return {}
 
@@ -203,7 +210,8 @@ export default function GuideEditorPage({ teacher }) {
     isos.forEach((iso, idx) => {
       const cal = holMap[iso]
       if (!cal || cal.is_school_day !== false) {
-        const dayKey  = scheduledDayKeys ? scheduledDayKeys[idx] : DAY_KEYS[activeDayIndices[idx]]
+        const dayKeyIdx = idx % activeDayIndices.length
+        const dayKey  = scheduledDayKeys ? scheduledDayKeys[dayKeyIdx] : DAY_KEYS[activeDayIndices[dayKeyIdx]]
         const periods = scheduleMap?.[dayKey] || []
         const emptyDay = c.days?.[iso] || buildEmptyDay(iso)
         if (periods.length > 0 && !emptyDay.class_periods) {

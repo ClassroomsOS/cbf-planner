@@ -82,19 +82,23 @@ export default function PlannerPage({ teacher }) {
   // Derive class labels and subjects from assignments
   const classLabels = [...new Set(assignments.map(a => `${a.grade} ${a.section}`))]
 
-  const [grade,   setGrade]   = useState(teacher.default_class   || '')
-  const [subject, setSubject] = useState(teacher.default_subject || '')
-  const [period,  setPeriod]  = useState(teacher.default_period  || '1.er Período 2026')
-  const [monday,  setMonday]  = useState(() => getMondayOf(new Date()))
-  const [calData, setCalData] = useState({})
+  const [grade,     setGrade]     = useState(teacher.default_class   || '')
+  const [subject,   setSubject]   = useState(teacher.default_subject || '')
+  const [period,    setPeriod]    = useState(teacher.default_period  || '1.er Período 2026')
+  const [monday,    setMonday]    = useState(() => getMondayOf(new Date()))
+  const [weekCount, setWeekCount] = useState(1)
+  const [calData,   setCalData]   = useState({})
   const [calLoading, setCalLoading] = useState(false)
   const [creating, setCreating]     = useState(false)
   const [error,    setError]        = useState(null)
   const [showGenerator, setShowGenerator] = useState(false)
 
-  const weekDays   = getWeekDays(monday)
-  const weekNumber = getSchoolWeek(monday)
-  const dateRange  = formatRange(weekDays)
+  const monday2     = (() => { const d = new Date(monday); d.setDate(d.getDate() + 7); return d })()
+  const week1Days   = getWeekDays(monday)
+  const week2Days   = getWeekDays(monday2)
+  const allWeekDays = weekCount === 2 ? [...week1Days, ...week2Days] : week1Days
+  const weekNumber  = getSchoolWeek(monday)
+  const dateRange   = formatRange(allWeekDays)
 
   // Subjects available for selected class (from assignments)
   const availableSubjects = grade
@@ -112,7 +116,7 @@ export default function PlannerPage({ teacher }) {
   useEffect(() => {
     async function fetchCalendar() {
       setCalLoading(true)
-      const dates = weekDays.map(toISO)
+      const dates = allWeekDays.map(toISO)
       if (!dates.length) { setCalData({}); setCalLoading(false); return }
       const { data } = await supabase
         .from('school_calendar')
@@ -125,13 +129,14 @@ export default function PlannerPage({ teacher }) {
       setCalLoading(false)
     }
     fetchCalendar()
-  }, [monday])
+  }, [monday, weekCount])
 
-  const activeDays = weekDays.filter((d, i) => {
+  const activeDays = allWeekDays.filter((d, i) => {
     const cal = calData[toISO(d)]
     if (cal && cal.is_school_day === false) return false
+    const dayIndexInWeek = i % 5
     if (selectedAssignment?.schedule && Object.keys(selectedAssignment.schedule).length > 0) {
-      return !!selectedAssignment.schedule[DAY_KEY_MAP[i]]
+      return !!selectedAssignment.schedule[DAY_KEY_MAP[dayIndexInWeek]]
     }
     return true
   })
@@ -165,6 +170,7 @@ export default function PlannerPage({ teacher }) {
         school_id:   teacher.school_id,
         grade, subject, section, period,
         week_number: weekNumber,
+        week_count:  weekCount,
         monday_date: toISO(monday),
         date_range:  dateRange,
         status:      'draft',
@@ -212,8 +218,26 @@ export default function PlannerPage({ teacher }) {
           </div>
           <div className="field">
             <label>Semana N°</label>
-            <input type="text" readOnly value={`Semana ${weekNumber}`}
+            <input type="text" readOnly value={weekCount === 2 ? `Sem. ${weekNumber}–${weekNumber + 1}` : `Semana ${weekNumber}`}
               style={{ background: '#f0f4ff', fontWeight: 700, color: '#2E5598', cursor: 'default' }} />
+          </div>
+          <div className="field">
+            <label>Duración</label>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              {[1, 2].map(n => (
+                <button key={n}
+                  onClick={() => setWeekCount(n)}
+                  style={{
+                    flex: 1, padding: '8px 0', borderRadius: '8px', border: '2px solid',
+                    borderColor: weekCount === n ? '#2E5598' : '#c5d5f0',
+                    background: weekCount === n ? '#2E5598' : '#f0f4ff',
+                    color: weekCount === n ? '#fff' : '#2E5598',
+                    fontWeight: 700, cursor: 'pointer', fontSize: '13px',
+                  }}>
+                  {n} sem.
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -237,36 +261,48 @@ export default function PlannerPage({ teacher }) {
           </div>
 
           {/* Mini calendar */}
-          <div className="week-calendar">
-            {weekDays.map((d, i) => {
-              const iso = toISO(d)
-              const cal = calData[iso]
-              const isHoliday = cal && cal.is_school_day === false
-              return (
-                <div key={iso} className={`wc-day ${isHoliday ? 'wc-holiday' : 'wc-active'}`}>
-                  <div className="wc-day-name">{DAYS_ES[i]}</div>
-                  <div className="wc-day-num">{d.getDate()}</div>
-                  <div className="wc-day-month">{MONTHS_ES[d.getMonth()]}</div>
-                  {calLoading ? (
-                    <div className="wc-tag wc-loading">…</div>
-                  ) : isHoliday ? (
-                    <div className="wc-tag wc-tag-holiday" title={cal.name}>
-                      🚫 {cal.name.length > 13 ? cal.name.slice(0, 12) + '…' : cal.name}
-                    </div>
-                  ) : (
-                    <div className="wc-tag wc-tag-active">✓ Clase</div>
-                  )}
+          {[week1Days, ...(weekCount === 2 ? [week2Days] : [])].map((wDays, wIdx) => (
+            <div key={wIdx}>
+              {weekCount === 2 && (
+                <div style={{ fontSize: '11px', fontWeight: 700, color: '#2E5598', margin: '8px 0 4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Semana {weekNumber + wIdx}
                 </div>
-              )
-            })}
-          </div>
+              )}
+              <div className="week-calendar">
+                {wDays.map((d, i) => {
+                  const iso = toISO(d)
+                  const cal = calData[iso]
+                  const isHoliday = cal && cal.is_school_day === false
+                  const isScheduled = !selectedAssignment?.schedule || !Object.keys(selectedAssignment.schedule).length || !!selectedAssignment.schedule[DAY_KEY_MAP[i]]
+                  return (
+                    <div key={iso} className={`wc-day ${isHoliday ? 'wc-holiday' : isScheduled ? 'wc-active' : 'wc-holiday'}`}>
+                      <div className="wc-day-name">{DAYS_ES[i]}</div>
+                      <div className="wc-day-num">{d.getDate()}</div>
+                      <div className="wc-day-month">{MONTHS_ES[d.getMonth()]}</div>
+                      {calLoading ? (
+                        <div className="wc-tag wc-loading">…</div>
+                      ) : isHoliday ? (
+                        <div className="wc-tag wc-tag-holiday" title={cal.name}>
+                          🚫 {cal.name.length > 13 ? cal.name.slice(0, 12) + '…' : cal.name}
+                        </div>
+                      ) : isScheduled ? (
+                        <div className="wc-tag wc-tag-active">✓ Clase</div>
+                      ) : (
+                        <div className="wc-tag" style={{ background: '#e8e8e8', color: '#999' }}>— Sin clase</div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
 
           <div className="week-summary">
             <span className="week-range">📅 {dateRange}</span>
             <span className="week-active-count">
               {activeDays.length} día{activeDays.length !== 1 ? 's' : ''} de clase
-              {weekDays.length - activeDays.length > 0 &&
-                ` · ${weekDays.length - activeDays.length} festivo${weekDays.length - activeDays.length !== 1 ? 's' : ''}`}
+              {allWeekDays.length - activeDays.length > 0 &&
+                ` · ${allWeekDays.length - activeDays.length} sin clase`}
             </span>
           </div>
         </div>
@@ -326,6 +362,7 @@ export default function PlannerPage({ teacher }) {
                   school_id:  teacher.school_id,
                   grade, subject, section, period,
                   week_number: weekNumber,
+                  week_count:  weekCount,
                   monday_date: toISO(monday),
                   date_range:  dateRange,
                   status:      'draft',
