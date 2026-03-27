@@ -202,28 +202,35 @@ export default function GuideEditorPage({ teacher }) {
   }
 
   // ── IA: aplicar guía generada ──
-  function handleApplyGenerated(preview) {
-    setContent(prev => {
-      const next = deepClone(prev)
-      if (preview.objetivo) {
-        if (preview.objetivo.general)   next.objetivo.general   = preview.objetivo.general
-        if (preview.objetivo.indicador) next.objetivo.indicador = preview.objetivo.indicador
+  function handleApplyGenerated(generatedPreview) {
+    setContent(function(prev) {
+      var next = deepClone(prev)
+      if (generatedPreview.objetivo) {
+        if (generatedPreview.objetivo.general)   next.objetivo.general   = generatedPreview.objetivo.general
+        if (generatedPreview.objetivo.indicador) next.objetivo.indicador = generatedPreview.objetivo.indicador
       }
-      if (preview.days) {
-        Object.entries(preview.days).forEach(([iso, day]) => {
-          if (next.days[iso]) {
-            if (day.unit) next.days[iso].unit = day.unit
-            if (day.sections) {
-              Object.entries(day.sections).forEach(([key, s]) => {
-                if (next.days[iso].sections?.[key] && s.content) {
-                  next.days[iso].sections[key].content = s.content
-                }
-              })
+      if (generatedPreview.days) {
+        var dayKeys = Object.keys(generatedPreview.days)
+        for (var dayIdx = 0; dayIdx < dayKeys.length; dayIdx++) {
+          var dayIso = dayKeys[dayIdx]
+          var generatedDay = generatedPreview.days[dayIso]
+          if (!next.days[dayIso]) continue
+          if (generatedDay.unit) next.days[dayIso].unit = generatedDay.unit
+          if (generatedDay.sections) {
+            var secKeys = Object.keys(generatedDay.sections)
+            for (var secIdx = 0; secIdx < secKeys.length; secIdx++) {
+              var secKey = secKeys[secIdx]
+              var generatedSec = generatedDay.sections[secKey]
+              if (next.days[dayIso].sections && next.days[dayIso].sections[secKey] && generatedSec.content) {
+                next.days[dayIso].sections[secKey].content = generatedSec.content
+              }
             }
           }
-        })
+        }
       }
-      if (preview.summary?.next) next.summary.next = preview.summary.next
+      if (generatedPreview.summary && generatedPreview.summary.next) {
+        next.summary.next = generatedPreview.summary.next
+      }
       contentRef.current = next
       dirtyRef.current = true
       setSaveStatus('unsaved')
