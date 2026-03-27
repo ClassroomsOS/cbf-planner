@@ -176,7 +176,7 @@ Usa texto plano, no HTML.`
     if (!match) throw new Error('No JSON found')
     const clean = match[0].trim()
     return JSON.parse(clean)
-  } catch {
-    throw new Error('La IA no devolvió un JSON válido. Intenta de nuevo.')
+  } catch (e) {
+    throw new Error(`JSON inválido. Raw: ${raw?.slice(0, 200)}`)
   }
 }
