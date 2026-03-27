@@ -296,7 +296,7 @@ export default function PlannerPage({ teacher }) {
           subject={subject}
           period={period}
           activeDays={activeDays.map(d => toISO(d))}
-          onApply={async (generated) => {
+          onApply={async (aiResult) => {
             setShowGenerator(false)
             setCreating(true)
             // Create plan first
@@ -342,31 +342,31 @@ export default function PlannerPage({ teacher }) {
               const mergedDays = {}
               activeDays.forEach(d => {
                 const iso = toISO(d)
-                const existing = currentContent.days?.[iso] || buildEmptyDay(iso)
-                const generated = generated.days?.[iso] || {}
+                const existingDay = currentContent.days?.[iso] || buildEmptyDay(iso)
+                const generatedDay = aiResult.days?.[iso] || {}
                 // Merge sections
                 const mergedSections = {}
                 SECTIONS_KEYS.forEach(key => {
                   mergedSections[key] = {
-                    ...(existing.sections?.[key] || { time: '', content: '', images: [], audios: [], videos: [], smartBlocks: [] }),
-                    content: generated.sections?.[key]?.content || existing.sections?.[key]?.content || '',
+                    ...(existingDay.sections?.[key] || { time: '', content: '', images: [], audios: [], videos: [], smartBlocks: [] }),
+                    content: generatedDay.sections?.[key]?.content || existingDay.sections?.[key]?.content || '',
                   }
                 })
-                mergedDays[iso] = { ...existing, unit: generated.unit || existing.unit, sections: mergedSections }
+                mergedDays[iso] = { ...existingDay, unit: generatedDay.unit || existingDay.unit, sections: mergedSections }
               })
 
               const newContent = {
                 ...currentContent,
                 days: mergedDays,
-                objetivo: generated.objetivo ? {
+                objetivo: aiResult.objetivo ? {
                   ...currentContent.objetivo,
-                  general:   generated.objetivo.general   || currentContent.objetivo?.general   || '',
-                  indicador: generated.objetivo.indicador || currentContent.objetivo?.indicador || '',
+                  general:   aiResult.objetivo.general   || currentContent.objetivo?.general   || '',
+                  indicador: aiResult.objetivo.indicador || currentContent.objetivo?.indicador || '',
                   principio: currentContent.objetivo?.principio || '',
                 } : currentContent.objetivo,
-                summary: generated.summary ? {
+                summary: aiResult.summary ? {
                   ...currentContent.summary,
-                  next: generated.summary.next || currentContent.summary?.next || '',
+                  next: aiResult.summary.next || currentContent.summary?.next || '',
                 } : currentContent.summary,
               }
 
