@@ -11,6 +11,7 @@ import CommentsPanel from '../components/CommentsPanel'
 import SectionPreview from '../components/SectionPreview'
 import { useFeatures } from '../context/FeaturesContext'
 import CorrectionRequestModal from '../components/CorrectionRequestModal'
+import LayoutSelectorModal, { LAYOUT_ELIGIBLE } from '../components/LayoutSelectorModal'
 
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -625,6 +626,8 @@ export default function GuideEditorPage({ teacher }) {
 function DayPanel({ iso, day, setContentField, toggleDayActive, openSections, toggleSection, planId, grade, subject, objective, showPreview, setShowPreview }) {
   const { features } = useFeatures()
   const base = ['days', iso]
+  const [layoutModal, setLayoutModal] = useState(null)
+  // layoutModal = { sectionKey, sectionLabel } | null
 
   return (
     <div className="card">
@@ -749,12 +752,58 @@ function DayPanel({ iso, day, setContentField, toggleDayActive, openSections, to
                         onChange={vids => setContentField([...base,'sections',s.key,'videos'], vids)}
                       />
                     </div>
+
+                    {/* ── Layout visual (solo secciones elegibles) ── */}
+                    {LAYOUT_ELIGIBLE.includes(s.key) && (
+                      <div style={{ marginTop: '6px', paddingTop: '10px', borderTop: '1px dashed #dde3f0' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: '12px', color: '#888' }}>
+                            {section.layout_mode && section.layout_mode !== 'none'
+                              ? `Layout: ${section.layout_mode === 'stack' ? 'Texto → Imagen' : 'Doble columna'}`
+                              : 'Sin layout de imagen configurado'}
+                          </span>
+                          <button
+                            style={{
+                              fontSize: '12px', padding: '4px 12px', borderRadius: '7px',
+                              border: '1px solid #4BACC6', background: '#f0faff',
+                              color: '#2E5598', cursor: 'pointer', fontWeight: 600,
+                            }}
+                            onClick={() => setLayoutModal({ sectionKey: s.key, sectionLabel: s.label })}>
+                            🖼 Organizar contenido visual
+                          </button>
+                        </div>
+                        {section.layout_image_url && section.layout_mode !== 'none' && (
+                          <img
+                            src={section.layout_image_url} alt="layout"
+                            style={{ marginTop: '6px', maxHeight: '80px', borderRadius: '6px', objectFit: 'cover', opacity: 0.8 }}
+                          />
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
             )
           })}
         </>
+      )}
+
+      {/* ── Layout Selector Modal ── */}
+      {layoutModal && (
+        <LayoutSelectorModal
+          isOpen={!!layoutModal}
+          onClose={() => setLayoutModal(null)}
+          onConfirm={({ layout_mode, layout_image_url }) => {
+            setContentField([...base, 'sections', layoutModal.sectionKey, 'layout_mode'], layout_mode)
+            setContentField([...base, 'sections', layoutModal.sectionKey, 'layout_image_url'], layout_image_url)
+          }}
+          sectionLabel={layoutModal.sectionLabel}
+          sectionKey={layoutModal.sectionKey}
+          planId={planId}
+          dayIso={iso}
+          currentLayout={day.sections?.[layoutModal.sectionKey]?.layout_mode || 'none'}
+          currentImageUrl={day.sections?.[layoutModal.sectionKey]?.layout_image_url || null}
+        />
       )}
     </div>
   )
