@@ -546,9 +546,23 @@ export default function GuideEditorPage({ teacher }) {
                 schoolId={teacher.school_id}
                 teacherId={teacher.id}
                 currentTargetId={plan?.target_id || null}
-                onChange={(targetId) => setPlan(prev => ({ ...prev, target_id: targetId }))}
+                onChange={(targetId, target) => {
+                  setPlan(prev => ({ ...prev, target_id: targetId }))
+                  if (target) {
+                    // Auto-fill objetivo fields from the linked target
+                    setContentField(['objetivo', 'general'], target.description)
+                    setContentField(['objetivo', 'indicador'],
+                      `El estudiante demuestra este desempeño cuando logra: ${target.description}`
+                    )
+                  }
+                }}
               />
-              {richField('Objetivo general de la semana',
+              {plan?.target_id && (
+                <div style={{ fontSize: '11px', color: '#888', margin: '-4px 0 8px', fontStyle: 'italic' }}>
+                  ↑ Al vincular un objetivo, los campos de abajo se llenan automáticamente. Puedes editarlos para esta semana.
+                </div>
+              )}
+              {richField('Objetivo general de la semana (va al documento exportado)',
                 content.objetivo.general, ['objetivo','general'],
                 'Al finalizar la semana, el estudiante estará en capacidad de…', 100)}
               {richField('Indicador de logro / Desempeño',

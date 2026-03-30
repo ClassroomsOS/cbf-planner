@@ -72,7 +72,8 @@ export default function LearningTargetSelector({
       .from('lesson_plans')
       .update({ target_id: targetId })
       .eq('id', planId)
-    onChange(targetId)
+    const target = targets.find(t => t.id === targetId) || null
+    onChange(targetId, target)
     setExpanded(false)
   }
 
@@ -81,7 +82,7 @@ export default function LearningTargetSelector({
       .from('lesson_plans')
       .update({ target_id: null })
       .eq('id', planId)
-    onChange(null)
+    onChange(null, null)
   }
 
   if (loading) {
