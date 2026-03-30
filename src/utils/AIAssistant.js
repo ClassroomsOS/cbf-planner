@@ -194,12 +194,18 @@ ${learningTarget ? `
 Genera contenido específico, concreto y apropiado para el nivel.
 Las actividades deben progresar lógicamente durante la semana.
 El contenido debe estar en el idioma apropiado para la materia (inglés para Language Arts, español para otras).
-Usa texto plano, no HTML.`
+Usa texto plano, no HTML.
 
-  const raw = await callClaude({ type: 'generate', system, message, planId, maxTokens: 4000 })
+IMPORTANTE SOBRE EXTENSIÓN DEL CONTENIDO:
+- Cada sección debe tener contenido sustancial y detallado (mínimo 3-5 oraciones por sección).
+- SKILL DEVELOPMENT es la sección más extensa (~40 min): debe incluir instrucciones paso a paso, ejemplos concretos, y criterios de éxito.
+- No des respuestas genéricas como "Los estudiantes practicarán…" — describe la actividad ESPECÍFICA con materiales, pasos, y ejemplos.
+- Incluye números de página del libro si se proporcionó unidad/tema.`
+
+  const raw = await callClaude({ type: 'generate', system, message, planId, maxTokens: 8000 })
 
   try {
-    // Extraer JSON aunque Groq agregue texto extra alrededor
+    // Extraer JSON de la respuesta de Claude
     const match = raw.match(/\{[\s\S]*\}/)
     if (!match) throw new Error('No JSON found')
     const clean = match[0].trim()

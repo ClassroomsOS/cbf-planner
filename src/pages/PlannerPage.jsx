@@ -384,7 +384,14 @@ export default function PlannerPage({ teacher }) {
             <button
               className="btn-primary"
               style={{ background: '#8064A2' }}
-              onClick={() => setShowGenerator(true)}
+              onClick={async () => {
+                const pending = await checkPendingCheckpoint('ai')
+                if (pending) {
+                  setCheckpointData({ ...pending, pendingAction: 'ai' })
+                } else {
+                  setShowGenerator(true)
+                }
+              }}
               disabled={creating}>
               🤖 Generar con IA
             </button>
@@ -489,12 +496,16 @@ export default function PlannerPage({ teacher }) {
           target={checkpointData.target}
           teacher={teacher}
           onComplete={() => {
+            const action = checkpointData.pendingAction
             setCheckpointData(null)
-            doCreateGuide()
+            if (action === 'ai') setShowGenerator(true)
+            else doCreateGuide()
           }}
           onSkip={() => {
+            const action = checkpointData.pendingAction
             setCheckpointData(null)
-            doCreateGuide()
+            if (action === 'ai') setShowGenerator(true)
+            else doCreateGuide()
           }}
           onClose={() => setCheckpointData(null)}
         />
