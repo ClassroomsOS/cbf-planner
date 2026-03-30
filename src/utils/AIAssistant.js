@@ -204,13 +204,33 @@ IMPORTANTE SOBRE EXTENSIÓN DEL CONTENIDO:
 
   const raw = await callClaude({ type: 'generate', system, message, planId, maxTokens: 16000 })
 
-  try {
-    // Extraer JSON de la respuesta de Claude
-    const match = raw.match(/\{[\s\S]*\}/)
-    if (!match) throw new Error('No JSON found')
-    const clean = match[0].trim()
-    return JSON.parse(clean)
-  } catch (e) {
-    throw new Error(`JSON inválido. Raw: ${raw?.slice(0, 200)}`)
+  // Try to parse JSON, if truncated retry once with concise instruction
+  function tryParseJSON(text) {
+    const match = text.match(/\{[\s\S]*\}/)
+    if (!match) return null
+    try {
+      return JSON.parse(match[0].trim())
+    } catch {
+      return null
+    }
   }
+
+  const result = tryParseJSON(raw)
+  if (result) return result
+
+  // Retry: ask for more compact content
+  const retryMessage = `${message}
+
+IMPORTANTE: Tu respuesta anterior fue cortada por ser demasiado larga.
+Esta vez, sé MÁS CONCISO:
+- SUBJECT, MOTIVATION, CLOSING, ASSIGNMENT: máximo 2 oraciones cada uno.
+- ACTIVITY: máximo 3 oraciones.
+- SKILL DEVELOPMENT: máximo 5 oraciones (esta es la sección principal).
+- Responde SOLO con el JSON, sin texto antes ni después.`
+
+  const retryRaw = await callClaude({ type: 'generate', system, message: retryMessage, planId, maxTokens: 16000 })
+  const retryResult = tryParseJSON(retryRaw)
+  if (retryResult) return retryResult
+
+  throw new Error(`No se pudo generar la guía. Intenta con menos días o un objetivo más específico.`)
 }
