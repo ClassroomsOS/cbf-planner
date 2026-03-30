@@ -34,18 +34,29 @@ export default function LearningTargetSelector({
 
   async function loadTargets() {
     setLoading(true)
+    // Fetch all active targets for this subject + school
+    // then filter client-side for flexible grade/group matching
     const { data } = await supabase
       .from('learning_targets')
-      .select('id, description, taxonomy, group_name, prerequisite_ids')
+      .select('id, description, taxonomy, grade, group_name, prerequisite_ids')
       .eq('school_id', schoolId)
       .eq('subject', subject)
-      .eq('grade', grade)
       .eq('is_active', true)
       .order('period', { ascending: true })
 
-    // Filter: show targets for this period or previous (prerequisite visibility)
-    const periodNum = typeof period === 'string' ? parseInt(period) : period
-    const filtered = (data || []).filter(t => true) // show all for now — teacher chooses
+    // Flexible match: guide grade might be "7.° Blue" while target has
+    // grade="7.°" and group_name="Blue" separately
+    const filtered = (data || []).filter(t => {
+      // Exact grade match (e.g. both are "7.°")
+      if (t.grade === grade) return true
+      // Guide grade contains target grade (e.g. guide="7.° Blue", target.grade="7.°")
+      if (grade.startsWith(t.grade)) {
+        // If target has a group_name, check it's in the guide grade too
+        if (t.group_name) return grade.includes(t.group_name)
+        return true
+      }
+      return false
+    })
     setTargets(filtered)
     setLoading(false)
   }
