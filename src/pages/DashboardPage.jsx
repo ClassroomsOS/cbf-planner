@@ -10,6 +10,7 @@ import AIUsagePage         from './AIUsagePage'
 import GuideEditorPage     from './GuideEditorPage'
 import MessagesPage        from './MessagesPage'
 import SettingsPage        from './SettingsPage'
+import LearningTargetsPage from './LearningTargetsPage'
 import ProfileModal        from '../components/ProfileModal'
 import { FeaturesProvider, useFeatures } from '../context/FeaturesContext'
 
@@ -99,6 +100,10 @@ function DashboardInner({ session, teacher, setTeacher }) {
             <span className="dot" style={{ background: '#9BBB59' }} />
             Mis Guías
           </NavLink>
+          <NavLink to="/targets" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
+            <span className="dot" style={{ background: '#C9A84C' }} />
+            🎯 Objetivos
+          </NavLink>
 
           <div className="sb-nav-divider" />
 
@@ -156,11 +161,12 @@ function DashboardInner({ session, teacher, setTeacher }) {
 
       <div className="main">
         <Routes>
-          <Route path="/"           element={<PlannerPage     teacher={teacher} />} />
-          <Route path="/plans"      element={<MyPlansPage     teacher={teacher} />} />
-          <Route path="/editor/:id" element={<GuideEditorPage teacher={teacher} />} />
-          <Route path="/ai-usage"   element={<AIUsagePage     teacher={teacher} />} />
-          <Route path="/messages"   element={<MessagesPage    teacher={teacher} onUpdate={fetchUnreadMessages} />} />
+          <Route path="/"           element={<PlannerPage          teacher={teacher} />} />
+          <Route path="/plans"      element={<MyPlansPage          teacher={teacher} />} />
+          <Route path="/editor/:id" element={<GuideEditorPage      teacher={teacher} />} />
+          <Route path="/targets"    element={<LearningTargetsPage  teacher={teacher} />} />
+          <Route path="/ai-usage"   element={<AIUsagePage          teacher={teacher} />} />
+          <Route path="/messages"   element={<MessagesPage         teacher={teacher} onUpdate={fetchUnreadMessages} />} />
           {isAdmin && (
             <>
               <Route path="/calendar"      element={<CalendarPage      teacher={teacher} />} />
