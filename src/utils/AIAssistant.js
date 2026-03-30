@@ -202,7 +202,7 @@ IMPORTANTE SOBRE EXTENSIÓN DEL CONTENIDO:
 - No des respuestas genéricas como "Los estudiantes practicarán…" — describe la actividad ESPECÍFICA con materiales, pasos, y ejemplos.
 - Incluye números de página del libro si se proporcionó unidad/tema.`
 
-  const raw = await callClaude({ type: 'generate', system, message, planId, maxTokens: 8000 })
+  const raw = await callClaude({ type: 'generate', system, message, planId, maxTokens: 16000 })
 
   try {
     // Extraer JSON de la respuesta de Claude
