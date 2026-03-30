@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 
 // ── LearningTargetSelector ──────────────────────────────────────────────────
@@ -22,6 +23,7 @@ export default function LearningTargetSelector({
   planId, subject, grade, period, schoolId, teacherId,
   currentTargetId, onChange,
 }) {
+  const navigate = useNavigate()
   const [targets,  setTargets]  = useState([])
   const [loading,  setLoading]  = useState(true)
   const [expanded, setExpanded] = useState(false)
@@ -149,7 +151,7 @@ export default function LearningTargetSelector({
           No hay objetivos activos para {subject} · {grade}.{' '}
           <a
             href="#"
-            onClick={e => { e.preventDefault(); window.open('#/targets', '_blank') }}
+            onClick={e => { e.preventDefault(); navigate('/targets') }}
             style={{ color: '#2E5598' }}
           >
             Crear uno →
