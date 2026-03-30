@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { AIGeneratorModal } from '../components/AIComponents'
+import CheckpointModal from '../components/CheckpointModal'
 
 // ── Date helpers (same as before) ────────────────────────────────────────────
 function getMondayOf(date) {
@@ -92,6 +93,9 @@ export default function PlannerPage({ teacher }) {
   const [creating, setCreating]     = useState(false)
   const [error,    setError]        = useState(null)
   const [showGenerator, setShowGenerator] = useState(false)
+  // ── Checkpoint state ──
+  const [checkpointData, setCheckpointData] = useState(null)
+  // checkpointData = { previousPlan, target, pendingAction } | null
 
   const monday2     = (() => { const d = new Date(monday); d.setDate(d.getDate() + 7); return d })()
   const week1Days   = getWeekDays(monday)
@@ -141,12 +145,52 @@ export default function PlannerPage({ teacher }) {
     return true
   })
 
-  async function handleCreateGuide() {
-    if (!grade || !subject) return
+  // ── Check for pending checkpoint from previous week ──
+  async function checkPendingCheckpoint(action) {
+    const prevWeek = weekNumber - 1
+    if (prevWeek < 1) return null
+
+    // Find previous week's plan for the same grade/subject
+    const { data: prevPlan } = await supabase
+      .from('lesson_plans')
+      .select('id, week_number, grade, subject, section, target_id')
+      .eq('teacher_id', teacher.id)
+      .eq('grade', grade)
+      .eq('subject', subject)
+      .eq('week_number', prevWeek)
+      .not('target_id', 'is', null)
+      .maybeSingle()
+
+    if (!prevPlan) return null
+
+    // Check if checkpoint already exists
+    const { data: existingCheckpoint } = await supabase
+      .from('checkpoints')
+      .select('id')
+      .eq('target_id', prevPlan.target_id)
+      .eq('teacher_id', teacher.id)
+      .eq('week_number', prevWeek)
+      .maybeSingle()
+
+    if (existingCheckpoint) return null
+
+    // Fetch the target details
+    const { data: target } = await supabase
+      .from('learning_targets')
+      .select('id, description, taxonomy')
+      .eq('id', prevPlan.target_id)
+      .single()
+
+    if (!target) return null
+
+    return { previousPlan: prevPlan, target, pendingAction: action }
+  }
+
+  // ── Core guide creation / navigation ──
+  async function doCreateGuide() {
     setCreating(true)
     setError(null)
 
-    // Check if a plan already exists for this teacher/grade/subject/week
     const { data: existing } = await supabase
       .from('lesson_plans')
       .select('id')
@@ -157,12 +201,10 @@ export default function PlannerPage({ teacher }) {
       .maybeSingle()
 
     if (existing) {
-      // Open existing plan
       navigate(`/editor/${existing.id}`)
       return
     }
 
-    // Create new plan
     const { data: newPlan, error: insertError } = await supabase
       .from('lesson_plans')
       .insert({
@@ -181,6 +223,22 @@ export default function PlannerPage({ teacher }) {
 
     if (insertError) { setError(insertError.message); setCreating(false); return }
     navigate(`/editor/${newPlan.id}`)
+  }
+
+  // ── Entry point: check checkpoint first, then create guide ──
+  async function handleCreateGuide() {
+    if (!grade || !subject) return
+    setCreating(true)
+    setError(null)
+
+    const pending = await checkPendingCheckpoint('create')
+    if (pending) {
+      setCheckpointData(pending)
+      setCreating(false)
+      return
+    }
+
+    await doCreateGuide()
   }
 
   return (
@@ -423,6 +481,22 @@ export default function PlannerPage({ teacher }) {
             setCreating(false)
           }}
           onClose={() => setShowGenerator(false)}
+        />
+      )}
+      {checkpointData && (
+        <CheckpointModal
+          previousPlan={checkpointData.previousPlan}
+          target={checkpointData.target}
+          teacher={teacher}
+          onComplete={() => {
+            setCheckpointData(null)
+            doCreateGuide()
+          }}
+          onSkip={() => {
+            setCheckpointData(null)
+            doCreateGuide()
+          }}
+          onClose={() => setCheckpointData(null)}
         />
       )}
     </div>
