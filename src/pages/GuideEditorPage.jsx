@@ -12,6 +12,7 @@ import SectionPreview from '../components/SectionPreview'
 import { useFeatures } from '../context/FeaturesContext'
 import CorrectionRequestModal from '../components/CorrectionRequestModal'
 import LayoutSelectorModal, { LAYOUT_ELIGIBLE } from '../components/LayoutSelectorModal'
+import LearningTargetSelector from '../components/LearningTargetSelector'
 
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -525,6 +526,16 @@ export default function GuideEditorPage({ teacher }) {
           {activePanel === 'objetivo' && (
             <div className="card">
               <div className="card-title"><div className="badge">3</div> Objetivo de Aprendizaje</div>
+              <LearningTargetSelector
+                planId={id}
+                subject={content.info.asignatura}
+                grade={content.info.grado}
+                period={parseInt(content.info.periodo) || 1}
+                schoolId={teacher.school_id}
+                teacherId={teacher.id}
+                currentTargetId={plan?.target_id || null}
+                onChange={(targetId) => setPlan(prev => ({ ...prev, target_id: targetId }))}
+              />
               {richField('Objetivo general de la semana',
                 content.objetivo.general, ['objetivo','general'],
                 'Al finalizar la semana, el estudiante estará en capacidad de…', 100)}
