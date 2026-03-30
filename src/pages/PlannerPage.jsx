@@ -96,6 +96,34 @@ export default function PlannerPage({ teacher }) {
   // ── Checkpoint state ──
   const [checkpointData, setCheckpointData] = useState(null)
   // checkpointData = { previousPlan, target, pendingAction } | null
+  // ── Active learning target for this grade/subject ──
+  const [activeTarget, setActiveTarget] = useState(null)
+
+  // Fetch active target when grade/subject change
+  useEffect(() => {
+    if (!grade || !subject) { setActiveTarget(null); return }
+    async function fetchTarget() {
+      const { data } = await supabase
+        .from('learning_targets')
+        .select('id, description, taxonomy, grade, group_name')
+        .eq('school_id', teacher.school_id)
+        .eq('subject', subject)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+
+      // Flexible grade match (same logic as LearningTargetSelector)
+      const match = (data || []).find(t => {
+        if (t.grade === grade) return true
+        if (grade.startsWith(t.grade)) {
+          if (t.group_name) return grade.includes(t.group_name)
+          return true
+        }
+        return false
+      })
+      setActiveTarget(match || null)
+    }
+    fetchTarget()
+  }, [grade, subject])
 
   const monday2     = (() => { const d = new Date(monday); d.setDate(d.getDate() + 7); return d })()
   const week1Days   = getWeekDays(monday)
@@ -217,6 +245,7 @@ export default function PlannerPage({ teacher }) {
         date_range:  dateRange,
         status:      'draft',
         content:     {},
+        target_id:   activeTarget?.id || null,
       })
       .select()
       .single()
@@ -404,6 +433,7 @@ export default function PlannerPage({ teacher }) {
           subject={subject}
           period={period}
           activeDays={activeDays.map(d => toISO(d))}
+          learningTarget={activeTarget}
           onApply={async (aiResult) => {
             setShowGenerator(false)
             setCreating(true)
@@ -432,6 +462,7 @@ export default function PlannerPage({ teacher }) {
                   date_range:  dateRange,
                   status:      'draft',
                   content:     {},
+                  target_id:   activeTarget?.id || null,
                 })
                 .select().single()
               planId = newPlan?.id
