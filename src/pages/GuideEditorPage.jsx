@@ -110,6 +110,7 @@ export default function GuideEditorPage({ teacher }) {
   const [showComments,    setShowComments]    = useState(false)
   const [showCorrections, setShowCorrections] = useState(false)
   const [showPreview,     setShowPreview]     = useState(true)
+  const [linkedTarget,    setLinkedTarget]    = useState(null)
 
   const dirtyRef   = useRef(false)
   const contentRef = useRef(null)
@@ -147,6 +148,17 @@ export default function GuideEditorPage({ teacher }) {
     }
     load()
   }, [id])
+
+  // ── Load linked learning target ──
+  useEffect(() => {
+    if (!plan?.target_id) { setLinkedTarget(null); return }
+    supabase
+      .from('learning_targets')
+      .select('id, description, taxonomy, group_name, prerequisite_ids')
+      .eq('id', plan.target_id)
+      .single()
+      .then(({ data }) => setLinkedTarget(data || null))
+  }, [plan?.target_id])
 
   async function buildDaysFromDB(data, c) {
     let weekMonday
@@ -575,6 +587,7 @@ export default function GuideEditorPage({ teacher }) {
               objective={content.objetivo.general}
               showPreview={showPreview}
               setShowPreview={setShowPreview}
+              learningTarget={linkedTarget}
             />
           )}
 
@@ -625,6 +638,7 @@ export default function GuideEditorPage({ teacher }) {
           currentContent={contentRef.current}
           onApply={handleApplyGenerated}
           onClose={() => setShowGenerator(false)}
+          learningTarget={linkedTarget}
         />
       )}
 
@@ -634,7 +648,7 @@ export default function GuideEditorPage({ teacher }) {
 
 // ── DayPanel ─────────────────────────────────────────────────────────────────
 
-function DayPanel({ iso, day, setContentField, toggleDayActive, openSections, toggleSection, planId, grade, subject, objective, showPreview, setShowPreview }) {
+function DayPanel({ iso, day, setContentField, toggleDayActive, openSections, toggleSection, planId, grade, subject, objective, showPreview, setShowPreview, learningTarget }) {
   const { features } = useFeatures()
   const base = ['days', iso]
   const [layoutModal, setLayoutModal] = useState(null)
@@ -737,6 +751,7 @@ function DayPanel({ iso, day, setContentField, toggleDayActive, openSections, to
                       dayName={getDayName(iso)}
                       existingContent={section.content}
                       onInsert={val => setContentField([...base,'sections',s.key,'content'], val)}
+                      learningTarget={learningTarget}
                     />}
 
                     <div className="ge-field">

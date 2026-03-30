@@ -4,7 +4,7 @@ import { suggestSectionActivity, analyzeGuide, generateGuideStructure } from '..
 // ══════════════════════════════════════════════════════════════
 // PUNTO 1 — AISuggestButton (inline en cada sección)
 // ══════════════════════════════════════════════════════════════
-export function AISuggestButton({ section, grade, subject, objective, unit, dayName, existingContent, onInsert }) {
+export function AISuggestButton({ section, grade, subject, objective, unit, dayName, existingContent, onInsert, learningTarget }) {
   const [loading,     setLoading]     = useState(false)
   const [suggestion,  setSuggestion]  = useState(null)
   const [error,       setError]       = useState(null)
@@ -14,7 +14,7 @@ export function AISuggestButton({ section, grade, subject, objective, unit, dayN
     setLoading(true); setError(null); setSuggestion(null); setOpen(true)
     try {
       const result = await suggestSectionActivity({
-        section, grade, subject, objective, unit, dayName, existingContent
+        section, grade, subject, objective, unit, dayName, existingContent, learningTarget
       })
       setSuggestion(result)
     } catch (e) {
@@ -182,8 +182,8 @@ export function AIAnalyzerModal({ content, onClose }) {
 // ══════════════════════════════════════════════════════════════
 // PUNTO 3 — AIGeneratorModal (generar guía desde objetivo)
 // ══════════════════════════════════════════════════════════════
-export function AIGeneratorModal({ grade, subject, period, activeDays, currentContent, onApply, onClose }) {
-  const [objective, setObjective] = useState('')
+export function AIGeneratorModal({ grade, subject, period, activeDays, currentContent, onApply, onClose, learningTarget }) {
+  const [objective, setObjective] = useState(learningTarget?.description || '')
   const [unit,      setUnit]      = useState('')
   const [loading,   setLoading]   = useState(false)
   const [preview,   setPreview]   = useState(null)
@@ -200,7 +200,7 @@ export function AIGeneratorModal({ grade, subject, period, activeDays, currentCo
     setLoading(true); setError(null); setPreview(null)
     try {
       const result = await generateGuideStructure({
-        grade, subject, period, objective, unit, activeDays
+        grade, subject, period, objective, unit, activeDays, learningTarget
       })
       setPreview(result)
     } catch (e) {
@@ -262,6 +262,28 @@ export function AIGeneratorModal({ grade, subject, period, activeDays, currentCo
                 💡 Claude generará una propuesta completa para los {activeDays.length} días de clase de esta semana.
                 Tú editas, ajustas y decides qué usar.
               </div>
+
+              {learningTarget && (
+                <div style={{
+                  background: '#f0f7f0', border: '1px solid #b5d6b5', borderRadius: '8px',
+                  padding: '12px 14px', marginBottom: '16px',
+                  display: 'flex', alignItems: 'flex-start', gap: '10px',
+                }}>
+                  <span style={{ fontSize: '18px' }}>🎯</span>
+                  <div>
+                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#2d7a2d', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      Objetivo de desempeño vinculado
+                    </div>
+                    <div style={{ fontSize: '13px', color: '#1a5c1a', lineHeight: 1.5 }}>
+                      {learningTarget.description}
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#888', marginTop: '4px' }}>
+                      Nivel: {learningTarget.taxonomy === 'recognize' ? '👁️ Reconocer' : learningTarget.taxonomy === 'apply' ? '🛠️ Aplicar' : '✨ Producir'}
+                      — El AI generará contenido alineado a este desempeño.
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="ge-field">
                 <label>🎯 ¿Qué quieres que los estudiantes logren esta semana?</label>

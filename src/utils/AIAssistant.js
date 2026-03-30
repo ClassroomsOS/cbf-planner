@@ -34,13 +34,19 @@ async function callClaude({ type, system, message, planId, maxTokens }) {
 
 // ── Punto 1: Sugerir actividad para una sección ───────────────────────────────
 export async function suggestSectionActivity({
-  section, grade, subject, objective, unit, dayName, existingContent, planId
+  section, grade, subject, objective, unit, dayName, existingContent, planId, learningTarget
 }) {
   const system = `Eres un asistente pedagógico experto para colegios bilingües colombianos.
 Generas sugerencias de actividades para guías de aprendizaje autónomo (CBF).
 Respondes SIEMPRE en español, con actividades concretas, prácticas y apropiadas para el nivel.
 Formato: texto corrido, listo para pegar en la guía. Sin marcadores markdown excesivos.
-Sé conciso pero específico. Máximo 150 palabras.`
+Sé conciso pero específico. Máximo 150 palabras.
+${learningTarget ? `
+IMPORTANTE: Esta guía tiene un OBJETIVO DE DESEMPEÑO vinculado. Tu sugerencia DEBE estar alineada
+a este desempeño observable. No generes actividades genéricas — genera actividades que lleven
+al estudiante a demostrar este desempeño específico.` : ''}`
+
+  const TAXONOMY_DESC = { recognize: 'Reconocer (identificar, recordar, nombrar)', apply: 'Aplicar (usar, demostrar, resolver)', produce: 'Producir (crear, diseñar, componer)' }
 
   const message = `Estoy escribiendo la sección "${section.label}" de una guía de aprendizaje.
 
@@ -51,6 +57,11 @@ Contexto:
 - Unidad/Tema: ${unit || 'No especificado'}
 - Objetivo de la semana: ${objective || 'No especificado'}
 - Tiempo estimado de esta sección: ${section.time}
+${learningTarget ? `
+🎯 OBJETIVO DE DESEMPEÑO VINCULADO:
+- Desempeño: ${learningTarget.description}
+- Nivel taxonómico: ${TAXONOMY_DESC[learningTarget.taxonomy] || learningTarget.taxonomy}
+- La actividad debe contribuir directamente a que el estudiante logre este desempeño.` : ''}
 ${existingContent ? `- Lo que ya tengo escrito: "${existingContent.replace(/<[^>]+>/g,' ').slice(0,200)}"` : ''}
 
 Sugiere una actividad específica para la sección "${section.label}" que sea coherente con el objetivo y apropiada para el tiempo disponible.`
@@ -112,8 +123,10 @@ Dame un análisis pedagógico completo.`
 
 // ── Punto 3: Generar estructura completa desde objetivo ───────────────────────
 export async function generateGuideStructure({
-  grade, subject, objective, unit, activeDays, period, planId
+  grade, subject, objective, unit, activeDays, period, planId, learningTarget
 }) {
+  const TAXONOMY_DESC = { recognize: 'Reconocer (identificar, recordar, nombrar)', apply: 'Aplicar (usar, demostrar, resolver)', produce: 'Producir (crear, diseñar, componer)' }
+
   const system = `Eres un experto en diseño de guías de aprendizaje autónomo para colegios bilingües colombianos.
 Generas estructuras completas de guías semanales siguiendo el modelo CBF con 6 secciones por día:
 1. SUBJECT TO BE WORKED (~8 min): introducción al tema del día
@@ -122,6 +135,15 @@ Generas estructuras completas de guías semanales siguiendo el modelo CBF con 6 
 4. SKILL DEVELOPMENT (~40 min): desarrollo profundo de la habilidad
 5. CLOSING (~8 min): cierre y reflexión
 6. ASSIGNMENT (~5 min): tarea o extensión
+${learningTarget ? `
+PRINCIPIO PEDAGÓGICO CENTRAL:
+Esta guía tiene un OBJETIVO DE DESEMPEÑO específico vinculado. Todo el contenido que generes
+debe estar diseñado para que el estudiante progrese hacia ese desempeño observable.
+Nivel taxonómico del objetivo: ${TAXONOMY_DESC[learningTarget.taxonomy] || learningTarget.taxonomy}.
+- Si el nivel es "Reconocer": enfoca las actividades en identificación, clasificación, y recuerdo activo.
+- Si el nivel es "Aplicar": enfoca en práctica guiada, resolución de problemas, y uso contextualizado.
+- Si el nivel es "Producir": enfoca en creación, composición, y producción autónoma.
+Las actividades deben progresar durante la semana HACIA el desempeño, no solo "cubrir el tema".` : ''}
 
 Respondes ÚNICAMENTE con JSON válido, sin texto adicional, sin markdown.
 El JSON debe tener exactamente esta estructura:
@@ -162,6 +184,12 @@ El JSON debe tener exactamente esta estructura:
 - Unidad/Tema: ${unit || 'No especificado'}
 - Objetivo del docente: ${objective}
 - Días de clase esta semana: ${daysStr}
+${learningTarget ? `
+🎯 OBJETIVO DE DESEMPEÑO VINCULADO:
+- Desempeño observable: ${learningTarget.description}
+- Nivel taxonómico: ${TAXONOMY_DESC[learningTarget.taxonomy] || learningTarget.taxonomy}
+- TODA la semana debe construir hacia este desempeño. El viernes (o último día), el estudiante
+  debería estar en capacidad de demostrar este desempeño.` : ''}
 
 Genera contenido específico, concreto y apropiado para el nivel.
 Las actividades deben progresar lógicamente durante la semana.
