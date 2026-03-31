@@ -1,6 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 
-const GROQ_API_KEY = Deno.env.get('GROQ_API_KEY')
+const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY')
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -13,33 +13,32 @@ serve(async (req) => {
   }
 
   try {
-    if (!GROQ_API_KEY) {
-      throw new Error('GROQ_API_KEY not configured')
+    if (!ANTHROPIC_API_KEY) {
+      throw new Error('ANTHROPIC_API_KEY not configured. Set it with: supabase secrets set ANTHROPIC_API_KEY=sk-ant-...')
     }
 
     const body = await req.json()
 
+    // Build messages array for Claude API
     const messages = []
-    if (body.system) {
-      messages.push({ role: 'system', content: body.system })
-    }
     if (body.messages) {
       messages.push(...body.messages)
     } else {
       messages.push({ role: 'user', content: body.message || '' })
     }
 
-    // Use llama-3.1-8b-instant: 20000 TPM free — much higher limits than 70b
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    // Claude API request
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${GROQ_API_KEY}`,
+        'x-api-key': ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'llama-3.1-8b-instant',
-        max_tokens: body.max_tokens || 2000,
-        temperature: 0.7,
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: body.max_tokens || 4000,
+        system: body.system || undefined,
         messages,
       }),
     })
@@ -47,14 +46,22 @@ serve(async (req) => {
     const data = await response.json()
 
     if (!response.ok) {
-      throw new Error(data.error?.message || `Groq error ${response.status}`)
+      throw new Error(data.error?.message || `Claude API error ${response.status}`)
     }
 
-    const text = data.choices?.[0]?.message?.content || ''
-    const finish_reason = data.choices?.[0]?.finish_reason || ''
+    // Extract text from Claude's response format
+    const text = data.content
+      ?.filter((block) => block.type === 'text')
+      ?.map((block) => block.text)
+      ?.join('\n') || ''
 
-    // Return text + debug info
-    return new Response(JSON.stringify({ text, finish_reason, usage: data.usage }), {
+    const finish_reason = data.stop_reason || ''
+
+    return new Response(JSON.stringify({
+      text,
+      finish_reason,
+      usage: data.usage,
+    }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
 
