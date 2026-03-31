@@ -91,7 +91,7 @@ export default function CorrectionRequestModal({ planId, teacher, onClose }) {
   }
 
   return (
-    <div className="sb-modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+    <div className="sb-modal-overlay">
       <div className="sb-modal" style={{ maxWidth: '640px' }}>
         <div className="sb-modal-header">
           <h2>🔧 Solicitudes de corrección</h2>

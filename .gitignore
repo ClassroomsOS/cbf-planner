@@ -4,3 +4,5 @@ dist
 .env.local
 .DS_Store
 "supabase.exe" 
+"ANTHROPIC_API_KEY" 
+"ANTHROPIC_API_KEY" 

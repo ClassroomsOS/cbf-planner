@@ -166,7 +166,8 @@ export default function NewsProjectEditor({ teacher, project, templates, cloneFo
   }
 
   return (
-    <div style={styles.overlay} onClick={onClose}>
+    /* ── FIX 2A: overlay NO cierra al clic — solo X y Cancelar cierran ── */
+    <div style={styles.overlay}>
       <div style={styles.modal} onClick={e => e.stopPropagation()}>
         {/* Modal Header */}
         <div style={styles.header}>

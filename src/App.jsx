@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { supabase } from './supabase'
+import ErrorBoundary from './components/ErrorBoundary'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 import ProfileSetupPage from './pages/ProfileSetupPage'
@@ -49,43 +50,45 @@ export default function App() {
   }
 
   return (
-    <BrowserRouter basename="/cbf-planner">
-      <Routes>
-        {/* Not logged in → Login */}
-        <Route path="/login" element={
-          session ? <Navigate to="/" replace /> : <LoginPage />
-        } />
+    <ErrorBoundary>
+      <BrowserRouter basename="/cbf-planner">
+        <Routes>
+          {/* Not logged in → Login */}
+          <Route path="/login" element={
+            session ? <Navigate to="/" replace /> : <LoginPage />
+          } />
 
-        {/* Logged in but no profile yet → Setup */}
-        <Route path="/setup" element={
-          !session ? <Navigate to="/login" replace /> :
-          teacher ? <Navigate to="/" replace /> :
-          <ProfileSetupPage session={session} onComplete={setTeacher} />
-        } />
+          {/* Logged in but no profile yet → Setup */}
+          <Route path="/setup" element={
+            !session ? <Navigate to="/login" replace /> :
+            teacher ? <Navigate to="/" replace /> :
+            <ProfileSetupPage session={session} onComplete={setTeacher} />
+          } />
 
-        {/* Pending approval */}
-        <Route path="/pending" element={
-          !session ? <Navigate to="/login" replace /> :
-          !teacher ? <Navigate to="/setup" replace /> :
-          teacher.status !== 'pending' ? <Navigate to="/" replace /> :
-          <PendingPage teacher={teacher} />
-        } />
+          {/* Pending approval */}
+          <Route path="/pending" element={
+            !session ? <Navigate to="/login" replace /> :
+            !teacher ? <Navigate to="/setup" replace /> :
+            teacher.status !== 'pending' ? <Navigate to="/" replace /> :
+            <PendingPage teacher={teacher} />
+          } />
 
-        {/* Main app */}
-        <Route path="/*" element={
-          !session ? <Navigate to="/login" replace /> :
-          !teacher ? <Navigate to="/setup" replace /> :
-          teacher.status === 'pending' ? <Navigate to="/pending" replace /> :
-          teacher.status === 'rejected' ? <Navigate to="/rejected" replace /> :
-          <DashboardPage session={session} teacher={teacher} setTeacher={setTeacher} />
-        } />
+          {/* Main app */}
+          <Route path="/*" element={
+            !session ? <Navigate to="/login" replace /> :
+            !teacher ? <Navigate to="/setup" replace /> :
+            teacher.status === 'pending' ? <Navigate to="/pending" replace /> :
+            teacher.status === 'rejected' ? <Navigate to="/rejected" replace /> :
+            <DashboardPage session={session} teacher={teacher} setTeacher={setTeacher} />
+          } />
 
-        {/* Rejected */}
-        <Route path="/rejected" element={
-          !session ? <Navigate to="/login" replace /> :
-          <RejectedPage />
-        } />
-      </Routes>
-    </BrowserRouter>
+          {/* Rejected */}
+          <Route path="/rejected" element={
+            !session ? <Navigate to="/login" replace /> :
+            <RejectedPage />
+          } />
+        </Routes>
+      </BrowserRouter>
+    </ErrorBoundary>
   )
 }

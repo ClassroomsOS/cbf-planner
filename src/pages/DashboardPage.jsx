@@ -93,25 +93,27 @@ function DashboardInner({ session, teacher, setTeacher }) {
         </div>
 
         <nav className="sb-nav">
-          <NavLink to="/" end className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
-            <span className="dot" style={{ background: '#2E5598' }} />
-            Nueva Guía
-          </NavLink>
-          <NavLink to="/plans" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
-            <span className="dot" style={{ background: '#9BBB59' }} />
-            Mis Guías
+          {/* ── PLANIFICACIÓN (flujo pedagógico) ── */}
+          <NavLink to="/targets" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
+            <span className="dot" style={{ background: '#C9A84C' }} />
+            🎯 Objetivos
           </NavLink>
           <NavLink to="/news" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
             <span className="dot" style={{ background: '#C0504D' }} />
             📋 NEWS Projects
           </NavLink>
-          <NavLink to="/targets" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
-            <span className="dot" style={{ background: '#C9A84C' }} />
-            🎯 Objetivos
+          <NavLink to="/" end className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
+            <span className="dot" style={{ background: '#2E5598' }} />
+            📝 Nueva Guía
+          </NavLink>
+          <NavLink to="/plans" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
+            <span className="dot" style={{ background: '#9BBB59' }} />
+            📂 Mis Guías
           </NavLink>
 
           <div className="sb-nav-divider" />
 
+          {/* ── COMUNICACIÓN ── */}
           {features.messages !== false && (
             <NavLink to="/messages" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
               <span className="dot" style={{ background: '#4BACC6' }} />
@@ -127,6 +129,7 @@ function DashboardInner({ session, teacher, setTeacher }) {
             Uso de IA
           </NavLink>
 
+          {/* ── ADMINISTRACIÓN ── */}
           {isAdmin && (
             <>
               <div className="sb-nav-divider" />

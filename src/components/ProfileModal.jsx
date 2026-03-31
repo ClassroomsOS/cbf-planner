@@ -54,7 +54,7 @@ export default function ProfileModal({ teacher, onClose, onSave }) {
   const assignments = teacher.class_subjects || []
 
   return (
-    <div className="prof-overlay open" onClick={e => e.target === e.currentTarget && onClose()}>
+    <div className="prof-overlay open">
       <div className="prof-modal">
         <div className="prof-header">
           <div className="prof-header-icon">👤</div>

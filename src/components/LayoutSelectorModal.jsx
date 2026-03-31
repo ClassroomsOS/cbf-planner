@@ -99,7 +99,7 @@ export default function LayoutSelectorModal({
   const needsImage     = selectedLayout !== 'none'
 
   return (
-    <div style={S.overlay} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+    <div style={S.overlay}>
       <div style={S.modal}>
 
         {/* ── Header ── */}

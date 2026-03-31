@@ -138,7 +138,7 @@ export function AIAnalyzerModal({ content, onClose }) {
   }
 
   return (
-    <div className="sb-modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+    <div className="sb-modal-overlay">
       <div className="sb-modal" style={{ maxWidth: '680px' }}>
         <div className="sb-modal-header">
           <h2>🔍 Análisis pedagógico de la guía</h2>
@@ -248,7 +248,7 @@ export function AIGeneratorModal({ grade, subject, period, activeDays, currentCo
   }
 
   return (
-    <div className="sb-modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+    <div className="sb-modal-overlay">
       <div className="sb-modal" style={{ maxWidth: '760px' }}>
         <div className="sb-modal-header">
           <h2>🤖 Generar guía con IA — {grade} · {subject}</h2>
