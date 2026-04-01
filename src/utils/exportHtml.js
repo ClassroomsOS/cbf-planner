@@ -29,29 +29,18 @@ function getEmbedUrl(url) {
 }
 
 function sectionContent(section) {
-  const html    = section?.content || ''
-  const images  = section?.images  || []
-  const videos  = section?.videos  || []
+  const html   = section?.content || ''
+  const images = (section?.images || []).slice(0, 4)
+  const videos = section?.videos  || []
+
+  // Resolve layout: use user-set field, normalize legacy layout_mode
+  const rawLayout = section?.image_layout ||
+    (section?.layout_mode === 'side' ? 'right' : 'below')
+  const layout = images.length > 0 ? rawLayout : 'below'
 
   const textHtml = html
     ? `<div style="font-size:12px;line-height:1.8;color:#222">${html}</div>`
     : `<p style="color:#ccc;font-size:12px;font-style:italic;margin:0">—</p>`
-
-  if (!images.length) return textHtml
-
-  // Layout: side-by-side if text is short, stack below if long
-  const plainLen = html.replace(/<[^>]+>/g, '').length
-  const layout   = plainLen < 400 ? 'side' : 'stack'
-
-  const thumbs = images.map(img => {
-    const imgTag = `<img src="${img.url}" alt="${esc(img.name)}"
-        style="max-width:220px;max-height:160px;width:auto;height:auto;
-               border-radius:5px;border:1px solid #ddd;display:block;object-fit:contain">`
-    const inner = img.link
-      ? `<a href="${esc(img.link)}" target="_blank" rel="noopener" style="display:inline-block">${imgTag}</a>`
-      : imgTag
-    return `<div style="margin-bottom:6px;display:inline-block">${inner}</div>`
-  }).join('')
 
   const videoHtml = videos.length > 0
     ? videos.map(v => {
@@ -60,7 +49,7 @@ function sectionContent(section) {
         const label = v.label ? `<div style="font-size:11px;font-weight:600;color:#2E5598;margin-bottom:4px">${esc(v.label)}</div>` : ''
         return `<div style="margin-top:10px">
           ${label}
-          <div style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;border-radius:6px;border:1px solid #ddd">
+          <div style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;border-radius:6px">
             <iframe src="${embedUrl}" frameborder="0" allowfullscreen
               style="position:absolute;top:0;left:0;width:100%;height:100%"></iframe>
           </div>
@@ -68,20 +57,71 @@ function sectionContent(section) {
       }).join('')
     : ''
 
-  if (layout === 'side') {
+  if (!images.length) return textHtml + videoHtml
+
+  const imageGrid = buildImageGrid(images, layout)
+
+  if (layout === 'right') {
     return `<table style="width:100%;border-collapse:collapse;table-layout:fixed">
       <tr>
         <td style="vertical-align:top;width:62%;padding-right:12px">${textHtml}</td>
-        <td style="vertical-align:top;width:38%">${thumbs}</td>
+        <td style="vertical-align:top;width:36%">${imageGrid}</td>
+      </tr>
+    </table>` + videoHtml
+  }
+  if (layout === 'left') {
+    return `<table style="width:100%;border-collapse:collapse;table-layout:fixed">
+      <tr>
+        <td style="vertical-align:top;width:36%;padding-right:12px">${imageGrid}</td>
+        <td style="vertical-align:top;width:62%">${textHtml}</td>
       </tr>
     </table>` + videoHtml
   }
 
-  return textHtml + (images.length ? `
-    <div style="margin-top:10px;padding-top:8px;border-top:2px dashed #e0e8f4;
-                display:flex;flex-wrap:wrap;gap:8px">
-      ${thumbs}
-    </div>` : '') + videoHtml
+  // below (default)
+  return textHtml + `<div style="margin-top:10px">${imageGrid}</div>` + videoHtml
+}
+
+// ── Image grid HTML — tamaños óptimos por cantidad ────────────────────────────
+function buildImageGrid(images, layout) {
+  const n = images.length
+  const isVertical = layout === 'right' || layout === 'left'
+
+  function imgTag(img) {
+    const tag = `<img src="${img.url}" alt="${esc(img.name || '')}"
+      style="width:100%;height:100%;object-fit:cover;border-radius:5px;display:block">`
+    return img.link
+      ? `<a href="${esc(img.link)}" target="_blank" rel="noopener">${tag}</a>`
+      : tag
+  }
+
+  // For vertical (right/left): images stacked in a column
+  if (isVertical) {
+    const items = images.map(img =>
+      `<div style="margin-bottom:4px">${imgTag(img)}</div>`
+    ).join('')
+    return `<div>${items}</div>`
+  }
+
+  // For below: grid by count
+  const gap = '4px'
+  if (n === 1) {
+    return `<div style="aspect-ratio:16/9;overflow:hidden;border-radius:5px">${imgTag(images[0])}</div>`
+  }
+  if (n === 2) {
+    return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:${gap}">
+      ${images.map(img => `<div style="aspect-ratio:4/3;overflow:hidden;border-radius:5px">${imgTag(img)}</div>`).join('')}
+    </div>`
+  }
+  if (n === 3) {
+    return `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:${gap}">
+      ${images.map(img => `<div style="aspect-ratio:4/3;overflow:hidden;border-radius:5px">${imgTag(img)}</div>`).join('')}
+    </div>`
+  }
+  // 4 → 2×2
+  return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:${gap}">
+    ${images.map(img => `<div style="aspect-ratio:4/3;overflow:hidden;border-radius:5px">${imgTag(img)}</div>`).join('')}
+  </div>`
 }
 
 function buildDayBlock(iso, day) {
