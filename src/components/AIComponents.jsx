@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { suggestSectionActivity, analyzeGuide, generateGuideStructure } from '../utils/AIAssistant'
 
 // ══════════════════════════════════════════════════════════════
@@ -188,6 +188,39 @@ export function AIGeneratorModal({ grade, subject, period, activeDays, currentCo
   const [loading,   setLoading]   = useState(false)
   const [preview,   setPreview]   = useState(null)
   const [error,     setError]     = useState(null)
+  const [progress,  setProgress]  = useState(0)
+  const progressRef = useRef(null)
+
+  const PROGRESS_STEPS = [
+    { at:  0, msg: 'Analizando objetivo y contexto…' },
+    { at: 20, msg: 'Diseñando actividades para cada día…' },
+    { at: 45, msg: 'Construyendo la estructura de la guía…' },
+    { at: 68, msg: 'Revisando coherencia pedagógica…' },
+    { at: 88, msg: 'Finalizando detalles…' },
+  ]
+
+  useEffect(() => {
+    if (loading) {
+      setProgress(0)
+      progressRef.current = setInterval(() => {
+        setProgress(prev => {
+          if (prev >= 94) { clearInterval(progressRef.current); return 94 }
+          // Accelerates at start, slows toward the end
+          const increment = prev < 30 ? 3 : prev < 60 ? 1.5 : prev < 85 ? 0.6 : 0.2
+          return Math.min(94, prev + increment)
+        })
+      }, 300)
+    } else {
+      clearInterval(progressRef.current)
+      if (progress > 0) {
+        setProgress(100)
+        setTimeout(() => setProgress(0), 400)
+      }
+    }
+    return () => clearInterval(progressRef.current)
+  }, [loading])
+
+  const progressMsg = [...PROGRESS_STEPS].reverse().find(s => progress >= s.at)?.msg || PROGRESS_STEPS[0].msg
 
   const DAYS_ES = { mon:'Lunes', tue:'Martes', wed:'Miércoles', thu:'Jueves', fri:'Viernes' }
   const SECTION_LABELS = {
@@ -325,12 +358,24 @@ export function AIGeneratorModal({ grade, subject, period, activeDays, currentCo
                 disabled={!objective.trim() || loading}
                 onClick={handleGenerate}
                 style={{ width: '100%', padding: '12px', fontSize: '14px' }}>
-                {loading ? '⏳ Claude está generando tu guía…' : '✨ Generar guía completa'}
+                {loading ? '✨ Generando guía completa…' : '✨ Generar guía completa'}
               </button>
 
               {loading && (
-                <div style={{ textAlign: 'center', marginTop: '16px', color: '#888', fontSize: '12px' }}>
-                  Esto toma unos segundos…
+                <div style={{ marginTop: '20px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <span style={{ fontSize: '12px', color: '#555', fontWeight: 600 }}>{progressMsg}</span>
+                    <span style={{ fontSize: '11px', color: '#999' }}>{Math.round(progress)}%</span>
+                  </div>
+                  <div style={{ height: '8px', background: '#e8eef8', borderRadius: '99px', overflow: 'hidden' }}>
+                    <div style={{
+                      height: '100%',
+                      width: `${progress}%`,
+                      background: 'linear-gradient(90deg, #2E5598, #8064A2)',
+                      borderRadius: '99px',
+                      transition: 'width 0.3s ease',
+                    }} />
+                  </div>
                 </div>
               )}
             </>
