@@ -223,11 +223,18 @@ export default function GuideEditorPage({ teacher }) {
     let scheduledDayKeys = null
     let scheduleMap = null
 
+    // PlannerPage stores grade as "${baseGrade} ${section}" (e.g. "10.° A").
+    // teacher_assignments.grade stores only the base part ("10.°"), so strip
+    // the section suffix before querying.
+    const baseGrade = data.section && data.grade?.endsWith(' ' + data.section)
+      ? data.grade.slice(0, -data.section.length - 1)
+      : data.grade
+
     const { data: assignment } = await supabase
       .from('teacher_assignments')
       .select('schedule')
       .eq('teacher_id', teacher.id)
-      .eq('grade', data.grade)
+      .eq('grade', baseGrade)
       .eq('section', data.section)
       .eq('subject', data.subject)
       .maybeSingle()
