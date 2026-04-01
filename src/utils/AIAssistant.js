@@ -196,11 +196,14 @@ Las actividades deben progresar lógicamente durante la semana.
 El contenido debe estar en el idioma apropiado para la materia (inglés para Language Arts, español para otras).
 Usa texto plano, no HTML.
 
-IMPORTANTE SOBRE EXTENSIÓN DEL CONTENIDO:
-- Cada sección debe tener contenido sustancial y detallado (mínimo 3-5 oraciones por sección).
-- SKILL DEVELOPMENT es la sección más extensa (~40 min): debe incluir instrucciones paso a paso, ejemplos concretos, y criterios de éxito.
-- No des respuestas genéricas como "Los estudiantes practicarán…" — describe la actividad ESPECÍFICA con materiales, pasos, y ejemplos.
-- Incluye números de página del libro si se proporcionó unidad/tema.`
+LÍMITES DE EXTENSIÓN POR SECCIÓN (sé conciso y específico):
+- SUBJECT (~8 min): 1 oración. Enuncia el tema o habilidad del día.
+- MOTIVATION (~8 min): 1-2 oraciones. Describe la actividad de enganche (pregunta, juego corto, imagen, reto).
+- ACTIVITY (~15 min): 2-3 oraciones. Instrucción clara de la actividad práctica con un ejemplo concreto.
+- SKILL DEVELOPMENT (~40 min): 3-4 oraciones. Paso a paso de la actividad principal. Esta es la sección más importante.
+- CLOSING (~8 min): 1 oración. Pregunta de reflexión o síntesis del aprendizaje.
+- ASSIGNMENT (~5 min): 1 oración. Tarea específica y alcanzable.
+No uses listas con viñetas dentro del contenido. Texto corrido, directo al punto.`
 
   const raw = await callClaude({ type: 'generate', system, message, planId, maxTokens: 16000 })
 
@@ -221,11 +224,10 @@ IMPORTANTE SOBRE EXTENSIÓN DEL CONTENIDO:
   // Retry: ask for more compact content
   const retryMessage = `${message}
 
-IMPORTANTE: Tu respuesta anterior fue cortada por ser demasiado larga.
-Esta vez, sé MÁS CONCISO:
-- SUBJECT, MOTIVATION, CLOSING, ASSIGNMENT: máximo 2 oraciones cada uno.
-- ACTIVITY: máximo 3 oraciones.
-- SKILL DEVELOPMENT: máximo 5 oraciones (esta es la sección principal).
+IMPORTANTE: Tu respuesta anterior fue cortada. Sé más breve:
+- SUBJECT, MOTIVATION, CLOSING, ASSIGNMENT: 1 oración cada uno.
+- ACTIVITY: 2 oraciones.
+- SKILL DEVELOPMENT: 3 oraciones.
 - Responde SOLO con el JSON, sin texto antes ni después.`
 
   const retryRaw = await callClaude({ type: 'generate', system, message: retryMessage, planId, maxTokens: 16000 })
