@@ -8,7 +8,8 @@ export default function ImageUploader({ planId, dayIso, sectionKey, images = [],
   // images = [{ url, path, name }]
 
   async function handleFiles(e) {
-    const files = Array.from(e.target.files)
+    const remaining = MAX_IMAGES - images.length
+    const files = Array.from(e.target.files).slice(0, remaining)
     if (!files.length) return
     setUploading(true)
 
@@ -46,6 +47,9 @@ export default function ImageUploader({ planId, dayIso, sectionKey, images = [],
     onChange(images.map(i => i.path === img.path ? { ...i, link } : i))
   }
 
+  const MAX_IMAGES = 4
+  const atMax = images.length >= MAX_IMAGES
+
   return (
     <div className="img-uploader">
       {/* Thumbnails */}
@@ -75,23 +79,45 @@ export default function ImageUploader({ planId, dayIso, sectionKey, images = [],
         </div>
       )}
 
-      {/* Upload area */}
-      <div
-        className={`img-upload-area ${uploading ? 'uploading' : ''}`}
-        onClick={() => !uploading && inputRef.current?.click()}>
-        <input
-          ref={inputRef}
-          type="file"
-          accept="image/*"
-          multiple
-          style={{ display: 'none' }}
-          onChange={handleFiles}
-        />
-        {uploading
-          ? <span>⏳ Subiendo…</span>
-          : <span>🖼️ {images.length > 0 ? '+ Agregar más imágenes' : 'Clic para subir imagen(es)'}</span>
-        }
-      </div>
+      {/* Aviso de cantidad */}
+      {images.length === MAX_IMAGES && (
+        <div style={{
+          fontSize: '11px', color: '#8a5c00', background: '#fff8e6',
+          border: '1px solid #f5c300', borderRadius: '6px',
+          padding: '6px 10px', marginBottom: '6px',
+        }}>
+          🚫 Límite de {MAX_IMAGES} imágenes por sección alcanzado.
+        </div>
+      )}
+      {images.length === 3 && (
+        <div style={{
+          fontSize: '11px', color: '#2E5598', background: '#f0f4ff',
+          border: '1px solid #c5d5f0', borderRadius: '6px',
+          padding: '6px 10px', marginBottom: '6px',
+        }}>
+          💡 Tip de diseño: 2 imágenes es lo más efectivo visualmente.
+        </div>
+      )}
+
+      {/* Upload area — oculta al llegar al máximo */}
+      {!atMax && (
+        <div
+          className={`img-upload-area ${uploading ? 'uploading' : ''}`}
+          onClick={() => !uploading && inputRef.current?.click()}>
+          <input
+            ref={inputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            style={{ display: 'none' }}
+            onChange={handleFiles}
+          />
+          {uploading
+            ? <span>⏳ Subiendo…</span>
+            : <span>🖼️ {images.length > 0 ? `+ Agregar imagen (${images.length}/${MAX_IMAGES})` : 'Clic para subir imagen(es)'}</span>
+          }
+        </div>
+      )}
     </div>
   )
 }
