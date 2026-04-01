@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 
 // ── Block type definitions ────────────────────────────────────────────────────
 export const BLOCK_TYPES = {
@@ -265,7 +266,7 @@ function SmartBlockModal({ initial, onSave, onClose }) {
     onSave({ type, model, data })
   }
 
-  return (
+  return createPortal(
     <div className="sb-modal-overlay">
       <div className="sb-modal">
         <div className="sb-modal-header">
@@ -344,7 +345,8 @@ function SmartBlockModal({ initial, onSave, onClose }) {
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
 
