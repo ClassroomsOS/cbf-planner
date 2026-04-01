@@ -166,10 +166,10 @@ export default function GuideEditorPage({ teacher }) {
       } else if (!c.days || Object.keys(c.days).length === 0) {
         c.days = await buildDaysFromDB(data, c)
       }
-      // Always ensure logo is loaded from school (not per-guide)
-      if (!c.header.logo_url && school?.logo_url) {
-        c.header.logo_url = school.logo_url
-      }
+      // Always fetch logo fresh from school (prop may be stale from session start)
+      const { data: schoolData } = await supabase
+        .from('schools').select('logo_url').eq('id', teacher.school_id).single()
+      c.header.logo_url = schoolData?.logo_url || null
 
       // ── Check for unsaved localStorage draft ──
       const draft = loadDraftLocal(id)
@@ -588,7 +588,12 @@ export default function GuideEditorPage({ teacher }) {
                   <div className="logo-preview-wrap">
                     <img src={content.header.logo_url} alt="Logo" className="logo-preview-img" />
                     <button className="logo-remove-btn"
-                      onClick={() => setContentField(['header','logo_url'], null)}>
+                      onClick={async () => {
+                        setContentField(['header','logo_url'], null)
+                        await supabase.from('schools')
+                          .update({ logo_url: null })
+                          .eq('id', teacher.school_id)
+                      }}>
                       ✕ Quitar logo
                     </button>
                   </div>
