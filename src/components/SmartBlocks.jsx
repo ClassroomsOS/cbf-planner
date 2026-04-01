@@ -266,7 +266,7 @@ function SmartBlockModal({ initial, onSave, onClose }) {
   }
 
   return (
-    <div className="sb-modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+    <div className="sb-modal-overlay">
       <div className="sb-modal">
         <div className="sb-modal-header">
           <h2>{initial ? '✏️ Editar Bloque' : '➕ Agregar Bloque Inteligente'}</h2>

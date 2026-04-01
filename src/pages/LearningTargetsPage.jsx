@@ -407,7 +407,7 @@ export default function LearningTargetsPage({ teacher }) {
 
       {/* ── Create/Edit Modal ── */}
       {showForm && (
-        <div className="lt-modal-overlay" onClick={closeForm}>
+        <div className="lt-modal-overlay">
           <div className="lt-modal" onClick={e => e.stopPropagation()}>
             <div className="lt-modal-header">
               <h3>{editingId ? '✏️ Editar objetivo' : '🎯 Nuevo objetivo de desempeño'}</h3>

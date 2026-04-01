@@ -84,7 +84,6 @@ export default function CheckpointModal({ previousPlan, target, teacher, onCompl
         alignItems: 'center', justifyContent: 'center', zIndex: 1000,
         padding: '20px',
       }}
-      onClick={e => e.target === e.currentTarget && onClose()}
     >
       <div
         style={{

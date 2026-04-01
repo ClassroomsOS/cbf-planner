@@ -370,7 +370,7 @@ function AssignmentModal({ teacher, admin, school, allAssignments, onClose, onSa
   const hasDirty = myAssignments.some(a => a._dirty)
 
   return (
-    <div className="sb-modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+    <div className="sb-modal-overlay">
       <div className="sb-modal" style={{ maxWidth: '800px' }}>
         <div className="sb-modal-header">
           <h2>📋 Asignaciones — {teacher.full_name}</h2>

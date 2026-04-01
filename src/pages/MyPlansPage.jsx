@@ -252,8 +252,8 @@ export default function MyPlansPage({ teacher }) {
       </div>
 
       {confirmDelete && (
-        <div className="prof-overlay open" onClick={() => setConfirmDelete(null)}>
-          <div style={{ background:'#fff', borderRadius:'12px', padding:'28px 32px', maxWidth:'360px', width:'90%', textAlign:'center', boxShadow:'0 20px 60px rgba(0,0,0,0.3)' }} onClick={e => e.stopPropagation()}>
+        <div className="prof-overlay open">
+          <div style={{ background:'#fff', borderRadius:'12px', padding:'28px 32px', maxWidth:'360px', width:'90%', textAlign:'center', boxShadow:'0 20px 60px rgba(0,0,0,0.3)' }}>
             <div style={{ fontSize:'36px', marginBottom:'12px' }}>🗑</div>
             <div style={{ fontWeight:700, fontSize:'15px', color:'#1F3864', marginBottom:'8px' }}>¿Eliminar esta guía?</div>
             <div style={{ fontSize:'12px', color:'#888', marginBottom:'20px' }}>Esta acción no se puede deshacer.</div>
