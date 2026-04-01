@@ -13,6 +13,32 @@ import { useFeatures } from '../context/FeaturesContext'
 import CorrectionRequestModal from '../components/CorrectionRequestModal'
 import LayoutSelectorModal, { LAYOUT_ELIGIBLE } from '../components/LayoutSelectorModal'
 import LearningTargetSelector from '../components/LearningTargetSelector'
+import { useToast } from '../context/ToastContext'
+import { logError } from '../utils/logger'
+
+// ── localStorage draft helpers ──────────────────────────────────────────────
+const DRAFT_PREFIX = 'cbf_draft_'
+
+function saveDraftLocal(planId, content) {
+  try {
+    const key = DRAFT_PREFIX + planId
+    const payload = { content, savedAt: Date.now() }
+    localStorage.setItem(key, JSON.stringify(payload))
+  } catch { /* quota exceeded or private mode — silent */ }
+}
+
+function loadDraftLocal(planId) {
+  try {
+    const key = DRAFT_PREFIX + planId
+    const raw = localStorage.getItem(key)
+    if (!raw) return null
+    return JSON.parse(raw)
+  } catch { return null }
+}
+
+function clearDraftLocal(planId) {
+  try { localStorage.removeItem(DRAFT_PREFIX + planId) } catch {}
+}
 
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -96,6 +122,7 @@ export default function GuideEditorPage({ teacher }) {
   const navigate = useNavigate()
   const school   = teacher.schools || {}
   const { features } = useFeatures()
+  const { showToast } = useToast()
 
   const [plan,          setPlan]          = useState(null)
   const [content,       setContent]       = useState(null)
@@ -104,6 +131,7 @@ export default function GuideEditorPage({ teacher }) {
   const [saveStatus,    setSaveStatus]    = useState('saved')
   const [exportOpen,    setExportOpen]    = useState(false)
   const [loading,       setLoading]       = useState(true)
+  const [draftRestore,  setDraftRestore]  = useState(null) // { content, savedAt } | null
   // ── IA modals ──
   const [showAnalyzer,  setShowAnalyzer]  = useState(false)
   const [showGenerator,   setShowGenerator]   = useState(false)
@@ -142,6 +170,20 @@ export default function GuideEditorPage({ teacher }) {
       if (!c.header.logo_url && school?.logo_url) {
         c.header.logo_url = school.logo_url
       }
+
+      // ── Check for unsaved localStorage draft ──
+      const draft = loadDraftLocal(id)
+      if (draft && draft.savedAt) {
+        const dbUpdated = data.updated_at ? new Date(data.updated_at).getTime() : 0
+        if (draft.savedAt > dbUpdated) {
+          // Draft is newer than DB — offer to restore
+          setDraftRestore(draft)
+        } else {
+          // DB is newer — discard stale draft
+          clearDraftLocal(id)
+        }
+      }
+
       setContent(c)
       contentRef.current = c
       setLoading(false)
@@ -257,6 +299,8 @@ export default function GuideEditorPage({ teacher }) {
       contentRef.current = next
       dirtyRef.current = true
       setSaveStatus('unsaved')
+      // Save draft to localStorage (survives refresh/crash)
+      saveDraftLocal(id, next)
       return next
     })
   }
@@ -269,6 +313,7 @@ export default function GuideEditorPage({ teacher }) {
       contentRef.current = next
       dirtyRef.current = true
       setSaveStatus('unsaved')
+      saveDraftLocal(id, next)
       return next
     })
   }
@@ -283,6 +328,7 @@ export default function GuideEditorPage({ teacher }) {
     dirtyRef.current = true
     setContent(mergedContent)
     setSaveStatus('unsaved')
+    saveDraftLocal(id, mergedContent)
   }
 
   // ── Save ──
@@ -293,9 +339,17 @@ export default function GuideEditorPage({ teacher }) {
       .from('lesson_plans')
       .update({ content: contentRef.current, updated_at: new Date().toISOString() })
       .eq('id', id)
-    if (error) setSaveStatus('error')
-    else { setSaveStatus('saved'); dirtyRef.current = false }
-  }, [id])
+    if (error) {
+      setSaveStatus('error')
+      logError(error, { page: 'GuideEditor', action: 'save', entityId: id })
+      showToast('Error al guardar la guía', 'error')
+    } else {
+      setSaveStatus('saved')
+      dirtyRef.current = false
+      clearDraftLocal(id)
+      showToast('Guía guardada ✓', 'success')
+    }
+  }, [id, showToast])
 
   useEffect(() => {
     const interval = setInterval(doSave, 30000)
@@ -375,8 +429,59 @@ export default function GuideEditorPage({ teacher }) {
 
   const activeDayISO = activePanel.startsWith('day-') ? activePanel.replace('day-', '') : null
 
+  // ── Draft restore handler ──
+  function handleRestoreDraft() {
+    if (!draftRestore?.content) return
+    const restored = draftRestore.content
+    setContent(restored)
+    contentRef.current = restored
+    dirtyRef.current = true
+    setSaveStatus('unsaved')
+    setDraftRestore(null)
+    showToast('Borrador restaurado — guárdalo cuando estés listo', 'info')
+  }
+
+  function handleDiscardDraft() {
+    clearDraftLocal(id)
+    setDraftRestore(null)
+    showToast('Borrador descartado', 'warning')
+  }
+
   return (
     <div className="ge-wrap">
+
+      {/* ── Draft restore banner ── */}
+      {draftRestore && (
+        <div style={{
+          background: '#FFFDF0', border: '1.5px solid #F5C300', borderRadius: 10,
+          padding: '12px 18px', margin: '0 0 12px',
+          display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+        }}>
+          <span style={{ fontSize: 18 }}>💾</span>
+          <div style={{ flex: 1, minWidth: 200 }}>
+            <div style={{ fontWeight: 700, fontSize: 13, color: '#8a4f00' }}>
+              Se encontró un borrador sin guardar
+            </div>
+            <div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>
+              Guardado localmente el {new Date(draftRestore.savedAt).toLocaleString('es-CO')}
+            </div>
+          </div>
+          <button onClick={handleRestoreDraft} style={{
+            padding: '6px 16px', borderRadius: 8, border: 'none',
+            background: '#1A3A8F', color: 'white', fontSize: 12,
+            fontWeight: 700, cursor: 'pointer',
+          }}>
+            ✅ Restaurar
+          </button>
+          <button onClick={handleDiscardDraft} style={{
+            padding: '6px 16px', borderRadius: 8, border: '1px solid #ddd',
+            background: 'white', color: '#888', fontSize: 12,
+            fontWeight: 700, cursor: 'pointer',
+          }}>
+            Descartar
+          </button>
+        </div>
+      )}
 
       {/* Top bar */}
       <div className="ge-topbar">

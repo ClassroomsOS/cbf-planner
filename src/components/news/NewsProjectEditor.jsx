@@ -1,4 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
+import { supabase } from '../../supabase'
+import { useToast } from '../../context/ToastContext'
 
 const SKILLS = [
   { value: '', label: '— Sin skill específico —' },
@@ -20,6 +22,7 @@ const EMPTY_TEXTBOOK = { book: '', units: [], grammar: [], vocabulary: [], pages
 
 export default function NewsProjectEditor({ teacher, project, templates, cloneForProject, onSave, onClose }) {
   const isEditing = !!project
+  const { showToast } = useToast()
 
   // Form state
   const [form, setForm] = useState({
@@ -45,6 +48,37 @@ export default function NewsProjectEditor({ teacher, project, templates, cloneFo
   const [saving, setSaving] = useState(false)
   const [activeTab, setActiveTab] = useState('details')
   const [tagInput, setTagInput] = useState({ grammar: '', vocabulary: '', units: '' })
+
+  // ── Load teacher assignments for smart dropdowns ──
+  const [assignments, setAssignments] = useState([])
+
+  useEffect(() => {
+    supabase
+      .from('teacher_assignments')
+      .select('grade, section, subject')
+      .eq('teacher_id', teacher.id)
+      .order('grade')
+      .then(({ data }) => setAssignments(data || []))
+  }, [teacher.id])
+
+  // Derive dropdown options from assignments (filtered cascade)
+  const subjectOptions = useMemo(() => {
+    return [...new Set(assignments.map(a => a.subject))].sort()
+  }, [assignments])
+
+  const gradeOptions = useMemo(() => {
+    if (!form.subject) return [...new Set(assignments.map(a => a.grade))].sort()
+    return [...new Set(
+      assignments.filter(a => a.subject === form.subject).map(a => a.grade)
+    )].sort()
+  }, [assignments, form.subject])
+
+  const sectionOptions = useMemo(() => {
+    if (!form.subject || !form.grade) return [...new Set(assignments.map(a => a.section))].sort()
+    return [...new Set(
+      assignments.filter(a => a.subject === form.subject && a.grade === form.grade).map(a => a.section)
+    )].sort()
+  }, [assignments, form.subject, form.grade])
 
   // Load project data for editing
   useEffect(() => {
@@ -161,7 +195,9 @@ export default function NewsProjectEditor({ teacher, project, templates, cloneFo
     const result = await onSave(form)
     setSaving(false)
     if (result.error) {
-      alert('Error: ' + result.error)
+      showToast('Error: ' + result.error, 'error')
+    } else {
+      showToast(isEditing ? 'Proyecto NEWS actualizado ✓' : 'Proyecto NEWS creado ✓', 'success')
     }
   }
 
@@ -215,30 +251,51 @@ export default function NewsProjectEditor({ teacher, project, templates, cloneFo
               <div style={styles.row3}>
                 <div style={styles.field}>
                   <label style={styles.label}>Materia *</label>
-                  <input
+                  <select
                     value={form.subject}
-                    onChange={e => updateForm('subject', e.target.value)}
-                    placeholder="Language Arts"
+                    onChange={e => {
+                      updateForm('subject', e.target.value)
+                      updateForm('grade', '')
+                      updateForm('section', '')
+                    }}
                     style={styles.input}
-                  />
+                  >
+                    <option value="">— Seleccionar —</option>
+                    {subjectOptions.map(s => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
                 </div>
                 <div style={styles.field}>
                   <label style={styles.label}>Grado *</label>
-                  <input
+                  <select
                     value={form.grade}
-                    onChange={e => updateForm('grade', e.target.value)}
-                    placeholder="8th"
-                    style={styles.input}
-                  />
+                    onChange={e => {
+                      updateForm('grade', e.target.value)
+                      updateForm('section', '')
+                    }}
+                    disabled={!form.subject}
+                    style={{ ...styles.input, opacity: form.subject ? 1 : 0.5 }}
+                  >
+                    <option value="">— Seleccionar —</option>
+                    {gradeOptions.map(g => (
+                      <option key={g} value={g}>{g}</option>
+                    ))}
+                  </select>
                 </div>
                 <div style={styles.field}>
                   <label style={styles.label}>Sección *</label>
-                  <input
+                  <select
                     value={form.section}
                     onChange={e => updateForm('section', e.target.value)}
-                    placeholder="Azul"
-                    style={styles.input}
-                  />
+                    disabled={!form.grade}
+                    style={{ ...styles.input, opacity: form.grade ? 1 : 0.5 }}
+                  >
+                    <option value="">— Seleccionar —</option>
+                    {sectionOptions.map(s => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
 

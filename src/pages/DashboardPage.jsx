@@ -14,12 +14,15 @@ import LearningTargetsPage from './LearningTargetsPage'
 import NewsPage            from './NewsPage'
 import ProfileModal        from '../components/ProfileModal'
 import { FeaturesProvider, useFeatures } from '../context/FeaturesContext'
+import { ToastProvider } from '../context/ToastContext'
 
 // ── Wrapper — provides context ────────────────────────────────
 export default function DashboardPage({ session, teacher, setTeacher }) {
   return (
     <FeaturesProvider schoolId={teacher.school_id}>
-      <DashboardInner session={session} teacher={teacher} setTeacher={setTeacher} />
+      <ToastProvider>
+        <DashboardInner session={session} teacher={teacher} setTeacher={setTeacher} />
+      </ToastProvider>
     </FeaturesProvider>
   )
 }
