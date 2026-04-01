@@ -23,7 +23,8 @@ export default function SectionPreview({ section, sectionMeta }) {
     <p style={{ color: '#ccc', fontSize: '12px', fontStyle: 'italic', margin: 0 }}>—</p>
   )
 
-  const imageGrid = images.length > 0 ? buildImageGrid(images) : null
+  const isSide = layout === 'right' || layout === 'left'
+  const imageGrid = images.length > 0 ? buildImageGrid(images, isSide) : null
 
   let contentBlock
   if (!images.length) {
@@ -92,12 +93,25 @@ export default function SectionPreview({ section, sectionMeta }) {
 
 // ── Image grid — tamaños óptimos por cantidad ─────────────────────────────────
 
-function buildImageGrid(images) {
+function buildImageGrid(images, isSide = false) {
   const n = Math.min(images.length, 4) // máximo 4
   const imgs = images.slice(0, 4)
 
   const imgStyle = {
     width: '100%', objectFit: 'cover', borderRadius: '4px', display: 'block',
+  }
+
+  // Layout lateral: imágenes apiladas en columna con altura controlada
+  if (isSide) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+        {imgs.map((img, i) => (
+          <div key={i} style={{ aspectRatio: '4/3', overflow: 'hidden', borderRadius: '4px' }}>
+            <img src={img.url} alt={img.name || ''} style={imgStyle} />
+          </div>
+        ))}
+      </div>
+    )
   }
 
   if (n === 1) {

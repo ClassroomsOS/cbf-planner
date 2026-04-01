@@ -110,10 +110,10 @@ function buildImageGrid(images, layout) {
       : tag
   }
 
-  // For vertical (right/left): images stacked in a column
+  // For vertical (right/left): images stacked in a column with fixed aspect ratio
   if (isVertical) {
     const items = images.map(img =>
-      `<div style="margin-bottom:4px">${imgTag(img)}</div>`
+      `<div style="aspect-ratio:4/3;overflow:hidden;border-radius:5px;margin-bottom:4px">${imgTag(img)}</div>`
     ).join('')
     return `<div>${items}</div>`
   }
