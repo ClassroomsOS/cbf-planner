@@ -150,6 +150,210 @@ function htmlToParas(html, baseSize = 20) {
   return paragraphs.length ? paragraphs : [mkP(mkR('', { size: baseSize }))]
 }
 
+// ── SmartBlock → DOCX elements ────────────────────────────────────────────────
+
+function mkNestedCell(children, opts = {}) {
+  return new TableCell({
+    width:         opts.pct ? { size: opts.pct, type: WidthType.PERCENTAGE } : undefined,
+    shading:       opts.fill ? { fill: opts.fill, type: ShadingType.CLEAR, color: opts.fill } : undefined,
+    borders:       opts.borders || allB(bGray),
+    verticalAlign: VerticalAlign.TOP,
+    margins:       { top: 40, bottom: 40, left: 80, right: 80 },
+    columnSpan:    opts.span,
+    children:      Array.isArray(children) ? children : [children],
+  })
+}
+
+function mkNested(rows, pct = 100) {
+  return new Table({
+    width: { size: pct, type: WidthType.PERCENTAGE },
+    rows,
+  })
+}
+
+function buildSmartBlockDocx(block) {
+  const { type, model, data } = block
+  if (!data) return []
+
+  const COLORS = {
+    DICTATION: '4BACC6', QUIZ: 'C0504D', VOCAB: '9BBB59',
+    WORKSHOP: 'F79646', SPEAKING: '8064A2', NOTICE: '1F3864',
+  }
+  const LABELS = {
+    DICTATION: 'Dictation / Listening', QUIZ: 'Quiz / Evaluación',
+    VOCAB: 'Vocabulary List',           WORKSHOP: 'Workshop / Stations',
+    SPEAKING: 'Speaking Project',       NOTICE: 'Announcement / Notice',
+  }
+  const color = COLORS[type] || '333333'
+  const label = LABELS[type] || type
+
+  const elements = [emptyPara()]
+
+  // Colored block header strip
+  elements.push(mkNested([new TableRow({ children: [
+    mkNestedCell([mkP(mkR(label, { bold: true, size: 17, color: 'FFFFFF' }))], { fill: color, borders: allB(mkB(color)) }),
+  ]})]))
+
+  if (type === 'NOTICE') {
+    if (model === 'banner') {
+      elements.push(mkNested([new TableRow({ children: [
+        mkNestedCell([
+          mkP(mkR(`${data.title || ''}`, { bold: true, size: 20, color: 'FFFFFF' }), AlignmentType.CENTER),
+          ...(data.message ? [mkP(mkR(data.message, { size: 16, color: 'BBCCEE' }), AlignmentType.CENTER)] : []),
+        ], { fill: '1F3864', borders: allB(mkB('1F3864')) }),
+      ]})])
+    } else {
+      const priority = data.priority || 'warning'
+      const fill = priority === 'danger' ? 'FFECEC' : priority === 'info' ? 'E8F4FF' : 'FFF3CD'
+      const brd  = priority === 'danger' ? 'CC3333' : priority === 'info' ? '4BACC6' : 'C9A84C'
+      elements.push(mkNested([new TableRow({ children: [
+        mkNestedCell([
+          mkP(mkR(`${data.icon||'⚠️'} ${data.title||''}`, { bold: true, size: 17, color: '333333' })),
+          ...(data.message ? [mkP(mkR(data.message, { size: 16, color: '444444' }))] : []),
+        ], { fill, borders: { left: mkB(brd, 10), top: { style: BN, size: 0, color: fill }, bottom: { style: BN, size: 0, color: fill }, right: { style: BN, size: 0, color: fill } } }),
+      ]})])
+    }
+  }
+
+  else if (type === 'QUIZ') {
+    const topics = (data.topics || '').split('\n').filter(Boolean)
+    const rows = [
+      mkP(mkR(`📝 QUIZ — ${data.unit||''}${data.date ? ' · ' + data.date : ''}`, { bold: true, size: 18, color: 'C0504D' })),
+      ...topics.map(t => mkP([mkR('▪ ', { bold: true, size: 16, color: 'F79646' }), mkR(t, { size: 16 })])),
+    ]
+    if (model === 'format-box' && data.format) {
+      rows.push(emptyPara())
+      data.format.split('\n').filter(Boolean).forEach(f => rows.push(mkP(mkR(f, { size: 16, color: '555555' }))))
+    }
+    if (data.note) rows.push(mkP(mkR(`ℹ️ ${data.note}`, { size: 14, italic: true, color: '888888' })))
+    elements.push(mkNested([new TableRow({ children: [
+      mkNestedCell(rows, { fill: 'FFF0F0', borders: { left: mkB('C0504D', 10), top: { style: BN, size: 0, color: 'FFF0F0' }, bottom: { style: BN, size: 0, color: 'FFF0F0' }, right: { style: BN, size: 0, color: 'FFF0F0' } } }),
+    ]})])
+  }
+
+  else if (type === 'VOCAB') {
+    const words = data.words || []
+    if (model === 'cards') {
+      const hdFill = '9BBB59'
+      elements.push(mkNested([
+        new TableRow({ children: [
+          mkNestedCell([mkP(mkR('WORD',       { bold: true, size: 16, color: 'FFFFFF' }))], { fill: hdFill, borders: allB(mkB(hdFill)), pct: 25 }),
+          mkNestedCell([mkP(mkR('DEFINITION', { bold: true, size: 16, color: 'FFFFFF' }))], { fill: hdFill, borders: allB(mkB(hdFill)), pct: 40 }),
+          mkNestedCell([mkP(mkR('EXAMPLE',    { bold: true, size: 16, color: 'FFFFFF' }))], { fill: hdFill, borders: allB(mkB(hdFill)), pct: 35 }),
+        ]}),
+        ...words.map((wd, i) => {
+          const fill = i % 2 ? 'F9FFF4' : 'FFFFFF'
+          return new TableRow({ children: [
+            mkNestedCell([mkP(mkR(wd.w||'', { bold: true, size: 16 }))], { fill, pct: 25 }),
+            mkNestedCell([mkP(mkR(wd.d||'', { size: 16 }))],             { fill, pct: 40 }),
+            mkNestedCell([mkP(mkR(wd.e||'', { size: 16, color: '555555' }))], { fill, pct: 35 }),
+          ]})
+        }),
+      ]))
+    } else {
+      const half  = Math.ceil(words.length / 2)
+      const left  = words.slice(0, half)
+      const right = words.slice(half)
+      const hdFill = '9BBB59'
+      elements.push(mkNested([
+        new TableRow({ children: [
+          mkNestedCell([mkP(mkR('TERMS',    { bold: true, size: 16, color: 'FFFFFF' }))], { fill: hdFill, borders: allB(mkB(hdFill)), pct: 50 }),
+          mkNestedCell([mkP(mkR('MEANINGS', { bold: true, size: 16, color: 'FFFFFF' }))], { fill: hdFill, borders: allB(mkB(hdFill)), pct: 50 }),
+        ]}),
+        ...Array.from({ length: Math.max(left.length, right.length) }, (_, i) => new TableRow({ children: [
+          mkNestedCell([mkP(mkR(left[i]  ? `${i+1}. ${left[i].w}`                      : '', { size: 16 }))], { pct: 50 }),
+          mkNestedCell([mkP(mkR(right[i] ? `${String.fromCharCode(65+i)}. ${right[i].d||right[i].w}` : '', { size: 16 }))], { pct: 50 }),
+        ]})),
+      ]))
+    }
+  }
+
+  else if (type === 'DICTATION') {
+    if (data.instructions) elements.push(mkP(mkR(data.instructions, { size: 16, italic: true, color: '555555' })))
+    const words = data.words || []
+    if (model === 'word-grid') {
+      const pairs = []
+      for (let i = 0; i < words.length; i += 2) pairs.push([words[i], words[i+1]])
+      elements.push(mkNested(pairs.map((pair, ri) =>
+        new TableRow({ children: pair.map((w, ci) => {
+          const num = ri * 2 + ci + 1
+          return mkNestedCell([mkP([
+            mkR(`${num}. `, { bold: true, size: 16, color: '4BACC6' }),
+            mkR(w || '',    { bold: true, size: 16 }),
+          ])], { pct: 50 })
+        })})
+      )))
+    } else {
+      words.forEach((s, i) => elements.push(mkP([
+        mkR(`${i+1}. `, { bold: true, size: 16, color: '4BACC6' }),
+        mkR(s, { size: 16 }),
+      ])))
+    }
+    if (data.time) elements.push(mkP(mkR(`⏱ ${data.time}`, { size: 14, color: '888888', italic: true })))
+  }
+
+  else if (type === 'WORKSHOP') {
+    const stColors = ['4F81BD', 'F79646', '9BBB59', '8064A2', '4BACC6']
+    if (model === 'stations') {
+      const stations = data.stations || [];
+      elements.push(mkNested(stations.map((st, i) => {
+        const c = stColors[i % stColors.length]
+        return new TableRow({ children: [
+          mkNestedCell([
+            mkP(mkR(st.name, { bold: true, size: 18, color: 'FFFFFF' })),
+            mkP(mkR(`⏱ ${st.time}`, { size: 14, color: 'FFFFFF' })),
+            mkP(mkR(st.desc, { size: 16, color: 'FFFFFF' })),
+          ], { fill: c, borders: allB(mkB(c)) }),
+        ]})
+      })))
+    } else {
+      const icons = ['👑','✍️','🗣️','🔍','🎨','🧪']
+      const roles = data.roles || []
+      elements.push(mkNested([
+        new TableRow({ children: [
+          mkNestedCell([mkP(mkR('ROLE',           { bold: true, size: 16, color: 'FFFFFF' }))], { fill: 'F79646', borders: allB(mkB('F79646')), pct: 35 }),
+          mkNestedCell([mkP(mkR('RESPONSIBILITY', { bold: true, size: 16, color: 'FFFFFF' }))], { fill: 'F79646', borders: allB(mkB('F79646')), pct: 65 }),
+        ]}),
+        ...roles.map((r, i) => new TableRow({ children: [
+          mkNestedCell([mkP([mkR(`${icons[i%icons.length]} `, { size: 16 }), mkR(r.role, { bold: true, size: 16 })])], { pct: 35 }),
+          mkNestedCell([mkP(mkR(r.task, { size: 16 }))],                                                                { pct: 65 }),
+        ]})),
+      ]))
+    }
+  }
+
+  else if (type === 'SPEAKING') {
+    if (model === 'rubric') {
+      const criteria = data.criteria || []
+      const total = criteria.reduce((s, c) => s + (parseInt(c.pts) || 0), 0)
+      elements.push(mkNested([
+        new TableRow({ children: [
+          mkNestedCell([mkP(mkR('CRITERION', { bold: true, size: 16, color: 'FFFFFF' }))],                   { fill: '8064A2', borders: allB(mkB('8064A2')), pct: 80 }),
+          mkNestedCell([mkP(mkR('PTS',       { bold: true, size: 16, color: 'FFFFFF' }), AlignmentType.RIGHT)], { fill: '8064A2', borders: allB(mkB('8064A2')), pct: 20 }),
+        ]}),
+        ...criteria.map(c => new TableRow({ children: [
+          mkNestedCell([mkP(mkR(c.name, { size: 16 }))],                                                      { pct: 80 }),
+          mkNestedCell([mkP(mkR(c.pts,  { bold: true, size: 16 }), AlignmentType.RIGHT)],                     { pct: 20 }),
+        ]})),
+        new TableRow({ children: [
+          mkNestedCell([mkP(mkR('TOTAL', { bold: true, size: 16 }))],                                          { fill: 'F0EAFF', pct: 80 }),
+          mkNestedCell([mkP(mkR(String(total), { bold: true, size: 16 }), AlignmentType.RIGHT)],               { fill: 'F0EAFF', pct: 20 }),
+        ]}),
+      ]))
+      if (data.date) elements.push(mkP(mkR(`📅 ${data.date}`, { size: 14, color: '888888', italic: true })))
+    } else {
+      const steps = data.steps || []
+      steps.forEach((s, i) => elements.push(mkP([
+        mkR(`${i+1}. `, { bold: true, size: 16, color: '8064A2' }),
+        mkR(s, { size: 16 }),
+      ])))
+      if (data.date) elements.push(mkP(mkR(`📅 ${data.date}`, { size: 14, color: '888888', italic: true })))
+    }
+  }
+
+  return elements
+}
+
 // ── Section row builder ───────────────────────────────────────────────────────
 
 async function fetchImageData(url) {
@@ -162,9 +366,10 @@ async function fetchImageData(url) {
 }
 
 async function buildSectionRow(s, sectionData) {
-  const text   = sectionData?.content || ''
-  const time   = sectionData?.time    || s.time
-  const images = (sectionData?.images || []).slice(0, 4)
+  const text        = sectionData?.content      || ''
+  const time        = sectionData?.time         || s.time
+  const images      = (sectionData?.images      || []).slice(0, 4)
+  const smartBlocks = sectionData?.smartBlocks  || []
 
   // Resolve layout
   const rawLayout = sectionData?.image_layout ||
@@ -245,9 +450,12 @@ async function buildSectionRow(s, sectionData) {
   const isVertical = layout === 'right' || layout === 'left'
   const imgParas   = makeImageParas(isVertical)
 
+  // Smart block elements always go in the text/content column
+  const smartElements = smartBlocks.flatMap(b => buildSmartBlockDocx(b))
+
   if (!isVertical || !imgDataList.length) {
     // Below layout (or no images) — content cell spans columns 2+3
-    const contentCell = mkCell([...contentParas, ...imgParas], CONTENT_W, {
+    const contentCell = mkCell([...contentParas, ...imgParas, ...smartElements], CONTENT_W, {
       borders: allB(bGray), va: VerticalAlign.TOP,
       margins: { top: 100, bottom: 80, left: 140, right: 120 },
       span: 2,
@@ -256,7 +464,7 @@ async function buildSectionRow(s, sectionData) {
   }
 
   // Side layout: 3-column row [label | text | images]
-  const textCell = mkCell(contentParas, TEXT_W, {
+  const textCell = mkCell([...contentParas, ...smartElements], TEXT_W, {
     borders: allB(bGray), va: VerticalAlign.TOP,
     margins: { top: 100, bottom: 80, left: 140, right: 80 },
   })

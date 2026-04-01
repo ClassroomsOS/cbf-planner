@@ -2,6 +2,8 @@
 // Builds the CBF guide as a standalone HTML string and optionally downloads it
 // or opens it for printing (PDF).
 
+import { blockPreviewHTML, BLOCK_TYPES } from '../components/SmartBlocks'
+
 const SECTIONS = [
   { key: 'subject',    label: 'SUBJECT TO BE WORKED', hex: '4F81BD', time: '~8 min'  },
   { key: 'motivation', label: 'MOTIVATION',            hex: '4BACC6', time: '~8 min'  },
@@ -29,9 +31,10 @@ function getEmbedUrl(url) {
 }
 
 function sectionContent(section) {
-  const html   = section?.content || ''
-  const images = (section?.images || []).slice(0, 4)
-  const videos = section?.videos  || []
+  const html        = section?.content || ''
+  const images      = (section?.images || []).slice(0, 4)
+  const videos      = section?.videos      || []
+  const smartBlocks = section?.smartBlocks || []
 
   // Resolve layout: use user-set field, normalize legacy layout_mode
   const rawLayout = section?.image_layout ||
@@ -57,7 +60,19 @@ function sectionContent(section) {
       }).join('')
     : ''
 
-  if (!images.length) return textHtml + videoHtml
+  const smartHtml = smartBlocks.length > 0
+    ? smartBlocks.map(b => {
+        const typeDef = BLOCK_TYPES[b.type] || {}
+        return `<div style="margin-top:8px;border:2px solid #${typeDef.color||'cccccc'};border-radius:6px;overflow:hidden">
+          <div style="background:#${typeDef.color||'666666'};color:#fff;padding:5px 12px;font-size:11px;font-weight:700">
+            ${typeDef.icon||''} ${typeDef.label||b.type}
+          </div>
+          <div style="padding:10px 14px;background:#fff">${blockPreviewHTML(b)}</div>
+        </div>`
+      }).join('')
+    : ''
+
+  if (!images.length) return textHtml + videoHtml + smartHtml
 
   const imageGrid = buildImageGrid(images, layout)
 
@@ -67,7 +82,7 @@ function sectionContent(section) {
         <td style="vertical-align:top;width:62%;padding-right:12px">${textHtml}</td>
         <td style="vertical-align:top;width:36%">${imageGrid}</td>
       </tr>
-    </table>` + videoHtml
+    </table>` + videoHtml + smartHtml
   }
   if (layout === 'left') {
     return `<table style="width:100%;border-collapse:collapse;table-layout:fixed">
@@ -75,11 +90,11 @@ function sectionContent(section) {
         <td style="vertical-align:top;width:36%;padding-right:12px">${imageGrid}</td>
         <td style="vertical-align:top;width:62%">${textHtml}</td>
       </tr>
-    </table>` + videoHtml
+    </table>` + videoHtml + smartHtml
   }
 
   // below (default)
-  return textHtml + `<div style="margin-top:10px">${imageGrid}</div>` + videoHtml
+  return textHtml + `<div style="margin-top:10px">${imageGrid}</div>` + videoHtml + smartHtml
 }
 
 // ── Image grid HTML — tamaños óptimos por cantidad ────────────────────────────
