@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <title>CBF Planner</title>
+    <script>
+      // SPA redirect for GitHub Pages
+      // Encodes the current path as a query string and redirects to index.html
+      // pathSegmentsToKeep = 1 because the app lives at /cbf-planner/
+      var l = window.location;
+      l.replace(
+        l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +
+        l.pathname.split('/').slice(0, 2).join('/') + '/?/' +
+        l.pathname.slice(1).split('/').slice(1).join('/').replace(/&/g, '~and~') +
+        (l.search ? '&' + l.search.slice(1).replace(/&/g, '~and~') : '') +
+        l.hash
+      );
+    </script>
+  </head>
+  <body></body>
+</html>
