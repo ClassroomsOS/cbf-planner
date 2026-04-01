@@ -322,6 +322,93 @@ function buildSmartBlockDocx(block) {
     }
   }
 
+  else if (type === 'READING') {
+    const passageParas = data.passage
+      ? [mkP(mkR(data.passage, { size: 17 }))]
+      : [mkP(mkR('', { size: 17 }))]
+    elements.push(mkNested([new TableRow({ children: [
+      mkNestedCell(passageParas, { fill: 'EEF3FF', borders: { left: mkB('17375E', 10), top: { style: BN, size: 0, color: 'EEF3FF' }, bottom: { style: BN, size: 0, color: 'EEF3FF' }, right: { style: BN, size: 0, color: 'EEF3FF' } } }),
+    ]})]))
+    if (model === 'comprehension') {
+      ;(data.questions || []).forEach((q, i) => {
+        elements.push(mkP([mkR(`${i+1}. `, { bold: true, size: 16, color: '17375E' }), mkR(q.q || '', { size: 16 })]))
+        for (let l = 0; l < (q.lines || 2); l++) {
+          elements.push(new Paragraph({ spacing: { before: 0, after: 60 }, border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: 'CCCCCC' } }, children: [mkR('', { size: 16 })] }))
+        }
+      })
+    } else {
+      elements.push(mkNested([
+        new TableRow({ children: [
+          mkNestedCell([mkP(mkR('#',         { bold: true, size: 16, color: 'FFFFFF' }))], { fill: '17375E', borders: allB(mkB('17375E')), pct: 8 }),
+          mkNestedCell([mkP(mkR('Statement', { bold: true, size: 16, color: 'FFFFFF' }))], { fill: '17375E', borders: allB(mkB('17375E')), pct: 76 }),
+          mkNestedCell([mkP(mkR('T',         { bold: true, size: 16, color: 'FFFFFF' }), AlignmentType.CENTER)], { fill: '17375E', borders: allB(mkB('17375E')), pct: 8 }),
+          mkNestedCell([mkP(mkR('F',         { bold: true, size: 16, color: 'FFFFFF' }), AlignmentType.CENTER)], { fill: '17375E', borders: allB(mkB('17375E')), pct: 8 }),
+        ]}),
+        ...(data.statements || []).map((s, i) => new TableRow({ children: [
+          mkNestedCell([mkP(mkR(String(i+1), { size: 16, color: '888888' }))],     { pct: 8 }),
+          mkNestedCell([mkP(mkR(s.s || '',   { size: 16 }))],                       { pct: 76 }),
+          mkNestedCell([mkP(mkR('⬜', { size: 16 }), AlignmentType.CENTER)],        { pct: 8 }),
+          mkNestedCell([mkP(mkR('⬜', { size: 16 }), AlignmentType.CENTER)],        { pct: 8 }),
+        ]})),
+      ]))
+    }
+  }
+
+  else if (type === 'GRAMMAR') {
+    if (data.grammar_point) elements.push(mkP(mkR(data.grammar_point, { bold: true, size: 16, color: '375623' })))
+    if (data.instructions)  elements.push(mkP(mkR(data.instructions,  { size: 16, italic: true, color: '666666' })))
+    if (model === 'fill-blank') {
+      ;(data.sentences || []).forEach((s, i) => {
+        const parts = (s.sent || '').split('___')
+        const runs = []
+        parts.forEach((part, pi) => {
+          if (part) runs.push(mkR(part, { size: 16 }))
+          if (pi < parts.length - 1) {
+            runs.push(mkR(`${i+1}. `, { bold: true, size: 16, color: '375623' }))
+            runs.push(new TextRun({ text: '          ', size: 16, underline: { type: 'single' } }))
+          }
+        })
+        if (runs.length) {
+          elements.push(new Paragraph({
+            spacing: { before: 40, after: 40 },
+            border:  { bottom: { style: BorderStyle.SINGLE, size: 4, color: 'DDDDDD' } },
+            children: [mkR(`${i+1}. `, { bold: true, size: 16, color: '375623' }), ...runs],
+          }))
+        }
+      })
+    } else {
+      ;(data.items || []).forEach((item, i) => {
+        elements.push(mkP([mkR(`${i+1}. `, { bold: true, size: 16, color: '375623' }), mkR(item.sentence || '', { size: 16 })]))
+        elements.push(mkP(mkR((item.options || []).map((o, oi) => `  ${String.fromCharCode(65+oi)}) ${o}`).join('   '), { size: 15, color: '555555' })))
+      })
+    }
+  }
+
+  else if (type === 'EXIT_TICKET') {
+    if (model === 'can-do') {
+      elements.push(mkNested([
+        new TableRow({ children: [
+          mkNestedCell([mkP(mkR(`🚪 EXIT TICKET${data.date ? ' · ' + data.date : ''}`, { bold: true, size: 17, color: 'FFFFFF' }))], { fill: 'C55A11', borders: allB(mkB('C55A11')) }),
+        ]}),
+        ...(data.skills || []).map(s => new TableRow({ children: [
+          mkNestedCell([mkP([mkR('I can ', { size: 16 }), mkR(s, { bold: true, size: 16 })])], { fill: 'FFF8E6', pct: 70 }),
+          mkNestedCell([mkP(mkR('😊   😐   😕', { size: 18 }), AlignmentType.CENTER)], { fill: 'FFF8E6', pct: 30 }),
+        ]})),
+      ]))
+    } else {
+      const rows = [
+        new TableRow({ children: [
+          mkNestedCell([mkP(mkR(`🚪 SELF-RATING${data.date ? ' · ' + data.date : ''}`, { bold: true, size: 17, color: 'FFFFFF' }))], { fill: 'C55A11', borders: allB(mkB('C55A11')), span: 2 }),
+        ]}),
+        ...(data.statements || []).map((s, i) => new TableRow({ children: [
+          mkNestedCell([mkP(mkR(`${i+1}. ${s}`, { size: 16 }))], { fill: 'FFF8E6', pct: 70 }),
+          mkNestedCell([mkP(mkR('1   2   3   4   5', { size: 16, color: 'C55A11', bold: true }), AlignmentType.CENTER)], { fill: 'FFF8E6', pct: 30 }),
+        ]})),
+      ]
+      elements.push(mkNested(rows))
+    }
+  }
+
   else if (type === 'SPEAKING') {
     if (model === 'rubric') {
       const criteria = data.criteria || []

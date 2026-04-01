@@ -487,9 +487,18 @@ export default function PlannerPage({ teacher }) {
                 // Merge sections
                 const mergedSections = {}
                 SECTIONS_KEYS.forEach(key => {
+                  const genSec = generatedDay.sections?.[key] || {}
+                  const exSec  = existingDay.sections?.[key]  || { time: '', content: '', images: [], audios: [], videos: [], smartBlocks: [] }
+                  // Append AI-suggested smartBlock (if any) to existing blocks
+                  const existingBlocks = exSec.smartBlocks || []
+                  const newBlock = genSec.smartBlock
+                  const mergedBlocks = newBlock?.type
+                    ? [...existingBlocks, { ...newBlock, id: Date.now() + Math.random() }]
+                    : existingBlocks
                   mergedSections[key] = {
-                    ...(existingDay.sections?.[key] || { time: '', content: '', images: [], audios: [], videos: [], smartBlocks: [] }),
-                    content: generatedDay.sections?.[key]?.content || existingDay.sections?.[key]?.content || '',
+                    ...exSec,
+                    content:     genSec.content || exSec.content || '',
+                    smartBlocks: mergedBlocks,
                   }
                 })
                 mergedDays[iso] = { ...existingDay, unit: generatedDay.unit || existingDay.unit, sections: mergedSections }

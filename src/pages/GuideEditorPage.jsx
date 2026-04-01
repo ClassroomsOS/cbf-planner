@@ -900,6 +900,16 @@ function DayPanel({ iso, day, setContentField, toggleDayActive, openSections, to
                       <SmartBlocksList
                         blocks={section.smartBlocks || []}
                         onChange={blocks => setContentField([...base,'sections',s.key,'smartBlocks'], blocks)}
+                        aiContext={{
+                          sectionMeta:     s,
+                          grade,
+                          subject,
+                          objective,
+                          unit:            day.unit,
+                          dayName:         getDayName(iso),
+                          existingContent: section.content,
+                          learningTarget,
+                        }}
                       />
                     </div>
                     <div className="ge-field">

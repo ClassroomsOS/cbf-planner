@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
+import { suggestSmartBlock } from '../utils/AIAssistant'
 
 // ── Block type definitions ────────────────────────────────────────────────────
 export const BLOCK_TYPES = {
@@ -55,6 +56,33 @@ export const BLOCK_TYPES = {
     models: [
       { id: 'banner', label: 'Banner',    sub: 'Aviso destacado de ancho completo con ícono' },
       { id: 'alert',  label: 'Alert Box', sub: 'Caja de alerta con nivel de prioridad' },
+    ],
+  },
+  READING: {
+    label: 'Reading Comprehension', icon: '📖',
+    desc:  'Pasaje de lectura con preguntas abiertas o verdadero/falso',
+    color: '17375E',
+    models: [
+      { id: 'comprehension', label: 'Open Questions', sub: 'Pasaje + preguntas con líneas de respuesta' },
+      { id: 'true-false',    label: 'True / False',   sub: 'Pasaje + afirmaciones para marcar V/F' },
+    ],
+  },
+  GRAMMAR: {
+    label: 'Grammar Practice', icon: '✏️',
+    desc:  'Ejercicios estructurales: completar espacios o elegir la forma correcta',
+    color: '375623',
+    models: [
+      { id: 'fill-blank', label: 'Fill in the Blank', sub: 'Oraciones con espacio para completar (usa ___ en el texto)' },
+      { id: 'choose',     label: 'Choose the Form',   sub: 'Seleccionar la opción correcta entre varias' },
+    ],
+  },
+  EXIT_TICKET: {
+    label: 'Exit Ticket', icon: '🚪',
+    desc:  'Autoevaluación de salida: can-do statements o calificación 1–5',
+    color: 'C55A11',
+    models: [
+      { id: 'can-do',  label: 'Can-Do Statements', sub: '"I can…" — el estudiante marca su nivel de logro' },
+      { id: 'rating',  label: 'Self-Rating 1–5',    sub: 'El estudiante califica su comprensión del 1 al 5' },
     ],
   },
 }
@@ -185,13 +213,80 @@ export function blockPreviewHTML(b) {
     </div>`
   }
 
+  if (type === 'READING') {
+    const passageBox = `<div style="font-size:11px;line-height:1.7;background:#f0f4ff;border-left:3px solid #17375E;padding:8px 10px;border-radius:0 4px 4px 0;margin-bottom:10px">${data.passage||'<em style="color:#aaa">Paste the reading passage here…</em>'}</div>`
+    if (model === 'comprehension') {
+      return passageBox + (data.questions||[]).map((q,i) => `
+        <div style="margin-bottom:8px;font-size:11px">
+          <div style="font-weight:600;margin-bottom:4px">${i+1}. ${q.q}</div>
+          ${Array.from({length:q.lines||2}).map(()=>`<div style="border-bottom:1px solid #ccc;height:18px;margin-bottom:3px"></div>`).join('')}
+        </div>`).join('')
+    }
+    return passageBox + `<table style="width:100%;border-collapse:collapse;font-size:11px">
+      <tr style="background:#17375E;color:#fff">
+        <th style="padding:4px 8px;text-align:left">#</th>
+        <th style="padding:4px 8px;text-align:left">Statement</th>
+        <th style="padding:4px 8px;width:48px;text-align:center">T</th>
+        <th style="padding:4px 8px;width:48px;text-align:center">F</th>
+      </tr>
+      ${(data.statements||[]).map((s,i)=>`<tr style="border-bottom:1px solid #eee">
+        <td style="padding:4px 8px;color:#888">${i+1}</td>
+        <td style="padding:4px 8px">${s.s||''}</td>
+        <td style="padding:4px 8px;text-align:center">⬜</td>
+        <td style="padding:4px 8px;text-align:center">⬜</td>
+      </tr>`).join('')}
+    </table>`
+  }
+
+  if (type === 'GRAMMAR') {
+    const hdr = `${data.grammar_point?`<div style="font-size:10px;font-weight:700;color:#375623;text-transform:uppercase;margin-bottom:4px">${data.grammar_point}</div>`:''}
+      <div style="font-size:10px;color:#666;font-style:italic;margin-bottom:8px">${data.instructions||''}</div>`
+    if (model === 'fill-blank') {
+      return hdr + (data.sentences||[]).map((s,i)=>`
+        <div style="font-size:11px;border:1px solid #e8f0e0;border-radius:3px;padding:5px 8px;margin-bottom:4px">
+          <span style="color:#375623;font-weight:700;margin-right:4px">${i+1}.</span>
+          ${(s.sent||'').replace(/___/g,'<span style="display:inline-block;min-width:60px;border-bottom:1.5px solid #375623;margin:0 4px">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>')}
+        </div>`).join('')
+    }
+    return hdr + (data.items||[]).map((item,i)=>`
+      <div style="font-size:11px;border:1px solid #e8f0e0;border-radius:3px;padding:6px 8px;margin-bottom:6px">
+        <div style="margin-bottom:4px"><span style="color:#375623;font-weight:700">${i+1}.</span> ${item.sentence||''}</div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap">
+          ${(item.options||[]).map(o=>`<span style="font-size:10px;background:#f0f0f0;padding:2px 8px;border-radius:10px">${o}</span>`).join('')}
+        </div>
+      </div>`).join('')
+  }
+
+  if (type === 'EXIT_TICKET') {
+    if (model === 'can-do') {
+      return `<div style="background:#fff8e6;border:2px solid #C55A11;border-radius:6px;padding:10px">
+        <div style="font-weight:700;font-size:12px;color:#C55A11;margin-bottom:8px">🚪 EXIT TICKET${data.date?' · '+data.date:''}</div>
+        ${(data.skills||[]).map(s=>`<div style="display:flex;align-items:center;gap:8px;font-size:11px;padding:5px 0;border-bottom:1px solid #ffe0b0">
+          <span>I can <strong>${s}</strong></span>
+          <div style="margin-left:auto;display:flex;gap:6px;font-size:18px">😊😐😕</div>
+        </div>`).join('')}
+      </div>`
+    }
+    return `<div style="background:#fff8e6;border:2px solid #C55A11;border-radius:6px;padding:10px">
+      <div style="font-weight:700;font-size:12px;color:#C55A11;margin-bottom:8px">🚪 SELF-RATING${data.date?' · '+data.date:''}</div>
+      ${(data.statements||[]).map((s,i)=>`<div style="margin-bottom:10px;font-size:11px">
+        <div style="margin-bottom:5px">${i+1}. ${s}</div>
+        <div style="display:flex;gap:6px">
+          ${[1,2,3,4,5].map(n=>`<div style="width:28px;height:28px;border:2px solid #C55A11;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#C55A11">${n}</div>`).join('')}
+        </div>
+      </div>`).join('')}
+    </div>`
+  }
+
   return '<span style="color:#aaa">Vista previa no disponible</span>'
 }
 
 // ── SmartBlocks list + add button ─────────────────────────────────────────────
-export function SmartBlocksList({ blocks = [], onChange }) {
-  const [modalOpen, setModalOpen] = useState(false)
-  const [editId,    setEditId]    = useState(null)
+export function SmartBlocksList({ blocks = [], onChange, aiContext }) {
+  const [modalOpen,    setModalOpen]    = useState(false)
+  const [editId,       setEditId]       = useState(null)
+  const [suggesting,   setSuggesting]   = useState(false)
+  const [suggestError, setSuggestError] = useState(null)
 
   function handleDelete(id) {
     onChange(blocks.filter(b => b.id !== id))
@@ -210,6 +305,22 @@ export function SmartBlocksList({ blocks = [], onChange }) {
     }
     setModalOpen(false)
     setEditId(null)
+  }
+
+  async function handleAISuggest() {
+    if (!aiContext) return
+    setSuggesting(true)
+    setSuggestError(null)
+    try {
+      const result = await suggestSmartBlock({ ...aiContext, existingBlocks: blocks })
+      if (result?.type && result?.model) {
+        onChange([...blocks, { ...result, id: Date.now() }])
+      }
+    } catch (e) {
+      setSuggestError(e.message || 'Error al sugerir bloque')
+    } finally {
+      setSuggesting(false)
+    }
   }
 
   const editingBlock = editId != null ? blocks.find(b => b.id === editId) : null
@@ -237,9 +348,23 @@ export function SmartBlocksList({ blocks = [], onChange }) {
         )
       })}
 
-      <button className="sb-add-btn" onClick={() => { setEditId(null); setModalOpen(true) }}>
-        <span>＋</span> Agregar Bloque Inteligente
-      </button>
+      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+        <button className="sb-add-btn" style={{ flex: 1 }} onClick={() => { setEditId(null); setModalOpen(true) }}>
+          <span>＋</span> Agregar Bloque
+        </button>
+        {aiContext && (
+          <button
+            className="sb-add-btn"
+            style={{ flex: 1, background: suggesting ? '#e8eef8' : '#f0f4ff', borderColor: '#4BACC6', color: '#2E5598' }}
+            onClick={handleAISuggest}
+            disabled={suggesting}>
+            {suggesting ? <span>⏳ Pensando…</span> : <><span>✨</span> Sugerir con IA</>}
+          </button>
+        )}
+      </div>
+      {suggestError && (
+        <div style={{ fontSize: '11px', color: '#cc3333', marginTop: '4px' }}>⚠️ {suggestError}</div>
+      )}
 
       {modalOpen && (
         <SmartBlockModal
@@ -589,6 +714,208 @@ function BlockForm({ type, model, data, onChange }) {
             </select>
           </div>
         )}
+      </div>
+    )
+  }
+
+  if (type === 'READING') {
+    if (model === 'comprehension') {
+      const questions = data.questions || [{ q: '', lines: 2 }, { q: '', lines: 2 }]
+      function updateQ(i, field, val) {
+        const next = [...questions]; next[i] = { ...next[i], [field]: val }; set('questions', next)
+      }
+      return (
+        <div>
+          <div className="ge-field">
+            <label>📝 Pasaje de lectura</label>
+            <textarea rows={5} value={data.passage || ''} placeholder="Write or paste the reading passage here…"
+              onChange={e => set('passage', e.target.value)} />
+          </div>
+          <div className="ge-field">
+            <label>❓ Preguntas</label>
+            {questions.map((q, i) => (
+              <div key={i} style={{ display: 'grid', gridTemplateColumns: '2fr 80px 28px', gap: '6px', marginBottom: '6px' }}>
+                <input type="text" value={q.q || ''} placeholder={`Question ${i + 1}`}
+                  onChange={e => updateQ(i, 'q', e.target.value)} />
+                <select value={q.lines || 2} onChange={e => updateQ(i, 'lines', parseInt(e.target.value))}>
+                  {[1, 2, 3, 4].map(n => <option key={n} value={n}>{n} line{n > 1 ? 's' : ''}</option>)}
+                </select>
+                <button style={{ background: 'none', border: 'none', color: '#cc4444', cursor: 'pointer', fontSize: '16px' }}
+                  onClick={() => set('questions', questions.filter((_, j) => j !== i))}>✕</button>
+              </div>
+            ))}
+            <button style={{ padding: '5px 12px', background: '#1F3864', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}
+              onClick={() => set('questions', [...questions, { q: '', lines: 2 }])}>＋ Add question</button>
+          </div>
+        </div>
+      )
+    }
+    // true-false
+    const statements = data.statements || [{ s: '' }, { s: '' }, { s: '' }]
+    return (
+      <div>
+        <div className="ge-field">
+          <label>📝 Pasaje de lectura</label>
+          <textarea rows={5} value={data.passage || ''} placeholder="Write or paste the reading passage here…"
+            onChange={e => set('passage', e.target.value)} />
+        </div>
+        <div className="ge-field">
+          <label>✅ Afirmaciones True / False</label>
+          {statements.map((s, i) => (
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 28px', gap: '6px', marginBottom: '6px' }}>
+              <input type="text" value={s.s || ''} placeholder={`Statement ${i + 1}`}
+                onChange={e => { const next = [...statements]; next[i] = { s: e.target.value }; set('statements', next) }} />
+              <button style={{ background: 'none', border: 'none', color: '#cc4444', cursor: 'pointer', fontSize: '16px' }}
+                onClick={() => set('statements', statements.filter((_, j) => j !== i))}>✕</button>
+            </div>
+          ))}
+          <button style={{ padding: '5px 12px', background: '#1F3864', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}
+            onClick={() => set('statements', [...statements, { s: '' }])}>＋ Add statement</button>
+        </div>
+      </div>
+    )
+  }
+
+  if (type === 'GRAMMAR') {
+    if (model === 'fill-blank') {
+      const sentences = data.sentences || [{ sent: '', answer: '' }]
+      function updateSent(i, field, val) {
+        const next = [...sentences]; next[i] = { ...next[i], [field]: val }; set('sentences', next)
+      }
+      return (
+        <div>
+          <div className="ge-grid-2">
+            <div className="ge-field">
+              <label>📐 Punto gramatical</label>
+              <input type="text" value={data.grammar_point || ''} placeholder="e.g. Present Perfect vs Past Simple"
+                onChange={e => set('grammar_point', e.target.value)} />
+            </div>
+            <div className="ge-field">
+              <label>📌 Instrucciones</label>
+              <input type="text" value={data.instructions || 'Complete the sentences with the correct form.'}
+                onChange={e => set('instructions', e.target.value)} />
+            </div>
+          </div>
+          <div className="ge-field">
+            <label>📋 Oraciones (usa ___ para el espacio)</label>
+            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 28px', gap: '4px', marginBottom: '4px', fontSize: '10px', fontWeight: 700, color: '#666' }}>
+              <span>SENTENCE (use ___)</span><span>ANSWER</span><span />
+            </div>
+            {sentences.map((s, i) => (
+              <div key={i} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 28px', gap: '6px', marginBottom: '4px' }}>
+                <input type="text" value={s.sent || ''} placeholder="She ___ to school yesterday."
+                  onChange={e => updateSent(i, 'sent', e.target.value)} />
+                <input type="text" value={s.answer || ''} placeholder="walked"
+                  onChange={e => updateSent(i, 'answer', e.target.value)} />
+                <button style={{ background: 'none', border: 'none', color: '#cc4444', cursor: 'pointer', fontSize: '16px' }}
+                  onClick={() => set('sentences', sentences.filter((_, j) => j !== i))}>✕</button>
+              </div>
+            ))}
+            <button style={{ marginTop: '6px', padding: '5px 12px', background: '#1F3864', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}
+              onClick={() => set('sentences', [...sentences, { sent: '', answer: '' }])}>＋ Add sentence</button>
+          </div>
+        </div>
+      )
+    }
+    // choose
+    const items = data.items || [{ sentence: '', options: ['', '', ''], answer: '' }]
+    function updateItem(i, field, val) {
+      const next = [...items]; next[i] = { ...next[i], [field]: val }; set('items', next)
+    }
+    function updateOption(i, oi, val) {
+      const next = [...items]; const opts = [...(next[i].options || [])]; opts[oi] = val
+      next[i] = { ...next[i], options: opts }; set('items', next)
+    }
+    return (
+      <div>
+        <div className="ge-grid-2">
+          <div className="ge-field">
+            <label>📐 Punto gramatical</label>
+            <input type="text" value={data.grammar_point || ''} placeholder="e.g. Modal Verbs"
+              onChange={e => set('grammar_point', e.target.value)} />
+          </div>
+          <div className="ge-field">
+            <label>📌 Instrucciones</label>
+            <input type="text" value={data.instructions || 'Choose the correct option.'}
+              onChange={e => set('instructions', e.target.value)} />
+          </div>
+        </div>
+        <div className="ge-field">
+          <label>📋 Oraciones con opciones</label>
+          {items.map((item, i) => (
+            <div key={i} style={{ border: '1px solid #eee', borderRadius: '6px', padding: '10px', marginBottom: '8px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 28px', gap: '6px', marginBottom: '6px' }}>
+                <input type="text" value={item.sentence || ''} placeholder={`Sentence ${i + 1}…`}
+                  onChange={e => updateItem(i, 'sentence', e.target.value)} />
+                <button style={{ background: 'none', border: 'none', color: '#cc4444', cursor: 'pointer', fontSize: '16px' }}
+                  onClick={() => set('items', items.filter((_, j) => j !== i))}>✕</button>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '6px', marginBottom: '6px' }}>
+                {(item.options || ['', '', '']).map((opt, oi) => (
+                  <input key={oi} type="text" value={opt} placeholder={`Option ${oi + 1}`}
+                    onChange={e => updateOption(i, oi, e.target.value)} />
+                ))}
+              </div>
+              <div style={{ fontSize: '10px', fontWeight: 700, color: '#375623', marginBottom: '2px' }}>Correct answer</div>
+              <input type="text" value={item.answer || ''} placeholder="write the correct option exactly"
+                onChange={e => updateItem(i, 'answer', e.target.value)} />
+            </div>
+          ))}
+          <button style={{ padding: '5px 12px', background: '#1F3864', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}
+            onClick={() => set('items', [...items, { sentence: '', options: ['', '', ''], answer: '' }])}>＋ Add item</button>
+        </div>
+      </div>
+    )
+  }
+
+  if (type === 'EXIT_TICKET') {
+    if (model === 'can-do') {
+      const skills = data.skills || ['']
+      return (
+        <div>
+          <div className="ge-field">
+            <label>📅 Fecha (opcional)</label>
+            <input type="text" value={data.date || ''} placeholder="e.g. Friday, March 7"
+              onChange={e => set('date', e.target.value)} />
+          </div>
+          <div className="ge-field">
+            <label>✅ Declaraciones "I can…"</label>
+            {skills.map((s, i) => (
+              <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 28px', gap: '6px', marginBottom: '6px' }}>
+                <input type="text" value={s} placeholder="understand a short conversation about daily routines"
+                  onChange={e => { const next = [...skills]; next[i] = e.target.value; set('skills', next) }} />
+                <button style={{ background: 'none', border: 'none', color: '#cc4444', cursor: 'pointer', fontSize: '16px' }}
+                  onClick={() => set('skills', skills.filter((_, j) => j !== i))}>✕</button>
+              </div>
+            ))}
+            <button style={{ marginTop: '4px', padding: '5px 12px', background: '#1F3864', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}
+              onClick={() => set('skills', [...skills, ''])}>＋ Add statement</button>
+          </div>
+        </div>
+      )
+    }
+    // rating
+    const statements = data.statements || ['']
+    return (
+      <div>
+        <div className="ge-field">
+          <label>📅 Fecha (opcional)</label>
+          <input type="text" value={data.date || ''} placeholder="e.g. Friday, March 7"
+            onChange={e => set('date', e.target.value)} />
+        </div>
+        <div className="ge-field">
+          <label>📊 Declaraciones para calificar (1–5)</label>
+          {statements.map((s, i) => (
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 28px', gap: '6px', marginBottom: '6px' }}>
+              <input type="text" value={s} placeholder="I understand today's grammar topic"
+                onChange={e => { const next = [...statements]; next[i] = e.target.value; set('statements', next) }} />
+              <button style={{ background: 'none', border: 'none', color: '#cc4444', cursor: 'pointer', fontSize: '16px' }}
+                onClick={() => set('statements', statements.filter((_, j) => j !== i))}>✕</button>
+            </div>
+          ))}
+          <button style={{ marginTop: '4px', padding: '5px 12px', background: '#1F3864', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}
+            onClick={() => set('statements', [...statements, ''])}>＋ Add statement</button>
+        </div>
       </div>
     )
   }

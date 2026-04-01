@@ -69,6 +69,62 @@ Sugiere una actividad específica para la sección "${section.label}" que sea co
   return callClaude({ type: 'suggest', system, message, planId })
 }
 
+// ── Punto 1b: Sugerir SmartBlock para una sección ────────────────────────────
+export async function suggestSmartBlock({
+  sectionMeta, grade, subject, objective, unit, dayName,
+  existingContent, existingBlocks, learningTarget, planId
+}) {
+  const TAXONOMY_DESC = { recognize: 'Reconocer', apply: 'Aplicar', produce: 'Producir' }
+
+  const blockTypes = `DICTATION: word-grid (lista de palabras), sentences (oraciones numeradas)
+QUIZ: topic-card (temas a repasar), format-box (estructura del quiz con puntos)
+VOCAB: cards (Word | Definition | Example), matching (términos vs significados)
+WORKSHOP: stations (estaciones de trabajo), roles (roles de equipo)
+SPEAKING: rubric (criterios con puntos), prep (checklist de pasos)
+NOTICE: banner (aviso de ancho completo), alert (caja con prioridad info/warning/danger)
+READING: comprehension (pasaje + preguntas abiertas), true-false (pasaje + afirmaciones V/F)
+GRAMMAR: fill-blank (completar espacios con ___), choose (elegir la forma correcta)
+EXIT_TICKET: can-do ("I can…" con escala emoji), rating (declaraciones + escala 1–5)`
+
+  const taxonomy = learningTarget?.taxonomy
+  const taxHint = taxonomy === 'recognize'
+    ? 'Nivel RECONOCER: prefiere VOCAB matching, QUIZ topic-card, READING true-false.'
+    : taxonomy === 'apply'
+    ? 'Nivel APLICAR: prefiere DICTATION, GRAMMAR fill-blank, WORKSHOP stations, READING comprehension.'
+    : taxonomy === 'produce'
+    ? 'Nivel PRODUCIR: prefiere SPEAKING rubric, WORKSHOP roles, EXIT_TICKET can-do.'
+    : ''
+
+  const system = `Eres un experto pedagógico para colegios bilingües colombianos (metodología CBF).
+Tu tarea: sugerir UN SmartBlock apropiado para una sección de guía.
+Responde SOLO con JSON válido. Sin markdown, sin texto adicional.
+Estructura exacta: {"type":"...","model":"...","data":{...}}
+Los datos deben estar en inglés (colegio bilingüe) y ser realistas y listos para usar.
+${taxHint}`
+
+  const message = `Sección: ${sectionMeta?.label} (${sectionMeta?.time})
+Grado: ${grade} | Materia: ${subject} | Día: ${dayName || ''}
+Unidad: ${unit || 'no especificada'}
+Objetivo semanal: ${objective || 'no especificado'}
+${learningTarget ? `Desempeño observable: ${learningTarget.description} (${TAXONOMY_DESC[learningTarget.taxonomy] || ''})` : ''}
+Contenido ya escrito: ${existingContent ? existingContent.replace(/<[^>]+>/g,' ').slice(0,200) : '(vacío)'}
+Bloques ya presentes: ${existingBlocks?.length ? existingBlocks.map(b=>b.type).join(', ') : 'ninguno'}
+
+Tipos disponibles:
+${blockTypes}
+
+Sugiere el bloque más pedagógicamente apropiado para este contexto. Incluye datos completos y realistas.`
+
+  const raw = await callClaude({ type: 'suggest', system, message, planId, maxTokens: 1200 })
+  const match = raw.match(/\{[\s\S]*\}/)
+  if (!match) throw new Error('La IA no devolvió un bloque válido.')
+  try {
+    return JSON.parse(match[0].trim())
+  } catch {
+    throw new Error('No se pudo leer el bloque sugerido.')
+  }
+}
+
 // ── Punto 2: Análisis completo de la guía ────────────────────────────────────
 export async function analyzeGuide(content, planId) {
   const system = `Eres un asesor pedagógico experto en diseño curricular para colegios bilingües.
@@ -154,8 +210,8 @@ El JSON debe tener exactamente esta estructura:
       "sections": {
         "subject":    {"content": "string"},
         "motivation": {"content": "string"},
-        "activity":   {"content": "string"},
-        "skill":      {"content": "string"},
+        "activity":   {"content": "string", "smartBlock": {"type":"...","model":"...","data":{}}},
+        "skill":      {"content": "string", "smartBlock": {"type":"...","model":"...","data":{}}},
         "closing":    {"content": "string"},
         "assignment": {"content": "string"}
       }
@@ -168,7 +224,19 @@ El JSON debe tener exactamente esta estructura:
   "summary": {
     "next": "string"
   }
-}`
+}
+El campo "smartBlock" es OPCIONAL y solo debe incluirse en las secciones "activity" y "skill" cuando
+sea pedagógicamente relevante (máximo 1 bloque por sección, máximo 2 bloques por día).
+Tipos de SmartBlock disponibles:
+- VOCAB: cards {words:[{w,d,e}]} | matching {words:[{w,d,e}]}
+- DICTATION: word-grid {words:string[],instructions:string} | sentences {words:string[],instructions:string}
+- GRAMMAR: fill-blank {grammar_point,instructions,sentences:[{sent,answer}]} | choose {grammar_point,instructions,items:[{sentence,options:[],answer}]}
+- READING: comprehension {passage,questions:[{q,lines}]} | true-false {passage,statements:[{s}]}
+- SPEAKING: rubric {criteria:[{name,pts}],date?} | prep {steps:string[],date?}
+- EXIT_TICKET: can-do {skills:string[],date?} | rating {statements:string[],date?}
+- QUIZ: topic-card {unit,date,topics,note?} | format-box {unit,date,topics,format,note?}
+- NOTICE: banner {title,message,icon} | alert {title,message,icon,priority}
+Usa inglés en los datos del bloque (colegio bilingüe). Si no hay un bloque claramente apropiado para una sección, omite "smartBlock".`
 
   const daysStr = activeDays.map((iso, i) => {
     const d = new Date(iso + 'T12:00:00')
