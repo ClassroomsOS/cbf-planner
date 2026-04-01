@@ -1,311 +1,167 @@
-import { useState, useEffect } from 'react'
-import { supabase } from '../supabase'
+// ── LayoutSelectorModal.jsx ───────────────────────────────────────────────────
+// Elige cómo posicionar las imágenes respecto al texto en una sección.
+// Soporta hasta 4 imágenes con grid automático.
 
-// ── Sections elegibles para layout visual ─────────────────────────────────────
+import { useState } from 'react'
+
 export const LAYOUT_ELIGIBLE = ['motivation', 'activity', 'skill']
 
-// ── Opciones de layout ────────────────────────────────────────────────────────
 const LAYOUT_OPTIONS = [
   {
-    id: 'none',
-    label: 'Solo texto',
-    desc: 'Sin imagen. Para instrucciones densas.',
-    ratio: null,
+    id:    'below',
+    label: 'Imágenes abajo',
+    desc:  'Texto a ancho completo, imágenes en cuadrícula debajo.',
+    Icon:  IconBelow,
   },
   {
-    id: 'stack',
-    label: 'Texto → Imagen',
-    desc: 'Texto arriba, imagen abajo a ancho completo.',
-    ratio: '16:9 o 4:3',
+    id:    'right',
+    label: 'Texto | Imágenes',
+    desc:  'Texto a la izquierda, imágenes apiladas a la derecha.',
+    Icon:  IconRight,
   },
   {
-    id: 'side',
-    label: 'Doble columna',
-    desc: 'Texto 60% + imagen 40% en paralelo.',
-    ratio: '1:1 o 3:4 vertical',
+    id:    'left',
+    label: 'Imágenes | Texto',
+    desc:  'Imágenes a la izquierda, texto a la derecha.',
+    Icon:  IconLeft,
   },
 ]
-
-// ── Nombre del bucket en Supabase Storage ─────────────────────────────────────
-// ⚠️ Verifica que coincida con el nombre real del bucket en tu proyecto Supabase
-const STORAGE_BUCKET = 'guide-images'
-
-// ── Componente principal ──────────────────────────────────────────────────────
 
 export default function LayoutSelectorModal({
   isOpen,
   onClose,
   onConfirm,
   sectionLabel,
-  sectionKey,
-  planId,
-  dayIso,
-  currentLayout = 'none',
-  currentImageUrl = null,
+  currentLayout = 'below',
 }) {
-  const [step,           setStep]           = useState(1)
-  const [selectedLayout, setSelectedLayout] = useState(currentLayout)
-  const [imageUrl,       setImageUrl]       = useState(currentImageUrl)
-  const [uploading,      setUploading]      = useState(false)
-  const [uploadError,    setUploadError]    = useState(null)
-
-  // Resetear estado cada vez que se abre el modal
-  useEffect(() => {
-    if (isOpen) {
-      setStep(1)
-      setSelectedLayout(currentLayout)
-      setImageUrl(currentImageUrl)
-      setUploadError(null)
-    }
-  }, [isOpen])
-
   if (!isOpen) return null
 
-  // ── Subir imagen a Supabase Storage ──
-  async function handleFileUpload(e) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setUploading(true)
-    setUploadError(null)
-    const ext  = file.name.split('.').pop()
-    const path = `plans/${planId}/${dayIso}/${sectionKey}_layout.${ext}`
-    const { error } = await supabase.storage
-      .from(STORAGE_BUCKET)
-      .upload(path, file, { upsert: true })
-    if (error) {
-      setUploadError('Error al subir la imagen. Intenta de nuevo.')
-      setUploading(false)
-      return
-    }
-    const { data: { publicUrl } } = supabase.storage
-      .from(STORAGE_BUCKET)
-      .getPublicUrl(path)
-    setImageUrl(publicUrl)
-    setUploading(false)
-  }
+  // Normaliza layouts viejos (layout_mode) al nuevo formato
+  const normalize = l => l === 'stack' ? 'below' : l === 'side' ? 'right' : (l || 'below')
+
+  const [selected, setSelected] = useState(normalize(currentLayout))
 
   function handleConfirm() {
-    onConfirm({ layout_mode: selectedLayout, layout_image_url: imageUrl })
+    onConfirm({ image_layout: selected })
     onClose()
   }
-
-  function handleNext() {
-    // Si elige "Solo texto", salta directo al paso 3 (vista previa)
-    if (step === 1 && selectedLayout === 'none') { setStep(3); return }
-    setStep(s => s + 1)
-  }
-
-  const selectedOption = LAYOUT_OPTIONS.find(o => o.id === selectedLayout)
-  const needsImage     = selectedLayout !== 'none'
 
   return (
     <div style={S.overlay}>
       <div style={S.modal}>
 
-        {/* ── Header ── */}
+        {/* Header */}
         <div style={S.header}>
-          <span style={S.headerTitle}>🖼 Organizar contenido visual</span>
+          <span style={S.headerTitle}>🖼 Distribución de imágenes</span>
           <span style={S.headerSub}>{sectionLabel}</span>
           <button style={S.closeBtn} onClick={onClose}>✕</button>
         </div>
 
-        {/* ── Steps indicator ── */}
-        <div style={S.stepsBar}>
-          {['Layout', 'Imagen', 'Vista previa'].map((label, i) => {
-            const num     = i + 1
-            const done    = step > num
-            const active  = step === num
-            return (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <div style={{
-                  ...S.stepDot,
-                  background: done ? '#9BBB59' : active ? '#2E5598' : '#dde3f0',
-                  color: done || active ? '#fff' : '#aaa',
-                }}>
-                  {done ? '✓' : num}
-                </div>
-                <span style={{ fontSize: '12px', fontWeight: active ? 700 : 400, color: active ? '#2E5598' : '#aaa' }}>
-                  {label}
-                </span>
-                {i < 2 && <div style={{ width: '20px', height: '2px', background: done ? '#9BBB59' : '#dde3f0' }} />}
-              </div>
-            )
-          })}
-        </div>
+        <div style={S.body}>
+          <p style={S.hint}>
+            El sistema adapta automáticamente el tamaño para 1, 2, 3 o 4 imágenes.
+            Elige cómo quieres posicionarlas respecto al texto.
+          </p>
 
-        {/* ── PASO 1: Elegir layout ── */}
-        {step === 1 && (
-          <div style={S.body}>
-            <p style={S.bodyTitle}>¿Cómo quieres organizar el contenido de esta sección?</p>
-            <div style={S.cards}>
-              {LAYOUT_OPTIONS.map(opt => (
+          <div style={S.cards}>
+            {LAYOUT_OPTIONS.map(opt => {
+              const isSelected = selected === opt.id
+              return (
                 <div
                   key={opt.id}
-                  style={{ ...S.card, ...(selectedLayout === opt.id ? S.cardSelected : {}) }}
-                  onClick={() => setSelectedLayout(opt.id)}
+                  style={{ ...S.card, ...(isSelected ? S.cardSelected : {}) }}
+                  onClick={() => setSelected(opt.id)}
                 >
-                  <div style={S.cardIcon}>
-                    {opt.id === 'none'  && <IconNone  selected={selectedLayout === opt.id} />}
-                    {opt.id === 'stack' && <IconStack selected={selectedLayout === opt.id} />}
-                    {opt.id === 'side'  && <IconSide  selected={selectedLayout === opt.id} />}
-                  </div>
+                  <opt.Icon selected={isSelected} />
                   <div style={S.cardLabel}>{opt.label}</div>
                   <div style={S.cardDesc}>{opt.desc}</div>
-                  {opt.ratio && <div style={S.cardRatio}>📐 {opt.ratio}</div>}
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Grid size reference */}
+          <div style={S.sizeRef}>
+            <div style={S.sizeRefTitle}>Cuadrícula automática</div>
+            <div style={S.sizeRefGrid}>
+              {[
+                { n: 1, cols: '1 col', label: 'Ancho completo' },
+                { n: 2, cols: '2 col', label: '2 columnas' },
+                { n: 3, cols: '3 col', label: '3 columnas' },
+                { n: 4, cols: '2×2',  label: 'Cuadrícula 2×2' },
+              ].map(item => (
+                <div key={item.n} style={S.sizeItem}>
+                  <span style={S.sizeN}>{item.n}</span>
+                  <span style={S.sizeCols}>{item.cols}</span>
+                  <span style={S.sizeLabel}>{item.label}</span>
                 </div>
               ))}
             </div>
           </div>
-        )}
+        </div>
 
-        {/* ── PASO 2: Subir imagen ── */}
-        {step === 2 && (
-          <div style={S.body}>
-            {selectedOption?.ratio && (
-              <div style={S.ratioHint}>
-                📐 Proporción recomendada: <strong>{selectedOption.ratio}</strong>
-              </div>
-            )}
-
-            {imageUrl ? (
-              // Ya hay imagen
-              <div style={{ textAlign: 'center' }}>
-                <img
-                  src={imageUrl} alt="preview"
-                  style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '8px', marginBottom: '14px', objectFit: 'contain' }}
-                />
-                <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                  <label style={S.btnUpload}>
-                    🔄 Cambiar imagen
-                    <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFileUpload} />
-                  </label>
-                  <button style={S.btnRemove} onClick={() => setImageUrl(null)}>🗑 Quitar</button>
-                </div>
-              </div>
-            ) : (
-              // Sin imagen aún
-              <div style={S.uploadArea}>
-                <div style={{ fontSize: '40px', marginBottom: '10px' }}>🖼</div>
-                <p style={{ margin: '0 0 16px', color: '#555', fontSize: '14px' }}>
-                  Sube una imagen para esta sección
-                </p>
-                <label style={{ ...S.btnUpload, cursor: uploading ? 'wait' : 'pointer' }}>
-                  {uploading ? '⏳ Subiendo…' : '📁 Elegir imagen'}
-                  <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFileUpload} disabled={uploading} />
-                </label>
-                {uploadError && (
-                  <p style={{ color: '#c00', fontSize: '12px', marginTop: '10px' }}>{uploadError}</p>
-                )}
-                <button style={S.btnSkip} onClick={() => setStep(3)}>
-                  Dejar pendiente →
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── PASO 3: Vista previa ── */}
-        {step === 3 && (
-          <div style={S.body}>
-            <p style={S.bodyTitle}>Vista previa del resultado</p>
-            <div style={S.previewBox}>
-              {selectedLayout === 'none' && (
-                <div style={{ padding: '14px', background: '#f0f4ff', borderRadius: '8px', color: '#555', fontSize: '13px', lineHeight: 1.5 }}>
-                  Solo texto — el contenido de la sección se mostrará a ancho completo en la guía.
-                </div>
-              )}
-              {selectedLayout === 'stack' && (
-                <div>
-                  <div style={S.previewTextBlock}>📝 Texto de la sección (ancho completo)</div>
-                  <div style={{ marginTop: '8px' }}>
-                    {imageUrl
-                      ? <img src={imageUrl} alt="layout preview" style={{ width: '100%', borderRadius: '8px', maxHeight: '160px', objectFit: 'cover' }} />
-                      : <div style={S.placeholder}>[ IMAGEN PENDIENTE — 16:9 o 4:3 ]</div>
-                    }
-                  </div>
-                </div>
-              )}
-              {selectedLayout === 'side' && (
-                <div style={{ display: 'flex', gap: '8px', minHeight: '100px' }}>
-                  <div style={{ ...S.previewTextBlock, flex: '0 0 60%' }}>📝 Texto (60%)</div>
-                  <div style={{ flex: '0 0 38%' }}>
-                    {imageUrl
-                      ? <img src={imageUrl} alt="layout preview" style={{ width: '100%', height: '100%', borderRadius: '8px', objectFit: 'cover' }} />
-                      : <div style={{ ...S.placeholder, height: '100%', minHeight: '80px' }}>[ IMAGEN PENDIENTE — 1:1 o 3:4 ]</div>
-                    }
-                  </div>
-                </div>
-              )}
-            </div>
-            {!imageUrl && needsImage && (
-              <p style={{ fontSize: '12px', color: '#888', marginTop: '10px', textAlign: 'center' }}>
-                💡 La guía se guardará con un placeholder. Puedes agregar la imagen más tarde.
-              </p>
-            )}
-          </div>
-        )}
-
-        {/* ── Footer ── */}
         <div style={S.footer}>
-          {step > 1
-            ? <button style={S.btnSecondary} onClick={() => setStep(s => s - 1)}>← Atrás</button>
-            : <div />
-          }
-          {step < 3 && (
-            <button style={S.btnPrimary} onClick={handleNext}>
-              Siguiente →
-            </button>
-          )}
-          {step === 3 && (
-            <button style={S.btnConfirm} onClick={handleConfirm}>
-              ✓ Confirmar
-            </button>
-          )}
+          <button style={S.btnSecondary} onClick={onClose}>Cancelar</button>
+          <button style={S.btnConfirm} onClick={handleConfirm}>✓ Aplicar</button>
         </div>
       </div>
     </div>
   )
 }
 
-// ── Íconos SVG de layout ──────────────────────────────────────────────────────
+// ── SVG Icons ─────────────────────────────────────────────────────────────────
 
-function IconNone({ selected }) {
-  const c = selected ? '#2E5598' : '#8099C0'
+function IconBelow({ selected }) {
+  const t = selected ? '#2E5598' : '#8099C0'
+  const i = selected ? '#4BACC6' : '#b0c8e0'
   return (
-    <svg width="64" height="44" viewBox="0 0 64 44" fill="none">
-      <rect x="4"  y="8"  width="56" height="6" rx="2" fill={c} opacity="0.8"/>
-      <rect x="4"  y="19" width="56" height="6" rx="2" fill={c} opacity="0.5"/>
-      <rect x="4"  y="30" width="38" height="6" rx="2" fill={c} opacity="0.3"/>
+    <svg width="80" height="56" viewBox="0 0 80 56" fill="none">
+      {/* Text lines */}
+      <rect x="6" y="6"  width="68" height="5" rx="2" fill={t} opacity=".8"/>
+      <rect x="6" y="14" width="68" height="5" rx="2" fill={t} opacity=".55"/>
+      <rect x="6" y="22" width="44" height="5" rx="2" fill={t} opacity=".35"/>
+      {/* Image grid 2×2 */}
+      <rect x="6"  y="32" width="32" height="18" rx="3" fill={i}/>
+      <rect x="42" y="32" width="32" height="18" rx="3" fill={i}/>
     </svg>
   )
 }
 
-function IconStack({ selected }) {
-  const c = selected ? '#2E5598' : '#8099C0'
+function IconRight({ selected }) {
+  const t = selected ? '#2E5598' : '#8099C0'
+  const i = selected ? '#4BACC6' : '#b0c8e0'
   return (
-    <svg width="64" height="44" viewBox="0 0 64 44" fill="none">
-      <rect x="4"  y="4"  width="56" height="5" rx="2" fill={c} opacity="0.8"/>
-      <rect x="4"  y="12" width="56" height="5" rx="2" fill={c} opacity="0.5"/>
-      <rect x="4"  y="22" width="56" height="18" rx="3" fill="#4BACC6" opacity={selected ? 0.7 : 0.4}/>
-      <text x="32" y="34" textAnchor="middle" fontSize="9" fill="#fff" fontWeight="600">imagen</text>
+    <svg width="80" height="56" viewBox="0 0 80 56" fill="none">
+      {/* Text lines left */}
+      <rect x="6"  y="8"  width="38" height="5" rx="2" fill={t} opacity=".8"/>
+      <rect x="6"  y="17" width="38" height="5" rx="2" fill={t} opacity=".55"/>
+      <rect x="6"  y="26" width="38" height="5" rx="2" fill={t} opacity=".35"/>
+      <rect x="6"  y="35" width="26" height="5" rx="2" fill={t} opacity=".2"/>
+      {/* Images right */}
+      <rect x="50" y="6"  width="24" height="20" rx="3" fill={i}/>
+      <rect x="50" y="30" width="24" height="20" rx="3" fill={i} opacity=".7"/>
     </svg>
   )
 }
 
-function IconSide({ selected }) {
-  const c = selected ? '#2E5598' : '#8099C0'
+function IconLeft({ selected }) {
+  const t = selected ? '#2E5598' : '#8099C0'
+  const i = selected ? '#4BACC6' : '#b0c8e0'
   return (
-    <svg width="64" height="44" viewBox="0 0 64 44" fill="none">
-      <rect x="4"  y="6"  width="34" height="5" rx="2" fill={c} opacity="0.8"/>
-      <rect x="4"  y="15" width="34" height="5" rx="2" fill={c} opacity="0.5"/>
-      <rect x="4"  y="24" width="34" height="5" rx="2" fill={c} opacity="0.3"/>
-      <rect x="42" y="4"  width="18" height="36" rx="3" fill="#4BACC6" opacity={selected ? 0.7 : 0.4}/>
-      <text x="51" y="25" textAnchor="middle" fontSize="8" fill="#fff" fontWeight="600">img</text>
+    <svg width="80" height="56" viewBox="0 0 80 56" fill="none">
+      {/* Images left */}
+      <rect x="6"  y="6"  width="24" height="20" rx="3" fill={i}/>
+      <rect x="6"  y="30" width="24" height="20" rx="3" fill={i} opacity=".7"/>
+      {/* Text lines right */}
+      <rect x="36" y="8"  width="38" height="5" rx="2" fill={t} opacity=".8"/>
+      <rect x="36" y="17" width="38" height="5" rx="2" fill={t} opacity=".55"/>
+      <rect x="36" y="26" width="38" height="5" rx="2" fill={t} opacity=".35"/>
+      <rect x="36" y="35" width="26" height="5" rx="2" fill={t} opacity=".2"/>
     </svg>
   )
 }
 
-// ── Estilos ───────────────────────────────────────────────────────────────────
+// ── Styles ────────────────────────────────────────────────────────────────────
 
 const S = {
   overlay: {
@@ -314,7 +170,7 @@ const S = {
     zIndex: 1100, padding: '16px',
   },
   modal: {
-    background: '#fff', borderRadius: '14px', width: '100%', maxWidth: '560px',
+    background: '#fff', borderRadius: '14px', width: '100%', maxWidth: '540px',
     boxShadow: '0 8px 40px rgba(0,0,0,0.2)', display: 'flex', flexDirection: 'column',
     maxHeight: '90vh', overflow: 'hidden',
   },
@@ -328,60 +184,37 @@ const S = {
     background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff',
     borderRadius: '6px', cursor: 'pointer', padding: '3px 8px', fontSize: '13px',
   },
-  stepsBar: {
-    display: 'flex', alignItems: 'center', gap: '6px',
-    padding: '12px 18px', background: '#f5f7fc', borderBottom: '1px solid #e8edf5', flexShrink: 0,
-  },
-  stepDot: {
-    width: '22px', height: '22px', borderRadius: '50%',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    fontSize: '11px', fontWeight: 700, flexShrink: 0,
-  },
   body: { padding: '20px', overflowY: 'auto', flex: 1 },
-  bodyTitle: { margin: '0 0 16px', fontSize: '14px', color: '#333', fontWeight: 600 },
-  cards: { display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '10px' },
+  hint: {
+    margin: '0 0 16px', fontSize: '12px', color: '#666', lineHeight: 1.5,
+    background: '#f0f4ff', border: '1px solid #c5d5f0', borderRadius: '8px',
+    padding: '10px 12px',
+  },
+  cards: { display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '10px', marginBottom: '20px' },
   card: {
-    border: '2px solid #dde3f0', borderRadius: '10px', padding: '14px 8px',
-    textAlign: 'center', cursor: 'pointer', background: '#fafbff', transition: 'all 0.15s',
+    border: '2px solid #dde3f0', borderRadius: '10px', padding: '14px 10px',
+    textAlign: 'center', cursor: 'pointer', background: '#fafbff',
+    transition: 'all 0.15s', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px',
   },
-  cardSelected: { borderColor: '#2E5598', background: '#eef2fc', boxShadow: '0 0 0 3px rgba(46,85,152,0.12)' },
-  cardIcon:  { marginBottom: '8px', display: 'flex', justifyContent: 'center' },
-  cardLabel: { fontWeight: 700, fontSize: '12px', color: '#2E5598', marginBottom: '4px' },
+  cardSelected: {
+    borderColor: '#2E5598', background: '#eef2fc',
+    boxShadow: '0 0 0 3px rgba(46,85,152,0.12)',
+  },
+  cardLabel: { fontWeight: 700, fontSize: '12px', color: '#2E5598' },
   cardDesc:  { fontSize: '11px', color: '#666', lineHeight: 1.4 },
-  cardRatio: { fontSize: '10px', color: '#4BACC6', marginTop: '6px' },
-  ratioHint: {
-    background: '#f0f6ff', border: '1px solid #c5d5f0', borderRadius: '8px',
-    padding: '10px 14px', fontSize: '13px', color: '#2E5598', marginBottom: '16px',
+  sizeRef: {
+    background: '#f8faff', border: '1px solid #e0e8f4',
+    borderRadius: '8px', padding: '12px 14px',
   },
-  uploadArea: {
-    border: '2px dashed #c5d5f0', borderRadius: '10px', padding: '32px 20px',
-    textAlign: 'center', background: '#f8faff',
+  sizeRefTitle: { fontSize: '11px', fontWeight: 700, color: '#888', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' },
+  sizeRefGrid:  { display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '6px' },
+  sizeItem: {
+    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px',
+    background: '#fff', border: '1px solid #e0e8f4', borderRadius: '6px', padding: '8px 4px',
   },
-  btnUpload: {
-    display: 'inline-block', padding: '8px 18px', background: '#2E5598', color: '#fff',
-    borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 600,
-  },
-  btnRemove: {
-    padding: '8px 14px', background: '#fff0f0', border: '1px solid #ffcccc',
-    borderRadius: '8px', cursor: 'pointer', fontSize: '13px', color: '#cc0000',
-  },
-  btnSkip: {
-    display: 'block', margin: '14px auto 0', background: 'none', border: 'none',
-    color: '#999', cursor: 'pointer', fontSize: '12px', textDecoration: 'underline',
-  },
-  previewBox: {
-    border: '1px solid #dde3f0', borderRadius: '10px', padding: '14px',
-    background: '#fafbff', minHeight: '100px',
-  },
-  previewTextBlock: {
-    background: '#eef2fc', borderRadius: '7px', padding: '10px',
-    fontSize: '12px', color: '#2E5598', fontWeight: 500,
-  },
-  placeholder: {
-    background: '#e8edf5', border: '2px dashed #c5d5f0', borderRadius: '8px',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    fontSize: '10px', color: '#888', padding: '12px', textAlign: 'center',
-  },
+  sizeN:     { fontSize: '18px', fontWeight: 800, color: '#2E5598' },
+  sizeCols:  { fontSize: '11px', fontWeight: 700, color: '#4BACC6' },
+  sizeLabel: { fontSize: '10px', color: '#888' },
   footer: {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
     padding: '12px 18px', borderTop: '1px solid #e8edf5', background: '#f9faff', flexShrink: 0,
@@ -389,10 +222,6 @@ const S = {
   btnSecondary: {
     padding: '8px 16px', background: '#fff', border: '1px solid #c5d5f0',
     borderRadius: '8px', cursor: 'pointer', fontSize: '13px', color: '#555',
-  },
-  btnPrimary: {
-    padding: '8px 20px', background: '#2E5598', color: '#fff',
-    border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 600,
   },
   btnConfirm: {
     padding: '8px 22px', background: '#9BBB59', color: '#fff',

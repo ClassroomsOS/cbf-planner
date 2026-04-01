@@ -908,9 +908,10 @@ function DayPanel({ iso, day, setContentField, toggleDayActive, openSections, to
                       <div style={{ marginTop: '6px', paddingTop: '10px', borderTop: '1px dashed #dde3f0' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                           <span style={{ fontSize: '12px', color: '#888' }}>
-                            {section.layout_mode && section.layout_mode !== 'none'
-                              ? `Layout: ${section.layout_mode === 'stack' ? 'Texto → Imagen' : 'Doble columna'}`
-                              : 'Sin layout de imagen configurado'}
+                            {(() => {
+                              const l = section.image_layout || (section.layout_mode === 'side' ? 'right' : section.layout_mode === 'stack' ? 'below' : null)
+                              return l === 'below' ? 'Imágenes abajo' : l === 'right' ? 'Texto | Imágenes' : l === 'left' ? 'Imágenes | Texto' : 'Sin distribución configurada'
+                            })()}
                           </span>
                           <button
                             style={{
@@ -919,15 +920,9 @@ function DayPanel({ iso, day, setContentField, toggleDayActive, openSections, to
                               color: '#2E5598', cursor: 'pointer', fontWeight: 600,
                             }}
                             onClick={() => setLayoutModal({ sectionKey: s.key, sectionLabel: s.label })}>
-                            🖼 Organizar contenido visual
+                            🖼 Distribuir imágenes
                           </button>
                         </div>
-                        {section.layout_image_url && section.layout_mode !== 'none' && (
-                          <img
-                            src={section.layout_image_url} alt="layout"
-                            style={{ marginTop: '6px', maxHeight: '80px', borderRadius: '6px', objectFit: 'cover', opacity: 0.8 }}
-                          />
-                        )}
                       </div>
                     )}
                   </div>
@@ -943,16 +938,12 @@ function DayPanel({ iso, day, setContentField, toggleDayActive, openSections, to
         <LayoutSelectorModal
           isOpen={!!layoutModal}
           onClose={() => setLayoutModal(null)}
-          onConfirm={({ layout_mode, layout_image_url }) => {
-            setContentField([...base, 'sections', layoutModal.sectionKey, 'layout_mode'], layout_mode)
-            setContentField([...base, 'sections', layoutModal.sectionKey, 'layout_image_url'], layout_image_url)
+          onConfirm={({ image_layout }) => {
+            setContentField([...base, 'sections', layoutModal.sectionKey, 'image_layout'], image_layout)
           }}
           sectionLabel={layoutModal.sectionLabel}
-          sectionKey={layoutModal.sectionKey}
-          planId={planId}
-          dayIso={iso}
-          currentLayout={day.sections?.[layoutModal.sectionKey]?.layout_mode || 'none'}
-          currentImageUrl={day.sections?.[layoutModal.sectionKey]?.layout_image_url || null}
+          currentLayout={day.sections?.[layoutModal.sectionKey]?.image_layout ||
+            (day.sections?.[layoutModal.sectionKey]?.layout_mode === 'side' ? 'right' : 'below')}
         />
       )}
     </div>

@@ -1,16 +1,18 @@
 // ── SectionPreview.jsx ────────────────────────────────────────────────────────
-// Preview en tiempo real de cómo se verá una sección en el export HTML/DOCX
+// Preview en tiempo real de una sección: texto + imágenes con layout elegido.
+// Soporta 1-4 imágenes con grid automático.
 
-export default function SectionPreview({ section, sectionMeta, dayLabel, unit }) {
+export default function SectionPreview({ section, sectionMeta }) {
   const content = section?.content || ''
   const images  = section?.images  || []
   const time    = section?.time    || sectionMeta?.time || ''
 
   if (!content && !images.length) return null
 
-  // Mismo algoritmo de decideLayout que exportHtml.js
-  const plainLen = content.replace(/<[^>]+>/g, '').length
-  const layout   = images.length > 0 && plainLen < 400 ? 'side' : 'stack'
+  // Normaliza layout viejo (layout_mode) al nuevo campo image_layout
+  const rawLayout = section?.image_layout ||
+    (section?.layout_mode === 'side' ? 'right' : 'below')
+  const layout = images.length > 0 ? rawLayout : 'below'
 
   const textBlock = content ? (
     <div
@@ -21,51 +23,33 @@ export default function SectionPreview({ section, sectionMeta, dayLabel, unit })
     <p style={{ color: '#ccc', fontSize: '12px', fontStyle: 'italic', margin: 0 }}>—</p>
   )
 
-  const imageBlock = images.length > 0 ? (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-      {images.map((img, i) => (
-        <img
-          key={i}
-          src={img.url}
-          alt={img.name || ''}
-          style={{
-            maxWidth: '100%', maxHeight: '140px', width: 'auto', height: 'auto',
-            borderRadius: '4px', border: '1px solid #ddd', objectFit: 'contain',
-            display: 'block',
-          }}
-        />
-      ))}
-    </div>
-  ) : null
+  const imageGrid = images.length > 0 ? buildImageGrid(images) : null
 
   let contentBlock
   if (!images.length) {
     contentBlock = textBlock
-  } else if (layout === 'side') {
+  } else if (layout === 'right') {
     contentBlock = (
-      <div style={{ display: 'flex', gap: '12px' }}>
-        <div style={{ flex: '0 0 62%' }}>{textBlock}</div>
-        <div style={{ flex: '0 0 35%' }}>{imageBlock}</div>
+      <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+        <div style={{ flex: '0 0 58%', minWidth: 0 }}>{textBlock}</div>
+        <div style={{ flex: '0 0 38%', minWidth: 0 }}>{imageGrid}</div>
+      </div>
+    )
+  } else if (layout === 'left') {
+    contentBlock = (
+      <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+        <div style={{ flex: '0 0 38%', minWidth: 0 }}>{imageGrid}</div>
+        <div style={{ flex: '0 0 58%', minWidth: 0 }}>{textBlock}</div>
       </div>
     )
   } else {
+    // below
     contentBlock = (
       <div>
-        {textBlock}
-        <div style={{
-          marginTop: '10px', paddingTop: '8px',
-          borderTop: '2px dashed #e0e8f4',
-          display: 'flex', flexWrap: 'wrap', gap: '8px',
-        }}>
-          {images.map((img, i) => (
-            <img key={i} src={img.url} alt={img.name || ''}
-              style={{
-                maxWidth: '200px', maxHeight: '140px', width: 'auto', height: 'auto',
-                borderRadius: '4px', border: '1px solid #ddd', objectFit: 'contain',
-              }}
-            />
-          ))}
-        </div>
+        {content && textBlock}
+        {images.length > 0 && (
+          <div style={{ marginTop: content ? '10px' : 0 }}>{imageGrid}</div>
+        )}
       </div>
     )
   }
@@ -88,15 +72,13 @@ export default function SectionPreview({ section, sectionMeta, dayLabel, unit })
         <span style={{ fontSize: '10px', color: '#888' }}>{time}</span>
       </div>
 
-      {/* Section header (como en el export) */}
+      {/* Section color bar */}
       <div style={{
         background: '#' + (sectionMeta?.hex?.replace('#','') || '4F81BD'),
         color: '#fff', padding: '6px 12px',
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
       }}>
-        <span style={{ fontWeight: 700, fontSize: '11px' }}>
-          {sectionMeta?.label}
-        </span>
+        <span style={{ fontWeight: 700, fontSize: '11px' }}>{sectionMeta?.label}</span>
         <span style={{ fontSize: '10px', opacity: .8 }}>{time}</span>
       </div>
 
@@ -104,6 +86,56 @@ export default function SectionPreview({ section, sectionMeta, dayLabel, unit })
       <div style={{ padding: '10px 14px', background: '#fff' }}>
         {contentBlock}
       </div>
+    </div>
+  )
+}
+
+// ── Image grid — tamaños óptimos por cantidad ─────────────────────────────────
+
+function buildImageGrid(images) {
+  const n = Math.min(images.length, 4) // máximo 4
+  const imgs = images.slice(0, 4)
+
+  const imgStyle = {
+    width: '100%', objectFit: 'cover', borderRadius: '4px', display: 'block',
+  }
+
+  if (n === 1) {
+    return (
+      <img src={imgs[0].url} alt={imgs[0].name || ''}
+        style={{ ...imgStyle, maxHeight: '200px', objectFit: 'contain' }} />
+    )
+  }
+
+  if (n === 2) {
+    return (
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
+        {imgs.map((img, i) => (
+          <img key={i} src={img.url} alt={img.name || ''}
+            style={{ ...imgStyle, aspectRatio: '4/3' }} />
+        ))}
+      </div>
+    )
+  }
+
+  if (n === 3) {
+    return (
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '4px' }}>
+        {imgs.map((img, i) => (
+          <img key={i} src={img.url} alt={img.name || ''}
+            style={{ ...imgStyle, aspectRatio: '4/3' }} />
+        ))}
+      </div>
+    )
+  }
+
+  // 4 imágenes: 2×2
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
+      {imgs.map((img, i) => (
+        <img key={i} src={img.url} alt={img.name || ''}
+          style={{ ...imgStyle, aspectRatio: '4/3' }} />
+      ))}
     </div>
   )
 }
