@@ -201,7 +201,7 @@ function buildSmartBlockDocx(block) {
           mkP(mkR(`${data.title || ''}`, { bold: true, size: 20, color: 'FFFFFF' }), AlignmentType.CENTER),
           ...(data.message ? [mkP(mkR(data.message, { size: 16, color: 'BBCCEE' }), AlignmentType.CENTER)] : []),
         ], { fill: '1F3864', borders: allB(mkB('1F3864')) }),
-      ]})])
+      ]})]))
     } else {
       const priority = data.priority || 'warning'
       const fill = priority === 'danger' ? 'FFECEC' : priority === 'info' ? 'E8F4FF' : 'FFF3CD'
@@ -211,7 +211,7 @@ function buildSmartBlockDocx(block) {
           mkP(mkR(`${data.icon||'⚠️'} ${data.title||''}`, { bold: true, size: 17, color: '333333' })),
           ...(data.message ? [mkP(mkR(data.message, { size: 16, color: '444444' }))] : []),
         ], { fill, borders: { left: mkB(brd, 10), top: { style: BN, size: 0, color: fill }, bottom: { style: BN, size: 0, color: fill }, right: { style: BN, size: 0, color: fill } } }),
-      ]})])
+      ]})]))
     }
   }
 
@@ -228,7 +228,7 @@ function buildSmartBlockDocx(block) {
     if (data.note) rows.push(mkP(mkR(`ℹ️ ${data.note}`, { size: 14, italic: true, color: '888888' })))
     elements.push(mkNested([new TableRow({ children: [
       mkNestedCell(rows, { fill: 'FFF0F0', borders: { left: mkB('C0504D', 10), top: { style: BN, size: 0, color: 'FFF0F0' }, bottom: { style: BN, size: 0, color: 'FFF0F0' }, right: { style: BN, size: 0, color: 'FFF0F0' } } }),
-    ]})])
+    ]})]))
   }
 
   else if (type === 'VOCAB') {
