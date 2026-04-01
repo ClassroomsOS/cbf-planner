@@ -36,11 +36,21 @@ async function callClaude({ type, system, message, planId, maxTokens }) {
 export async function suggestSectionActivity({
   section, grade, subject, objective, unit, dayName, existingContent, planId, learningTarget
 }) {
+  const SECTION_LIMITS = {
+    'SUBJECT TO BE WORKED': '1 oración. Enuncia el tema o habilidad del día.',
+    'MOTIVATION':           '1-2 oraciones. Describe la actividad de enganche (pregunta, juego corto, imagen, reto).',
+    'ACTIVITY':             '2-3 oraciones. Instrucción clara de la actividad práctica con un ejemplo concreto.',
+    'SKILL DEVELOPMENT':    '3-4 oraciones. Paso a paso de la actividad principal. Esta es la sección más importante.',
+    'CLOSING':              '1 oración. Pregunta de reflexión o síntesis del aprendizaje.',
+    'ASSIGNMENT':           '1 oración. Tarea específica y alcanzable.',
+  }
+  const limit = SECTION_LIMITS[section.label] || '2-3 oraciones.'
+
   const system = `Eres un asistente pedagógico experto para colegios bilingües colombianos.
 Generas sugerencias de actividades para guías de aprendizaje autónomo (CBF).
 Respondes SIEMPRE en español, con actividades concretas, prácticas y apropiadas para el nivel.
-Formato: texto corrido, listo para pegar en la guía. Sin marcadores markdown excesivos.
-Sé conciso pero específico. Máximo 150 palabras.
+Formato: texto corrido, listo para pegar en la guía. Sin listas, sin viñetas, sin markdown.
+LÍMITE ESTRICTO para esta sección: ${limit}
 ${learningTarget ? `
 IMPORTANTE: Esta guía tiene un OBJETIVO DE DESEMPEÑO vinculado. Tu sugerencia DEBE estar alineada
 a este desempeño observable. No generes actividades genéricas — genera actividades que lleven
@@ -64,7 +74,7 @@ ${learningTarget ? `
 - La actividad debe contribuir directamente a que el estudiante logre este desempeño.` : ''}
 ${existingContent ? `- Lo que ya tengo escrito: "${existingContent.replace(/<[^>]+>/g,' ').slice(0,200)}"` : ''}
 
-Sugiere una actividad específica para la sección "${section.label}" que sea coherente con el objetivo y apropiada para el tiempo disponible.`
+Sugiere una actividad para "${section.label}". Respeta el límite: ${limit}`
 
   return callClaude({ type: 'suggest', system, message, planId })
 }
