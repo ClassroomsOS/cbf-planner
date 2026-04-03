@@ -53,6 +53,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
   const [saving, setSaving] = useState(false)
   const [activeTab, setActiveTab] = useState('details')
   const [tagInput, setTagInput] = useState({ grammar: '', vocabulary: '', units: '' })
+  const [showTargetSelector, setShowTargetSelector] = useState(false)
 
   // ── Load teacher assignments for smart dropdowns ──
   const [assignments, setAssignments] = useState([])
@@ -277,37 +278,97 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
           <button onClick={onClose} style={styles.closeBtn} aria-label="Cerrar editor de proyecto NEWS">✕</button>
         </div>
 
-        {/* ── PRINCIPIOS RECTORES ── */}
+        {/* ── PRINCIPIOS RECTORES (HERO SECTION) ── */}
         {principles && (principles.yearVerse || principles.monthVerse) && (
           <div style={{
-            padding: '14px 24px', background: 'linear-gradient(135deg, #FFF9E6 0%, #FFF3D6 100%)',
-            borderBottom: '1px solid #E8D8A0', display: 'flex', flexDirection: 'column', gap: 8
+            padding: '24px 32px',
+            background: 'linear-gradient(135deg, #1A3A8F 0%, #2E5598 100%)',
+            borderBottom: '3px solid #F5C300',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 16
           }}>
-            <div style={{ fontSize: 10, fontWeight: 800, color: '#8B6914', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              📖 Principios Rectores Institucionales
+            <div style={{
+              fontSize: 13,
+              fontWeight: 900,
+              color: '#F5C300',
+              textTransform: 'uppercase',
+              letterSpacing: '1.2px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10
+            }}>
+              <span style={{ fontSize: 20 }}>📖</span>
+              PRINCIPIOS RECTORES INSTITUCIONALES
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div style={{ fontSize: 11, color: '#E8EEFF', lineHeight: 1.6, maxWidth: '90%' }}>
+              Estos versículos son el <strong style={{ color: '#F5C300' }}>norte pedagógico y espiritual</strong> de este proyecto.
+              La AI los usará para alinear todas las actividades, evaluaciones y reflexiones.
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginTop: 8 }}>
               {principles.yearVerse && (
-                <div style={{ fontSize: 11, lineHeight: 1.5, color: '#5A4A1F' }}>
-                  <span style={{ fontWeight: 700, color: '#8B6914' }}>Versículo del Año:</span>
-                  <br />
-                  {principles.yearVerse}
+                <div style={{
+                  background: 'rgba(255,255,255,0.1)',
+                  borderRadius: 12,
+                  padding: '16px 20px',
+                  border: '1px solid rgba(255,255,255,0.2)'
+                }}>
+                  <div style={{
+                    fontSize: 10,
+                    fontWeight: 800,
+                    color: '#F5C300',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.8px',
+                    marginBottom: 8
+                  }}>
+                    ✨ VERSÍCULO DEL AÑO
+                  </div>
+                  <div style={{ fontSize: 14, lineHeight: 1.7, color: '#FFFFFF', fontWeight: 500 }}>
+                    "{principles.yearVerse}"
+                  </div>
                   {principles.yearVerseRef && (
-                    <span style={{ fontStyle: 'italic', color: '#9B7B1F', marginLeft: 4 }}>
+                    <div style={{
+                      fontSize: 11,
+                      fontStyle: 'italic',
+                      color: '#C5D5F0',
+                      marginTop: 8,
+                      textAlign: 'right'
+                    }}>
                       — {principles.yearVerseRef}
-                    </span>
+                    </div>
                   )}
                 </div>
               )}
               {principles.monthVerse && (
-                <div style={{ fontSize: 11, lineHeight: 1.5, color: '#5A4A1F' }}>
-                  <span style={{ fontWeight: 700, color: '#8B6914' }}>Versículo del Mes:</span>
-                  <br />
-                  {principles.monthVerse}
+                <div style={{
+                  background: 'rgba(255,255,255,0.1)',
+                  borderRadius: 12,
+                  padding: '16px 20px',
+                  border: '1px solid rgba(255,255,255,0.2)'
+                }}>
+                  <div style={{
+                    fontSize: 10,
+                    fontWeight: 800,
+                    color: '#F5C300',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.8px',
+                    marginBottom: 8
+                  }}>
+                    📅 VERSÍCULO DEL MES
+                  </div>
+                  <div style={{ fontSize: 14, lineHeight: 1.7, color: '#FFFFFF', fontWeight: 500 }}>
+                    "{principles.monthVerse}"
+                  </div>
                   {principles.monthVerseRef && (
-                    <span style={{ fontStyle: 'italic', color: '#9B7B1F', marginLeft: 4 }}>
+                    <div style={{
+                      fontSize: 11,
+                      fontStyle: 'italic',
+                      color: '#C5D5F0',
+                      marginTop: 8,
+                      textAlign: 'right'
+                    }}>
                       — {principles.monthVerseRef}
-                    </span>
+                    </div>
                   )}
                 </div>
               )}
@@ -491,66 +552,208 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
 
               {/* ── LOGRO DE DESEMPEÑO ── */}
               <div style={{
-                background: '#F0F7F0', borderRadius: 12, padding: 16,
-                border: '1px solid #B5D6B5'
+                background: '#F0F7F0', borderRadius: 12, padding: 20,
+                border: '2px solid #9BBB59'
               }}>
-                <h4 style={{ fontSize: 12, fontWeight: 800, color: '#1A5C1A', margin: '0 0 12px', textTransform: 'uppercase' }}>
-                  🎯 Logro de Desempeño & Indicador
-                </h4>
-                <p style={{ fontSize: 11, color: '#555', marginBottom: 12, lineHeight: 1.5 }}>
-                  Vincula este proyecto NEWS a un logro observable. El proyecto es la <strong>prueba</strong> de que el estudiante alcanzó ese logro.
-                </p>
-
-                <div style={styles.field}>
-                  <label style={styles.label}>Logro vinculado *</label>
-                  <select
-                    value={form.target_id || ''}
-                    onChange={e => {
-                      updateForm('target_id', e.target.value || null)
-                      updateForm('target_indicador', '') // Reset indicador when target changes
-                    }}
-                    style={styles.input}
-                  >
-                    <option value="">— Sin logro vinculado —</option>
-                    {learningTargets.map(t => (
-                      <option key={t.id} value={t.id}>
-                        {t.description.slice(0, 100)}{t.description.length > 100 ? '…' : ''}
-                      </option>
-                    ))}
-                  </select>
-                  {learningTargets.length === 0 && form.subject && form.grade && (
-                    <span style={{ fontSize: 10, color: '#999', marginTop: 4, display: 'block' }}>
-                      No hay logros activos para {form.subject} · {form.grade}. Crea uno primero en "Logros de Desempeño".
-                    </span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                  <div>
+                    <h4 style={{ fontSize: 13, fontWeight: 800, color: '#1A5C1A', margin: '0 0 4px', textTransform: 'uppercase' }}>
+                      🎯 Logro de Desempeño Vinculado
+                    </h4>
+                    <p style={{ fontSize: 11, color: '#555', margin: 0, lineHeight: 1.5 }}>
+                      Este proyecto NEWS es la <strong>prueba</strong> de que el estudiante alcanzó este logro.
+                    </p>
+                  </div>
+                  {form.target_id && (
+                    <button
+                      onClick={() => setShowTargetSelector(true)}
+                      style={{
+                        fontSize: 11, padding: '5px 12px', borderRadius: 6,
+                        border: '1px solid #9BBB59', background: '#fff',
+                        color: '#5a8a00', cursor: 'pointer', fontWeight: 600
+                      }}
+                    >
+                      Cambiar logro
+                    </button>
                   )}
                 </div>
 
-                {/* Indicador selector - only show when target is selected */}
+                {/* Selected target display */}
                 {form.target_id && (() => {
                   const selectedTarget = learningTargets.find(t => t.id === form.target_id)
-                  const indicadores = selectedTarget?.indicadores || []
-                  return indicadores.length > 0 ? (
-                    <div style={styles.field}>
-                      <label style={styles.label}>Indicador de logro *</label>
-                      <select
-                        value={form.target_indicador}
-                        onChange={e => updateForm('target_indicador', e.target.value)}
-                        style={styles.input}
-                      >
-                        <option value="">— Seleccionar indicador —</option>
-                        {indicadores.map((ind, idx) => (
-                          <option key={idx} value={ind}>
-                            {ind}
-                          </option>
-                        ))}
-                      </select>
-                      <span style={{ fontSize: 10, color: '#666', marginTop: 4, display: 'block', fontStyle: 'italic' }}>
-                        El estudiante demuestra el logro cuando cumple este indicador a través del proyecto.
-                      </span>
+                  if (!selectedTarget) return null
+                  const TAXONOMY_EMOJI = { recognize: '👁️', apply: '🛠️', produce: '✨' }
+                  const TAXONOMY_LABELS = { recognize: 'Reconocer', apply: 'Aplicar', produce: 'Producir' }
+
+                  return (
+                    <div style={{
+                      background: '#fff', borderRadius: 10, padding: '14px 16px',
+                      border: '2px solid #9BBB59', marginBottom: 16
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                        <span style={{ fontSize: 20 }}>{TAXONOMY_EMOJI[selectedTarget.taxonomy]}</span>
+                        <span style={{
+                          fontSize: 10, fontWeight: 700, color: '#5a8a00',
+                          textTransform: 'uppercase', letterSpacing: '0.5px',
+                          background: '#f6fff0', padding: '3px 8px', borderRadius: 4
+                        }}>
+                          {TAXONOMY_LABELS[selectedTarget.taxonomy]}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 13, color: '#1a1a2e', lineHeight: 1.6, fontWeight: 500 }}>
+                        {selectedTarget.description}
+                      </div>
+                      {selectedTarget.group_name && (
+                        <div style={{
+                          fontSize: 10, color: '#888', marginTop: 6,
+                          background: '#f5f5f5', padding: '2px 8px', borderRadius: 4,
+                          display: 'inline-block'
+                        }}>
+                          Grupo: {selectedTarget.group_name}
+                        </div>
+                      )}
                     </div>
-                  ) : (
-                    <div style={{ fontSize: 11, color: '#888', fontStyle: 'italic', marginTop: 8 }}>
-                      Este logro aún no tiene indicadores configurados.
+                  )
+                })()}
+
+                {/* Target selector (when no target or changing) */}
+                {(!form.target_id || showTargetSelector) && (
+                  <div style={{ marginBottom: 16 }}>
+                    {learningTargets.length === 0 && form.subject && form.grade ? (
+                      <div style={{
+                        padding: '16px', borderRadius: 10, background: '#FFF9E6',
+                        border: '1px dashed #F5C300', textAlign: 'center'
+                      }}>
+                        <div style={{ fontSize: 11, color: '#8B6914', lineHeight: 1.5 }}>
+                          No hay logros activos para <strong>{form.subject} · {form.grade}</strong>.<br />
+                          Crea uno primero en "Logros de Desempeño".
+                        </div>
+                      </div>
+                    ) : learningTargets.length > 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 280, overflowY: 'auto' }}>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: '#5a8a00', marginBottom: 4, textTransform: 'uppercase' }}>
+                          Selecciona el logro que este proyecto evalúa:
+                        </div>
+                        {learningTargets.map(t => {
+                          const TAXONOMY_EMOJI = { recognize: '👁️', apply: '🛠️', produce: '✨' }
+                          return (
+                            <button
+                              key={t.id}
+                              onClick={() => {
+                                updateForm('target_id', t.id)
+                                updateForm('target_indicador', '')
+                                setShowTargetSelector(false)
+                              }}
+                              style={{
+                                padding: '10px 14px', borderRadius: 8, textAlign: 'left',
+                                border: form.target_id === t.id ? '2px solid #9BBB59' : '1px solid #ddd',
+                                background: form.target_id === t.id ? '#f6fff0' : '#fff',
+                                cursor: 'pointer', transition: 'all 0.15s',
+                                display: 'flex', alignItems: 'flex-start', gap: 10
+                              }}
+                            >
+                              <span style={{ fontSize: 18 }}>{TAXONOMY_EMOJI[t.taxonomy]}</span>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontSize: 12, color: '#1a1a2e', lineHeight: 1.5 }}>
+                                  {t.description}
+                                </div>
+                                {t.group_name && (
+                                  <div style={{ fontSize: 9, color: '#888', marginTop: 4 }}>
+                                    Grupo: {t.group_name}
+                                  </div>
+                                )}
+                              </div>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: 11, color: '#999', fontStyle: 'italic' }}>
+                        Selecciona primero Materia y Grado para ver los logros disponibles.
+                      </div>
+                    )}
+                    {showTargetSelector && (
+                      <button
+                        onClick={() => setShowTargetSelector(false)}
+                        style={{
+                          fontSize: 11, padding: '5px 12px', borderRadius: 6,
+                          border: '1px solid #ddd', background: '#fff',
+                          color: '#666', cursor: 'pointer', marginTop: 8
+                        }}
+                      >
+                        Cancelar
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Indicadores selector - only show when target is selected */}
+                {form.target_id && !showTargetSelector && (() => {
+                  const selectedTarget = learningTargets.find(t => t.id === form.target_id)
+                  const indicadores = selectedTarget?.indicadores || []
+
+                  if (indicadores.length === 0) {
+                    return (
+                      <div style={{
+                        padding: '12px', borderRadius: 8, background: '#FFF9E6',
+                        border: '1px dashed #F5C300', fontSize: 11, color: '#8B6914',
+                        fontStyle: 'italic', textAlign: 'center'
+                      }}>
+                        Este logro aún no tiene indicadores configurados.
+                      </div>
+                    )
+                  }
+
+                  return (
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#1A5C1A', marginBottom: 10, textTransform: 'uppercase' }}>
+                        📌 Selecciona el indicador que este proyecto demuestra:
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {indicadores.map((ind, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => updateForm('target_indicador', ind)}
+                            style={{
+                              padding: '12px 16px', borderRadius: 10, textAlign: 'left',
+                              border: form.target_indicador === ind ? '2px solid #9BBB59' : '1px solid #ddd',
+                              background: form.target_indicador === ind ? '#fff' : '#fafafa',
+                              cursor: 'pointer', transition: 'all 0.15s',
+                              display: 'flex', alignItems: 'flex-start', gap: 10,
+                              boxShadow: form.target_indicador === ind ? '0 2px 8px rgba(155,187,89,0.3)' : 'none'
+                            }}
+                          >
+                            <div style={{
+                              width: 20, height: 20, borderRadius: '50%',
+                              border: form.target_indicador === ind ? '2px solid #9BBB59' : '2px solid #ddd',
+                              background: form.target_indicador === ind ? '#9BBB59' : '#fff',
+                              flexShrink: 0, marginTop: 2,
+                              display: 'flex', alignItems: 'center', justifyContent: 'center'
+                            }}>
+                              {form.target_indicador === ind && (
+                                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#fff' }} />
+                              )}
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <div style={{
+                                fontSize: 10, fontWeight: 700, color: '#5a8a00',
+                                marginBottom: 4, textTransform: 'uppercase'
+                              }}>
+                                Indicador {idx + 1}
+                              </div>
+                              <div style={{ fontSize: 12, color: '#1a1a2e', lineHeight: 1.6 }}>
+                                {ind}
+                              </div>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                      <div style={{
+                        fontSize: 10, color: '#666', marginTop: 10, fontStyle: 'italic',
+                        padding: '8px 12px', background: '#f9f9f9', borderRadius: 6
+                      }}>
+                        💡 El estudiante demuestra que alcanzó el logro cuando cumple este indicador a través del proyecto NEWS.
+                      </div>
                     </div>
                   )
                 })()}
