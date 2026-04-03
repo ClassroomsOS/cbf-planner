@@ -89,6 +89,19 @@ export const BLOCK_TYPES = {
   },
 }
 
+// ── Normalize VOCAB words from AI (handles alternative key names) ─────────────
+function normalizeVocabWords(data) {
+  const raw = data.words || data.vocabulary || data.word_list || data.items || []
+  return raw.map(wd => {
+    if (typeof wd === 'string') return { w: wd, d: '', e: '' }
+    return {
+      w: wd.w || wd.term   || wd.word  || wd.en   || '',
+      d: wd.d || wd.definition || wd.meaning || wd.desc || '',
+      e: wd.e || wd.example    || wd.context  || wd.in_context || '',
+    }
+  })
+}
+
 // ── Block preview HTML ────────────────────────────────────────────────────────
 export function blockPreviewHTML(b) {
   const { type, model, data } = b
@@ -124,20 +137,21 @@ export function blockPreviewHTML(b) {
 
   if (type === 'VOCAB') {
     if (model === 'cards') {
+      const words = normalizeVocabWords(data)
       return `<table style="width:100%;border-collapse:collapse;font-size:11px">
         <tr style="background:#9BBB59;color:#fff">
           <th style="padding:4px 8px;text-align:left">Word</th>
           <th style="padding:4px 8px;text-align:left">Definition</th>
           <th style="padding:4px 8px;text-align:left">Example</th>
         </tr>
-        ${(data.words||[]).map((wd,i) => `<tr style="background:${i%2?'#f9fff4':'#fff'};border-bottom:1px solid #eee">
+        ${words.map((wd,i) => `<tr style="background:${i%2?'#f9fff4':'#fff'};border-bottom:1px solid #eee">
           <td style="padding:4px 8px;font-weight:700">${wd.w}</td>
           <td style="padding:4px 8px">${wd.d}</td>
           <td style="padding:4px 8px;color:#666">${wd.e}</td>
         </tr>`).join('')}
       </table>`
     }
-    const words = data.words || []
+    const words = normalizeVocabWords(data)
     return `<table style="width:100%;border-collapse:collapse;font-size:11px">
       <tr style="background:#9BBB59;color:#fff">
         <th style="padding:4px 8px;text-align:left;width:18%">TERMS</th>
@@ -320,7 +334,7 @@ export function blockInteractiveHTML(block, blockId) {
 
   // ── VOCAB matching ─────────────────────────────────────────────────────────
   if (type === 'VOCAB' && model === 'matching') {
-    const words = data.words || []
+    const words = normalizeVocabWords(data)
     if (!words.length) return null
 
     // Shuffle indices: rotate by ceil(n/3) (matches preview rotation)
@@ -937,7 +951,7 @@ function BlockForm({ type, model, data, onChange }) {
   }
 
   if (type === 'VOCAB') {
-    const words = data.words || [{w:'',d:'',e:''},{w:'',d:'',e:''}]
+    const words = normalizeVocabWords(data).length ? normalizeVocabWords(data) : [{w:'',d:'',e:''},{w:'',d:'',e:''}]
     function updateWord(i, field, val) {
       const next = [...words]
       next[i] = { ...next[i], [field]: val }
