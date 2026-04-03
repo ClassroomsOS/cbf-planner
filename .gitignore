@@ -3,7 +3,8 @@ dist
 .env
 .env.local
 .DS_Store
-"supabase.exe" 
-"ANTHROPIC_API_KEY" 
-"ANTHROPIC_API_KEY" 
-"ANTHROPIC_API_KEY" 
+"supabase.exe"
+"ANTHROPIC_API_KEY"
+"ANTHROPIC_API_KEY"
+"ANTHROPIC_API_KEY"
+image_errors/ 
