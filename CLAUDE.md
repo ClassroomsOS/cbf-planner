@@ -5,6 +5,82 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## ⚠️ IMPORTANTE: Session Checklist
+
+**Al INICIAR cada conversación:** Lee `.claude-session-checklist.md` y verifica si hay commits recientes sin documentar.
+
+**Al FINALIZAR cada conversación:** Ejecuta el checklist de fin de sesión (ver `.claude-session-checklist.md`) y pregunta si CLAUDE.md necesita actualizarse con features implementadas en esta sesión.
+
+**Rationale:** Múltiples sesiones concurrentes causan desincronización entre código y documentación. Este checklist fuerza sincronización.
+
+## 🚨 POLÍTICA DE COMMITS OBLIGATORIA
+
+**NUNCA salir de una sesión con cambios sin commitear.**
+
+### Reglas no negociables:
+
+1. **Implementaste → Probaste → Commit INMEDIATO**
+   - Si un feature funciona (probado en dev), hacer commit ANTES de continuar con otro feature
+   - NO acumular múltiples features en un solo commit
+   - NO esperar al final de la sesión
+
+2. **Claude DEBE commitear automáticamente después de:**
+   - ✅ Implementar un feature completo (aunque sea pequeño)
+   - ✅ Refactor que pasa las pruebas básicas (npm run dev funciona)
+   - ✅ Fix de bug verificado
+   - ✅ Cambios en CLAUDE.md o documentación
+
+3. **Formato de commits:**
+   ```
+   feat(scope): descripción corta
+   refactor(scope): descripción
+   fix(scope): descripción
+   docs: descripción
+   ```
+   Scope ejemplos: `news`, `ai`, `editor`, `auth`, `export`, `perf`, `a11y`
+
+4. **Al finalizar CADA feature:**
+   ```bash
+   git add <archivos-modificados>
+   git commit -m "feat(scope): descripción"
+   ```
+
+5. **Antes de salir de sesión:**
+   - Verificar `git status`
+   - Si hay cambios sin commitear → commitear TODO
+   - Si hay trabajo a medias → stash o commitear con `WIP:` prefix
+
+**Rationale:** En sesión previa se perdió trabajo en NEWS porque se implementó, se probó, pero nunca se commiteó. Múltiples sesiones concurrentes + falta de commits = pérdida de trabajo.
+
+### Scripts de automatización:
+
+**Commit automático después de feature:**
+```bash
+./.claude/auto-commit.sh "feat(scope): descripción"
+```
+Este script:
+- Muestra cambios pendientes
+- Hace `git add -A`
+- Commitea con el mensaje + co-author tag
+- Muestra confirmación
+
+**Verificación antes de salir:**
+```bash
+./.claude/session-end-check.sh
+```
+Este script:
+- Verifica si hay cambios sin commitear
+- Si hay cambios → BLOQUEA la salida y muestra instrucciones
+- Si no hay cambios → aprueba el fin de sesión
+
+**Claude DEBE ejecutar `.claude/auto-commit.sh` inmediatamente después de:**
+- Implementar cualquier feature (grande o pequeño)
+- Completar un refactor
+- Aplicar un fix verificado
+- Actualizar documentación
+
+**Claude DEBE ejecutar `.claude/session-end-check.sh` al final de CADA sesión antes de despedirse del usuario.**
+
 ## Commands
 
 ```bash
@@ -73,6 +149,8 @@ Client-side entry point is `src/utils/AIAssistant.js`, which exposes:
 | `analyzeGuide()` | Pedagogical analysis of a complete guide | 4000 |
 | `generateGuideStructure()` | Generate full week structure as JSON (includes SmartBlocks) | 16000 |
 | `suggestSmartBlock()` | Suggest one SmartBlock for a section based on context + taxonomy | 1200 |
+| `generateRubric()` | Generate complete 5-level rubric (3-5 criteria) for NEWS project | 2500 |
+| `generateIndicadores()` | Generate 3 learning indicators for a learning target | 1500 |
 
 `generateGuideStructure` auto-retries with a more concise prompt when the response is truncated (JSON parse failure). It also asks Claude to include an optional `smartBlock` field in `activity` and `skill` sections (max 2 per day).
 
@@ -617,19 +695,26 @@ Si el colegio usa Moodle u otra plataforma LMS que soporte SCORM/xAPI, exportar 
 
 ---
 
-## Sprint 1 — Pendientes inmediatos
+## Sprint 1 — Estado actual
 
-### 🔴 AI: Niveles intermedios de rúbrica
-El docente llena nivel 1 (no cumple) y nivel 5 (cumple todo). La AI genera niveles 2, 3 y 4 automáticamente.
-- Botón "✨ Generar niveles intermedios" en el editor de rúbricas (NEWS)
-- Crítico para docentes con 10+ grados
+### ✅ AI: Generación completa de rúbricas (IMPLEMENTADO)
+`generateRubric()` en `AIAssistant.js` genera automáticamente rúbricas analíticas completas con 5 niveles por criterio. El docente NO tiene que llenar nivel por nivel — la AI genera todo basándose en los indicadores de logro del proyecto.
+- **Ubicación:** `NewsProjectEditor.jsx` → pestaña "Rubric" → botón "✨ Generar con IA"
+- **Commit:** `bcf80a4` (sprint1-B)
+- Genera 3-5 criterios según complejidad del proyecto
+- Nivel 5 = cumplimiento total del indicador (100%)
+- Niveles 4-3-2-1 = gradaciones descendentes
+- Incluye criterio formativo espiritual si el proyecto tiene principio bíblico
 
-### 🔴 NEWS modal: Dropdowns inteligentes
-Grado, sección y materia deben ser dropdowns filtrados desde `teacher_assignments`, no texto libre.
-- Grado → dropdown con grados del docente
-- Sección → filtrada por grado seleccionado
-- Materia → filtrada por grado+sección
+### ✅ NEWS modal: Dropdowns inteligentes (IMPLEMENTADO)
+`NewsProjectEditor.jsx` usa dropdowns filtrados en cascada desde `teacher_assignments`:
+- **Subject** → lista de materias asignadas al docente
+- **Grade** → filtra por materia seleccionada
+- **Section** → filtra por materia + grado
+- **Commit:** `bcf80a4` (sprint1-B)
+- Implementación: líneas 55-84 de `NewsProjectEditor.jsx`
 - Evita errores de digitación y guías huérfanas
+- Los dropdowns se cargan automáticamente al abrir el modal
 
 ### 🟡 NEWS: Subir imágenes del textbook
 En la pestaña Textbook del NEWS, permitir subir fotos/scans del scope & sequence del libro.
