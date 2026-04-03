@@ -12,20 +12,26 @@ function normalizeSmartBlock(block) {
   const { type, data } = block
 
   if (type === 'VOCAB') {
-    const raw = data.words || data.vocabulary || data.word_list || data.items || []
-    block.data.words = raw.map(wd => {
+    // Try every key the AI might use for the words array
+    const raw = data.words || data.vocabulary || data.word_list || data.items
+      || data.terms || data.vocab || data.vocabulary_list || []
+    block.data.words = (Array.isArray(raw) ? raw : []).map(wd => {
       if (typeof wd === 'string') return { w: wd, d: '', e: '' }
       return {
-        w: wd.w || wd.term        || wd.word    || wd.en         || '',
-        d: wd.d || wd.definition  || wd.meaning || wd.desc       || '',
-        e: wd.e || wd.example     || wd.context || wd.in_context || '',
+        w: wd.w || wd.term        || wd.word    || wd.en          || wd.english || '',
+        d: wd.d || wd.definition  || wd.meaning || wd.desc        || wd.spanish || '',
+        e: wd.e || wd.example     || wd.context || wd.in_context  || wd.sentence || '',
       }
     })
   }
 
   if (type === 'QUIZ') {
     if (Array.isArray(data.topics)) {
-      block.data.topics = data.topics.filter(Boolean)
+      // Convert topic objects to plain strings
+      block.data.topics = data.topics
+        .filter(Boolean)
+        .map(t => typeof t === 'string' ? t : (t.topic || t.name || t.text || t.item || t.title || ''))
+        .filter(Boolean)
     } else if (typeof data.topics !== 'string') {
       block.data.topics = ''
     }
@@ -166,15 +172,20 @@ export async function suggestSmartBlock({
 }) {
   const TAXONOMY_DESC = { recognize: 'Reconocer', apply: 'Aplicar', produce: 'Producir' }
 
-  const blockTypes = `DICTATION: word-grid (lista de palabras), sentences (oraciones numeradas)
-QUIZ: topic-card (temas a repasar), format-box (estructura del quiz con puntos)
-VOCAB: cards (Word | Definition | Example), matching (términos vs significados)
-WORKSHOP: stations (estaciones de trabajo), roles (roles de equipo)
-SPEAKING: rubric (criterios con puntos), prep (checklist de pasos)
-NOTICE: banner (aviso de ancho completo), alert (caja con prioridad info/warning/danger)
-READING: comprehension (pasaje + preguntas abiertas), true-false (pasaje + afirmaciones V/F)
-GRAMMAR: fill-blank (completar espacios con ___), choose (elegir la forma correcta)
-EXIT_TICKET: can-do ("I can…" con escala emoji), rating (declaraciones + escala 1–5)`
+  const blockTypes = `Usa EXACTAMENTE esta estructura JSON según el tipo. NO inventes campos nuevos.
+
+VOCAB cards: {"type":"VOCAB","model":"cards","data":{"words":[{"w":"habitat","d":"natural home of organism","e":"Bears live in forest habitats"},{"w":"ecosystem","d":"community of living things","e":"A pond is a small ecosystem"}]}}
+VOCAB matching: {"type":"VOCAB","model":"matching","data":{"words":[{"w":"habitat","d":"natural home of organism","e":"Bears live in forest habitats"},{"w":"ecosystem","d":"community of living things","e":"A pond is a small ecosystem"}]}}
+QUIZ topic-card: {"type":"QUIZ","model":"topic-card","data":{"date":"Friday","unit":"Unit 3","topics":["Subject-Verb Agreement","Simple Present vs Present Continuous","Vocabulary: ecosystem terms"]}}
+QUIZ format-box: {"type":"QUIZ","model":"format-box","data":{"date":"Friday","unit":"Unit 3","topics":["Grammar: 20 pts","Vocabulary: 30 pts","Reading: 50 pts"],"format":"Written test","note":"Bring dictionary"}}
+DICTATION word-grid: {"type":"DICTATION","model":"word-grid","data":{"words":["habitat","ecosystem","producer","consumer","decomposer"],"instructions":"Listen and write each word in the correct column."}}
+GRAMMAR fill-blank: {"type":"GRAMMAR","model":"fill-blank","data":{"grammar_point":"Simple Present","instructions":"Complete with the correct form.","sentences":[{"sent":"Producers ___ their own food.","answer":"make"},{"sent":"The sun ___ energy to plants.","answer":"gives"}]}}
+READING comprehension: {"type":"READING","model":"comprehension","data":{"passage":"Rainforests cover 6% of Earth...","questions":[{"q":"What percentage of Earth do rainforests cover?","lines":2},{"q":"Name two animals from the text.","lines":2}]}}
+READING true-false: {"type":"READING","model":"true-false","data":{"passage":"Rainforests cover 6% of Earth...","statements":[{"s":"Rainforests cover more than 10% of Earth."},{"s":"Many species live in rainforests."}]}}
+EXIT_TICKET can-do: {"type":"EXIT_TICKET","model":"can-do","data":{"skills":["I can identify producers and consumers","I can explain the food chain","I can use ecosystem vocabulary"]}}
+WORKSHOP stations: {"type":"WORKSHOP","model":"stations","data":{"stations":[{"name":"Reading","time":"10 min","desc":"Read the text and highlight key terms"},{"name":"Writing","time":"10 min","desc":"Answer the comprehension questions"}]}}
+SPEAKING rubric: {"type":"SPEAKING","model":"rubric","data":{"criteria":[{"name":"Pronunciation","pts":10},{"name":"Fluency","pts":10},{"name":"Content","pts":10}]}}
+NOTICE banner: {"type":"NOTICE","model":"banner","data":{"title":"Important","message":"Bring your textbook tomorrow","icon":"📢","priority":"info"}}`
 
   const taxonomy = learningTarget?.taxonomy
   const taxHint = taxonomy === 'recognize'
