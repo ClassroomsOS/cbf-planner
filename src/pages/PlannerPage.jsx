@@ -8,6 +8,7 @@ import {
   getMondayOf, getWeekDays, toISO, getSchoolWeek, formatRange, formatDateEN,
   MONTHS_ES, DAYS_ES
 } from '../utils/dateUtils'
+import { useToggle } from '../hooks'
 
 // ── Date helpers imported from dateUtils.js ──────────────────────────────────
 // ─────────────────────────────────────────────────────────────────────────────
@@ -34,10 +35,13 @@ export default function PlannerPage({ teacher }) {
   const [monday,    setMonday]    = useState(() => getMondayOf(new Date()))
   const [weekCount, setWeekCount] = useState(1)
   const [calData,   setCalData]   = useState({})
-  const [calLoading, setCalLoading] = useState(false)
-  const [creating, setCreating]     = useState(false)
   const [error,    setError]        = useState(null)
-  const [showGenerator, setShowGenerator] = useState(false)
+
+  // ── Boolean toggles (migrated to useToggle) ──
+  const [calLoading, , startCalLoading, stopCalLoading] = useToggle(false)
+  const [creating,     toggleCreating,     startCreating,     stopCreating]     = useToggle(false)
+  const [showGenerator, toggleGenerator, openGenerator, closeGenerator] = useToggle(false)
+
   // ── Checkpoint state ──
   const [checkpointData, setCheckpointData] = useState(null)
   // checkpointData = { previousPlan, target, pendingAction } | null
@@ -106,9 +110,9 @@ export default function PlannerPage({ teacher }) {
 
   useEffect(() => {
     async function fetchCalendar() {
-      setCalLoading(true)
+      startCalLoading()
       const dates = allWeekDays.map(toISO)
-      if (!dates.length) { setCalData({}); setCalLoading(false); return }
+      if (!dates.length) { setCalData({}); stopCalLoading(); return }
       const { data } = await supabase
         .from('school_calendar')
         .select('date, name, type, is_school_day')
@@ -117,7 +121,7 @@ export default function PlannerPage({ teacher }) {
       const map = {}
       if (data) data.forEach(row => { map[row.date] = row })
       setCalData(map)
-      setCalLoading(false)
+      stopCalLoading()
     }
     fetchCalendar()
   }, [monday, weekCount])
@@ -175,7 +179,7 @@ export default function PlannerPage({ teacher }) {
 
   // ── Core guide creation / navigation ──
   async function doCreateGuide() {
-    setCreating(true)
+    startCreating()
     setError(null)
 
     const { data: existing } = await supabase
@@ -209,20 +213,20 @@ export default function PlannerPage({ teacher }) {
       .select()
       .single()
 
-    if (insertError) { setError(insertError.message); setCreating(false); return }
+    if (insertError) { setError(insertError.message); stopCreating(); return }
     navigate(`/editor/${newPlan.id}`)
   }
 
   // ── Entry point: check checkpoint first, then create guide ──
   async function handleCreateGuide() {
     if (!grade || !subject) return
-    setCreating(true)
+    startCreating()
     setError(null)
 
     const pending = await checkPendingCheckpoint('create')
     if (pending) {
       setCheckpointData(pending)
-      setCreating(false)
+      stopCreating()
       return
     }
 
@@ -377,7 +381,7 @@ export default function PlannerPage({ teacher }) {
                 if (pending) {
                   setCheckpointData({ ...pending, pendingAction: 'ai' })
                 } else {
-                  setShowGenerator(true)
+                  openGenerator()
                 }
               }}
               disabled={creating}>
@@ -399,8 +403,8 @@ export default function PlannerPage({ teacher }) {
             indicatorPrinciple: monthPrinciple?.indicator_principle || school.indicator_principle || '',
           }}
           onApply={async (aiResult) => {
-            setShowGenerator(false)
-            setCreating(true)
+            closeGenerator()
+            startCreating()
             // Create plan first
             const { data: existing } = await supabase
               .from('lesson_plans')
@@ -489,9 +493,9 @@ export default function PlannerPage({ teacher }) {
 
               navigate(`/editor/${planId}`)
             }
-            setCreating(false)
+            stopCreating()
           }}
-          onClose={() => setShowGenerator(false)}
+          onClose={closeGenerator}
         />
       )}
       {checkpointData && (

@@ -17,6 +17,7 @@ import { useToast } from '../context/ToastContext'
 import { logError } from '../utils/logger'
 import { SECTIONS, RICH_SECTIONS } from '../utils/constants'
 import { toISO, formatDateEN, getDayName, MONTHS_EN, DAYS_EN, MONTHS_ES } from '../utils/dateUtils'
+import { useToggle } from '../hooks'
 
 // ── localStorage draft helpers ──────────────────────────────────────────────
 const DRAFT_PREFIX = 'cbf_draft_'
@@ -98,22 +99,24 @@ export default function GuideEditorPage({ teacher }) {
   const { features } = useFeatures()
   const { showToast } = useToast()
 
+  // Core state (complex, keep as useState)
   const [plan,          setPlan]          = useState(null)
   const [content,       setContent]       = useState(null)
   const [activePanel,   setActivePanel]   = useState('header')
   const [openSections,  setOpenSections]  = useState({})
   const [saveStatus,    setSaveStatus]    = useState('saved')
-  const [exportOpen,    setExportOpen]    = useState(false)
   const [loading,       setLoading]       = useState(true)
   const [draftRestore,  setDraftRestore]  = useState(null) // { content, savedAt } | null
-  // ── IA modals ──
-  const [showAnalyzer,  setShowAnalyzer]  = useState(false)
-  const [showGenerator,   setShowGenerator]   = useState(false)
-  const [showComments,    setShowComments]    = useState(false)
-  const [showCorrections, setShowCorrections] = useState(false)
-  const [showPreview,     setShowPreview]     = useState(true)
   const [linkedTarget,    setLinkedTarget]    = useState(null)
   const [monthPrinciples, setMonthPrinciples] = useState(null)
+
+  // ── Modal/UI toggles (migrated to useToggle) ──
+  const [exportOpen,      toggleExport,      openExport,      closeExport]      = useToggle(false)
+  const [showAnalyzer,    toggleAnalyzer,    openAnalyzer,    closeAnalyzer]    = useToggle(false)
+  const [showGenerator,   toggleGenerator,   openGenerator,   closeGenerator]   = useToggle(false)
+  const [showComments,    toggleComments,    openComments,    closeComments]    = useToggle(false)
+  const [showCorrections, toggleCorrections, openCorrections, closeCorrections] = useToggle(false)
+  const [showPreview,     togglePreview]                                        = useToggle(true)
 
   const dirtyRef   = useRef(false)
   const contentRef = useRef(null)
@@ -524,7 +527,7 @@ export default function GuideEditorPage({ teacher }) {
           {features.comments !== false && (
             <button
               className="btn-secondary"
-              onClick={() => setShowComments(o => !o)}
+              onClick={toggleComments}
               style={{ fontSize: '12px' }}>
               💬 Comentarios
             </button>
@@ -532,7 +535,7 @@ export default function GuideEditorPage({ teacher }) {
           {features.corrections !== false && (
             <button
               className="btn-secondary"
-              onClick={() => setShowCorrections(true)}
+              onClick={openCorrections}
               style={{ fontSize: '12px' }}>
               🔧 Correcciones
             </button>
@@ -547,18 +550,18 @@ export default function GuideEditorPage({ teacher }) {
           <div className="ge-export-wrap">
             <button className="btn-secondary"
               style={{ fontSize: '12px' }}
-              onClick={() => setExportOpen(o => !o)}>
+              onClick={toggleExport}>
               ⋯ Más opciones ▾
             </button>
             {exportOpen && (
-              <div className="ge-export-menu" onMouseLeave={() => setExportOpen(false)}>
+              <div className="ge-export-menu" onMouseLeave={closeExport}>
                 <div style={{ padding: '4px 12px 6px', fontSize: '10px', fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '.5px' }}>
                   Exportar como
                 </div>
-                <button onClick={async () => { setExportOpen(false); await doSave(); exportGuideDocx(contentRef.current) }}>
+                <button onClick={async () => { closeExport(); await doSave(); exportGuideDocx(contentRef.current) }}>
                   📄 Word (.docx) — para correcciones
                 </button>
-                <button onClick={() => { setExportOpen(false); exportHtml(contentRef.current) }}>
+                <button onClick={() => { closeExport(); exportHtml(contentRef.current) }}>
                   🌐 HTML — archivo web
                 </button>
                 <hr style={{ margin: '4px 0', border: 'none', borderTop: '1px solid #e0e6f0' }} />
@@ -566,12 +569,12 @@ export default function GuideEditorPage({ teacher }) {
                   Inteligencia Artificial
                 </div>
                 {features.ai_analyze !== false && (
-                  <button onClick={() => { setExportOpen(false); setShowAnalyzer(true) }}>
+                  <button onClick={() => { closeExport(); openAnalyzer() }}>
                     🔍 Analizar con IA
                   </button>
                 )}
                 {features.ai_generate !== false && (
-                  <button onClick={() => { setExportOpen(false); setShowGenerator(true) }}>
+                  <button onClick={() => { closeExport(); openGenerator() }}>
                     🤖 Generar guía con IA
                   </button>
                 )}
@@ -811,7 +814,7 @@ export default function GuideEditorPage({ teacher }) {
         <AIAnalyzerModal
           content={contentRef.current}
           principles={principles}
-          onClose={() => setShowAnalyzer(false)}
+          onClose={closeAnalyzer}
         />
       )}
 
@@ -819,7 +822,7 @@ export default function GuideEditorPage({ teacher }) {
         <CommentsPanel
           planId={id}
           teacher={teacher}
-          onClose={() => setShowComments(false)}
+          onClose={closeComments}
         />
       )}
 
@@ -827,7 +830,7 @@ export default function GuideEditorPage({ teacher }) {
         <CorrectionRequestModal
           planId={id}
           teacher={teacher}
-          onClose={() => setShowCorrections(false)}
+          onClose={closeCorrections}
         />
       )}
 
@@ -839,7 +842,7 @@ export default function GuideEditorPage({ teacher }) {
           activeDays={activeDays}
           currentContent={contentRef.current}
           onApply={handleApplyGenerated}
-          onClose={() => setShowGenerator(false)}
+          onClose={closeGenerator}
           learningTarget={linkedTarget}
           principles={principles}
         />
