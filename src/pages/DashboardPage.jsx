@@ -130,6 +130,11 @@ function DashboardInner({ session, teacher, setTeacher }) {
 
   return (
     <div className="app">
+      {/* Skip to main content link for keyboard navigation */}
+      <a href="#main-content" className="skip-link">
+        Saltar al contenido principal
+      </a>
+
       <button className="btn-hamburger"
         onClick={() => setSidebarOpen(o => !o)} aria-label="Abrir menú">☰</button>
 
@@ -220,7 +225,7 @@ function DashboardInner({ session, teacher, setTeacher }) {
         </div>
       </div>
 
-      <div className="main">
+      <main id="main-content" className="main">
         <Routes>
           <Route path="/"            element={<PlannerPage          teacher={teacher} />} />
           <Route path="/plans"       element={<MyPlansPage          teacher={teacher} />} />
@@ -239,7 +244,7 @@ function DashboardInner({ session, teacher, setTeacher }) {
             </>
           )}
         </Routes>
-      </div>
+      </main>
 
       {showProfile && (
         <ProfileModal
