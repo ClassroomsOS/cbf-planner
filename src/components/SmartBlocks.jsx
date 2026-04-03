@@ -233,12 +233,15 @@ export function blockPreviewHTML(b) {
         <th style="padding:4px 8px;width:48px;text-align:center">T</th>
         <th style="padding:4px 8px;width:48px;text-align:center">F</th>
       </tr>
-      ${(data.statements||[]).map((s,i)=>`<tr style="border-bottom:1px solid #eee">
-        <td style="padding:4px 8px;color:#888">${i+1}</td>
-        <td style="padding:4px 8px">${s.s||''}</td>
-        <td style="padding:4px 8px;text-align:center">⬜</td>
-        <td style="padding:4px 8px;text-align:center">⬜</td>
-      </tr>`).join('')}
+      ${(data.statements||[]).map((s,i)=>{
+        const text = typeof s === 'string' ? s : (s?.s || '')
+        return `<tr style="border-bottom:1px solid #eee">
+          <td style="padding:4px 8px;color:#888">${i+1}</td>
+          <td style="padding:4px 8px">${text}</td>
+          <td style="padding:4px 8px;text-align:center">⬜</td>
+          <td style="padding:4px 8px;text-align:center">⬜</td>
+        </tr>`
+      }).join('')}
     </table>`
   }
 

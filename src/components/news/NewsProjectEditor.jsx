@@ -1010,13 +1010,13 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
                 <button
                   className="news-btn-primary"
                   onClick={handleGenerateRubric}
-                  disabled={generatingRubric || !form.title || !form.description || !form.target_indicador}
+                  disabled={generatingRubric || !form.title || !form.description}
                   style={{
                     padding: '8px 16px', borderRadius: 8, border: 'none', flexShrink: 0,
                     background: 'linear-gradient(135deg, #7C3AED 0%, #9333EA 100%)',
                     color: 'white', fontSize: 12, fontWeight: 700,
-                    cursor: generatingRubric || !form.title || !form.description || !form.target_indicador ? 'not-allowed' : 'pointer',
-                    opacity: generatingRubric || !form.title || !form.description || !form.target_indicador ? 0.5 : 1,
+                    cursor: generatingRubric || !form.title || !form.description ? 'not-allowed' : 'pointer',
+                    opacity: generatingRubric || !form.title || !form.description ? 0.5 : 1,
                     display: 'flex', alignItems: 'center', gap: 6,
                     boxShadow: '0 2px 8px rgba(124,58,237,0.25)',
                     transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'

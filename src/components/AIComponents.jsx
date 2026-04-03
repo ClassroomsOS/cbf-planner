@@ -284,8 +284,15 @@ export const AIGeneratorModal = memo(function AIGeneratorModal({ grade, subject,
           for (var si = 0; si < sKeys.length; si++) {
             var sKey = sKeys[si]
             var pSec = pDay.sections[sKey]
-            if (base.days[dIso].sections && base.days[dIso].sections[sKey] && pSec.content) {
-              base.days[dIso].sections[sKey].content = pSec.content
+            if (base.days[dIso].sections && base.days[dIso].sections[sKey]) {
+              if (pSec.content) {
+                base.days[dIso].sections[sKey].content = pSec.content
+              }
+              // Convierte smartBlock (singular, de la IA) → smartBlocks[] (array del editor)
+              if (pSec.smartBlock && pSec.smartBlock.type && pSec.smartBlock.model) {
+                var newBlock = Object.assign({}, pSec.smartBlock, { id: Date.now() + si })
+                base.days[dIso].sections[sKey].smartBlocks = [newBlock]
+              }
             }
           }
         }

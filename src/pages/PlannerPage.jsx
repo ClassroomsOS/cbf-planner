@@ -454,7 +454,7 @@ export default function PlannerPage({ teacher }) {
                 const generatedDay = aiResult.days?.[iso] || {}
                 // Merge sections
                 const mergedSections = {}
-                SECTIONS_KEYS.forEach(key => {
+                SECTIONS.map(s => s.key).forEach(key => {
                   const genSec = generatedDay.sections?.[key] || {}
                   const exSec  = existingDay.sections?.[key]  || { time: '', content: '', images: [], audios: [], videos: [], smartBlocks: [] }
                   // Append AI-suggested smartBlock (if any) to existing blocks
@@ -506,13 +506,13 @@ export default function PlannerPage({ teacher }) {
           onComplete={() => {
             const action = checkpointData.pendingAction
             setCheckpointData(null)
-            if (action === 'ai') setShowGenerator(true)
+            if (action === 'ai') openGenerator()
             else doCreateGuide()
           }}
           onSkip={() => {
             const action = checkpointData.pendingAction
             setCheckpointData(null)
-            if (action === 'ai') setShowGenerator(true)
+            if (action === 'ai') openGenerator()
             else doCreateGuide()
           }}
           onClose={() => setCheckpointData(null)}
