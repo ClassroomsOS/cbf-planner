@@ -215,18 +215,23 @@ ${biblicalBlock(principles,
   const safeLTDesc = learningTarget?.description ? sanitizeAIInput(learningTarget.description) : ''
   const safeExisting = existingContent ? sanitizeAIInput(existingContent.replace(/<[^>]+>/g,' ').slice(0,200)) : '(vacío)'
 
+  const existingTypes = existingBlocks?.length ? existingBlocks.map(b => b.type) : []
+  const noRepeatRule = existingTypes.length
+    ? `REGLA OBLIGATORIA: Ya existen bloques de tipo ${[...new Set(existingTypes)].join(', ')}. NO repitas ninguno de esos tipos — elige un tipo DIFERENTE que complemente lo que ya hay.`
+    : ''
+
   const message = `Sección: ${sectionMeta?.label} (${sectionMeta?.time})
 Grado: ${safeGrade} | Materia: ${safeSubject} | Día: ${safeDayName || ''}
 Unidad: ${safeUnit || 'no especificada'}
 Objetivo semanal: ${safeObjective || 'no especificado'}
 ${learningTarget ? `Desempeño observable: ${safeLTDesc} (${TAXONOMY_DESC[learningTarget.taxonomy] || ''})` : ''}
 Contenido ya escrito: ${safeExisting}
-Bloques ya presentes: ${existingBlocks?.length ? existingBlocks.map(b=>b.type).join(', ') : 'ninguno'}
+${noRepeatRule}
 
-Tipos disponibles:
+Tipos disponibles (copia el ejemplo exacto y reemplaza los datos):
 ${blockTypes}
 
-Sugiere el bloque más pedagógicamente apropiado para este contexto. Incluye datos completos y realistas.`
+Sugiere el bloque más pedagógicamente apropiado. Incluye datos completos y realistas en inglés.`
 
   const raw = await callClaude({ type: 'suggest', system, message, planId, maxTokens: 1200 })
   const match = raw.match(/\{[\s\S]*\}/)
