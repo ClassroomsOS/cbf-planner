@@ -215,9 +215,9 @@ export function buildHtml(content) {
   dialog.sbd {
     border: none; border-radius: 12px; padding: 0;
     max-width: 600px; width: 90vw; max-height: 85vh;
-    display: flex; flex-direction: column;
     box-shadow: 0 8px 40px rgba(0,0,0,0.30);
   }
+  dialog.sbd[open] { display: flex; flex-direction: column; }
   dialog.sbd::backdrop { background: rgba(0,0,0,0.50); }
   .sbd-h {
     flex-shrink: 0;
