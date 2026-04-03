@@ -334,7 +334,7 @@ CBF es una **escuela cristiana confesional**. Los tres principios son el norte d
 | `lesson_plans` | One row per guide. `content` JSONB holds all plan data. `grade` = combined label. Links to `target_id`, `news_project_id` |
 | `learning_targets` | Desempeños observables. `taxonomy` enum: `recognize | apply | produce`. Matched to plans by `school_id + subject + grade`. Columna `indicadores jsonb` (array de strings) |
 | `school_monthly_principles` | Principios rectores por mes. `school_id, year, month, month_verse, month_verse_ref, indicator_principle`. UNIQUE(school_id, year, month) |
-| `news_projects` | NEWS (project-based learning) projects. Links to `rubric_templates` |
+| `news_projects` | NEWS (project-based learning) projects. Links to `rubric_templates` via `rubric_template_id`. Links to `learning_targets` via `target_id` (UUID). Field `target_indicador` (text) stores the selected indicator from `learning_targets.indicadores[]` |
 | `school_calendar` | Holiday/event data. `is_school_day: false` = holiday |
 | `checkpoints` | Records whether a teacher evaluated a learning target at end of week |
 | `notifications` / `messages` | In-app communication. Polled every 60s in `DashboardPage` |
@@ -706,15 +706,49 @@ Si el colegio usa Moodle u otra plataforma LMS que soporte SCORM/xAPI, exportar 
 - Niveles 4-3-2-1 = gradaciones descendentes
 - Incluye criterio formativo espiritual si el proyecto tiene principio bíblico
 
-### ✅ NEWS modal: Dropdowns inteligentes (IMPLEMENTADO)
-`NewsProjectEditor.jsx` usa dropdowns filtrados en cascada desde `teacher_assignments`:
-- **Subject** → lista de materias asignadas al docente
-- **Grade** → filtra por materia seleccionada
+### ✅ NEWS modal: Jerarquía Pedagógica Visual (IMPLEMENTADO)
+
+**Commits:** `ac339c6`, `3c6927d`
+
+`NewsProjectEditor.jsx` muestra la jerarquía completa **Principios → Logro → Indicador → Proyecto** de forma visual y prominente:
+
+#### 1. Principios Bíblicos — Hero Section
+- Banner azul/dorado en la parte superior del modal (siempre visible)
+- Muestra **Versículo del Año** y **Versículo del Mes** lado a lado
+- Diseño tipo card con comillas, texto grande y referencias destacadas
+- Props: `principles: { yearVerse, yearVerseRef, monthVerse, monthVerseRef }`
+- Pasado desde `NewsPage` (carga `schools.year_verse*` + `school_monthly_principles.month_verse*`)
+
+#### 2. Logro de Desempeño — Card Visual (NO dropdown)
+- Sección verde grande en pestaña "📝 Proyecto"
+- Cuando hay logro seleccionado → muestra **card completa** con:
+  - Badge de taxonomía con emoji (👁️ Reconocer / 🛠️ Aplicar / ✨ Producir)
+  - Descripción completa del logro (no truncada)
+  - Botón "Cambiar logro" para abrir selector
+- Cuando NO hay logro → muestra **lista de cards clickeables** con todos los logros disponibles
+- Carga automática de `learning_targets` filtrados por `subject + grade + period`
+- Flexible match: permite logros con `grade="10.°"` cuando el proyecto es `grade="10.° A"`
+- Guarda en `news_projects.target_id` (UUID)
+
+#### 3. Indicadores de Logro — Radio Button Cards
+- Aparece automáticamente cuando hay logro seleccionado
+- Muestra **TODOS los indicadores** del logro simultáneamente (no dropdown)
+- Cards grandes clickeables con radio button visual (○ / ◉)
+- Texto completo de cada indicador (no truncado)
+- Labels "INDICADOR 1/2/3" + texto
+- Sombra verde en el seleccionado
+- Helper text: "El estudiante demuestra que alcanzó el logro cuando cumple este indicador..."
+- Guarda en `news_projects.target_indicador` (text)
+- Si el logro NO tiene indicadores → muestra mensaje informativo
+
+#### 4. Dropdowns inteligentes (Subject/Grade/Section)
+- Cascada filtrada desde `teacher_assignments`
+- **Subject** → lista de materias asignadas
+- **Grade** → filtra por materia seleccionada  
 - **Section** → filtra por materia + grado
-- **Commit:** `bcf80a4` (sprint1-B)
-- Implementación: líneas 55-84 de `NewsProjectEditor.jsx`
-- Evita errores de digitación y guías huérfanas
-- Los dropdowns se cargan automáticamente al abrir el modal
+- Evita errores de digitación y proyectos huérfanos
+
+**Rationale:** Los dropdowns ocultaban la jerarquía pedagógica. La nueva UI hace visible que el proyecto NEWS es la **prueba** de que el estudiante alcanzó un indicador específico de un logro, alineado a los principios bíblicos institucionales.
 
 ### 🟡 NEWS: Subir imágenes del textbook
 En la pestaña Textbook del NEWS, permitir subir fotos/scans del scope & sequence del libro.
