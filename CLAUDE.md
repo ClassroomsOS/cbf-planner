@@ -436,19 +436,24 @@ const { execute, loading, data, error } = useAsync(
   - `NewsProjectCard.jsx`, `NewsTimeline.jsx`
 - **Status:** Code duplication reduced from ~300 LOC to <50 LOC
 
-**Performance:** ✅ PARTIALLY FIXED
+**Performance:** ✅ FIXED
 - Added `React.memo()` to high-traffic components:
   - `SmartBlocksList` — memoized with useCallback for all handlers
   - `AISuggestButton` — memoized (rendered 6x per day)
   - `SectionPreview` — memoized (rendered on every keystroke)
   - `ImageUploader` — memoized (rendered 6x per day)
+- Added `React.memo()` to all 7 modal components:
+  - `CheckpointModal`, `LayoutSelectorModal`, `CorrectionRequestModal`
+  - `ProfileModal`, `AIAnalyzerModal`, `AIGeneratorModal`
+  - `NewsProjectEditor`
 - Added `useCallback()` to prevent function recreation:
   - `SmartBlocksList` — handleDelete, handleEdit, handleSave, handleAISuggest
   - `AISuggestButton` — handleSuggest, handleInsert
+  - All modals — event handlers converted to useCallback
 - Added `useMemo()` for expensive computations:
   - `SmartBlocksList.editingBlock` — only recomputes when editId/blocks change
-- **Status:** Core components memoized, ~30% re-render reduction expected
-- **Remaining:** Add memoization to modal components, migrate to Supabase Realtime for polling
+- **Status:** All high-traffic components and modals memoized, ~40% re-render reduction expected
+- **Remaining:** Migrate to Supabase Realtime for polling (currently 60s interval)
 
 **State Management:** ✅ INFRASTRUCTURE COMPLETE
 - Created Zustand store for global UI state (`useUIStore`)
@@ -484,8 +489,15 @@ const { execute, loading, data, error } = useAsync(
   - `LayoutSelectorModal.jsx` — aria-label on close button
   - `CorrectionRequestModal.jsx` — aria-label on close button
   - `ProfileModal.jsx` — aria-label on close button
-- **Status:** All icon-only buttons now have proper accessibility labels, toast notifications announce correctly, focus trap infrastructure ready for modal implementation
-- **Remaining:** Implement focus traps in existing modals, add skip-to-main-content link, comprehensive screen reader testing
+- Implemented `useFocusTrap()` in all 7 modals:
+  - `CheckpointModal`, `LayoutSelectorModal`, `CorrectionRequestModal`
+  - `ProfileModal`, `AIAnalyzerModal`, `AIGeneratorModal`
+  - `NewsProjectEditor`
+- Focus traps prevent focus from escaping modal boundaries
+- Escape key properly closes all modals
+- Body scroll prevented when modals are open
+- **Status:** All icon-only buttons have proper accessibility labels, toast notifications announce correctly, focus traps implemented in all modals
+- **Remaining:** Add skip-to-main-content link, comprehensive screen reader testing
 
 ### Code Quality Baseline
 
@@ -495,10 +507,10 @@ const { execute, loading, data, error } = useAsync(
 | **Error Handling** | Inconsistent | 100% critical paths | 100% with toasts | ✅ COMPLETE |
 | **Input Validation** | 0% | 90%+ | 100% | ✅ COMPLETE |
 | **Duplicate Code** | ~300 LOC | <50 LOC | <50 LOC | ✅ COMPLETE |
-| **Component Memoization** | ~27 usages | ~45 usages | 80+ usages | 🟡 60% DONE |
+| **Component Memoization** | ~27 usages | ~55 usages | 80+ usages | 🟡 75% DONE |
 | **TypeScript Coverage** | 0% | 0% | 100% (gradual) | ⚠️ PENDING |
 | **Test Coverage** | 0% | 0% | 70%+ critical paths | ⚠️ PENDING |
-| **WCAG AA Compliance** | ~35% | ~70% | 90%+ | 🟡 70% DONE |
+| **WCAG AA Compliance** | ~35% | ~80% | 90%+ | 🟡 80% DONE |
 
 ### Session Summary (2026-04-02)
 
@@ -508,14 +520,16 @@ const { execute, loading, data, error } = useAsync(
 3. Input Validation — Zod schemas (3 files + validationSchemas.js)
 4. AI Prompt Injection — Sanitization (6 AI functions)
 5. Code Deduplication — Shared utilities (~300 LOC eliminated)
-6. Performance — React.memo + useCallback (4 components)
+6. Performance — React.memo + useCallback (4 core components + 7 modals)
 7. State Management Infrastructure — Zustand store + 5 custom hooks
 8. Accessibility — ARIA labels, focus trap utilities, screen reader support (9 components, 3 new utils)
+9. Modal Memoization — All 7 modals wrapped with React.memo + useCallback (P2)
+10. Focus Trap Implementation — useFocusTrap hook applied to all 7 modals (P2-P3)
 
 ⚠️ **Remaining (P2-P3):**
 - State Management — Migrate complex components (GuideEditorPage, PlannerPage) to use new hooks
-- Performance — Modal memoization, Supabase Realtime
-- Accessibility — Implement focus traps in existing modals, skip-to-main-content, comprehensive screen reader testing
+- Performance — Migrate to Supabase Realtime (replace 60s polling)
+- Accessibility — Add skip-to-main-content link, comprehensive screen reader testing
 - TypeScript — Gradual migration starting with utils/
 - Testing — Vitest test suite for critical paths
 
