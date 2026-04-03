@@ -22,16 +22,23 @@ export default function NewsPage({ teacher }) {
   const [monthPrinciple, setMonthPrinciple] = useState(null)
 
   useEffect(() => {
-    const now = new Date()
+    // Load principles based on project start_date (if editing) or current month (if new)
+    let targetDate
+    if (editingProject?.start_date) {
+      targetDate = new Date(editingProject.start_date)
+    } else {
+      targetDate = new Date()
+    }
+
     supabase
       .from('school_monthly_principles')
       .select('month_verse, month_verse_ref, indicator_principle')
       .eq('school_id', teacher.school_id)
-      .eq('year',  now.getFullYear())
-      .eq('month', now.getMonth() + 1)
+      .eq('year', targetDate.getFullYear())
+      .eq('month', targetDate.getMonth() + 1)
       .maybeSingle()
       .then(({ data }) => { if (data) setMonthPrinciple(data) })
-  }, [teacher.school_id])
+  }, [teacher.school_id, editingProject?.start_date, editorOpen])
 
   const { 
     projects, loading, error,
@@ -260,7 +267,8 @@ export default function NewsPage({ teacher }) {
             yearVerse: school.year_verse || '',
             yearVerseRef: school.year_verse_ref || '',
             monthVerse: monthPrinciple?.month_verse || '',
-            monthVerseRef: monthPrinciple?.month_verse_ref || ''
+            monthVerseRef: monthPrinciple?.month_verse_ref || '',
+            indicatorPrinciple: monthPrinciple?.indicator_principle || ''
           }}
         />
       )}

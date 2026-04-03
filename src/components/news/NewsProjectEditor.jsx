@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback, memo } from 'react'
 import { supabase } from '../../supabase'
 import { useToast } from '../../context/ToastContext'
 import { useFocusTrap } from '../../hooks/useFocusTrap'
+import { generateRubric } from '../../utils/AIAssistant'
 
 const SKILLS = [
   { value: '', label: '— Sin skill específico —' },
@@ -51,6 +52,8 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
   })
 
   const [saving, setSaving] = useState(false)
+  const [generatingRubric, setGeneratingRubric] = useState(false)
+  const [rubricGenerationStep, setRubricGenerationStep] = useState(0)
   const [activeTab, setActiveTab] = useState('details')
   const [tagInput, setTagInput] = useState({ grammar: '', vocabulary: '', units: '' })
   const [showTargetSelector, setShowTargetSelector] = useState(false)
@@ -93,6 +96,24 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
         setLearningTargets(filtered)
       })
   }, [form.subject, form.grade, form.period, teacher.school_id])
+
+  // AI Rubric generation step progression
+  useEffect(() => {
+    if (!generatingRubric) {
+      setRubricGenerationStep(0)
+      return
+    }
+
+    const steps = [0, 1, 2] // 3 steps total
+    let currentIndex = 0
+
+    const interval = setInterval(() => {
+      currentIndex = (currentIndex + 1) % steps.length
+      setRubricGenerationStep(steps[currentIndex])
+    }, 2000) // Change step every 2 seconds
+
+    return () => clearInterval(interval)
+  }, [generatingRubric])
 
   // Derive dropdown options from assignments (filtered cascade)
   const subjectOptions = useMemo(() => {
@@ -216,6 +237,42 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
     updateForm('rubric', updated)
   }
 
+  // AI Generate Rubric
+  const handleGenerateRubric = async () => {
+    if (!form.title || !form.description || !form.target_indicador) {
+      showToast('Completa título, descripción y selecciona un indicador de logro antes de generar la rúbrica.', 'warning')
+      return
+    }
+
+    setGeneratingRubric(true)
+    try {
+      const selectedTarget = learningTargets.find(t => t.id === form.target_id)
+      const indicadores = selectedTarget?.indicadores || []
+
+      const result = await generateRubric({
+        projectTitle: form.title,
+        projectDescription: form.description,
+        subject: form.subject,
+        grade: form.grade,
+        skill: form.skill,
+        indicadores: indicadores,
+        principles: principles
+      })
+
+      if (result && Array.isArray(result) && result.length > 0) {
+        updateForm('rubric', result)
+        showToast(`Rúbrica generada con ${result.length} criterios. Revisa y ajusta según necesites.`, 'success')
+      } else {
+        showToast('La AI no pudo generar la rúbrica. Intenta de nuevo.', 'error')
+      }
+    } catch (error) {
+      console.error('Error generating rubric:', error)
+      showToast(error.message || 'Error al generar la rúbrica con IA', 'error')
+    } finally {
+      setGeneratingRubric(false)
+    }
+  }
+
   // Get matching templates for selected skill
   const matchingTemplates = templates.filter(t =>
     !form.skill || t.skill === form.skill || t.skill === 'general'
@@ -262,73 +319,150 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
   const isValid = form.title && form.subject && form.grade && form.section && form.due_date && form.description
 
   return (
-    /* ── FIX 2A: overlay NO cierra al clic — solo X y Cancelar cierran ── */
-    <div style={styles.overlay}>
-      <div ref={modalRef} style={styles.modal} onClick={e => e.stopPropagation()}>
+    <>
+      {/* Apple-style micro-interactions */}
+      <style>{`
+        /* Input focus states */
+        input:focus, textarea:focus, select:focus {
+          border-color: #1A3A8F !important;
+          box-shadow: 0 0 0 3px rgba(26, 58, 143, 0.1) !important;
+        }
+
+        /* Button hover states */
+        button:not(:disabled):hover {
+          transform: scale(1.02);
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Button active states */
+        button:not(:disabled):active {
+          transform: scale(0.98);
+        }
+
+        /* Close button hover */
+        .news-close-btn:hover {
+          background: #eee !important;
+          transform: scale(1.05);
+        }
+
+        /* Tab hover */
+        .news-tab:hover {
+          background: rgba(26, 58, 143, 0.05);
+        }
+
+        /* Remove default focus rings, we use custom shadows */
+        *:focus {
+          outline: none;
+        }
+
+        /* Smooth transitions for all interactive elements */
+        button, input, textarea, select {
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* Style select dropdowns */
+        select {
+          appearance: none;
+          background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%23888888' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+          background-repeat: no-repeat;
+          background-position: right 12px center;
+          padding-right: 40px !important;
+          cursor: pointer;
+        }
+
+        select:hover {
+          border-color: #ccc !important;
+        }
+
+        /* Style date inputs to look more rounded */
+        input[type="date"] {
+          position: relative;
+          cursor: pointer;
+        }
+
+        input[type="date"]::-webkit-calendar-picker-indicator {
+          cursor: pointer;
+          opacity: 0.6;
+          padding: 4px;
+          border-radius: 4px;
+        }
+
+        input[type="date"]::-webkit-calendar-picker-indicator:hover {
+          opacity: 1;
+          background: rgba(0, 0, 0, 0.05);
+        }
+
+        /* Fix text overflow in green box */
+        .indicator-card-text {
+          word-break: break-word;
+          overflow-wrap: break-word;
+          max-width: 100%;
+        }
+      `}</style>
+
+      {/* ── FIX 2A: overlay NO cierra al clic — solo X y Cancelar cierran ── */}
+      <div style={styles.overlay}>
+        <div ref={modalRef} style={styles.modal} onClick={e => e.stopPropagation()}>
         {/* Modal Header */}
         <div style={styles.header}>
           <div>
             <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#1a1a2e' }}>
               {isEditing ? '✏️ Editar Proyecto NEWS' : '📋 Nuevo Proyecto NEWS'}
             </h2>
-            <p style={{ margin: '4px 0 0', fontSize: 12, color: '#888' }}>
+            <p style={{ margin: '8px 0 0', fontSize: 12, color: '#888' }}>
               Define el proyecto, la rúbrica y el contenido del textbook
             </p>
           </div>
-          <button onClick={onClose} style={styles.closeBtn} aria-label="Cerrar editor de proyecto NEWS">✕</button>
+          <button onClick={onClose} className="news-close-btn" style={styles.closeBtn} aria-label="Cerrar editor de proyecto NEWS">✕</button>
         </div>
 
-        {/* ── PRINCIPIOS RECTORES (HERO SECTION) ── */}
+        {/* ── PRINCIPIOS RECTORES (COMPACT BANNER) ── */}
         {principles && (principles.yearVerse || principles.monthVerse) && (
           <div style={{
-            padding: '24px 32px',
+            padding: '16px 24px',
             background: 'linear-gradient(135deg, #1A3A8F 0%, #2E5598 100%)',
             borderBottom: '3px solid #F5C300',
             display: 'flex',
             flexDirection: 'column',
-            gap: 16
+            gap: 8
           }}>
             <div style={{
-              fontSize: 13,
+              fontSize: 11,
               fontWeight: 900,
               color: '#F5C300',
               textTransform: 'uppercase',
-              letterSpacing: '1.2px',
+              letterSpacing: '1px',
               display: 'flex',
               alignItems: 'center',
-              gap: 10
+              gap: 8
             }}>
-              <span style={{ fontSize: 20 }}>📖</span>
+              <span style={{ fontSize: 16 }}>📖</span>
               PRINCIPIOS RECTORES INSTITUCIONALES
             </div>
-            <div style={{ fontSize: 11, color: '#E8EEFF', lineHeight: 1.6, maxWidth: '90%' }}>
-              Estos versículos son el <strong style={{ color: '#F5C300' }}>norte pedagógico y espiritual</strong> de este proyecto.
-              La AI los usará para alinear todas las actividades, evaluaciones y reflexiones.
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginTop: 8 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
               {principles.yearVerse && (
                 <div style={{
-                  background: 'rgba(255,255,255,0.1)',
-                  borderRadius: 12,
-                  padding: '16px 20px',
-                  border: '1px solid rgba(255,255,255,0.2)'
+                  background: 'rgba(255,255,255,0.08)',
+                  borderRadius: 8,
+                  padding: '8px 16px',
+                  borderLeft: '3px solid #F5C300'
                 }}>
                   <div style={{
-                    fontSize: 10,
+                    fontSize: 9,
                     fontWeight: 800,
                     color: '#F5C300',
                     textTransform: 'uppercase',
-                    letterSpacing: '0.8px',
+                    letterSpacing: '0.5px',
                     marginBottom: 8
                   }}>
                     ✨ VERSÍCULO DEL AÑO
                   </div>
-                  <div style={{ fontSize: 14, lineHeight: 1.7, color: '#FFFFFF', fontWeight: 500 }}>
+                  <div style={{ fontSize: 12, lineHeight: 1.5, color: '#FFFFFF', fontWeight: 400 }}>
                     "{principles.yearVerse}"
                   </div>
                   {principles.yearVerseRef && (
                     <div style={{
-                      fontSize: 11,
+                      fontSize: 10,
                       fontStyle: 'italic',
                       color: '#C5D5F0',
                       marginTop: 8,
@@ -341,27 +475,27 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
               )}
               {principles.monthVerse && (
                 <div style={{
-                  background: 'rgba(255,255,255,0.1)',
-                  borderRadius: 12,
-                  padding: '16px 20px',
-                  border: '1px solid rgba(255,255,255,0.2)'
+                  background: 'rgba(255,255,255,0.08)',
+                  borderRadius: 8,
+                  padding: '8px 16px',
+                  borderLeft: '3px solid #F5C300'
                 }}>
                   <div style={{
-                    fontSize: 10,
+                    fontSize: 9,
                     fontWeight: 800,
                     color: '#F5C300',
                     textTransform: 'uppercase',
-                    letterSpacing: '0.8px',
+                    letterSpacing: '0.5px',
                     marginBottom: 8
                   }}>
                     📅 VERSÍCULO DEL MES
                   </div>
-                  <div style={{ fontSize: 14, lineHeight: 1.7, color: '#FFFFFF', fontWeight: 500 }}>
+                  <div style={{ fontSize: 12, lineHeight: 1.5, color: '#FFFFFF', fontWeight: 400 }}>
                     "{principles.monthVerse}"
                   </div>
                   {principles.monthVerseRef && (
                     <div style={{
-                      fontSize: 11,
+                      fontSize: 10,
                       fontStyle: 'italic',
                       color: '#C5D5F0',
                       marginTop: 8,
@@ -386,6 +520,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
+              className="news-tab"
               style={{
                 ...styles.tab,
                 ...(activeTab === tab.key ? styles.tabActive : {})
@@ -493,6 +628,237 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
                 </div>
               </div>
 
+              {/* ── LOGRO DE DESEMPEÑO ── */}
+              <div style={{
+                background: '#F0F7F0', borderRadius: 8, padding: 10,
+                border: '1px solid #E8F0E8',
+                boxShadow: '0 1px 3px rgba(155, 187, 89, 0.1)'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <h4 style={{ fontSize: 11, fontWeight: 800, color: '#1A5C1A', margin: 0, textTransform: 'uppercase', letterSpacing: '0.3px' }}>
+                    🎯 Logro de Desempeño Vinculado
+                  </h4>
+                  {form.target_id && (
+                    <button
+                      onClick={() => setShowTargetSelector(true)}
+                      style={{
+                        fontSize: 10, padding: '8px', borderRadius: 4,
+                        border: '1px solid #9BBB59', background: 'transparent',
+                        color: '#5a8a00', cursor: 'pointer', fontWeight: 600
+                      }}
+                    >
+                      Cambiar
+                    </button>
+                  )}
+                </div>
+
+                {/* Selected target display */}
+                {form.target_id && (() => {
+                  const selectedTarget = learningTargets.find(t => t.id === form.target_id)
+                  if (!selectedTarget) return null
+                  const TAXONOMY_EMOJI = { recognize: '👁️', apply: '🛠️', produce: '✨' }
+                  const TAXONOMY_LABELS = { recognize: 'Reconocer', apply: 'Aplicar', produce: 'Producir' }
+
+                  return (
+                    <div style={{
+                      background: '#fff', borderRadius: 6, padding: '8px 10px',
+                      border: '1px solid #E8F0E8',
+                      boxShadow: '0 2px 4px rgba(155, 187, 89, 0.08)',
+                      marginBottom: 8
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                        <span style={{ fontSize: 15 }}>{TAXONOMY_EMOJI[selectedTarget.taxonomy]}</span>
+                        <span style={{
+                          fontSize: 9, fontWeight: 700, color: '#5a8a00',
+                          textTransform: 'uppercase', letterSpacing: '0.3px',
+                          background: '#f6fff0', padding: '4px 8px', borderRadius: 3
+                        }}>
+                          {TAXONOMY_LABELS[selectedTarget.taxonomy]}
+                        </span>
+                        {selectedTarget.group_name && (
+                          <span style={{
+                            fontSize: 9, color: '#888',
+                            background: '#f5f5f5', padding: '4px 8px', borderRadius: 3
+                          }}>
+                            {selectedTarget.group_name}
+                          </span>
+                        )}
+                      </div>
+                      <div style={{
+                        fontSize: 12,
+                        color: '#1a1a2e',
+                        lineHeight: 1.4,
+                        fontWeight: 400,
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden'
+                      }}>
+                        {selectedTarget.description}
+                      </div>
+                    </div>
+                  )
+                })()}
+
+                {/* Target selector (when no target or changing) */}
+                {(!form.target_id || showTargetSelector) && (
+                  <div style={{ marginBottom: 8 }}>
+                    {learningTargets.length === 0 && form.subject && form.grade ? (
+                      <div style={{
+                        padding: '8px', borderRadius: 6, background: '#FFF9E6',
+                        border: '1px dashed #F5C300', textAlign: 'center'
+                      }}>
+                        <div style={{ fontSize: 10, color: '#8B6914', lineHeight: 1.3 }}>
+                          No hay logros activos para <strong>{form.subject} · {form.grade}</strong>.<br />
+                          Crea uno primero en "Logros de Desempeño".
+                        </div>
+                      </div>
+                    ) : learningTargets.length > 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 180, overflowY: 'auto' }}>
+                        <div style={{ fontSize: 9, fontWeight: 700, color: '#5a8a00', marginBottom: 0, textTransform: 'uppercase', letterSpacing: '0.3px' }}>
+                          Selecciona el logro que este proyecto evalúa:
+                        </div>
+                        {learningTargets.map(t => {
+                          const TAXONOMY_EMOJI = { recognize: '👁️', apply: '🛠️', produce: '✨' }
+                          return (
+                            <button
+                              key={t.id}
+                              onClick={() => {
+                                updateForm('target_id', t.id)
+                                updateForm('target_indicador', '')
+                                setShowTargetSelector(false)
+                              }}
+                              style={{
+                                padding: '8px', borderRadius: 5, textAlign: 'left',
+                                border: form.target_id === t.id ? '2px solid #9BBB59' : '1px solid #ddd',
+                                background: form.target_id === t.id ? '#f6fff0' : '#fff',
+                                cursor: 'pointer', transition: 'all 0.15s',
+                                display: 'flex', alignItems: 'flex-start', gap: 8
+                              }}
+                            >
+                              <span style={{ fontSize: 15, flexShrink: 0 }}>{TAXONOMY_EMOJI[t.taxonomy]}</span>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{
+                                  fontSize: 11,
+                                  color: '#1a1a2e',
+                                  lineHeight: 1.3,
+                                  display: '-webkit-box',
+                                  WebkitLineClamp: 2,
+                                  WebkitBoxOrient: 'vertical',
+                                  overflow: 'hidden'
+                                }}>
+                                  {t.description}
+                                </div>
+                                {t.group_name && (
+                                  <div style={{ fontSize: 9, color: '#888', marginTop: 8 }}>
+                                    Grupo: {t.group_name}
+                                  </div>
+                                )}
+                              </div>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: 10, color: '#999', fontStyle: 'italic' }}>
+                        Selecciona primero Materia y Grado para ver los logros disponibles.
+                      </div>
+                    )}
+                    {showTargetSelector && (
+                      <button
+                        onClick={() => setShowTargetSelector(false)}
+                        style={{
+                          fontSize: 10, padding: '8px', borderRadius: 4,
+                          border: '1px solid #ddd', background: '#fff',
+                          color: '#666', cursor: 'pointer', marginTop: 8
+                        }}
+                      >
+                        Cancelar
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Indicadores selector - only show when target is selected */}
+                {form.target_id && !showTargetSelector && (() => {
+                  const selectedTarget = learningTargets.find(t => t.id === form.target_id)
+                  const indicadores = selectedTarget?.indicadores || []
+
+                  if (indicadores.length === 0) {
+                    return (
+                      <div style={{
+                        padding: '8px', borderRadius: 5, background: '#FFF9E6',
+                        border: '1px dashed #F5C300', fontSize: 10, color: '#8B6914',
+                        fontStyle: 'italic', textAlign: 'center'
+                      }}>
+                        Este logro aún no tiene indicadores configurados.
+                      </div>
+                    )
+                  }
+
+                  return (
+                    <div>
+                      <div style={{ fontSize: 9, fontWeight: 700, color: '#1A5C1A', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.3px' }}>
+                        📌 Selecciona el indicador que este proyecto demuestra:
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 160, overflowY: 'auto' }}>
+                        {indicadores.map((ind, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => updateForm('target_indicador', ind)}
+                            style={{
+                              padding: '8px', borderRadius: 5, textAlign: 'left',
+                              border: form.target_indicador === ind ? '2px solid #9BBB59' : '1px solid #ddd',
+                              background: form.target_indicador === ind ? '#fff' : '#fafafa',
+                              cursor: 'pointer', transition: 'all 0.15s',
+                              display: 'flex', alignItems: 'flex-start', gap: 8,
+                              boxShadow: form.target_indicador === ind ? '0 2px 4px rgba(155,187,89,0.2)' : 'none'
+                            }}
+                          >
+                            <div style={{
+                              width: 15, height: 15, borderRadius: '50%',
+                              border: form.target_indicador === ind ? '2px solid #9BBB59' : '2px solid #ddd',
+                              background: form.target_indicador === ind ? '#9BBB59' : '#fff',
+                              flexShrink: 0, marginTop: 0,
+                              display: 'flex', alignItems: 'center', justifyContent: 'center'
+                            }}>
+                              {form.target_indicador === ind && (
+                                <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff' }} />
+                              )}
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{
+                                fontSize: 9, fontWeight: 700, color: '#5a8a00',
+                                marginBottom: 0, textTransform: 'uppercase', letterSpacing: '0.2px'
+                              }}>
+                                Indicador {idx + 1}
+                              </div>
+                              <div style={{
+                                fontSize: 11,
+                                color: '#1a1a2e',
+                                lineHeight: 1.3,
+                                display: '-webkit-box',
+                                WebkitLineClamp: 2,
+                                WebkitBoxOrient: 'vertical',
+                                overflow: 'hidden'
+                              }}>
+                                {ind}
+                              </div>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                      <div style={{
+                        fontSize: 9, color: '#666', marginTop: 8, fontStyle: 'italic',
+                        padding: '4px 6px', background: '#f8f8f8', borderRadius: 4, lineHeight: 1.3
+                      }}>
+                        💡 El estudiante demuestra el logro al cumplir este indicador.
+                      </div>
+                    </div>
+                  )
+                })()}
+              </div>
+
               {/* Title */}
               <div style={styles.field}>
                 <label style={styles.label}>Título del proyecto *</label>
@@ -529,7 +895,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
               </div>
 
               {/* Dates */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                 <div style={styles.field}>
                   <label style={styles.label}>Fecha de inicio (preparación)</label>
                   <input
@@ -550,215 +916,6 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
                 </div>
               </div>
 
-              {/* ── LOGRO DE DESEMPEÑO ── */}
-              <div style={{
-                background: '#F0F7F0', borderRadius: 12, padding: 20,
-                border: '2px solid #9BBB59'
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-                  <div>
-                    <h4 style={{ fontSize: 13, fontWeight: 800, color: '#1A5C1A', margin: '0 0 4px', textTransform: 'uppercase' }}>
-                      🎯 Logro de Desempeño Vinculado
-                    </h4>
-                    <p style={{ fontSize: 11, color: '#555', margin: 0, lineHeight: 1.5 }}>
-                      Este proyecto NEWS es la <strong>prueba</strong> de que el estudiante alcanzó este logro.
-                    </p>
-                  </div>
-                  {form.target_id && (
-                    <button
-                      onClick={() => setShowTargetSelector(true)}
-                      style={{
-                        fontSize: 11, padding: '5px 12px', borderRadius: 6,
-                        border: '1px solid #9BBB59', background: '#fff',
-                        color: '#5a8a00', cursor: 'pointer', fontWeight: 600
-                      }}
-                    >
-                      Cambiar logro
-                    </button>
-                  )}
-                </div>
-
-                {/* Selected target display */}
-                {form.target_id && (() => {
-                  const selectedTarget = learningTargets.find(t => t.id === form.target_id)
-                  if (!selectedTarget) return null
-                  const TAXONOMY_EMOJI = { recognize: '👁️', apply: '🛠️', produce: '✨' }
-                  const TAXONOMY_LABELS = { recognize: 'Reconocer', apply: 'Aplicar', produce: 'Producir' }
-
-                  return (
-                    <div style={{
-                      background: '#fff', borderRadius: 10, padding: '14px 16px',
-                      border: '2px solid #9BBB59', marginBottom: 16
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                        <span style={{ fontSize: 20 }}>{TAXONOMY_EMOJI[selectedTarget.taxonomy]}</span>
-                        <span style={{
-                          fontSize: 10, fontWeight: 700, color: '#5a8a00',
-                          textTransform: 'uppercase', letterSpacing: '0.5px',
-                          background: '#f6fff0', padding: '3px 8px', borderRadius: 4
-                        }}>
-                          {TAXONOMY_LABELS[selectedTarget.taxonomy]}
-                        </span>
-                      </div>
-                      <div style={{ fontSize: 13, color: '#1a1a2e', lineHeight: 1.6, fontWeight: 500 }}>
-                        {selectedTarget.description}
-                      </div>
-                      {selectedTarget.group_name && (
-                        <div style={{
-                          fontSize: 10, color: '#888', marginTop: 6,
-                          background: '#f5f5f5', padding: '2px 8px', borderRadius: 4,
-                          display: 'inline-block'
-                        }}>
-                          Grupo: {selectedTarget.group_name}
-                        </div>
-                      )}
-                    </div>
-                  )
-                })()}
-
-                {/* Target selector (when no target or changing) */}
-                {(!form.target_id || showTargetSelector) && (
-                  <div style={{ marginBottom: 16 }}>
-                    {learningTargets.length === 0 && form.subject && form.grade ? (
-                      <div style={{
-                        padding: '16px', borderRadius: 10, background: '#FFF9E6',
-                        border: '1px dashed #F5C300', textAlign: 'center'
-                      }}>
-                        <div style={{ fontSize: 11, color: '#8B6914', lineHeight: 1.5 }}>
-                          No hay logros activos para <strong>{form.subject} · {form.grade}</strong>.<br />
-                          Crea uno primero en "Logros de Desempeño".
-                        </div>
-                      </div>
-                    ) : learningTargets.length > 0 ? (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 280, overflowY: 'auto' }}>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: '#5a8a00', marginBottom: 4, textTransform: 'uppercase' }}>
-                          Selecciona el logro que este proyecto evalúa:
-                        </div>
-                        {learningTargets.map(t => {
-                          const TAXONOMY_EMOJI = { recognize: '👁️', apply: '🛠️', produce: '✨' }
-                          return (
-                            <button
-                              key={t.id}
-                              onClick={() => {
-                                updateForm('target_id', t.id)
-                                updateForm('target_indicador', '')
-                                setShowTargetSelector(false)
-                              }}
-                              style={{
-                                padding: '10px 14px', borderRadius: 8, textAlign: 'left',
-                                border: form.target_id === t.id ? '2px solid #9BBB59' : '1px solid #ddd',
-                                background: form.target_id === t.id ? '#f6fff0' : '#fff',
-                                cursor: 'pointer', transition: 'all 0.15s',
-                                display: 'flex', alignItems: 'flex-start', gap: 10
-                              }}
-                            >
-                              <span style={{ fontSize: 18 }}>{TAXONOMY_EMOJI[t.taxonomy]}</span>
-                              <div style={{ flex: 1 }}>
-                                <div style={{ fontSize: 12, color: '#1a1a2e', lineHeight: 1.5 }}>
-                                  {t.description}
-                                </div>
-                                {t.group_name && (
-                                  <div style={{ fontSize: 9, color: '#888', marginTop: 4 }}>
-                                    Grupo: {t.group_name}
-                                  </div>
-                                )}
-                              </div>
-                            </button>
-                          )
-                        })}
-                      </div>
-                    ) : (
-                      <div style={{ fontSize: 11, color: '#999', fontStyle: 'italic' }}>
-                        Selecciona primero Materia y Grado para ver los logros disponibles.
-                      </div>
-                    )}
-                    {showTargetSelector && (
-                      <button
-                        onClick={() => setShowTargetSelector(false)}
-                        style={{
-                          fontSize: 11, padding: '5px 12px', borderRadius: 6,
-                          border: '1px solid #ddd', background: '#fff',
-                          color: '#666', cursor: 'pointer', marginTop: 8
-                        }}
-                      >
-                        Cancelar
-                      </button>
-                    )}
-                  </div>
-                )}
-
-                {/* Indicadores selector - only show when target is selected */}
-                {form.target_id && !showTargetSelector && (() => {
-                  const selectedTarget = learningTargets.find(t => t.id === form.target_id)
-                  const indicadores = selectedTarget?.indicadores || []
-
-                  if (indicadores.length === 0) {
-                    return (
-                      <div style={{
-                        padding: '12px', borderRadius: 8, background: '#FFF9E6',
-                        border: '1px dashed #F5C300', fontSize: 11, color: '#8B6914',
-                        fontStyle: 'italic', textAlign: 'center'
-                      }}>
-                        Este logro aún no tiene indicadores configurados.
-                      </div>
-                    )
-                  }
-
-                  return (
-                    <div>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: '#1A5C1A', marginBottom: 10, textTransform: 'uppercase' }}>
-                        📌 Selecciona el indicador que este proyecto demuestra:
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        {indicadores.map((ind, idx) => (
-                          <button
-                            key={idx}
-                            onClick={() => updateForm('target_indicador', ind)}
-                            style={{
-                              padding: '12px 16px', borderRadius: 10, textAlign: 'left',
-                              border: form.target_indicador === ind ? '2px solid #9BBB59' : '1px solid #ddd',
-                              background: form.target_indicador === ind ? '#fff' : '#fafafa',
-                              cursor: 'pointer', transition: 'all 0.15s',
-                              display: 'flex', alignItems: 'flex-start', gap: 10,
-                              boxShadow: form.target_indicador === ind ? '0 2px 8px rgba(155,187,89,0.3)' : 'none'
-                            }}
-                          >
-                            <div style={{
-                              width: 20, height: 20, borderRadius: '50%',
-                              border: form.target_indicador === ind ? '2px solid #9BBB59' : '2px solid #ddd',
-                              background: form.target_indicador === ind ? '#9BBB59' : '#fff',
-                              flexShrink: 0, marginTop: 2,
-                              display: 'flex', alignItems: 'center', justifyContent: 'center'
-                            }}>
-                              {form.target_indicador === ind && (
-                                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#fff' }} />
-                              )}
-                            </div>
-                            <div style={{ flex: 1 }}>
-                              <div style={{
-                                fontSize: 10, fontWeight: 700, color: '#5a8a00',
-                                marginBottom: 4, textTransform: 'uppercase'
-                              }}>
-                                Indicador {idx + 1}
-                              </div>
-                              <div style={{ fontSize: 12, color: '#1a1a2e', lineHeight: 1.6 }}>
-                                {ind}
-                              </div>
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                      <div style={{
-                        fontSize: 10, color: '#666', marginTop: 10, fontStyle: 'italic',
-                        padding: '8px 12px', background: '#f9f9f9', borderRadius: 6
-                      }}>
-                        💡 El estudiante demuestra que alcanzó el logro cuando cumple este indicador a través del proyecto NEWS.
-                      </div>
-                    </div>
-                  )
-                })()}
-              </div>
-
               {/* Biblical integration */}
               <div style={{
                 background: '#F0F4FF', borderRadius: 12, padding: 16,
@@ -767,7 +924,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
                 <h4 style={{ fontSize: 12, fontWeight: 800, color: '#1A3A8F', margin: '0 0 12px', textTransform: 'uppercase' }}>
                   ✝️ Integración Bíblica
                 </h4>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                   <div style={styles.field}>
                     <label style={styles.label}>Principio / Versículo</label>
                     <input
@@ -777,6 +934,36 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
                       style={styles.input}
                     />
                   </div>
+
+                  {/* Principio del Indicador (read-only display) */}
+                  {principles?.indicatorPrinciple && (
+                    <div style={{
+                      background: '#E8EEFF',
+                      borderRadius: 8,
+                      padding: '8px 16px',
+                      border: '1px solid #C5D5F0'
+                    }}>
+                      <div style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        color: '#1A3A8F',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.3px',
+                        marginBottom: 8
+                      }}>
+                        📖 Principio del Indicador (mes actual)
+                      </div>
+                      <div style={{
+                        fontSize: 11,
+                        color: '#1A3A8F',
+                        lineHeight: 1.4,
+                        fontStyle: 'italic'
+                      }}>
+                        "{principles.indicatorPrinciple}"
+                      </div>
+                    </div>
+                  )}
+
                   <div style={styles.field}>
                     <label style={styles.label}>Reflexión requerida</label>
                     <input
@@ -862,10 +1049,125 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
           {/* ──── RUBRIC TAB ──── */}
           {activeTab === 'rubric' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {/* AI Generator */}
+              <div style={{
+                background: 'linear-gradient(135deg, #7C3AED 0%, #9333EA 100%)',
+                borderRadius: 12, padding: 16,
+                boxShadow: '0 4px 12px rgba(124, 58, 237, 0.15)',
+                display: 'flex', flexDirection: 'column', gap: 16
+              }}>
+                <div style={{ display: 'flex', gap: 16, alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: 'white', marginBottom: 8 }}>
+                      ✨ Generar Rúbrica Completa con IA
+                    </div>
+                    <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.9)', margin: 0, lineHeight: 1.4 }}>
+                      La AI genera automáticamente 3-5 criterios con sus 5 niveles completos basándose en los indicadores de logro del proyecto.
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleGenerateRubric}
+                    disabled={generatingRubric || !form.title || !form.description || !form.target_indicador}
+                    style={{
+                      padding: '8px 24px',
+                      borderRadius: 8,
+                      border: 'none',
+                      background: 'white',
+                      color: '#7C3AED',
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: generatingRubric || !form.title || !form.description || !form.target_indicador ? 'not-allowed' : 'pointer',
+                      opacity: generatingRubric || !form.title || !form.description || !form.target_indicador ? 0.5 : 1,
+                      flexShrink: 0,
+                      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                      transform: generatingRubric ? 'scale(0.98)' : 'scale(1)'
+                    }}
+                  >
+                    {generatingRubric ? 'Generando...' : '✨ Generar'}
+                  </button>
+                </div>
+
+                {/* Apple-style progress indicator */}
+                {generatingRubric && (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 16,
+                    padding: 16,
+                    background: 'rgba(255,255,255,0.1)',
+                    borderRadius: 8,
+                    transition: 'opacity 0.3s ease-in-out'
+                  }}>
+                    {/* Circular spinner */}
+                    <div style={{
+                      width: 20,
+                      height: 20,
+                      flexShrink: 0
+                    }}>
+                      <svg viewBox="0 0 24 24" style={{
+                        animation: 'apple-spin 1s linear infinite',
+                        width: '100%',
+                        height: '100%'
+                      }}>
+                        <circle
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          fill="none"
+                          stroke="white"
+                          strokeWidth="3"
+                          strokeLinecap="round"
+                          strokeDasharray="31.4 31.4"
+                          strokeDashoffset="0"
+                          opacity="0.3"
+                        />
+                        <circle
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          fill="none"
+                          stroke="white"
+                          strokeWidth="3"
+                          strokeLinecap="round"
+                          strokeDasharray="31.4 31.4"
+                          strokeDashoffset="8"
+                        />
+                      </svg>
+                    </div>
+
+                    {/* Step text with fade transition */}
+                    <div style={{
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: 'white',
+                      flex: 1,
+                      transition: 'opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                      animation: 'fade-in-step 0.4s ease-in-out'
+                    }} key={rubricGenerationStep}>
+                      {rubricGenerationStep === 0 && '⊙ Analizando indicadores de logro...'}
+                      {rubricGenerationStep === 1 && '⊙ Diseñando criterios de evaluación...'}
+                      {rubricGenerationStep === 2 && '⊙ Generando niveles de desempeño...'}
+                    </div>
+                  </div>
+                )}
+
+                <style>{`
+                  @keyframes apple-spin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                  }
+
+                  @keyframes fade-in-step {
+                    0% { opacity: 0; transform: translateY(-4px); }
+                    100% { opacity: 1; transform: translateY(0); }
+                  }
+                `}</style>
+              </div>
+
               {/* Template selector */}
               <div style={{
                 background: '#FFFDF0', borderRadius: 12, padding: 16,
-                border: '1.5px solid #F5C300', display: 'flex', gap: 12,
+                border: '1.5px solid #F5C300', display: 'flex', gap: 16,
                 alignItems: 'flex-end', flexWrap: 'wrap'
               }}>
                 <div style={{ flex: 1, minWidth: 200 }}>
@@ -906,9 +1208,9 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
                 }}>
                   {/* Criterion header */}
                   <div style={{
-                    padding: '12px 16px', background: '#F8F9FC',
+                    padding: 16, background: '#F8F9FC',
                     borderBottom: '1px solid #eee',
-                    display: 'flex', gap: 12, alignItems: 'center'
+                    display: 'flex', gap: 16, alignItems: 'center'
                   }}>
                     <span style={{
                       width: 28, height: 28, borderRadius: 8,
@@ -942,7 +1244,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
                       style={{
                         border: 'none', background: 'rgba(204,31,39,0.08)',
                         color: '#CC1F27', borderRadius: 6,
-                        padding: '4px 8px', cursor: 'pointer',
+                        padding: '8px', cursor: 'pointer',
                         fontSize: 12, fontWeight: 700
                       }}
                     >
@@ -961,7 +1263,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
                         padding: 8
                       }}>
                         <div style={{
-                          textAlign: 'center', marginBottom: 6
+                          textAlign: 'center', marginBottom: 8
                         }}>
                           <span style={{
                             display: 'inline-block', width: 22, height: 22,
@@ -973,7 +1275,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
                           </span>
                           <div style={{
                             fontSize: 9, fontWeight: 700, color: level.color,
-                            marginTop: 2
+                            marginTop: 8
                           }}>
                             {level.label}
                           </div>
@@ -985,7 +1287,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
                           rows={3}
                           style={{
                             width: '100%', border: '1px solid #eee',
-                            borderRadius: 6, padding: '6px 8px',
+                            borderRadius: 6, padding: '8px',
                             fontSize: 10, lineHeight: 1.4,
                             resize: 'vertical', fontFamily: 'inherit',
                             boxSizing: 'border-box'
@@ -1032,6 +1334,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
         </div>
       </div>
     </div>
+    </>
   )
 })
 
@@ -1046,13 +1349,13 @@ function TagField({ label, tags, value, onChange, onAdd, onRemove, placeholder }
   return (
     <div style={styles.field}>
       <label style={styles.label}>{label}</label>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
         {tags.map((tag, i) => (
           <span key={i} style={{
-            padding: '3px 10px', borderRadius: 20,
+            padding: '4px 8px', borderRadius: 20,
             background: '#EEF2FB', color: '#1A3A8F',
             fontSize: 12, fontWeight: 600,
-            display: 'inline-flex', alignItems: 'center', gap: 6
+            display: 'inline-flex', alignItems: 'center', gap: 8
           }}>
             {tag}
             <button
@@ -1078,7 +1381,7 @@ function TagField({ label, tags, value, onChange, onAdd, onRemove, placeholder }
           style={{ ...styles.input, flex: 1 }}
         />
         <button onClick={onAdd} style={{
-          padding: '6px 14px', border: '1px solid #ddd', borderRadius: 8,
+          padding: '8px 16px', border: '1px solid #ddd', borderRadius: 8,
           background: 'white', color: '#1A3A8F', fontWeight: 700,
           fontSize: 12, cursor: 'pointer'
         }}>
@@ -1094,34 +1397,36 @@ const styles = {
   overlay: {
     position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
-    zIndex: 1000, padding: 20
+    zIndex: 1000, padding: 24
   },
   modal: {
     background: 'white', borderRadius: 16,
     width: '100%', maxWidth: 900,
     maxHeight: '90vh', display: 'flex', flexDirection: 'column',
-    boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
     overflow: 'hidden'
   },
   header: {
-    padding: '20px 24px', borderBottom: '1px solid #eee',
+    padding: 24, borderBottom: '1px solid #eee',
     display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start'
   },
   closeBtn: {
     border: 'none', background: '#f5f5f5', borderRadius: 8,
     width: 32, height: 32, fontSize: 16, cursor: 'pointer',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
-    color: '#888'
+    color: '#888',
+    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
   },
   tabs: {
-    display: 'flex', gap: 2, padding: '0 24px',
+    display: 'flex', gap: 8, padding: '0 24px',
     borderBottom: '1px solid #eee', background: '#fafafa'
   },
   tab: {
-    padding: '10px 18px', border: 'none', background: 'transparent',
+    padding: '8px 16px', border: 'none', background: 'transparent',
     fontSize: 12, fontWeight: 700, color: '#888', cursor: 'pointer',
-    borderBottom: '2px solid transparent', transition: 'all 0.15s',
-    display: 'flex', alignItems: 'center', gap: 6
+    borderBottom: '2px solid transparent',
+    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+    display: 'flex', alignItems: 'center', gap: 8
   },
   tabActive: {
     color: '#1A3A8F', borderBottomColor: '#1A3A8F'
@@ -1129,45 +1434,51 @@ const styles = {
   badge: {
     background: '#1A3A8F', color: 'white',
     fontSize: 10, fontWeight: 800, borderRadius: 10,
-    padding: '1px 6px', lineHeight: '16px'
+    padding: '2px 8px', lineHeight: '16px'
   },
   body: {
     padding: 24, overflowY: 'auto', flex: 1
   },
   footer: {
-    padding: '16px 24px', borderTop: '1px solid #eee',
-    display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+    padding: 24, borderTop: '1px solid #eee',
+    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+    gap: 16
   },
   field: {
-    display: 'flex', flexDirection: 'column', gap: 4, flex: 1
+    display: 'flex', flexDirection: 'column', gap: 8, flex: 1
   },
   label: {
     fontSize: 11, fontWeight: 700, color: '#888', textTransform: 'uppercase',
     letterSpacing: '0.3px'
   },
   input: {
-    padding: '8px 12px', border: '1.5px solid #ddd', borderRadius: 8,
+    padding: '8px 16px', border: '1px solid #E5E5E5', borderRadius: 8,
     fontSize: 13, fontFamily: 'inherit', color: '#1a1a2e',
-    transition: 'border-color 0.15s', outline: 'none',
-    boxSizing: 'border-box'
+    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', outline: 'none',
+    boxSizing: 'border-box',
+    background: 'white'
   },
   textarea: {
-    padding: '10px 12px', border: '1.5px solid #ddd', borderRadius: 8,
+    padding: '8px 16px', border: '1px solid #E5E5E5', borderRadius: 8,
     fontSize: 13, fontFamily: 'inherit', color: '#1a1a2e',
     resize: 'vertical', outline: 'none', lineHeight: 1.5,
-    boxSizing: 'border-box'
+    boxSizing: 'border-box',
+    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+    background: 'white'
   },
   row3: {
-    display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12
+    display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16
   },
   btnCancel: {
-    padding: '8px 18px', border: '1px solid #ddd', borderRadius: 8,
+    padding: '8px 16px', border: '1px solid #ddd', borderRadius: 8,
     background: 'white', color: '#555', fontSize: 13, fontWeight: 700,
-    cursor: 'pointer'
+    cursor: 'pointer',
+    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
   },
   btnSave: {
-    padding: '8px 22px', border: 'none', borderRadius: 8,
+    padding: '8px 24px', border: 'none', borderRadius: 8,
     background: '#1A3A8F', color: 'white', fontSize: 13, fontWeight: 700,
-    cursor: 'pointer', transition: 'all 0.15s'
+    cursor: 'pointer',
+    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
   }
 }
