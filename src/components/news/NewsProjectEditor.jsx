@@ -55,6 +55,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
   const [generatingRubric, setGeneratingRubric] = useState(false)
   const [rubricGenerationStep, setRubricGenerationStep] = useState(0)
   const [activeTab, setActiveTab] = useState('details')
+  const [principlesExpanded, setPrinciplesExpanded] = useState(false)
   const [tagInput, setTagInput] = useState({ grammar: '', vocabulary: '', units: '' })
   const [showTargetSelector, setShowTargetSelector] = useState(false)
 
@@ -328,14 +329,13 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
           box-shadow: 0 0 0 3px rgba(26, 58, 143, 0.1) !important;
         }
 
-        /* Button hover states */
-        button:not(:disabled):hover {
+        /* Button hover states — only primary CTAs, not utility/inline buttons */
+        .news-btn-primary:not(:disabled):hover {
           transform: scale(1.02);
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+          box-shadow: 0 4px 12px rgba(26, 58, 143, 0.2);
         }
 
-        /* Button active states */
-        button:not(:disabled):active {
+        .news-btn-primary:not(:disabled):active {
           transform: scale(0.98);
         }
 
@@ -413,100 +413,67 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
               Define el proyecto, la rúbrica y el contenido del textbook
             </p>
           </div>
-          <button onClick={onClose} className="news-close-btn" style={styles.closeBtn} aria-label="Cerrar editor de proyecto NEWS">✕</button>
+          <button onClick={onClose} className="news-close-btn news-btn-primary" style={styles.closeBtn} aria-label="Cerrar editor de proyecto NEWS">✕</button>
         </div>
 
-        {/* ── PRINCIPIOS RECTORES (COMPACT BANNER) ── */}
+        {/* ── PRINCIPIOS RECTORES (COLLAPSIBLE STRIP) ── */}
         {principles && (principles.yearVerse || principles.monthVerse) && (
           <div style={{
-            padding: '16px 24px',
             background: 'linear-gradient(135deg, #1A3A8F 0%, #2E5598 100%)',
-            borderBottom: '3px solid #F5C300',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 8
+            borderBottom: '2px solid #F5C300'
           }}>
-            <div style={{
-              fontSize: 11,
-              fontWeight: 900,
-              color: '#F5C300',
-              textTransform: 'uppercase',
-              letterSpacing: '1px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8
-            }}>
-              <span style={{ fontSize: 16 }}>📖</span>
-              PRINCIPIOS RECTORES INSTITUCIONALES
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-              {principles.yearVerse && (
-                <div style={{
-                  background: 'rgba(255,255,255,0.08)',
-                  borderRadius: 8,
-                  padding: '8px 16px',
-                  borderLeft: '3px solid #F5C300'
-                }}>
-                  <div style={{
-                    fontSize: 9,
-                    fontWeight: 800,
-                    color: '#F5C300',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px',
-                    marginBottom: 8
-                  }}>
-                    ✨ VERSÍCULO DEL AÑO
-                  </div>
-                  <div style={{ fontSize: 12, lineHeight: 1.5, color: '#FFFFFF', fontWeight: 400 }}>
-                    "{principles.yearVerse}"
-                  </div>
-                  {principles.yearVerseRef && (
-                    <div style={{
-                      fontSize: 10,
-                      fontStyle: 'italic',
-                      color: '#C5D5F0',
-                      marginTop: 8,
-                      textAlign: 'right'
-                    }}>
-                      — {principles.yearVerseRef}
+            {/* Compact strip — always visible */}
+            <button
+              onClick={() => setPrinciplesExpanded(p => !p)}
+              style={{
+                width: '100%', padding: '8px 24px', background: 'transparent',
+                border: 'none', display: 'flex', alignItems: 'center', gap: 10,
+                cursor: 'pointer', textAlign: 'left'
+              }}
+            >
+              <span style={{ fontSize: 13 }}>📖</span>
+              <span style={{ fontSize: 10, fontWeight: 900, color: '#F5C300', textTransform: 'uppercase', letterSpacing: '0.8px', flexShrink: 0 }}>
+                PRINCIPIOS RECTORES
+              </span>
+              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {principles.yearVerseRef && `Año: ${principles.yearVerseRef}`}
+                {principles.yearVerseRef && principles.monthVerseRef && ' · '}
+                {principles.monthVerseRef && `Mes: ${principles.monthVerseRef}`}
+              </span>
+              <span style={{
+                color: '#F5C300', fontSize: 10, flexShrink: 0,
+                transition: 'transform 0.2s', display: 'inline-block',
+                transform: principlesExpanded ? 'rotate(180deg)' : 'rotate(0deg)'
+              }}>▾</span>
+            </button>
+
+            {/* Expanded — full verses */}
+            {principlesExpanded && (
+              <div style={{ padding: '0 24px 12px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                {principles.yearVerse && (
+                  <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 8, padding: '8px 12px', borderLeft: '3px solid #F5C300' }}>
+                    <div style={{ fontSize: 9, fontWeight: 800, color: '#F5C300', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>
+                      ✨ VERSÍCULO DEL AÑO
                     </div>
-                  )}
-                </div>
-              )}
-              {principles.monthVerse && (
-                <div style={{
-                  background: 'rgba(255,255,255,0.08)',
-                  borderRadius: 8,
-                  padding: '8px 16px',
-                  borderLeft: '3px solid #F5C300'
-                }}>
-                  <div style={{
-                    fontSize: 9,
-                    fontWeight: 800,
-                    color: '#F5C300',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px',
-                    marginBottom: 8
-                  }}>
-                    📅 VERSÍCULO DEL MES
+                    <div style={{ fontSize: 11, lineHeight: 1.5, color: '#FFFFFF' }}>"{principles.yearVerse}"</div>
+                    {principles.yearVerseRef && (
+                      <div style={{ fontSize: 10, fontStyle: 'italic', color: '#C5D5F0', marginTop: 4, textAlign: 'right' }}>— {principles.yearVerseRef}</div>
+                    )}
                   </div>
-                  <div style={{ fontSize: 12, lineHeight: 1.5, color: '#FFFFFF', fontWeight: 400 }}>
-                    "{principles.monthVerse}"
-                  </div>
-                  {principles.monthVerseRef && (
-                    <div style={{
-                      fontSize: 10,
-                      fontStyle: 'italic',
-                      color: '#C5D5F0',
-                      marginTop: 8,
-                      textAlign: 'right'
-                    }}>
-                      — {principles.monthVerseRef}
+                )}
+                {principles.monthVerse && (
+                  <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 8, padding: '8px 12px', borderLeft: '3px solid #F5C300' }}>
+                    <div style={{ fontSize: 9, fontWeight: 800, color: '#F5C300', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>
+                      📅 VERSÍCULO DEL MES
                     </div>
-                  )}
-                </div>
-              )}
-            </div>
+                    <div style={{ fontSize: 11, lineHeight: 1.5, color: '#FFFFFF' }}>"{principles.monthVerse}"</div>
+                    {principles.monthVerseRef && (
+                      <div style={{ fontSize: 10, fontStyle: 'italic', color: '#C5D5F0', marginTop: 4, textAlign: 'right' }}>— {principles.monthVerseRef}</div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -630,9 +597,10 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
 
               {/* ── LOGRO DE DESEMPEÑO ── */}
               <div style={{
-                background: '#F0F7F0', borderRadius: 8, padding: 10,
+                background: '#F0F7F0', borderRadius: 12, padding: 16,
                 border: '1px solid #E8F0E8',
-                boxShadow: '0 1px 3px rgba(155, 187, 89, 0.1)'
+                boxShadow: '0 1px 3px rgba(155, 187, 89, 0.1)',
+                overflow: 'hidden'
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                   <h4 style={{ fontSize: 11, fontWeight: 800, color: '#1A5C1A', margin: 0, textTransform: 'uppercase', letterSpacing: '0.3px' }}>
@@ -714,7 +682,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
                         </div>
                       </div>
                     ) : learningTargets.length > 0 ? (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 180, overflowY: 'auto' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 180, overflowY: 'auto', overflowX: 'hidden' }}>
                         <div style={{ fontSize: 9, fontWeight: 700, color: '#5a8a00', marginBottom: 0, textTransform: 'uppercase', letterSpacing: '0.3px' }}>
                           Selecciona el logro que este proyecto evalúa:
                         </div>
@@ -801,7 +769,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
                       <div style={{ fontSize: 9, fontWeight: 700, color: '#1A5C1A', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.3px' }}>
                         📌 Selecciona el indicador que este proyecto demuestra:
                       </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 160, overflowY: 'auto' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 160, overflowY: 'auto', overflowX: 'hidden' }}>
                         {indicadores.map((ind, idx) => (
                           <button
                             key={idx}
@@ -829,7 +797,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{
                                 fontSize: 9, fontWeight: 700, color: '#5a8a00',
-                                marginBottom: 0, textTransform: 'uppercase', letterSpacing: '0.2px'
+                                marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.2px'
                               }}>
                                 Indicador {idx + 1}
                               </div>
@@ -877,7 +845,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
                   value={form.description}
                   onChange={e => updateForm('description', e.target.value)}
                   placeholder="Los alumnos realizarán una presentación..."
-                  rows={4}
+                  rows={3}
                   style={styles.textarea}
                 />
               </div>
@@ -889,7 +857,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
                   value={form.conditions}
                   onChange={e => updateForm('conditions', e.target.value)}
                   placeholder="Mínimo 5 minutos, presentación dinámica..."
-                  rows={3}
+                  rows={2}
                   style={styles.textarea}
                 />
               </div>
@@ -918,13 +886,13 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
 
               {/* Biblical integration */}
               <div style={{
-                background: '#F0F4FF', borderRadius: 12, padding: 16,
+                background: '#F0F4FF', borderRadius: 12, padding: '12px 16px',
                 border: '1px solid #D0DCFF'
               }}>
-                <h4 style={{ fontSize: 12, fontWeight: 800, color: '#1A3A8F', margin: '0 0 12px', textTransform: 'uppercase' }}>
+                <h4 style={{ fontSize: 11, fontWeight: 800, color: '#1A3A8F', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.3px' }}>
                   ✝️ Integración Bíblica
                 </h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <div style={styles.field}>
                     <label style={styles.label}>Principio / Versículo</label>
                     <input
@@ -934,36 +902,6 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
                       style={styles.input}
                     />
                   </div>
-
-                  {/* Principio del Indicador (read-only display) */}
-                  {principles?.indicatorPrinciple && (
-                    <div style={{
-                      background: '#E8EEFF',
-                      borderRadius: 8,
-                      padding: '8px 16px',
-                      border: '1px solid #C5D5F0'
-                    }}>
-                      <div style={{
-                        fontSize: 10,
-                        fontWeight: 700,
-                        color: '#1A3A8F',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.3px',
-                        marginBottom: 8
-                      }}>
-                        📖 Principio del Indicador (mes actual)
-                      </div>
-                      <div style={{
-                        fontSize: 11,
-                        color: '#1A3A8F',
-                        lineHeight: 1.4,
-                        fontStyle: 'italic'
-                      }}>
-                        "{principles.indicatorPrinciple}"
-                      </div>
-                    </div>
-                  )}
-
                   <div style={styles.field}>
                     <label style={styles.label}>Reflexión requerida</label>
                     <input
@@ -974,6 +912,19 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
                     />
                   </div>
                 </div>
+                {principles?.indicatorPrinciple && (
+                  <div style={{
+                    background: '#E8EEFF', borderRadius: 6,
+                    padding: '6px 12px', border: '1px solid #C5D5F0', marginTop: 8
+                  }}>
+                    <span style={{ fontSize: 9, fontWeight: 700, color: '#1A3A8F', textTransform: 'uppercase', letterSpacing: '0.3px' }}>
+                      📖 Principio del indicador (mes):
+                    </span>
+                    <span style={{ fontSize: 11, color: '#1A3A8F', lineHeight: 1.4, fontStyle: 'italic', marginLeft: 6 }}>
+                      "{principles.indicatorPrinciple}"
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -1049,148 +1000,65 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
           {/* ──── RUBRIC TAB ──── */}
           {activeTab === 'rubric' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {/* AI Generator */}
-              <div style={{
-                background: 'linear-gradient(135deg, #7C3AED 0%, #9333EA 100%)',
-                borderRadius: 12, padding: 16,
-                boxShadow: '0 4px 12px rgba(124, 58, 237, 0.15)',
-                display: 'flex', flexDirection: 'column', gap: 16
-              }}>
-                <div style={{ display: 'flex', gap: 16, alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 800, color: 'white', marginBottom: 8 }}>
-                      ✨ Generar Rúbrica Completa con IA
-                    </div>
-                    <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.9)', margin: 0, lineHeight: 1.4 }}>
-                      La AI genera automáticamente 3-5 criterios con sus 5 niveles completos basándose en los indicadores de logro del proyecto.
-                    </p>
-                  </div>
-                  <button
-                    onClick={handleGenerateRubric}
-                    disabled={generatingRubric || !form.title || !form.description || !form.target_indicador}
-                    style={{
-                      padding: '8px 24px',
-                      borderRadius: 8,
-                      border: 'none',
-                      background: 'white',
-                      color: '#7C3AED',
-                      fontSize: 13,
-                      fontWeight: 700,
-                      cursor: generatingRubric || !form.title || !form.description || !form.target_indicador ? 'not-allowed' : 'pointer',
-                      opacity: generatingRubric || !form.title || !form.description || !form.target_indicador ? 0.5 : 1,
-                      flexShrink: 0,
-                      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                      transform: generatingRubric ? 'scale(0.98)' : 'scale(1)'
-                    }}
-                  >
-                    {generatingRubric ? 'Generando...' : '✨ Generar'}
-                  </button>
-                </div>
 
-                {/* Apple-style progress indicator */}
-                {generatingRubric && (
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 16,
-                    padding: 16,
-                    background: 'rgba(255,255,255,0.1)',
-                    borderRadius: 8,
-                    transition: 'opacity 0.3s ease-in-out'
-                  }}>
-                    {/* Circular spinner */}
-                    <div style={{
-                      width: 20,
-                      height: 20,
-                      flexShrink: 0
-                    }}>
-                      <svg viewBox="0 0 24 24" style={{
-                        animation: 'apple-spin 1s linear infinite',
-                        width: '100%',
-                        height: '100%'
-                      }}>
-                        <circle
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          fill="none"
-                          stroke="white"
-                          strokeWidth="3"
-                          strokeLinecap="round"
-                          strokeDasharray="31.4 31.4"
-                          strokeDashoffset="0"
-                          opacity="0.3"
-                        />
-                        <circle
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          fill="none"
-                          stroke="white"
-                          strokeWidth="3"
-                          strokeLinecap="round"
-                          strokeDasharray="31.4 31.4"
-                          strokeDashoffset="8"
-                        />
+              {/* AI + Template — una sola fila */}
+              <div style={{
+                background: '#F8F8FC', borderRadius: 10,
+                border: '1px solid #E0E0F0', padding: '10px 14px',
+                display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap'
+              }}>
+                <button
+                  className="news-btn-primary"
+                  onClick={handleGenerateRubric}
+                  disabled={generatingRubric || !form.title || !form.description || !form.target_indicador}
+                  style={{
+                    padding: '8px 16px', borderRadius: 8, border: 'none', flexShrink: 0,
+                    background: 'linear-gradient(135deg, #7C3AED 0%, #9333EA 100%)',
+                    color: 'white', fontSize: 12, fontWeight: 700,
+                    cursor: generatingRubric || !form.title || !form.description || !form.target_indicador ? 'not-allowed' : 'pointer',
+                    opacity: generatingRubric || !form.title || !form.description || !form.target_indicador ? 0.5 : 1,
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    boxShadow: '0 2px 8px rgba(124,58,237,0.25)',
+                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+                  }}
+                >
+                  {generatingRubric ? (
+                    <>
+                      <svg viewBox="0 0 24 24" style={{ width: 14, height: 14, animation: 'apple-spin 1s linear infinite', flexShrink: 0 }}>
+                        <circle cx="12" cy="12" r="10" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeDasharray="31.4 31.4" strokeDashoffset="0" opacity="0.3" />
+                        <circle cx="12" cy="12" r="10" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeDasharray="31.4 31.4" strokeDashoffset="8" />
                       </svg>
-                    </div>
-
-                    {/* Step text with fade transition */}
-                    <div style={{
-                      fontSize: 12,
-                      fontWeight: 600,
-                      color: 'white',
-                      flex: 1,
-                      transition: 'opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-                      animation: 'fade-in-step 0.4s ease-in-out'
-                    }} key={rubricGenerationStep}>
-                      {rubricGenerationStep === 0 && '⊙ Analizando indicadores de logro...'}
-                      {rubricGenerationStep === 1 && '⊙ Diseñando criterios de evaluación...'}
-                      {rubricGenerationStep === 2 && '⊙ Generando niveles de desempeño...'}
-                    </div>
-                  </div>
-                )}
-
-                <style>{`
-                  @keyframes apple-spin {
-                    0% { transform: rotate(0deg); }
-                    100% { transform: rotate(360deg); }
-                  }
-
-                  @keyframes fade-in-step {
-                    0% { opacity: 0; transform: translateY(-4px); }
-                    100% { opacity: 1; transform: translateY(0); }
-                  }
-                `}</style>
+                      <span key={rubricGenerationStep} style={{ animation: 'fade-in-step 0.4s ease-in-out' }}>
+                        {rubricGenerationStep === 0 && 'Analizando...'}
+                        {rubricGenerationStep === 1 && 'Diseñando...'}
+                        {rubricGenerationStep === 2 && 'Generando...'}
+                      </span>
+                    </>
+                  ) : '✨ Generar con IA'}
+                </button>
+                <span style={{ fontSize: 11, color: '#bbb', flexShrink: 0 }}>o</span>
+                <select
+                  style={{ ...styles.input, flex: 1, minWidth: 180 }}
+                  defaultValue=""
+                  onChange={e => e.target.value && loadTemplate(e.target.value)}
+                >
+                  <option value="">Cargar plantilla institucional...</option>
+                  {matchingTemplates.map(t => (
+                    <option key={t.id} value={t.id}>{t.name} ({t.criteria?.length ?? 0} criterios)</option>
+                  ))}
+                </select>
               </div>
 
-              {/* Template selector */}
-              <div style={{
-                background: '#FFFDF0', borderRadius: 12, padding: 16,
-                border: '1.5px solid #F5C300', display: 'flex', gap: 16,
-                alignItems: 'flex-end', flexWrap: 'wrap'
-              }}>
-                <div style={{ flex: 1, minWidth: 200 }}>
-                  <label style={{ ...styles.label, color: '#B8860B' }}>
-                    Cargar plantilla institucional
-                  </label>
-                  <select
-                    style={styles.input}
-                    defaultValue=""
-                    onChange={e => e.target.value && loadTemplate(e.target.value)}
-                  >
-                    <option value="">Seleccionar plantilla...</option>
-                    {matchingTemplates.map(t => (
-                      <option key={t.id} value={t.id}>
-                        {t.name} ({t.criteria.length} criterios)
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <p style={{ fontSize: 11, color: '#888', margin: 0 }}>
-                  Carga los criterios base y luego personaliza los descriptores por nivel
-                </p>
-              </div>
+              <style>{`
+                @keyframes apple-spin {
+                  0% { transform: rotate(0deg); }
+                  100% { transform: rotate(360deg); }
+                }
+                @keyframes fade-in-step {
+                  0% { opacity: 0; transform: translateY(-3px); }
+                  100% { opacity: 1; transform: translateY(0); }
+                }
+              `}</style>
 
               {/* Criteria list */}
               {form.rubric.length === 0 && (
@@ -1318,8 +1186,9 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
             {form.status === 'draft' ? 'Borrador' : form.status}
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={onClose} style={styles.btnCancel}>Cancelar</button>
+            <button onClick={onClose} className="news-btn-primary" style={styles.btnCancel}>Cancelar</button>
             <button
+              className="news-btn-primary"
               onClick={handleSubmit}
               disabled={!isValid || saving}
               style={{
