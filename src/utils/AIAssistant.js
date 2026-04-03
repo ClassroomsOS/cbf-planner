@@ -215,9 +215,11 @@ ${biblicalBlock(principles,
   const safeLTDesc = learningTarget?.description ? sanitizeAIInput(learningTarget.description) : ''
   const safeExisting = existingContent ? sanitizeAIInput(existingContent.replace(/<[^>]+>/g,' ').slice(0,200)) : '(vacío)'
 
-  const existingTypes = existingBlocks?.length ? existingBlocks.map(b => b.type) : []
-  const noRepeatRule = existingTypes.length
-    ? `REGLA OBLIGATORIA: Ya existen bloques de tipo ${[...new Set(existingTypes)].join(', ')}. NO repitas ninguno de esos tipos — elige un tipo DIFERENTE que complemente lo que ya hay.`
+  const ALL_TYPES = ['DICTATION','QUIZ','VOCAB','WORKSHOP','SPEAKING','NOTICE','READING','GRAMMAR','EXIT_TICKET']
+  const existingTypes = new Set((existingBlocks || []).map(b => b.type))
+  const availableTypes = ALL_TYPES.filter(t => !existingTypes.has(t))
+  const noRepeatRule = existingTypes.size
+    ? `REGLA OBLIGATORIA: Ya existen bloques de tipo ${[...existingTypes].join(', ')}. Debes elegir ÚNICAMENTE entre estos tipos disponibles: ${availableTypes.join(', ')}. NO uses ningún otro tipo.`
     : ''
 
   const message = `Sección: ${sectionMeta?.label} (${sectionMeta?.time})

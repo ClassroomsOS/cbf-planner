@@ -759,15 +759,21 @@ export const SmartBlocksList = memo(function SmartBlocksList({ blocks = [], onCh
         <button className="sb-add-btn" style={{ flex: 1 }} onClick={() => { setEditId(null); setModalOpen(true) }}>
           <span>＋</span> Agregar Bloque
         </button>
-        {aiContext && (
-          <button
-            className="sb-add-btn"
-            style={{ flex: 1, background: suggesting ? '#e8eef8' : '#f0f4ff', borderColor: '#4BACC6', color: '#2E5598' }}
-            onClick={handleAISuggest}
-            disabled={suggesting}>
-            {suggesting ? <span>⏳ Pensando…</span> : <><span>✨</span> Sugerir con IA</>}
-          </button>
-        )}
+        {aiContext && (() => {
+          const usedTypes = new Set(blocks.map(b => b.type))
+          const allTypes = Object.keys(BLOCK_TYPES)
+          const allCovered = allTypes.every(t => usedTypes.has(t))
+          return (
+            <button
+              className="sb-add-btn"
+              style={{ flex: 1, background: (suggesting || allCovered) ? '#e8eef8' : '#f0f4ff', borderColor: '#4BACC6', color: '#2E5598' }}
+              onClick={handleAISuggest}
+              disabled={suggesting || allCovered}
+              title={allCovered ? 'Ya tienes todos los tipos de SmartBlocks disponibles en esta sección' : ''}>
+              {suggesting ? <span>⏳ Pensando…</span> : allCovered ? <><span>✅</span> Todos los tipos usados</> : <><span>✨</span> Sugerir con IA</>}
+            </button>
+          )
+        })()}
       </div>
       {suggestError && (
         <div style={{ fontSize: '11px', color: '#cc3333', marginTop: '4px' }}>⚠️ {suggestError}</div>
