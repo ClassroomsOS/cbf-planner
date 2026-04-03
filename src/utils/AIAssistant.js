@@ -5,6 +5,35 @@
 import { supabase } from '../supabase'
 import { sanitizeAIInput } from './validationSchemas'
 
+// ── Normalize SmartBlock data returned by AI ─────────────────────────────────
+// Fixes common structural variations so stored blocks always use canonical keys.
+function normalizeSmartBlock(block) {
+  if (!block?.data) return block
+  const { type, data } = block
+
+  if (type === 'VOCAB') {
+    const raw = data.words || data.vocabulary || data.word_list || data.items || []
+    block.data.words = raw.map(wd => {
+      if (typeof wd === 'string') return { w: wd, d: '', e: '' }
+      return {
+        w: wd.w || wd.term        || wd.word    || wd.en         || '',
+        d: wd.d || wd.definition  || wd.meaning || wd.desc       || '',
+        e: wd.e || wd.example     || wd.context || wd.in_context || '',
+      }
+    })
+  }
+
+  if (type === 'QUIZ') {
+    if (Array.isArray(data.topics)) {
+      block.data.topics = data.topics.filter(Boolean)
+    } else if (typeof data.topics !== 'string') {
+      block.data.topics = ''
+    }
+  }
+
+  return block
+}
+
 // ── Core caller ───────────────────────────────────────────────────────────────
 async function callClaude({ type, system, message, planId, maxTokens }) {
   const { data: { session } } = await supabase.auth.getSession()
@@ -192,7 +221,7 @@ Sugiere el bloque más pedagógicamente apropiado para este contexto. Incluye da
   const match = raw.match(/\{[\s\S]*\}/)
   if (!match) throw new Error('La IA no devolvió un bloque válido.')
   try {
-    return JSON.parse(match[0].trim())
+    return normalizeSmartBlock(JSON.parse(match[0].trim()))
   } catch {
     throw new Error('No se pudo leer el bloque sugerido.')
   }
