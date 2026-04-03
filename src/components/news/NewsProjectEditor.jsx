@@ -1,6 +1,7 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback, memo } from 'react'
 import { supabase } from '../../supabase'
 import { useToast } from '../../context/ToastContext'
+import { useFocusTrap } from '../../hooks/useFocusTrap'
 
 const SKILLS = [
   { value: '', label: '— Sin skill específico —' },
@@ -20,9 +21,11 @@ const LEVEL_LABELS = [
 
 const EMPTY_TEXTBOOK = { book: '', units: [], grammar: [], vocabulary: [], pages: { student: '', workbook: '' } }
 
-export default function NewsProjectEditor({ teacher, project, templates, cloneForProject, onSave, onClose }) {
+const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, templates, cloneForProject, onSave, onClose }) {
   const isEditing = !!project
   const { showToast } = useToast()
+
+  const modalRef = useFocusTrap(true, onClose)
 
   // Form state
   const [form, setForm] = useState({
@@ -189,22 +192,10 @@ export default function NewsProjectEditor({ teacher, project, templates, cloneFo
   // Validation
   const isValid = form.title && form.subject && form.grade && form.section && form.due_date && form.description
 
-  const handleSubmit = async () => {
-    if (!isValid || saving) return
-    setSaving(true)
-    const result = await onSave(form)
-    setSaving(false)
-    if (result.error) {
-      showToast('Error: ' + result.error, 'error')
-    } else {
-      showToast(isEditing ? 'Proyecto NEWS actualizado ✓' : 'Proyecto NEWS creado ✓', 'success')
-    }
-  }
-
   return (
     /* ── FIX 2A: overlay NO cierra al clic — solo X y Cancelar cierran ── */
     <div style={styles.overlay}>
-      <div style={styles.modal} onClick={e => e.stopPropagation()}>
+      <div ref={modalRef} style={styles.modal} onClick={e => e.stopPropagation()}>
         {/* Modal Header */}
         <div style={styles.header}>
           <div>
@@ -666,7 +657,9 @@ export default function NewsProjectEditor({ teacher, project, templates, cloneFo
       </div>
     </div>
   )
-}
+})
+
+export default NewsProjectEditor
 
 // ── Tag Input Component ──
 function TagField({ label, tags, value, onChange, onAdd, onRemove, placeholder }) {

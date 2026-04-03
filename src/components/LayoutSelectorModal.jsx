@@ -2,7 +2,8 @@
 // Elige cómo posicionar las imágenes respecto al texto en una sección.
 // Soporta hasta 4 imágenes con grid automático.
 
-import { useState } from 'react'
+import { useState, useCallback, memo } from 'react'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 
 export const LAYOUT_ELIGIBLE = ['motivation', 'activity', 'skill']
 
@@ -27,7 +28,7 @@ const LAYOUT_OPTIONS = [
   },
 ]
 
-export default function LayoutSelectorModal({
+const LayoutSelectorModal = memo(function LayoutSelectorModal({
   isOpen,
   onClose,
   onConfirm,
@@ -40,15 +41,16 @@ export default function LayoutSelectorModal({
   const normalize = l => l === 'stack' ? 'below' : l === 'side' ? 'right' : (l || 'below')
 
   const [selected, setSelected] = useState(normalize(currentLayout))
+  const modalRef = useFocusTrap(isOpen, onClose)
 
-  function handleConfirm() {
+  const handleConfirm = useCallback(() => {
     onConfirm({ image_layout: selected })
     onClose()
-  }
+  }, [selected, onConfirm, onClose])
 
   return (
     <div style={S.overlay}>
-      <div style={S.modal}>
+      <div ref={modalRef} style={S.modal}>
 
         {/* Header */}
         <div style={S.header}>
@@ -107,7 +109,9 @@ export default function LayoutSelectorModal({
       </div>
     </div>
   )
-}
+})
+
+export default LayoutSelectorModal
 
 // ── SVG Icons ─────────────────────────────────────────────────────────────────
 

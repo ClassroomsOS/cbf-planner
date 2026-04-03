@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useCallback, memo } from 'react'
 import { supabase } from '../supabase'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 
 // ── CheckpointModal ─────────────────────────────────────────────────────────
 // Appears before creating a new guide when the previous week had a
@@ -49,12 +50,14 @@ const TAXONOMY_LABELS = {
   produce: '✨ Producir',
 }
 
-export default function CheckpointModal({ previousPlan, target, teacher, onComplete, onSkip, onClose }) {
+const CheckpointModal = memo(function CheckpointModal({ previousPlan, target, teacher, onComplete, onSkip, onClose }) {
   const [selected, setSelected] = useState(null)
   const [notes, setNotes]       = useState('')
   const [saving, setSaving]     = useState(false)
 
-  async function handleSave() {
+  const modalRef = useFocusTrap(true, onClose)
+
+  const handleSave = useCallback(async () => {
     if (!selected) return
     setSaving(true)
 
@@ -74,7 +77,7 @@ export default function CheckpointModal({ previousPlan, target, teacher, onCompl
 
     setSaving(false)
     onComplete()
-  }
+  }, [selected, notes, target.id, previousPlan, teacher, onComplete])
 
   return (
     <div
@@ -86,6 +89,7 @@ export default function CheckpointModal({ previousPlan, target, teacher, onCompl
       }}
     >
       <div
+        ref={modalRef}
         style={{
           background: '#fff', borderRadius: '16px', width: '100%',
           maxWidth: '540px', maxHeight: '90vh', display: 'flex',
@@ -104,6 +108,7 @@ export default function CheckpointModal({ previousPlan, target, teacher, onCompl
           </h3>
           <button
             onClick={onClose}
+            aria-label="Cerrar checkpoint"
             style={{
               background: 'none', border: 'none', fontSize: '20px',
               color: '#888', cursor: 'pointer', padding: '4px 8px', borderRadius: '6px',
@@ -234,4 +239,6 @@ export default function CheckpointModal({ previousPlan, target, teacher, onCompl
       </div>
     </div>
   )
-}
+})
+
+export default CheckpointModal

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, memo } from 'react'
 import { suggestSectionActivity, analyzeGuide, generateGuideStructure } from '../utils/AIAssistant'
 import { useToast } from '../context/ToastContext'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 
 // ══════════════════════════════════════════════════════════════
 // PUNTO 1 — AISuggestButton (inline en cada sección)
@@ -78,13 +79,15 @@ export const AISuggestButton = memo(function AISuggestButton({ section, grade, s
 // ══════════════════════════════════════════════════════════════
 // PUNTO 2 — AIAnalyzerModal (análisis completo pre-export)
 // ══════════════════════════════════════════════════════════════
-export function AIAnalyzerModal({ content, onClose, principles }) {
+export const AIAnalyzerModal = memo(function AIAnalyzerModal({ content, onClose, principles }) {
   const { showToast } = useToast()
   const [loading,  setLoading]  = useState(false)
   const [analysis, setAnalysis] = useState(null)
   const [error,    setError]    = useState(null)
 
-  async function handleAnalyze() {
+  const modalRef = useFocusTrap(true, onClose)
+
+  const handleAnalyze = useCallback(async () => {
     setLoading(true); setError(null); setAnalysis(null)
     try {
       const result = await analyzeGuide(content, null, principles)
@@ -95,10 +98,10 @@ export function AIAnalyzerModal({ content, onClose, principles }) {
       showToast(errorMsg, 'error')
     }
     setLoading(false)
-  }
+  }, [content, principles, showToast])
 
   // Auto-analyze on open
-  useState(() => { handleAnalyze() }, [])
+  useEffect(() => { handleAnalyze() }, [handleAnalyze])
 
   // Format analysis with colored sections
   function formatAnalysis(text) {
@@ -147,7 +150,7 @@ export function AIAnalyzerModal({ content, onClose, principles }) {
 
   return (
     <div className="sb-modal-overlay">
-      <div className="sb-modal" style={{ maxWidth: '680px' }}>
+      <div ref={modalRef} className="sb-modal" style={{ maxWidth: '680px' }}>
         <div className="sb-modal-header">
           <h2>🔍 Análisis pedagógico de la guía</h2>
           <button onClick={onClose} aria-label="Cerrar análisis pedagógico">✕</button>
@@ -185,12 +188,12 @@ export function AIAnalyzerModal({ content, onClose, principles }) {
       </div>
     </div>
   )
-}
+})
 
 // ══════════════════════════════════════════════════════════════
 // PUNTO 3 — AIGeneratorModal (generar guía desde objetivo)
 // ══════════════════════════════════════════════════════════════
-export function AIGeneratorModal({ grade, subject, period, activeDays, currentContent, onApply, onClose, learningTarget, principles }) {
+export const AIGeneratorModal = memo(function AIGeneratorModal({ grade, subject, period, activeDays, currentContent, onApply, onClose, learningTarget, principles }) {
   const { showToast } = useToast()
   const [objective, setObjective] = useState(learningTarget?.description || '')
   const [unit,      setUnit]      = useState('')
@@ -199,6 +202,8 @@ export function AIGeneratorModal({ grade, subject, period, activeDays, currentCo
   const [error,     setError]     = useState(null)
   const [progress,  setProgress]  = useState(0)
   const progressRef = useRef(null)
+
+  const modalRef = useFocusTrap(true, onClose)
 
   const PROGRESS_STEPS = [
     { at:  0, msg: 'Analizando objetivo y contexto…' },
@@ -237,7 +242,7 @@ export function AIGeneratorModal({ grade, subject, period, activeDays, currentCo
     skill: 'Skill Development', closing: 'Closing', assignment: 'Assignment'
   }
 
-  async function handleGenerate() {
+  const handleGenerate = useCallback(async () => {
     if (!objective.trim()) return
     setLoading(true); setError(null); setPreview(null)
     try {
@@ -251,9 +256,9 @@ export function AIGeneratorModal({ grade, subject, period, activeDays, currentCo
       showToast(errorMsg, 'error')
     }
     setLoading(false)
-  }
+  }, [grade, subject, period, objective, unit, activeDays, learningTarget, principles, showToast])
 
-  function handleApply() {
+  const handleApply = useCallback(() => {
     if (!preview) return
     // If no currentContent, pass preview directly (PlannerPage handles merge itself)
     if (!currentContent) {
@@ -289,11 +294,11 @@ export function AIGeneratorModal({ grade, subject, period, activeDays, currentCo
     if (preview.summary && preview.summary.next) base.summary.next = preview.summary.next
     onApply(base)
     onClose()
-  }
+  }, [preview, currentContent, onApply, onClose])
 
   return (
     <div className="sb-modal-overlay">
-      <div className="sb-modal" style={{ maxWidth: '760px' }}>
+      <div ref={modalRef} className="sb-modal" style={{ maxWidth: '760px' }}>
         <div className="sb-modal-header">
           <h2>🤖 Generar guía con IA — {grade} · {subject}</h2>
           <button onClick={onClose} aria-label="Cerrar generador de guías">✕</button>
@@ -456,4 +461,4 @@ export function AIGeneratorModal({ grade, subject, period, activeDays, currentCo
       </div>
     </div>
   )
-}
+})

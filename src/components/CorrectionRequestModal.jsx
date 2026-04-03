@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, memo } from 'react'
 import { supabase } from '../supabase'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 
 const SECTION_LABELS = {
   subject: 'Subject to be Worked', motivation: 'Motivation',
@@ -12,7 +13,7 @@ const SECTION_COLORS = {
   skill: '#8064A2', closing: '#9BBB59', assignment: '#4E84A2',
 }
 
-export default function CorrectionRequestModal({ planId, teacher, onClose }) {
+const CorrectionRequestModal = memo(function CorrectionRequestModal({ planId, teacher, onClose }) {
   const [requests, setRequests] = useState([])
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
@@ -20,12 +21,9 @@ export default function CorrectionRequestModal({ planId, teacher, onClose }) {
   const [form, setForm] = useState({ section_key: 'subject', day_iso: '', body: '' })
   const [activeDays, setActiveDays] = useState([])
 
-  useEffect(() => {
-    fetchRequests()
-    fetchPlanDays()
-  }, [planId])
+  const modalRef = useFocusTrap(true, onClose)
 
-  async function fetchPlanDays() {
+  const fetchPlanDays = useCallback(async () => {
     const { data } = await supabase
       .from('lesson_plans').select('content, monday_date')
       .eq('id', planId).single()
@@ -34,9 +32,9 @@ export default function CorrectionRequestModal({ planId, teacher, onClose }) {
       setActiveDays(days)
       if (days.length > 0) setForm(f => ({ ...f, day_iso: days[0] }))
     }
-  }
+  }, [planId])
 
-  async function fetchRequests() {
+  const fetchRequests = useCallback(async () => {
     setLoading(true)
     const { data } = await supabase
       .from('correction_requests')
@@ -45,9 +43,14 @@ export default function CorrectionRequestModal({ planId, teacher, onClose }) {
       .order('created_at', { ascending: false })
     setRequests(data || [])
     setLoading(false)
-  }
+  }, [planId])
 
-  async function sendRequest() {
+  useEffect(() => {
+    fetchRequests()
+    fetchPlanDays()
+  }, [fetchRequests, fetchPlanDays])
+
+  const sendRequest = useCallback(async () => {
     if (!form.body.trim() || !form.day_iso) return
     setSending(true)
     await supabase.from('correction_requests').insert({
@@ -63,26 +66,26 @@ export default function CorrectionRequestModal({ planId, teacher, onClose }) {
     setShowForm(false)
     await fetchRequests()
     setSending(false)
-  }
+  }, [form, planId, teacher.id, teacher.school_id, fetchRequests])
 
-  async function updateStatus(id, status) {
+  const updateStatus = useCallback(async (id, status) => {
     await supabase.from('correction_requests').update({ status }).eq('id', id)
     await fetchRequests()
-  }
+  }, [fetchRequests])
 
-  function formatDate(ts) {
+  const formatDate = useCallback((ts) => {
     return new Date(ts).toLocaleDateString('es-CO', {
       day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
     })
-  }
+  }, [])
 
-  function formatDayISO(iso) {
+  const formatDayISO = useCallback((iso) => {
     if (!iso) return ''
     const d = new Date(iso + 'T12:00:00')
     const days = ['Lunes','Martes','Miércoles','Jueves','Viernes']
     const months = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
     return `${days[d.getDay()-1]} ${d.getDate()} ${months[d.getMonth()]}`
-  }
+  }, [])
 
   const statusConfig = {
     pending:  { label: 'Pendiente', color: '#F79646', bg: '#fff9f0' },
@@ -92,7 +95,7 @@ export default function CorrectionRequestModal({ planId, teacher, onClose }) {
 
   return (
     <div className="sb-modal-overlay">
-      <div className="sb-modal" style={{ maxWidth: '640px' }}>
+      <div ref={modalRef} className="sb-modal" style={{ maxWidth: '640px' }}>
         <div className="sb-modal-header">
           <h2>🔧 Solicitudes de corrección</h2>
           <button onClick={onClose} aria-label="Cerrar solicitudes de corrección">✕</button>
@@ -237,4 +240,6 @@ export default function CorrectionRequestModal({ planId, teacher, onClose }) {
       </div>
     </div>
   )
-}
+})
+
+export default CorrectionRequestModal

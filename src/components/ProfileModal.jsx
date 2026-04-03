@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useCallback, memo } from 'react'
 import { supabase } from '../supabase'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 
-export default function ProfileModal({ teacher, onClose, onSave }) {
+const ProfileModal = memo(function ProfileModal({ teacher, onClose, onSave }) {
   const [fullName,   setFullName]   = useState(teacher.full_name || '')
   const [initials,   setInitials]   = useState(teacher.initials || '')
   const [defPeriod,  setDefPeriod]  = useState(teacher.default_period || '1.er Período 2026')
@@ -15,7 +16,9 @@ export default function ProfileModal({ teacher, onClose, onSave }) {
   const [pwdError,   setPwdError]   = useState(null)
   const [pwdSaved,   setPwdSaved]   = useState(false)
 
-  async function handleSave() {
+  const modalRef = useFocusTrap(true, onClose)
+
+  const handleSave = useCallback(async () => {
     setLoading(true)
     const updates = {
       full_name:      fullName.trim(),
@@ -35,9 +38,9 @@ export default function ProfileModal({ teacher, onClose, onSave }) {
       setSaved(true)
       setTimeout(onClose, 900)
     }
-  }
+  }, [fullName, initials, defPeriod, teacher.id, onSave, onClose])
 
-  async function handlePasswordChange() {
+  const handlePasswordChange = useCallback(async () => {
     setPwdError(null)
     if (newPwd.length < 8) { setPwdError('La contraseña debe tener al menos 8 caracteres.'); return }
     if (newPwd !== confirmPwd) { setPwdError('Las contraseñas no coinciden.'); return }
@@ -48,14 +51,14 @@ export default function ProfileModal({ teacher, onClose, onSave }) {
     setPwdSaved(true)
     setNewPwd(''); setConfirmPwd('')
     setTimeout(() => { setPwdSaved(false); setShowPwd(false) }, 2000)
-  }
+  }, [newPwd, confirmPwd])
 
   // Read-only assignment display
   const assignments = teacher.class_subjects || []
 
   return (
     <div className="prof-overlay open">
-      <div className="prof-modal">
+      <div ref={modalRef} className="prof-modal">
         <div className="prof-header">
           <div className="prof-header-icon">👤</div>
           <div>
@@ -172,4 +175,6 @@ export default function ProfileModal({ teacher, onClose, onSave }) {
       </div>
     </div>
   )
-}
+})
+
+export default ProfileModal
