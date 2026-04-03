@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { supabase } from './supabase'
 import ErrorBoundary from './components/ErrorBoundary'
+import { ToastProvider } from './context/ToastContext'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 import ProfileSetupPage from './pages/ProfileSetupPage'
@@ -51,8 +52,9 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      <BrowserRouter basename="/cbf-planner">
-        <Routes>
+      <ToastProvider>
+        <BrowserRouter basename="/cbf-planner">
+          <Routes>
           {/* Not logged in → Login */}
           <Route path="/login" element={
             session ? <Navigate to="/" replace /> : <LoginPage />
@@ -87,8 +89,9 @@ export default function App() {
             !session ? <Navigate to="/login" replace /> :
             <RejectedPage />
           } />
-        </Routes>
-      </BrowserRouter>
+          </Routes>
+        </BrowserRouter>
+      </ToastProvider>
     </ErrorBoundary>
   )
 }
