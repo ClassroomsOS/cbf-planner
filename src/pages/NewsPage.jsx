@@ -252,13 +252,16 @@ export default function NewsPage({ teacher }) {
         <NewsProjectEditor
           teacher={teacher}
           project={editingProject}
-          initialPeriod={selectedPeriod}
           templates={templates}
           cloneForProject={cloneForProject}
           onSave={handleSave}
           onClose={() => { setEditorOpen(false); setEditingProject(null) }}
-          yearVerse={{ text: school.year_verse || '', ref: school.year_verse_ref || '' }}
-          monthVerse={{ text: monthPrinciple?.month_verse || '', ref: monthPrinciple?.month_verse_ref || '' }}
+          principles={{
+            yearVerse: school.year_verse || '',
+            yearVerseRef: school.year_verse_ref || '',
+            monthVerse: monthPrinciple?.month_verse || '',
+            monthVerseRef: monthPrinciple?.month_verse_ref || ''
+          }}
         />
       )}
     </div>

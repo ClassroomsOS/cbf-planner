@@ -21,7 +21,7 @@ const LEVEL_LABELS = [
 
 const EMPTY_TEXTBOOK = { book: '', units: [], grammar: [], vocabulary: [], pages: { student: '', workbook: '' } }
 
-const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, templates, cloneForProject, onSave, onClose }) {
+const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, templates, cloneForProject, onSave, onClose, principles }) {
   const isEditing = !!project
   const { showToast } = useToast()
 
@@ -45,7 +45,9 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
     start_date: '',
     due_date: '',
     status: 'draft',
-    sequence: 1
+    sequence: 1,
+    target_id: null,
+    target_indicador: ''
   })
 
   const [saving, setSaving] = useState(false)
@@ -54,6 +56,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
 
   // ── Load teacher assignments for smart dropdowns ──
   const [assignments, setAssignments] = useState([])
+  const [learningTargets, setLearningTargets] = useState([])
 
   useEffect(() => {
     supabase
@@ -63,6 +66,32 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
       .order('grade')
       .then(({ data }) => setAssignments(data || []))
   }, [teacher.id])
+
+  // ── Load learning targets when subject/grade/period change ──
+  useEffect(() => {
+    if (!form.subject || !form.grade || !form.period) {
+      setLearningTargets([])
+      return
+    }
+    supabase
+      .from('learning_targets')
+      .select('id, description, taxonomy, grade, group_name, indicadores')
+      .eq('school_id', teacher.school_id)
+      .eq('subject', form.subject)
+      .eq('is_active', true)
+      .then(({ data }) => {
+        // Filter for matching grade (flexible match like LearningTargetSelector)
+        const filtered = (data || []).filter(t => {
+          if (t.grade === form.grade) return true
+          if (form.grade.startsWith(t.grade)) {
+            if (t.group_name) return form.grade.includes(t.group_name)
+            return true
+          }
+          return false
+        })
+        setLearningTargets(filtered)
+      })
+  }, [form.subject, form.grade, form.period, teacher.school_id])
 
   // Derive dropdown options from assignments (filtered cascade)
   const subjectOptions = useMemo(() => {
@@ -103,7 +132,9 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
         start_date: project.start_date || '',
         due_date: project.due_date || '',
         status: project.status || 'draft',
-        sequence: project.sequence || 1
+        sequence: project.sequence || 1,
+        target_id: project.target_id || null,
+        target_indicador: project.target_indicador || ''
       })
     }
   }, [project])
@@ -189,6 +220,43 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
     !form.skill || t.skill === form.skill || t.skill === 'general'
   )
 
+  // Handle submit
+  const handleSubmit = useCallback(async () => {
+    if (!isValid || saving) return
+    setSaving(true)
+
+    const payload = {
+      subject: form.subject,
+      skill: form.skill || null,
+      grade: form.grade,
+      section: form.section,
+      period: form.period,
+      title: form.title.trim(),
+      description: form.description.trim(),
+      conditions: form.conditions.trim() || null,
+      textbook_reference: form.textbook_reference,
+      rubric: form.rubric,
+      rubric_template_id: form.rubric_template_id,
+      biblical_principle: form.biblical_principle.trim() || null,
+      biblical_reflection: form.biblical_reflection.trim() || null,
+      start_date: form.start_date || null,
+      due_date: form.due_date,
+      status: form.status,
+      sequence: form.sequence,
+      target_id: form.target_id,
+      target_indicador: form.target_indicador.trim() || null
+    }
+
+    const result = await onSave(payload)
+    setSaving(false)
+
+    if (!result.error) {
+      showToast(isEditing ? 'Proyecto actualizado' : 'Proyecto creado', 'success')
+    } else {
+      showToast(result.error, 'error')
+    }
+  }, [form, isEditing, onSave, saving, showToast])
+
   // Validation
   const isValid = form.title && form.subject && form.grade && form.section && form.due_date && form.description
 
@@ -208,6 +276,44 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
           </div>
           <button onClick={onClose} style={styles.closeBtn} aria-label="Cerrar editor de proyecto NEWS">✕</button>
         </div>
+
+        {/* ── PRINCIPIOS RECTORES ── */}
+        {principles && (principles.yearVerse || principles.monthVerse) && (
+          <div style={{
+            padding: '14px 24px', background: 'linear-gradient(135deg, #FFF9E6 0%, #FFF3D6 100%)',
+            borderBottom: '1px solid #E8D8A0', display: 'flex', flexDirection: 'column', gap: 8
+          }}>
+            <div style={{ fontSize: 10, fontWeight: 800, color: '#8B6914', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              📖 Principios Rectores Institucionales
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              {principles.yearVerse && (
+                <div style={{ fontSize: 11, lineHeight: 1.5, color: '#5A4A1F' }}>
+                  <span style={{ fontWeight: 700, color: '#8B6914' }}>Versículo del Año:</span>
+                  <br />
+                  {principles.yearVerse}
+                  {principles.yearVerseRef && (
+                    <span style={{ fontStyle: 'italic', color: '#9B7B1F', marginLeft: 4 }}>
+                      — {principles.yearVerseRef}
+                    </span>
+                  )}
+                </div>
+              )}
+              {principles.monthVerse && (
+                <div style={{ fontSize: 11, lineHeight: 1.5, color: '#5A4A1F' }}>
+                  <span style={{ fontWeight: 700, color: '#8B6914' }}>Versículo del Mes:</span>
+                  <br />
+                  {principles.monthVerse}
+                  {principles.monthVerseRef && (
+                    <span style={{ fontStyle: 'italic', color: '#9B7B1F', marginLeft: 4 }}>
+                      — {principles.monthVerseRef}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Tabs */}
         <div style={styles.tabs}>
@@ -381,6 +487,73 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
                     style={styles.input}
                   />
                 </div>
+              </div>
+
+              {/* ── LOGRO DE DESEMPEÑO ── */}
+              <div style={{
+                background: '#F0F7F0', borderRadius: 12, padding: 16,
+                border: '1px solid #B5D6B5'
+              }}>
+                <h4 style={{ fontSize: 12, fontWeight: 800, color: '#1A5C1A', margin: '0 0 12px', textTransform: 'uppercase' }}>
+                  🎯 Logro de Desempeño & Indicador
+                </h4>
+                <p style={{ fontSize: 11, color: '#555', marginBottom: 12, lineHeight: 1.5 }}>
+                  Vincula este proyecto NEWS a un logro observable. El proyecto es la <strong>prueba</strong> de que el estudiante alcanzó ese logro.
+                </p>
+
+                <div style={styles.field}>
+                  <label style={styles.label}>Logro vinculado *</label>
+                  <select
+                    value={form.target_id || ''}
+                    onChange={e => {
+                      updateForm('target_id', e.target.value || null)
+                      updateForm('target_indicador', '') // Reset indicador when target changes
+                    }}
+                    style={styles.input}
+                  >
+                    <option value="">— Sin logro vinculado —</option>
+                    {learningTargets.map(t => (
+                      <option key={t.id} value={t.id}>
+                        {t.description.slice(0, 100)}{t.description.length > 100 ? '…' : ''}
+                      </option>
+                    ))}
+                  </select>
+                  {learningTargets.length === 0 && form.subject && form.grade && (
+                    <span style={{ fontSize: 10, color: '#999', marginTop: 4, display: 'block' }}>
+                      No hay logros activos para {form.subject} · {form.grade}. Crea uno primero en "Logros de Desempeño".
+                    </span>
+                  )}
+                </div>
+
+                {/* Indicador selector - only show when target is selected */}
+                {form.target_id && (() => {
+                  const selectedTarget = learningTargets.find(t => t.id === form.target_id)
+                  const indicadores = selectedTarget?.indicadores || []
+                  return indicadores.length > 0 ? (
+                    <div style={styles.field}>
+                      <label style={styles.label}>Indicador de logro *</label>
+                      <select
+                        value={form.target_indicador}
+                        onChange={e => updateForm('target_indicador', e.target.value)}
+                        style={styles.input}
+                      >
+                        <option value="">— Seleccionar indicador —</option>
+                        {indicadores.map((ind, idx) => (
+                          <option key={idx} value={ind}>
+                            {ind}
+                          </option>
+                        ))}
+                      </select>
+                      <span style={{ fontSize: 10, color: '#666', marginTop: 4, display: 'block', fontStyle: 'italic' }}>
+                        El estudiante demuestra el logro cuando cumple este indicador a través del proyecto.
+                      </span>
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 11, color: '#888', fontStyle: 'italic', marginTop: 8 }}>
+                      Este logro aún no tiene indicadores configurados.
+                    </div>
+                  )
+                })()}
               </div>
 
               {/* Biblical integration */}
