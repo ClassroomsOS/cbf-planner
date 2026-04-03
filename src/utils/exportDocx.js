@@ -216,7 +216,7 @@ function buildSmartBlockDocx(block) {
   }
 
   else if (type === 'QUIZ') {
-    const topics = (data.topics || '').split('\n').filter(Boolean)
+    const topics = Array.isArray(data.topics) ? data.topics.filter(Boolean) : (data.topics||'').split('\n').filter(Boolean)
     const rows = [
       mkP(mkR(`📝 QUIZ — ${data.unit||''}${data.date ? ' · ' + data.date : ''}`, { bold: true, size: 18, color: 'C0504D' })),
       ...topics.map(t => mkP([mkR('▪ ', { bold: true, size: 16, color: 'F79646' }), mkR(t, { size: 16 })])),

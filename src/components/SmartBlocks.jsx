@@ -111,7 +111,7 @@ export function blockPreviewHTML(b) {
   }
 
   if (type === 'QUIZ') {
-    const topics = (data.topics||'').split('\n').filter(Boolean)
+    const topics = Array.isArray(data.topics) ? data.topics.filter(Boolean) : (data.topics||'').split('\n').filter(Boolean)
     return `<div style="background:#fff0f0;border-left:3px solid #C0504D;padding:8px 12px;border-radius:0 4px 4px 0">
       <div style="font-weight:700;font-size:12px;color:#C0504D;margin-bottom:6px">📝 QUIZ — ${data.unit||''}${data.date?' · '+data.date:''}</div>
       ${topics.map(t => `<div style="display:flex;gap:8px;align-items:center;font-size:11px;padding:2px 0"><span style="color:#F79646">⬛</span>${t}</div>`).join('')}
