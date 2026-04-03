@@ -396,6 +396,7 @@ export default function LearningTargetsPage({ teacher }) {
                         className="lt-action-btn"
                         onClick={() => handleToggleActive(t.id, t.is_active)}
                         title={t.is_active ? 'Desactivar' : 'Activar'}
+                        aria-label={t.is_active ? 'Desactivar logro' : 'Activar logro'}
                       >
                         {t.is_active ? '🟢' : '⚪'}
                       </button>
@@ -403,6 +404,7 @@ export default function LearningTargetsPage({ teacher }) {
                         className="lt-action-btn"
                         onClick={() => openEditForm(t)}
                         title="Editar"
+                        aria-label="Editar logro"
                       >
                         ✏️
                       </button>
@@ -410,6 +412,7 @@ export default function LearningTargetsPage({ teacher }) {
                         className="lt-action-btn delete"
                         onClick={() => handleDelete(t.id)}
                         title="Eliminar"
+                        aria-label="Eliminar logro"
                       >
                         🗑️
                       </button>
@@ -474,7 +477,7 @@ export default function LearningTargetsPage({ teacher }) {
           <div className="lt-modal" onClick={e => e.stopPropagation()}>
             <div className="lt-modal-header">
               <h3>{editingId ? '✏️ Editar logro' : '🎯 Nuevo logro de desempeño'}</h3>
-              <button className="lt-modal-close" onClick={closeForm}>✕</button>
+              <button className="lt-modal-close" onClick={closeForm} aria-label="Cerrar formulario de logro">✕</button>
             </div>
 
             <div className="lt-modal-body">
@@ -633,6 +636,7 @@ export default function LearningTargetsPage({ teacher }) {
                       }}
                       style={{ background: 'none', border: 'none', color: '#bbb', cursor: 'pointer', fontSize: '16px', padding: '6px 2px' }}
                       title="Eliminar indicador"
+                      aria-label={`Eliminar indicador ${idx + 1}`}
                     >✕</button>
                   </div>
                 ))}

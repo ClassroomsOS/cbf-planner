@@ -728,8 +728,8 @@ export const SmartBlocksList = memo(function SmartBlocksList({ blocks = [], onCh
               <span className="sb-chip-type">{t.label}</span>
               <span className="sb-chip-model">· {m?.label || b.model}</span>
               <div className="sb-chip-actions">
-                <button onClick={() => handleEdit(b.id)}>✏️ editar</button>
-                <button onClick={() => handleDelete(b.id)}>🗑️</button>
+                <button onClick={() => handleEdit(b.id)} aria-label="Editar bloque">✏️ editar</button>
+                <button onClick={() => handleDelete(b.id)} aria-label="Eliminar bloque">🗑️</button>
               </div>
             </div>
             <div className="sb-chip-preview"

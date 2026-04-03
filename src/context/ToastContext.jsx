@@ -49,12 +49,17 @@ export function ToastProvider({ children }) {
 
       {/* Toast container — fixed bottom-right */}
       {toasts.length > 0 && (
-        <div style={S.container}>
+        <div style={S.container} aria-label="Notificaciones">
           {toasts.map(toast => {
             const style = TOAST_STYLES[toast.type] || TOAST_STYLES.info
+            // Assertive for errors, polite for everything else
+            const ariaLive = toast.type === 'error' ? 'assertive' : 'polite'
             return (
               <div
                 key={toast.id}
+                role="status"
+                aria-live={ariaLive}
+                aria-atomic="true"
                 style={{
                   ...S.toast,
                   background: style.bg,
@@ -62,11 +67,12 @@ export function ToastProvider({ children }) {
                   color: style.color,
                 }}
               >
-                <span style={S.icon}>{style.icon}</span>
+                <span style={S.icon} aria-hidden="true">{style.icon}</span>
                 <span style={S.message}>{toast.message}</span>
                 <button
                   onClick={() => dismissToast(toast.id)}
                   style={{ ...S.closeBtn, color: style.color }}
+                  aria-label="Cerrar notificación"
                 >
                   ✕
                 </button>

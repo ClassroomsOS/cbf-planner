@@ -95,7 +95,7 @@ export default function CorrectionRequestModal({ planId, teacher, onClose }) {
       <div className="sb-modal" style={{ maxWidth: '640px' }}>
         <div className="sb-modal-header">
           <h2>🔧 Solicitudes de corrección</h2>
-          <button onClick={onClose}>✕</button>
+          <button onClick={onClose} aria-label="Cerrar solicitudes de corrección">✕</button>
         </div>
 
         <div className="sb-modal-body">

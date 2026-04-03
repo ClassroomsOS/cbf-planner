@@ -62,7 +62,7 @@ export default function ProfileModal({ teacher, onClose, onSave }) {
             <h2>Mi Perfil</h2>
             <p>{teacher.schools?.name}</p>
           </div>
-          <button className="prof-close" onClick={onClose}>✕</button>
+          <button className="prof-close" onClick={onClose} aria-label="Cerrar perfil">✕</button>
         </div>
 
         <div className="prof-body">

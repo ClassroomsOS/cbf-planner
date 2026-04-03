@@ -387,7 +387,7 @@ function AssignmentModal({ teacher, admin, school, allAssignments, onClose, onSa
       <div className="sb-modal" style={{ maxWidth: '800px' }}>
         <div className="sb-modal-header">
           <h2>📋 Asignaciones — {teacher.full_name}</h2>
-          <button onClick={onClose}>✕</button>
+          <button onClick={onClose} aria-label="Cerrar asignaciones">✕</button>
         </div>
 
         <div className="sb-modal-body">

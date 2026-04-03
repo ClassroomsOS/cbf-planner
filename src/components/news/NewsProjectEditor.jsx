@@ -215,7 +215,7 @@ export default function NewsProjectEditor({ teacher, project, templates, cloneFo
               Define el proyecto, la rúbrica y el contenido del textbook
             </p>
           </div>
-          <button onClick={onClose} style={styles.closeBtn}>✕</button>
+          <button onClick={onClose} style={styles.closeBtn} aria-label="Cerrar editor de proyecto NEWS">✕</button>
         </div>
 
         {/* Tabs */}
@@ -571,6 +571,7 @@ export default function NewsProjectEditor({ teacher, project, templates, cloneFo
                     />
                     <button
                       onClick={() => removeCriterion(ci)}
+                      aria-label={`Eliminar criterio ${criterion.name || (ci + 1)}`}
                       style={{
                         border: 'none', background: 'rgba(204,31,39,0.08)',
                         color: '#CC1F27', borderRadius: 6,
@@ -687,6 +688,7 @@ function TagField({ label, tags, value, onChange, onAdd, onRemove, placeholder }
             {tag}
             <button
               onClick={() => onRemove(i)}
+              aria-label={`Eliminar etiqueta ${tag}`}
               style={{
                 border: 'none', background: 'none', color: '#1A3A8F',
                 cursor: 'pointer', padding: 0, fontSize: 14, fontWeight: 800,

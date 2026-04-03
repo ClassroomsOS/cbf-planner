@@ -54,7 +54,7 @@ export default function LayoutSelectorModal({
         <div style={S.header}>
           <span style={S.headerTitle}>🖼 Distribución de imágenes</span>
           <span style={S.headerSub}>{sectionLabel}</span>
-          <button style={S.closeBtn} onClick={onClose}>✕</button>
+          <button style={S.closeBtn} onClick={onClose} aria-label="Cerrar selector de distribución">✕</button>
         </div>
 
         <div style={S.body}>

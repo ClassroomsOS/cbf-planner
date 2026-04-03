@@ -45,7 +45,7 @@ export const AISuggestButton = memo(function AISuggestButton({ section, grade, s
         <div className="ai-suggest-panel">
           <div className="ai-suggest-header">
             <span>✨ Sugerencia de IA — {section.label}</span>
-            <button onClick={() => setOpen(false)}>✕</button>
+            <button onClick={() => setOpen(false)} aria-label="Cerrar panel de sugerencias">✕</button>
           </div>
           {loading && (
             <div className="ai-suggest-loading">
@@ -150,7 +150,7 @@ export function AIAnalyzerModal({ content, onClose, principles }) {
       <div className="sb-modal" style={{ maxWidth: '680px' }}>
         <div className="sb-modal-header">
           <h2>🔍 Análisis pedagógico de la guía</h2>
-          <button onClick={onClose}>✕</button>
+          <button onClick={onClose} aria-label="Cerrar análisis pedagógico">✕</button>
         </div>
 
         <div className="sb-modal-body">
@@ -296,7 +296,7 @@ export function AIGeneratorModal({ grade, subject, period, activeDays, currentCo
       <div className="sb-modal" style={{ maxWidth: '760px' }}>
         <div className="sb-modal-header">
           <h2>🤖 Generar guía con IA — {grade} · {subject}</h2>
-          <button onClick={onClose}>✕</button>
+          <button onClick={onClose} aria-label="Cerrar generador de guías">✕</button>
         </div>
 
         <div className="sb-modal-body">
