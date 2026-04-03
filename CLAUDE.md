@@ -270,6 +270,107 @@ Push to `main` triggers GitHub Actions → `npm run build` → GitHub Pages. The
 
 ---
 
+## State Management & Custom Hooks
+
+### Zustand Store
+
+**`src/stores/useUIStore.js`** - Global UI state management
+```js
+import useUIStore from '../stores/useUIStore'
+
+// In component
+const { globalLoading, setGlobalLoading } = useUIStore()
+const { sidebarOpen, toggleSidebar } = useUIStore()
+const { saveStatus, setSaveStatus } = useUIStore()
+```
+
+**Available state:**
+- `globalLoading` - Global loading indicator
+- `toasts` - Toast notification queue
+- `sidebarOpen` - Sidebar visibility
+- `activeModal` - Current active modal name
+- `saveStatus` - Save status indicator ('saved' | 'saving' | 'unsaved' | 'error')
+
+### Custom Hooks
+
+All hooks available via: `import { useForm, useToggle, ... } from '../hooks'`
+
+#### **`useForm(initialValues, onSubmit, validationSchema?)`**
+Form state management with Zod validation
+```js
+const form = useForm(
+  { name: '', email: '' },
+  async (values) => { await saveData(values) },
+  myZodSchema
+)
+
+<input {...form.handleChange} name="name" value={form.values.name} />
+{form.errors.name && <span>{form.errors.name}</span>}
+<button onClick={form.handleSubmit}>Submit</button>
+```
+
+**Returns:** `{ values, errors, touched, isSubmitting, handleChange, handleBlur, handleSubmit, reset, isValid, isDirty }`
+
+#### **`useAutoSave(data, onSave, options?)`**
+Debounced auto-save with optional delay
+```js
+const { saveNow } = useAutoSave(
+  content,
+  async (data) => { await supabase.from('plans').update(data) },
+  { delay: 2000, enabled: true }
+)
+```
+
+**Options:** `{ delay: 2000, enabled: true, dependencies: [] }`
+
+#### **`usePersistentState(key, initialValue, options?)`**
+useState with localStorage persistence
+```js
+const [theme, setTheme, clearTheme] = usePersistentState('theme', 'light')
+// Automatically syncs to localStorage
+```
+
+**Options:** `{ serialize: true, debounce: 0 }`
+
+#### **`useToggle(initialValue?)`**
+Boolean toggle state management
+```js
+const [isOpen, toggle, setTrue, setFalse] = useToggle(false)
+
+<button onClick={toggle}>Toggle</button>
+<button onClick={setTrue}>Open</button>
+```
+
+#### **`useAsync(asyncFunction, immediate?)`**
+Async operations with loading/error states
+```js
+const { execute, loading, data, error } = useAsync(
+  async (id) => { return await fetchData(id) }
+)
+
+<button onClick={() => execute(123)} disabled={loading}>
+  {loading ? 'Loading...' : 'Fetch Data'}
+</button>
+```
+
+**Returns:** `{ execute, loading, data, error, reset, isSuccess, isError, isIdle }`
+
+### Migration Strategy
+
+**Phase 1 (Current):** Infrastructure built, no breaking changes  
+**Phase 2:** Refactor new features to use hooks  
+**Phase 3:** Incrementally refactor existing complex components  
+**Phase 4:** Add TypeScript types for type safety  
+
+**Benefits:**
+- Reduced boilerplate code
+- Consistent patterns across codebase
+- Better testability
+- Easier to maintain
+- No breaking changes (adopt progressively)
+
+---
+
 ## Technical Debt & Security Priorities
 
 ### ✅ CRITICAL (Fix Immediately - P0) — COMPLETED
@@ -349,11 +450,17 @@ Push to `main` triggers GitHub Actions → `npm run build` → GitHub Pages. The
 - **Status:** Core components memoized, ~30% re-render reduction expected
 - **Remaining:** Add memoization to modal components, migrate to Supabase Realtime for polling
 
-**State Management:** ⚠️ PENDING
-- 11+ useState in single components (PlannerPage, GuideEditorPage)
-- No TypeScript to enforce state contracts
-- Complex re-render patterns
-- **Action Required:** Migrate to Zustand for global state, extract form hooks
+**State Management:** ✅ INFRASTRUCTURE COMPLETE
+- Created Zustand store for global UI state (`useUIStore`)
+- Created 5 custom hooks for common patterns:
+  - `useForm` - Form state management with Zod validation
+  - `useAutoSave` - Debounced auto-save with localStorage support
+  - `usePersistentState` - useState with localStorage persistence
+  - `useToggle` - Boolean toggle state management
+  - `useAsync` - Async operations with loading/error states
+- Infrastructure ready for incremental migration
+- **Status:** Foundation built, can be adopted progressively without breaking changes
+- **Next:** Refactor complex components (GuideEditorPage, PlannerPage) to use new hooks incrementally
 
 **Accessibility:**
 - ~30-40% WCAG 2.1 AA compliance
