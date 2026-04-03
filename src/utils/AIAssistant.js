@@ -3,6 +3,7 @@
 // Calls the Supabase Edge Function (claude-proxy) — API key stays on the server.
 
 import { supabase } from '../supabase'
+import { sanitizeAIInput } from './validationSchemas'
 
 // ── Core caller ───────────────────────────────────────────────────────────────
 async function callClaude({ type, system, message, planId, maxTokens }) {
@@ -27,24 +28,61 @@ async function callClaude({ type, system, message, planId, maxTokens }) {
     }
   )
 
-  const data = await response.json()
+  const text = await response.text()
+  let data
+  try {
+    data = JSON.parse(text)
+  } catch {
+    throw new Error(`Error del servidor de IA: ${text.slice(0, 120)}`)
+  }
   if (data.error) throw new Error(data.error)
   return data.text || ''
 }
 
+// ── Verse formatter ───────────────────────────────────────────────────────────
+function fmtVerse(verse) {
+  if (!verse?.text) return null
+  const text = verse.text.replace(/<[^>]+>/g, '').trim()
+  if (!text) return null
+  return verse.ref ? `"${text}" — ${verse.ref}` : `"${text}"`
+}
+
+// ── Biblical principles block ─────────────────────────────────────────────────
+// principles = { yearVerse: {text, ref}, monthVerse: {text, ref}, indicatorPrinciple: string }
+// Injected into every AI prompt. All three are non-negotiable.
+function biblicalBlock(principles, specificInstruction) {
+  const year  = fmtVerse(principles?.yearVerse)
+  const month = fmtVerse(principles?.monthVerse)
+  const indic = principles?.indicatorPrinciple?.trim()
+  if (!year && !month && !indic) return ''
+  const lines = []
+  if (year)  lines.push(`📖 Versículo del Año:        ${year}`)
+  if (month) lines.push(`🗓 Versículo del Mes:        ${month}`)
+  if (indic) lines.push(`✝️  Principio del Indicador: "${indic}"`)
+  return `
+⛪ PRINCIPIO RECTOR — ESCUELA CRISTIANA CONFESIONAL:
+Este colegio es una institución cristiana confesional. TODO el aprendizaje, toda actividad,
+todo logro y toda evaluación giran en torno a estos principios. No son opcionales ni decorativos
+— son la razón de ser de la institución y el norte de toda planificación.
+${lines.join('\n')}
+${specificInstruction}`
+}
+
 // ── Punto 1: Sugerir actividad para una sección ───────────────────────────────
 export async function suggestSectionActivity({
-  section, grade, subject, objective, unit, dayName, existingContent, planId, learningTarget
+  section, grade, subject, objective, unit, dayName, existingContent, planId, learningTarget, principles
 }) {
   const SECTION_LIMITS = {
     'SUBJECT TO BE WORKED': '1 oración. Enuncia el tema o habilidad del día.',
     'MOTIVATION':           '1-2 oraciones. Describe la actividad de enganche (pregunta, juego corto, imagen, reto).',
     'ACTIVITY':             '2-3 oraciones. Instrucción clara de la actividad práctica con un ejemplo concreto.',
     'SKILL DEVELOPMENT':    '3-4 oraciones. Paso a paso de la actividad principal. Esta es la sección más importante.',
-    'CLOSING':              '1 oración. Pregunta de reflexión o síntesis del aprendizaje.',
+    'CLOSING':              '1 oración. Pregunta de reflexión que conecte el aprendizaje del día con el principio bíblico del período.',
     'ASSIGNMENT':           '1 oración. Tarea específica y alcanzable.',
   }
   const limit = SECTION_LIMITS[section.label] || '2-3 oraciones.'
+
+  const isClosing = section.label === 'CLOSING'
 
   const system = `Eres un asistente pedagógico experto para colegios bilingües colombianos.
 Generas sugerencias de actividades para guías de aprendizaje autónomo (CBF).
@@ -54,25 +92,38 @@ LÍMITE ESTRICTO para esta sección: ${limit}
 ${learningTarget ? `
 IMPORTANTE: Esta guía tiene un OBJETIVO DE DESEMPEÑO vinculado. Tu sugerencia DEBE estar alineada
 a este desempeño observable. No generes actividades genéricas — genera actividades que lleven
-al estudiante a demostrar este desempeño específico.` : ''}`
+al estudiante a demostrar este desempeño específico.` : ''}
+${biblicalBlock(principles, isClosing
+  ? 'La sección CLOSING SIEMPRE debe cerrar con una pregunta o reflexión que conecte lo aprendido con este principio bíblico. Es el momento de integración fe-aprendizaje.'
+  : 'Ten presente este principio al diseñar la actividad. Cuando sea natural y auténtico, intégralo. No lo fuerces artificialmente, pero nunca lo ignores.'
+)}`
 
   const TAXONOMY_DESC = { recognize: 'Reconocer (identificar, recordar, nombrar)', apply: 'Aplicar (usar, demostrar, resolver)', produce: 'Producir (crear, diseñar, componer)' }
+
+  // Sanitize user inputs to prevent prompt injection
+  const safeGrade = sanitizeAIInput(grade || '')
+  const safeSubject = sanitizeAIInput(subject || '')
+  const safeDayName = sanitizeAIInput(dayName || '')
+  const safeUnit = sanitizeAIInput(unit || '')
+  const safeObjective = sanitizeAIInput(objective || '')
+  const safeExisting = existingContent ? sanitizeAIInput(existingContent.replace(/<[^>]+>/g,' ').slice(0,200)) : ''
+  const safeLTDesc = learningTarget?.description ? sanitizeAIInput(learningTarget.description) : ''
 
   const message = `Estoy escribiendo la sección "${section.label}" de una guía de aprendizaje.
 
 Contexto:
-- Grado: ${grade}
-- Materia: ${subject}
-- Día: ${dayName}
-- Unidad/Tema: ${unit || 'No especificado'}
-- Objetivo de la semana: ${objective || 'No especificado'}
+- Grado: ${safeGrade}
+- Materia: ${safeSubject}
+- Día: ${safeDayName}
+- Unidad/Tema: ${safeUnit || 'No especificado'}
+- Objetivo de la semana: ${safeObjective || 'No especificado'}
 - Tiempo estimado de esta sección: ${section.time}
 ${learningTarget ? `
 🎯 OBJETIVO DE DESEMPEÑO VINCULADO:
-- Desempeño: ${learningTarget.description}
+- Desempeño: ${safeLTDesc}
 - Nivel taxonómico: ${TAXONOMY_DESC[learningTarget.taxonomy] || learningTarget.taxonomy}
 - La actividad debe contribuir directamente a que el estudiante logre este desempeño.` : ''}
-${existingContent ? `- Lo que ya tengo escrito: "${existingContent.replace(/<[^>]+>/g,' ').slice(0,200)}"` : ''}
+${existingContent ? `- Lo que ya tengo escrito: "${safeExisting}"` : ''}
 
 Sugiere una actividad para "${section.label}". Respeta el límite: ${limit}`
 
@@ -82,7 +133,7 @@ Sugiere una actividad para "${section.label}". Respeta el límite: ${limit}`
 // ── Punto 1b: Sugerir SmartBlock para una sección ────────────────────────────
 export async function suggestSmartBlock({
   sectionMeta, grade, subject, objective, unit, dayName,
-  existingContent, existingBlocks, learningTarget, planId
+  existingContent, existingBlocks, learningTarget, planId, principles
 }) {
   const TAXONOMY_DESC = { recognize: 'Reconocer', apply: 'Aplicar', produce: 'Producir' }
 
@@ -110,14 +161,26 @@ Tu tarea: sugerir UN SmartBlock apropiado para una sección de guía.
 Responde SOLO con JSON válido. Sin markdown, sin texto adicional.
 Estructura exacta: {"type":"...","model":"...","data":{...}}
 Los datos deben estar en inglés (colegio bilingüe) y ser realistas y listos para usar.
-${taxHint}`
+${taxHint}
+${biblicalBlock(principles,
+  'Cuando el tipo de bloque lo permita de manera natural (especialmente READING, EXIT_TICKET, SPEAKING, NOTICE), el contenido puede reflejar o conectar con el principio bíblico del período. No lo fuerces en todos los bloques — solo cuando enriquezca genuinamente la actividad.'
+)}`
+
+  // Sanitize user inputs
+  const safeGrade = sanitizeAIInput(grade || '')
+  const safeSubject = sanitizeAIInput(subject || '')
+  const safeDayName = sanitizeAIInput(dayName || '')
+  const safeUnit = sanitizeAIInput(unit || '')
+  const safeObjective = sanitizeAIInput(objective || '')
+  const safeLTDesc = learningTarget?.description ? sanitizeAIInput(learningTarget.description) : ''
+  const safeExisting = existingContent ? sanitizeAIInput(existingContent.replace(/<[^>]+>/g,' ').slice(0,200)) : '(vacío)'
 
   const message = `Sección: ${sectionMeta?.label} (${sectionMeta?.time})
-Grado: ${grade} | Materia: ${subject} | Día: ${dayName || ''}
-Unidad: ${unit || 'no especificada'}
-Objetivo semanal: ${objective || 'no especificado'}
-${learningTarget ? `Desempeño observable: ${learningTarget.description} (${TAXONOMY_DESC[learningTarget.taxonomy] || ''})` : ''}
-Contenido ya escrito: ${existingContent ? existingContent.replace(/<[^>]+>/g,' ').slice(0,200) : '(vacío)'}
+Grado: ${safeGrade} | Materia: ${safeSubject} | Día: ${safeDayName || ''}
+Unidad: ${safeUnit || 'no especificada'}
+Objetivo semanal: ${safeObjective || 'no especificado'}
+${learningTarget ? `Desempeño observable: ${safeLTDesc} (${TAXONOMY_DESC[learningTarget.taxonomy] || ''})` : ''}
+Contenido ya escrito: ${safeExisting}
 Bloques ya presentes: ${existingBlocks?.length ? existingBlocks.map(b=>b.type).join(', ') : 'ninguno'}
 
 Tipos disponibles:
@@ -136,15 +199,22 @@ Sugiere el bloque más pedagógicamente apropiado para este contexto. Incluye da
 }
 
 // ── Punto 2: Análisis completo de la guía ────────────────────────────────────
-export async function analyzeGuide(content, planId) {
-  const system = `Eres un asesor pedagógico experto en diseño curricular para colegios bilingües.
+export async function analyzeGuide(content, planId, principles) {
+  const v = fmtVerse(principles?.monthVerse) || fmtVerse(content.verse)
+
+  const pBlock = biblicalBlock(principles,
+    'Evalúa específicamente qué tan bien la guía conectó el contenido académico con cada uno de estos principios.'
+  )
+  const system = `Eres un asesor pedagógico experto en diseño curricular para colegios bilingües colombianos.
 Analizas guías de aprendizaje autónomo y das retroalimentación constructiva y específica.
 Respondes en español. Sé directo, práctico y amable.
+${pBlock}
 Estructura tu respuesta con estas secciones exactas (usa estos emojis como títulos):
 ✅ Fortalezas
 ⚠️ Alertas
 💡 Sugerencias
-📊 Balance de tiempos`
+📊 Balance de tiempos
+🙏 Integración del principio bíblico`
 
   const i = content.info    || {}
   const o = content.objetivo || {}
@@ -162,36 +232,59 @@ Estructura tu respuesta con estas secciones exactas (usa estos emojis como títu
       }))
     }))
 
+  // Sanitize user inputs
+  const safeGrado = sanitizeAIInput(i.grado || '')
+  const safeAsignatura = sanitizeAIInput(i.asignatura || '')
+  const safeSemana = sanitizeAIInput(i.semana || '')
+  const safePeriodo = sanitizeAIInput(i.periodo || '')
+  const safeFechas = sanitizeAIInput(i.fechas || '')
+  const safeGeneral = sanitizeAIInput((o.general || '').replace(/<[^>]+>/g,' '))
+  const safeIndicadores = (o.indicadores?.filter(Boolean) || (o.indicador ? [o.indicador] : []))
+    .map(ind => sanitizeAIInput(ind.replace(/<[^>]+>/g,' ')))
+    .join(' | ') || 'No especificado'
+  const safePrincipio = sanitizeAIInput(o.principio || '')
+  const safeDone = sanitizeAIInput((content.summary?.done || '').replace(/<[^>]+>/g,' ').slice(0,200))
+  const safeNext = sanitizeAIInput((content.summary?.next || '').replace(/<[^>]+>/g,' ').slice(0,200))
+
   const message = `Analiza esta guía de aprendizaje:
 
 ENCABEZADO:
-- Grado: ${i.grado} | Materia: ${i.asignatura} | Semana: ${i.semana}
-- Período: ${i.periodo} | Fechas: ${i.fechas}
+- Grado: ${safeGrado} | Materia: ${safeAsignatura} | Semana: ${safeSemana}
+- Período: ${safePeriodo} | Fechas: ${safeFechas}
 
-OBJETIVO:
-- General: ${o.general?.replace(/<[^>]+>/g,' ') || 'No especificado'}
-- Indicador: ${o.indicador?.replace(/<[^>]+>/g,' ') || 'No especificado'}
-- Principio: ${o.principio || ''}
+LOGRO Y PRINCIPIO:
+- Logro general: ${safeGeneral || 'No especificado'}
+- Indicadores: ${safeIndicadores}
+- Principio institucional: ${safePrincipio}
 
 DÍAS Y ACTIVIDADES:
 ${days.map(d => `
-📅 ${d.date}${d.unit ? ` — ${d.unit}` : ''}
-${d.sections.map(s => `  [${s.name}] ${s.time}: ${s.content || '(vacío)'} ${s.hasSmartBlocks?'[+bloques]':''} ${s.hasImages?'[+imágenes]':''}`).join('\n')}`).join('\n')}
+📅 ${sanitizeAIInput(d.date)}${d.unit ? ` — ${sanitizeAIInput(d.unit)}` : ''}
+${d.sections.map(s => `  [${s.name}] ${s.time}: ${sanitizeAIInput(s.content || '(vacío)')} ${s.hasSmartBlocks?'[+bloques]':''} ${s.hasImages?'[+imágenes]':''}`).join('\n')}`).join('\n')}
 
 RESUMEN:
-- Lo trabajado: ${(content.summary?.done || '').replace(/<[^>]+>/g,' ').slice(0,200) || 'No especificado'}
-- Próxima semana: ${(content.summary?.next || '').replace(/<[^>]+>/g,' ').slice(0,200) || 'No especificado'}
+- Lo trabajado: ${safeDone || 'No especificado'}
+- Próxima semana: ${safeNext || 'No especificado'}
 
-Dame un análisis pedagógico completo.`
+Dame un análisis pedagógico completo. En la sección 🙏 evalúa específicamente: ¿en qué momentos la guía conectó con el principio bíblico? ¿Dónde se perdió esa oportunidad? ¿Cómo mejorar esa integración?`
 
   return callClaude({ type: 'analyze', system, message, planId, maxTokens: 4000 })
 }
 
 // ── Punto 3: Generar estructura completa desde objetivo ───────────────────────
 export async function generateGuideStructure({
-  grade, subject, objective, unit, activeDays, period, planId, learningTarget
+  grade, subject, objective, unit, activeDays, period, planId, learningTarget, principles
 }) {
   const TAXONOMY_DESC = { recognize: 'Reconocer (identificar, recordar, nombrar)', apply: 'Aplicar (usar, demostrar, resolver)', produce: 'Producir (crear, diseñar, componer)' }
+  const v = fmtVerse(principles?.monthVerse) || fmtVerse(principles?.yearVerse)
+
+  const pBlock = biblicalBlock(principles, `OBLIGATORIO:
+- La sección CLOSING de CADA día DEBE terminar con una pregunta o reflexión que conecte
+  lo aprendido ese día con estos principios. No como un añadido artificial, sino como
+  el cierre natural de la experiencia de aprendizaje.
+- Al menos uno de los indicadores de logro en "objetivo.indicadores" debe reflejar la
+  dimensión espiritual/formativa del logro en conexión con el Principio del Indicador.
+- La semana tiene un arco espiritual además del académico.`)
 
   const system = `Eres un experto en diseño de guías de aprendizaje autónomo para colegios bilingües colombianos.
 Generas estructuras completas de guías semanales siguiendo el modelo CBF con 6 secciones por día:
@@ -199,8 +292,9 @@ Generas estructuras completas de guías semanales siguiendo el modelo CBF con 6 
 2. MOTIVATION (~8 min): actividad de enganche/warm-up
 3. ACTIVITY (~15 min): actividad principal de práctica
 4. SKILL DEVELOPMENT (~40 min): desarrollo profundo de la habilidad
-5. CLOSING (~8 min): cierre y reflexión
+5. CLOSING (~8 min): cierre y reflexión — SIEMPRE conecta con los principios rectores
 6. ASSIGNMENT (~5 min): tarea o extensión
+${pBlock}
 ${learningTarget ? `
 PRINCIPIO PEDAGÓGICO CENTRAL:
 Esta guía tiene un OBJETIVO DE DESEMPEÑO específico vinculado. Todo el contenido que generes
@@ -228,8 +322,8 @@ El JSON debe tener exactamente esta estructura:
     }
   },
   "objetivo": {
-    "general":   "string",
-    "indicador": "string"
+    "general":     "string",
+    "indicadores": ["string"]
   },
   "summary": {
     "next": "string"
@@ -254,17 +348,25 @@ Usa inglés en los datos del bloque (colegio bilingüe). Si no hay un bloque cla
     return `Día ${i+1} (${names[d.getDay()-1]}, ${iso})`
   }).join(', ')
 
+  // Sanitize user inputs
+  const safeGrade = sanitizeAIInput(grade || '')
+  const safeSubject = sanitizeAIInput(subject || '')
+  const safePeriod = sanitizeAIInput(period || '')
+  const safeUnit = sanitizeAIInput(unit || '')
+  const safeObjective = sanitizeAIInput(objective || '')
+  const safeLTDesc = learningTarget?.description ? sanitizeAIInput(learningTarget.description) : ''
+
   const message = `Genera una guía de aprendizaje completa con estos datos:
 
-- Grado: ${grade}
-- Materia: ${subject}
-- Período: ${period}
-- Unidad/Tema: ${unit || 'No especificado'}
-- Objetivo del docente: ${objective}
+- Grado: ${safeGrade}
+- Materia: ${safeSubject}
+- Período: ${safePeriod}
+- Unidad/Tema: ${safeUnit || 'No especificado'}
+- Objetivo del docente: ${safeObjective}
 - Días de clase esta semana: ${daysStr}
 ${learningTarget ? `
 🎯 OBJETIVO DE DESEMPEÑO VINCULADO:
-- Desempeño observable: ${learningTarget.description}
+- Desempeño observable: ${safeLTDesc}
 - Nivel taxonómico: ${TAXONOMY_DESC[learningTarget.taxonomy] || learningTarget.taxonomy}
 - TODA la semana debe construir hacia este desempeño. El viernes (o último día), el estudiante
   debería estar en capacidad de demostrar este desempeño.` : ''}
@@ -279,7 +381,7 @@ LÍMITES DE EXTENSIÓN POR SECCIÓN (sé conciso y específico):
 - MOTIVATION (~8 min): 1-2 oraciones. Describe la actividad de enganche (pregunta, juego corto, imagen, reto).
 - ACTIVITY (~15 min): 2-3 oraciones. Instrucción clara de la actividad práctica con un ejemplo concreto.
 - SKILL DEVELOPMENT (~40 min): 3-4 oraciones. Paso a paso de la actividad principal. Esta es la sección más importante.
-- CLOSING (~8 min): 1 oración. Pregunta de reflexión o síntesis del aprendizaje.
+- CLOSING (~8 min): 1 oración. Pregunta de reflexión que conecte el aprendizaje del día con el principio bíblico.
 - ASSIGNMENT (~5 min): 1 oración. Tarea específica y alcanzable.
 No uses listas con viñetas dentro del contenido. Texto corrido, directo al punto.`
 
@@ -313,4 +415,103 @@ IMPORTANTE: Tu respuesta anterior fue cortada. Sé más breve:
   if (retryResult) return retryResult
 
   throw new Error(`No se pudo generar la guía. Intenta con menos días o un objetivo más específico.`)
+}
+
+// ── Punto 6: Generar rúbrica completa para proyecto NEWS ─────────────────────
+// Genera criterios + 5 niveles por criterio basado en los indicadores de logro.
+// levels[0]=score5 (Excellent) … levels[4]=score1 (Beginning)
+export async function generateRubric({
+  projectTitle, projectDescription, subject, grade, skill, indicadores, principles
+}) {
+  const system = `Eres un experto en evaluación educativa para colegios bilingües colombianos.
+Diseñas rúbricas analíticas completas para proyectos de aprendizaje basado en proyectos (NEWS).
+Cada criterio debe:
+- Evaluar una dimensión específica y observable del desempeño del estudiante
+- Tener 5 niveles claramente diferenciados: del no logro (1) al logro pleno (5)
+- El nivel 5 representa el cumplimiento total del indicador de logro — eso ES el 100%
+- Los niveles 4, 3, 2 y 1 son gradaciones descendentes de ese mismo estándar
+- Estar redactados en inglés (colegio bilingüe), en tercera persona, usando verbos de acción
+- Ser concisos (1-2 oraciones por nivel)
+${biblicalBlock(principles,
+  'Si el proyecto tiene un principio del indicador bíblico, incluye UN criterio que evalúe la dimensión formativa espiritual — cómo el estudiante integró ese principio en su trabajo o reflexión. Este criterio es tan evaluable como los académicos.'
+)}
+Responde ÚNICAMENTE con JSON válido. Sin markdown, sin texto adicional.
+Estructura: [{"name":"string","desc":"string","levels":["nivel5","nivel4","nivel3","nivel2","nivel1"]},...]
+Genera entre 3 y 5 criterios según la complejidad del proyecto.`
+
+  // Sanitize user inputs
+  const safeTitle = sanitizeAIInput(projectTitle || 'Proyecto sin título')
+  const safeDesc = sanitizeAIInput(projectDescription || 'Sin descripción')
+  const safeSubject = sanitizeAIInput(subject || '')
+  const safeGrade = sanitizeAIInput(grade || '')
+  const safeSkill = skill ? sanitizeAIInput(skill) : ''
+  const safeIndStr = (indicadores || [])
+    .filter(Boolean)
+    .map(ind => sanitizeAIInput(ind))
+    .join('\n- ')
+
+  const message = `Genera una rúbrica completa para este proyecto NEWS:
+
+Título: ${safeTitle}
+Descripción: ${safeDesc}
+Materia: ${safeSubject} | Grado: ${safeGrade}${safeSkill ? ` | Skill: ${safeSkill}` : ''}
+${safeIndStr ? `\nIndicadores de logro (esto es el 100% — nivel 5):\n- ${safeIndStr}` : ''}
+
+El nivel 5 de cada criterio debe reflejar directamente el logro de los indicadores anteriores.
+Genera criterios que cubran las dimensiones más importantes de este proyecto específico.`
+
+  const raw = await callClaude({ type: 'generate_rubric', system, message, maxTokens: 2500 })
+  const match = raw.match(/\[[\s\S]*\]/)
+  if (!match) throw new Error('La IA no devolvió una rúbrica válida.')
+  let parsed
+  try { parsed = JSON.parse(match[0].trim()) } catch { throw new Error('No se pudo leer la rúbrica generada.') }
+  if (!Array.isArray(parsed) || !parsed.length) throw new Error('La rúbrica generada está vacía.')
+  // Ensure each criterion has exactly 5 levels
+  return parsed.map(c => ({
+    name:   c.name   || '',
+    desc:   c.desc   || '',
+    levels: Array.isArray(c.levels) ? [...c.levels, '', '', '', '', ''].slice(0, 5) : ['','','','',''],
+  }))
+}
+
+// ── Punto 5: Generar indicadores de logro ────────────────────────────────────
+export async function generateIndicadores({ description, taxonomy, subject, grade, principles }) {
+  const TAXONOMY_MAP = {
+    recognize: 'Reconocer (identificar, recordar, nombrar, clasificar)',
+    apply:     'Aplicar (usar, demostrar, resolver, ejecutar)',
+    produce:   'Producir (crear, diseñar, componer, generar autónomamente)',
+  }
+
+  const system = `Eres un experto en diseño curricular para colegios bilingües colombianos.
+Generas indicadores de logro precisos y medibles para un logro de aprendizaje.
+Los indicadores deben:
+- Ser observables y verificables en el aula
+- Usar verbos de acción concretos acordes al nivel taxonómico
+- Ser específicos para el logro (no genéricos)
+- Estar redactados en tercera persona ("El estudiante...")
+- Ser concisos (máximo 2 líneas cada uno)
+${biblicalBlock(principles,
+  'OBLIGATORIO: Uno de los 3 indicadores DEBE reflejar la dimensión formativa espiritual — cómo el logro académico se conecta con los principios rectores de la institución (especialmente el Principio del Indicador y el Versículo del Mes). No es una adición decorativa: es evidencia de que el aprendizaje fue integrado con la fe. Debe ser tan observable y medible como los otros dos.'
+)}
+Responde ÚNICAMENTE con un array JSON de 3 strings. Sin texto adicional, sin markdown.
+Ejemplo: ["El estudiante identifica...", "El estudiante aplica...", "El estudiante conecta... con el principio de..."]`
+
+  // Sanitize user inputs
+  const safeDescription = sanitizeAIInput(description || '')
+  const safeSubject = sanitizeAIInput(subject || '')
+  const safeGrade = sanitizeAIInput(grade || '')
+
+  const message = `Genera 3 indicadores de logro para:
+
+Logro: ${safeDescription}
+Nivel taxonómico: ${TAXONOMY_MAP[taxonomy] || taxonomy}
+Asignatura: ${safeSubject}
+Grado: ${safeGrade}`
+
+  const raw = await callClaude({ type: 'generate_indicadores', system, message, maxTokens: 700 })
+
+  let parsed
+  try { parsed = JSON.parse(raw) } catch { parsed = null }
+  if (!Array.isArray(parsed) || !parsed.length) throw new Error('La IA no devolvió indicadores válidos.')
+  return parsed
 }

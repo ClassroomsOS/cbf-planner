@@ -1,32 +1,12 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
-
-// ── Períodos disponibles ──────────────────────────────────────
-const PERIODS = [
-  { id: '1st', label: '1st', time: '6:45–7:40' },
-  { id: '2nd', label: '2nd', time: '8:00–8:55' },
-  { id: '3rd', label: '3rd', time: '8:55–9:50' },
-  { id: '4th', label: '4th', time: '9:50–10:45' },
-  { id: '5th', label: '5th', time: '11:15–12:15' },
-  { id: '6th', label: '6th', time: '12:15–1:15' },
-  { id: '7th', label: '7th', time: '1:30–2:15' },
-]
-
-const DAYS = [
-  { key: 'mon', label: 'Lun' },
-  { key: 'tue', label: 'Mar' },
-  { key: 'wed', label: 'Mié' },
-  { key: 'thu', label: 'Jue' },
-  { key: 'fri', label: 'Vie' },
-]
-
-const DEFAULT_SUBJECTS = [
-  'Language Arts','Science','Cosmovisión Bíblica','Biblical Worldview',
-  'Matemáticas','Sociales','Inglés','Ética','Ed. Física','Artes',
-]
+import { useToast } from '../context/ToastContext'
+import { teacherStatusUpdateSchema, teacherRoleUpdateSchema } from '../utils/validationSchemas'
+import { PERIODS, DAYS, DEFAULT_SUBJECTS } from '../utils/constants'
 
 // ── Main Page ─────────────────────────────────────────────────
 export default function AdminTeachersPage({ teacher: admin }) {
+  const { showToast } = useToast()
   const [teachers,     setTeachers]     = useState([])
   const [assignments,  setAssignments]  = useState([])
   const [school,       setSchool]       = useState(null)
@@ -114,8 +94,24 @@ export default function AdminTeachersPage({ teacher: admin }) {
                 <div style={{ display: 'flex', gap: '6px' }}>
                   <button
                     onClick={async () => {
-                      await supabase.from('teachers').update({ status: 'approved' }).eq('id', t.id)
+                      // Validate
+                      const validation = teacherStatusUpdateSchema.safeParse({
+                        status: 'approved',
+                        teacher_id: t.id,
+                      })
+                      if (!validation.success) {
+                        showToast(validation.error.errors[0].message, 'error')
+                        return
+                      }
+
+                      const { error } = await supabase.from('teachers').update({ status: 'approved' }).eq('id', t.id)
+                      if (error) {
+                        showToast('Error al aprobar: ' + error.message, 'error')
+                        return
+                      }
+
                       setTeachers(prev => prev.map(x => x.id === t.id ? { ...x, status: 'approved' } : x))
+                      showToast(`${t.full_name} aprobado exitosamente`, 'success')
                     }}
                     style={{
                       background: '#9BBB59', color: '#fff', border: 'none',
@@ -127,8 +123,25 @@ export default function AdminTeachersPage({ teacher: admin }) {
                   <button
                     onClick={async () => {
                       if (!confirm(`¿Rechazar a ${t.full_name}?`)) return
-                      await supabase.from('teachers').update({ status: 'rejected' }).eq('id', t.id)
+
+                      // Validate
+                      const validation = teacherStatusUpdateSchema.safeParse({
+                        status: 'rejected',
+                        teacher_id: t.id,
+                      })
+                      if (!validation.success) {
+                        showToast(validation.error.errors[0].message, 'error')
+                        return
+                      }
+
+                      const { error } = await supabase.from('teachers').update({ status: 'rejected' }).eq('id', t.id)
+                      if (error) {
+                        showToast('Error al rechazar: ' + error.message, 'error')
+                        return
+                      }
+
                       setTeachers(prev => prev.map(x => x.id === t.id ? { ...x, status: 'rejected' } : x))
+                      showToast(`${t.full_name} rechazado`, 'info')
                     }}
                     style={{
                       background: '#C0504D', color: '#fff', border: 'none',

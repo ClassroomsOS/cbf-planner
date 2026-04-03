@@ -12,6 +12,7 @@ import MessagesPage        from './MessagesPage'
 import SettingsPage        from './SettingsPage'
 import LearningTargetsPage from './LearningTargetsPage'
 import NewsPage            from './NewsPage'
+import PrinciplesPage      from './PrinciplesPage'
 import ProfileModal        from '../components/ProfileModal'
 import { FeaturesProvider, useFeatures } from '../context/FeaturesContext'
 import { ToastProvider } from '../context/ToastContext'
@@ -97,9 +98,13 @@ function DashboardInner({ session, teacher, setTeacher }) {
 
         <nav className="sb-nav">
           {/* ── PLANIFICACIÓN (flujo pedagógico) ── */}
+          <NavLink to="/principles" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
+            <span className="dot" style={{ background: '#C9A84C' }} />
+            📖 Principios
+          </NavLink>
           <NavLink to="/targets" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
             <span className="dot" style={{ background: '#C9A84C' }} />
-            🎯 Objetivos
+            🎯 Logros
           </NavLink>
           <NavLink to="/news" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
             <span className="dot" style={{ background: '#C0504D' }} />
@@ -172,11 +177,12 @@ function DashboardInner({ session, teacher, setTeacher }) {
 
       <div className="main">
         <Routes>
-          <Route path="/"           element={<PlannerPage          teacher={teacher} />} />
-          <Route path="/plans"      element={<MyPlansPage          teacher={teacher} />} />
-          <Route path="/editor/:id" element={<GuideEditorPage      teacher={teacher} />} />
-          <Route path="/news"       element={<NewsPage             teacher={teacher} />} />
-          <Route path="/targets"    element={<LearningTargetsPage  teacher={teacher} />} />
+          <Route path="/"            element={<PlannerPage          teacher={teacher} />} />
+          <Route path="/plans"       element={<MyPlansPage          teacher={teacher} />} />
+          <Route path="/editor/:id"  element={<GuideEditorPage      teacher={teacher} />} />
+          <Route path="/news"        element={<NewsPage             teacher={teacher} />} />
+          <Route path="/targets"     element={<LearningTargetsPage  teacher={teacher} />} />
+          <Route path="/principles"  element={<PrinciplesPage       teacher={teacher} />} />
           <Route path="/ai-usage"   element={<AIUsagePage          teacher={teacher} />} />
           <Route path="/messages"   element={<MessagesPage         teacher={teacher} onUpdate={fetchUnreadMessages} />} />
           {isAdmin && (

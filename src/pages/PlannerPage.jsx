@@ -3,68 +3,13 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { AIGeneratorModal } from '../components/AIComponents'
 import CheckpointModal from '../components/CheckpointModal'
+import { SECTIONS } from '../utils/constants'
+import {
+  getMondayOf, getWeekDays, toISO, getSchoolWeek, formatRange, formatDateEN,
+  MONTHS_ES, DAYS_ES
+} from '../utils/dateUtils'
 
-// ── Date helpers (same as before) ────────────────────────────────────────────
-function getMondayOf(date) {
-  const d = new Date(date)
-  const day = d.getDay()
-  const diff = day === 0 ? -6 : 1 - day
-  d.setDate(d.getDate() + diff)
-  d.setHours(0, 0, 0, 0)
-  return d
-}
-
-function getWeekDays(monday) {
-  return Array.from({ length: 5 }, (_, i) => {
-    const d = new Date(monday)
-    d.setDate(d.getDate() + i)
-    return d
-  })
-}
-
-function toISO(date) {
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
-}
-
-function getSchoolWeek(monday) {
-  const firstMonday = getMondayOf(new Date(monday.getFullYear(), 1, 2))
-  const diff = Math.floor((monday - firstMonday) / (7 * 24 * 3600 * 1000))
-  return Math.max(1, diff + 1)
-}
-
-const MONTHS_ES = ['Ene.','Feb.','Mar.','Abr.','May.','Jun.','Jul.','Ago.','Sep.','Oct.','Nov.','Dic.']
-const DAYS_ES   = ['Lun','Mar','Mié','Jue','Vie']
-
-function formatRange(days) {
-  if (!days.length) return ''
-  const first = days[0], last = days[days.length - 1]
-  const m1 = MONTHS_ES[first.getMonth()], m2 = MONTHS_ES[last.getMonth()]
-  if (m1 === m2) return `${m1} ${first.getDate()}–${last.getDate()}, ${first.getFullYear()}`
-  return `${m1} ${first.getDate()} – ${m2} ${last.getDate()}, ${last.getFullYear()}`
-}
-/* 
-function toWeekInputValue(monday) {
-  const d = new Date(monday)
-  d.setHours(0,0,0,0)
-  d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7))
-  const week1 = new Date(d.getFullYear(), 0, 4)
-  const weekNum = 1 + Math.round(((d - week1) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7)
-  return `${d.getFullYear()}-W${String(weekNum).padStart(2, '0')}`
-}
-
-function fromWeekInputValue(val) {
-  if (!val) return getMondayOf(new Date())
-  const [year, week] = val.split('-W').map(Number)
-  const jan4 = new Date(year, 0, 4)
-  const startOfWeek1 = getMondayOf(jan4)
-  const monday = new Date(startOfWeek1)
-  monday.setDate(startOfWeek1.getDate() + (week - 1) * 7)
-  return monday
-}
-*/
+// ── Date helpers imported from dateUtils.js ──────────────────────────────────
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function PlannerPage({ teacher }) {
@@ -98,6 +43,20 @@ export default function PlannerPage({ teacher }) {
   // checkpointData = { previousPlan, target, pendingAction } | null
   // ── Active learning target for this grade/subject ──
   const [activeTarget, setActiveTarget] = useState(null)
+  // ── Current month's biblical principles ──
+  const [monthPrinciple, setMonthPrinciple] = useState(null)
+
+  useEffect(() => {
+    const now = new Date()
+    supabase
+      .from('school_monthly_principles')
+      .select('month_verse, month_verse_ref, indicator_principle')
+      .eq('school_id', teacher.school_id)
+      .eq('year',  now.getFullYear())
+      .eq('month', now.getMonth() + 1)
+      .maybeSingle()
+      .then(({ data }) => { if (data) setMonthPrinciple(data) })
+  }, [teacher.school_id])
 
   // Fetch active target when grade/subject change
   useEffect(() => {
@@ -434,6 +393,11 @@ export default function PlannerPage({ teacher }) {
           period={period}
           activeDays={activeDays.map(d => toISO(d))}
           learningTarget={activeTarget}
+          principles={{
+            yearVerse:          { text: school.year_verse || '', ref: school.year_verse_ref || '' },
+            monthVerse:         { text: monthPrinciple?.month_verse || '', ref: monthPrinciple?.month_verse_ref || '' },
+            indicatorPrinciple: monthPrinciple?.indicator_principle || school.indicator_principle || '',
+          }}
           onApply={async (aiResult) => {
             setShowGenerator(false)
             setCreating(true)
@@ -509,8 +473,8 @@ export default function PlannerPage({ teacher }) {
                 days: mergedDays,
                 objetivo: aiResult.objetivo ? {
                   ...currentContent.objetivo,
-                  general:   aiResult.objetivo.general   || currentContent.objetivo?.general   || '',
-                  indicador: aiResult.objetivo.indicador || currentContent.objetivo?.indicador || '',
+                  general:     aiResult.objetivo.general     || currentContent.objetivo?.general     || '',
+                  indicadores: aiResult.objetivo.indicadores || currentContent.objetivo?.indicadores || [''],
                   principio: currentContent.objetivo?.principio || '',
                 } : currentContent.objetivo,
                 summary: aiResult.summary ? {
@@ -554,16 +518,18 @@ export default function PlannerPage({ teacher }) {
   )
 }
 
-const SECTIONS_KEYS = ['subject','motivation','activity','skill','closing','assignment']
-
 function buildEmptyDay(isoDate) {
-  const MONTHS_EN = ['January','February','March','April','May','June','July','August','September','October','November','December']
-  const DAYS_EN   = ['Monday','Tuesday','Wednesday','Thursday','Friday']
-  const [y,m,d]   = isoDate.split('-').map(Number)
-  const suf       = [,'st','nd','rd'][d] || 'th'
-  const dateLabel = `${MONTHS_EN[m-1]} ${d}${suf}, ${y}`
-  const sections  = {}
-  const times     = { subject:'~8 min', motivation:'~8 min', activity:'~15 min', skill:'~40 min', closing:'~8 min', assignment:'~5 min' }
-  SECTIONS_KEYS.forEach(k => { sections[k] = { time: times[k], content: '', images: [], audios: [], videos: [], smartBlocks: [] } })
+  const dateLabel = formatDateEN(isoDate)
+  const sections = {}
+  SECTIONS.forEach(s => {
+    sections[s.key] = {
+      time: s.time,
+      content: '',
+      images: [],
+      audios: [],
+      videos: [],
+      smartBlocks: []
+    }
+  })
   return { active: true, date_label: dateLabel, class_periods: '', unit: '', sections }
 }

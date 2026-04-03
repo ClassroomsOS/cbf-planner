@@ -251,19 +251,21 @@ function buildSmartBlockDocx(block) {
         }),
       ]))
     } else {
-      const half  = Math.ceil(words.length / 2)
-      const left  = words.slice(0, half)
-      const right = words.slice(half)
       const hdFill = '9BBB59'
       elements.push(mkNested([
         new TableRow({ children: [
-          mkNestedCell([mkP(mkR('TERMS',    { bold: true, size: 16, color: 'FFFFFF' }))], { fill: hdFill, borders: allB(mkB(hdFill)), pct: 50 }),
-          mkNestedCell([mkP(mkR('MEANINGS', { bold: true, size: 16, color: 'FFFFFF' }))], { fill: hdFill, borders: allB(mkB(hdFill)), pct: 50 }),
+          mkNestedCell([mkP(mkR('TERMS',      { bold: true, size: 16, color: 'FFFFFF' }))], { fill: hdFill, borders: allB(mkB(hdFill)), pct: 18 }),
+          mkNestedCell([mkP(mkR('MEANINGS',   { bold: true, size: 16, color: 'FFFFFF' }))], { fill: hdFill, borders: allB(mkB(hdFill)), pct: 42 }),
+          mkNestedCell([mkP(mkR('IN CONTEXT', { bold: true, size: 16, color: 'FFFFFF' }))], { fill: hdFill, borders: allB(mkB(hdFill)), pct: 40 }),
         ]}),
-        ...Array.from({ length: Math.max(left.length, right.length) }, (_, i) => new TableRow({ children: [
-          mkNestedCell([mkP(mkR(left[i]  ? `${i+1}. ${left[i].w}`                      : '', { size: 16 }))], { pct: 50 }),
-          mkNestedCell([mkP(mkR(right[i] ? `${String.fromCharCode(65+i)}. ${right[i].d||right[i].w}` : '', { size: 16 }))], { pct: 50 }),
-        ]})),
+        ...words.map((wd, i) => {
+          const fill = i % 2 ? 'F9FFF4' : 'FFFFFF'
+          return new TableRow({ children: [
+            mkNestedCell([mkP(mkR(`${i+1}. ${wd.w}`, { bold: true, size: 16 }))],              { fill, pct: 18 }),
+            mkNestedCell([mkP(mkR(wd.d||'',           { size: 16 }))],                          { fill, pct: 42 }),
+            mkNestedCell([mkP(mkR(wd.e||'',           { size: 16, italic: true, color: '555555' }))], { fill, pct: 40 }),
+          ]})
+        }),
       ]))
     }
   }
@@ -455,7 +457,7 @@ async function fetchImageData(url) {
 async function buildSectionRow(s, sectionData) {
   const text        = sectionData?.content      || ''
   const time        = sectionData?.time         || s.time
-  const images      = (sectionData?.images      || []).slice(0, 4)
+  const images      = (sectionData?.images      || []).slice(0, 6)
   const smartBlocks = sectionData?.smartBlocks  || []
 
   // Resolve layout
@@ -493,44 +495,63 @@ async function buildSectionRow(s, sectionData) {
     const n = imgDataList.length
 
     if (isVertical) {
-      // Stacked column — image col is ~228px (3435 DXA / 15)
-      const w = 200, h = Math.round(w * 3 / 4)
-      return imgDataList.map(d => new Paragraph({
-        spacing: { before: 40, after: 40 },
-        children: [new ImageRun({ data: d.data, type: d.type, transformation: { width: w, height: h } })],
-      }))
+      // 1-2: stacked column (~228px wide), 3+: 2 per row (~100px each)
+      if (n <= 2) {
+        const w = 200, h = Math.round(w * 3 / 4)
+        return imgDataList.map(d => new Paragraph({
+          spacing: { before: 40, after: 40 },
+          children: [new ImageRun({ data: d.data, type: d.type, transformation: { width: w, height: h } })],
+        }))
+      }
+      const w = 100, h = 100
+      const rows = []
+      for (let i = 0; i < imgDataList.length; i += 2) {
+        rows.push(new Paragraph({
+          spacing: { before: 30, after: 30 },
+          children: imgDataList.slice(i, i + 2).map(d =>
+            new ImageRun({ data: d.data, type: d.type, transformation: { width: w, height: h } })
+          ),
+        }))
+      }
+      return rows
     }
 
-    // Below layout — full content width ~600px
-    // Place in one paragraph with multiple ImageRun (inline)
-    const widths = { 1: 520, 2: 255, 3: 168, 4: 255 }
-    const w = widths[n] || 200
-    const h = Math.round(w * 3 / 4)
-
-    if (n <= 3) {
-      // All images inline in one paragraph
+    // Below layout widths by count
+    // 1→520, 2→255, 3→168, 4→255(2×2), 5→168(3+2), 6→168(3×2)
+    if (n === 1) {
       return [new Paragraph({
         spacing: { before: 80, after: 40 },
-        children: imgDataList.map(d => new ImageRun({
-          data: d.data, type: d.type,
-          transformation: { width: w, height: h },
-        })),
+        children: [new ImageRun({ data: imgDataList[0].data, type: imgDataList[0].type, transformation: { width: 520, height: Math.round(520 * 9/16) } })],
       })]
     }
-    // 4 images: 2 rows of 2
+    if (n <= 3) {
+      const w = n === 2 ? 255 : 168, h = Math.round(w * 3 / 4)
+      return [new Paragraph({
+        spacing: { before: 80, after: 40 },
+        children: imgDataList.map(d => new ImageRun({ data: d.data, type: d.type, transformation: { width: w, height: h } })),
+      })]
+    }
+    // 4: 2 rows of 2
+    if (n === 4) {
+      const w = 255, h = Math.round(w * 3 / 4)
+      return [
+        new Paragraph({ spacing: { before: 80, after: 4 }, children: imgDataList.slice(0, 2).map(d => new ImageRun({ data: d.data, type: d.type, transformation: { width: w, height: h } })) }),
+        new Paragraph({ spacing: { before: 4, after: 40 }, children: imgDataList.slice(2, 4).map(d => new ImageRun({ data: d.data, type: d.type, transformation: { width: w, height: h } })) }),
+      ]
+    }
+    // 5: row of 3 + row of 2
+    if (n === 5) {
+      const w = 168, h = Math.round(w * 2 / 3)
+      return [
+        new Paragraph({ spacing: { before: 80, after: 4 }, children: imgDataList.slice(0, 3).map(d => new ImageRun({ data: d.data, type: d.type, transformation: { width: w, height: h } })) }),
+        new Paragraph({ spacing: { before: 4, after: 40 }, children: imgDataList.slice(3, 5).map(d => new ImageRun({ data: d.data, type: d.type, transformation: { width: w, height: h } })) }),
+      ]
+    }
+    // 6: 2 rows of 3
+    const w = 168, h = Math.round(w * 2 / 3)
     return [
-      new Paragraph({
-        spacing: { before: 80, after: 4 },
-        children: imgDataList.slice(0, 2).map(d => new ImageRun({
-          data: d.data, type: d.type, transformation: { width: w, height: h },
-        })),
-      }),
-      new Paragraph({
-        spacing: { before: 4, after: 40 },
-        children: imgDataList.slice(2, 4).map(d => new ImageRun({
-          data: d.data, type: d.type, transformation: { width: w, height: h },
-        })),
-      }),
+      new Paragraph({ spacing: { before: 80, after: 4 }, children: imgDataList.slice(0, 3).map(d => new ImageRun({ data: d.data, type: d.type, transformation: { width: w, height: h } })) }),
+      new Paragraph({ spacing: { before: 4, after: 40 }, children: imgDataList.slice(3, 6).map(d => new ImageRun({ data: d.data, type: d.type, transformation: { width: w, height: h } })) }),
     ]
   }
 
@@ -547,7 +568,7 @@ async function buildSectionRow(s, sectionData) {
       margins: { top: 100, bottom: 80, left: 140, right: 120 },
       span: 2,
     })
-    return new TableRow({ children: [labelCell, contentCell] })
+    return new TableRow({ cantSplit: true, children: [labelCell, contentCell] })
   }
 
   // Side layout: 3-column row [label | text | images]
@@ -561,9 +582,9 @@ async function buildSectionRow(s, sectionData) {
   })
 
   if (layout === 'left') {
-    return new TableRow({ children: [labelCell, imgCell, textCell] })
+    return new TableRow({ cantSplit: true, children: [labelCell, imgCell, textCell] })
   }
-  return new TableRow({ children: [labelCell, textCell, imgCell] })
+  return new TableRow({ cantSplit: true, children: [labelCell, textCell, imgCell] })
 }
 
 // ── Day table builder ─────────────────────────────────────────────────────────
@@ -703,27 +724,38 @@ export async function exportGuideDocx(content, filename) {
   })
   children.push(infoTable2, emptyPara())
 
-  // ── TABLE 2b: Objetivo ──
-  if (o.general || o.indicador) {
+  // ── TABLE 2b: Logro ──
+  const _indicadores = o.indicadores?.filter(Boolean).length
+    ? o.indicadores.filter(Boolean)
+    : o.indicador ? [o.indicador] : []
+  if (o.general || _indicadores.length) {
     const halfW = Math.floor(PW / 2)
+    const indParas = _indicadores.length
+      ? _indicadores.flatMap((ind, idx) => [
+          mkP([
+            mkR(`${idx + 1}.  `, { bold: true, size: 18, color: '9BBB59' }),
+            mkR(ind, { size: 18 }),
+          ]),
+        ])
+      : [mkP(mkR('—', { size: 18 }))]
     const objTable = new Table({
       width:        { size: PW, type: WidthType.DXA },
       columnWidths: [halfW, PW - halfW],
       rows: [
         new TableRow({ children: [
-          mkCell([mkP(mkR('🎯  OBJETIVO DE APRENDIZAJE', { bold: true, size: 20, color: 'FFFFFF' }), AlignmentType.CENTER)],
+          mkCell([mkP(mkR('🎯  LOGRO DE APRENDIZAJE', { bold: true, size: 20, color: 'FFFFFF' }), AlignmentType.CENTER)],
             PW, { fill: '9BBB59', borders: allB(bBlue), span: 2 }),
         ]}),
         new TableRow({ children: [
           mkCell([
-            mkP(mkR('Objetivo General', { bold: true, size: 16, color: '9BBB59' })),
+            mkP(mkR('Logro', { bold: true, size: 16, color: '9BBB59' })),
             emptyPara(),
             ...htmlToParas(o.general, 18),
           ], halfW, { borders: allB(bGray), va: VerticalAlign.TOP, margins: { top: 100, bottom: 100, left: 140, right: 100 } }),
           mkCell([
-            mkP(mkR('Indicador de Logro', { bold: true, size: 16, color: '9BBB59' })),
+            mkP(mkR('Indicadores de Logro', { bold: true, size: 16, color: '9BBB59' })),
             emptyPara(),
-            ...htmlToParas(o.indicador, 18),
+            ...indParas,
           ], PW - halfW, { borders: allB(bGray), va: VerticalAlign.TOP, margins: { top: 100, bottom: 100, left: 140, right: 120 } }),
         ]}),
         ...(o.principio ? [new TableRow({ children: [

@@ -1,22 +1,4 @@
-const STATUS_CONFIG = {
-  draft: { label: 'Borrador', color: '#888', bg: '#f5f5f5', icon: '✏️' },
-  published: { label: 'Publicado', color: '#1A3A8F', bg: '#EEF2FB', icon: '📢' },
-  in_progress: { label: 'En curso', color: '#B8860B', bg: '#FFFDF0', icon: '🔄' },
-  completed: { label: 'Completado', color: '#1A6B3A', bg: '#EEFBF0', icon: '✅' }
-}
-
-const SKILL_LABELS = {
-  speaking: '🎤 Speaking',
-  listening: '🎧 Listening',
-  reading: '📖 Reading',
-  writing: '✍️ Writing'
-}
-
-const STATUS_FLOW = {
-  draft: 'published',
-  published: 'in_progress',
-  in_progress: 'completed'
-}
+import { NEWS_PROJECT_STATUS as STATUS_CONFIG, NEWS_STATUS_FLOW as STATUS_FLOW, NEWS_SKILL_LABELS as SKILL_LABELS } from '../../utils/constants'
 
 export default function NewsProjectCard({ project, onEdit, onDelete, onStatusChange }) {
   const status = STATUS_CONFIG[project.status] || STATUS_CONFIG.draft

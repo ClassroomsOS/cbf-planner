@@ -1,14 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
-
-const STATUS_CONFIG = {
-  draft:     { label: 'Borrador',  color: '#aaa',    bg: '#f5f5f5' },
-  complete:  { label: 'Completa',  color: '#4BACC6', bg: '#e8f7fb' },
-  submitted: { label: 'Enviada',   color: '#F79646', bg: '#fff3e8' },
-  approved:  { label: 'Aprobada', color: '#9BBB59', bg: '#eef7e0' },
-}
-const STATUS_ORDER = ['draft', 'complete', 'submitted', 'approved']
+import { LESSON_PLAN_STATUS as STATUS_CONFIG, LESSON_PLAN_STATUS_ORDER as STATUS_ORDER } from '../utils/constants'
 
 export default function MyPlansPage({ teacher }) {
   const navigate = useNavigate()
@@ -310,7 +303,7 @@ function PlanPreview({ plan }) {
     <div className="mp-preview">
       {content.objetivo?.general && (
         <div className="mp-preview-objective">
-          <span className="mp-preview-label">🎯 Objetivo:</span>
+          <span className="mp-preview-label">🎯 Logro:</span>
           {stripHtml(content.objetivo.general).slice(0, 200)}
           {stripHtml(content.objetivo.general).length > 200 ? '…' : ''}
         </div>

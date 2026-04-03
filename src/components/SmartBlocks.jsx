@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useState, useCallback, useMemo, memo } from 'react'
 import { createPortal } from 'react-dom'
+import DOMPurify from 'dompurify'
 import { suggestSmartBlock } from '../utils/AIAssistant'
+import { useToast } from '../context/ToastContext'
 
 // ── Block type definitions ────────────────────────────────────────────────────
 export const BLOCK_TYPES = {
@@ -135,17 +137,19 @@ export function blockPreviewHTML(b) {
         </tr>`).join('')}
       </table>`
     }
-    const half  = Math.ceil((data.words||[]).length / 2)
-    const left  = (data.words||[]).slice(0, half)
-    const right = (data.words||[]).slice(half)
-    return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;font-size:11px">
-      <div><div style="font-weight:700;border-bottom:2px solid #9BBB59;margin-bottom:4px;padding-bottom:2px">TERMS</div>
-        ${left.map((wd,i) => `<div style="padding:3px 0">${i+1}. ${wd.w}</div>`).join('')}
-      </div>
-      <div><div style="font-weight:700;border-bottom:2px solid #9BBB59;margin-bottom:4px;padding-bottom:2px">MEANINGS</div>
-        ${right.map((wd,i) => `<div style="padding:3px 0">${String.fromCharCode(65+i)}. ${wd.d||wd.w}</div>`).join('')}
-      </div>
-    </div>`
+    const words = data.words || []
+    return `<table style="width:100%;border-collapse:collapse;font-size:11px">
+      <tr style="background:#9BBB59;color:#fff">
+        <th style="padding:4px 8px;text-align:left;width:18%">TERMS</th>
+        <th style="padding:4px 8px;text-align:left;width:42%">MEANINGS</th>
+        <th style="padding:4px 8px;text-align:left;width:40%">IN CONTEXT</th>
+      </tr>
+      ${words.map((wd,i) => `<tr style="background:${i%2?'#f9fff4':'#fff'};border-bottom:1px solid #eee">
+        <td style="padding:4px 8px;font-weight:700">${i+1}. ${wd.w}</td>
+        <td style="padding:4px 8px">${wd.d||''}</td>
+        <td style="padding:4px 8px;color:#555;font-style:italic">${wd.e||''}</td>
+      </tr>`).join('')}
+    </table>`
   }
 
   if (type === 'WORKSHOP') {
@@ -281,23 +285,404 @@ export function blockPreviewHTML(b) {
   return '<span style="color:#aaa">Vista previa no disponible</span>'
 }
 
+// ── Block interactive HTML (Layer 1 — exported HTML activities) ───────────────
+// Returns an HTML string with a launch button + <dialog> + <script>.
+// Returns null for block types with no interactive version.
+export function blockInteractiveHTML(block, blockId) {
+  const { type, model, data } = block
+  if (!data) return null
+
+  // Sanitize blockId to safe JS identifier
+  const bid = blockId.replace(/[^a-zA-Z0-9_]/g, '_')
+  const typeDef = BLOCK_TYPES[type] || {}
+  const color = typeDef.color || '4F81BD'
+
+  function dialog(title, body, footer) {
+    const footerHtml = footer
+      ? `<div class="sbd-f">${footer}</div>`
+      : ''
+    return `
+<button onclick="document.getElementById('${bid}').showModal()" class="sbd-launch" style="background:#${color}">
+  ▶ Realizar actividad
+</button>
+<dialog id="${bid}" class="sbd">
+  <div class="sbd-h" style="background:#${color}">
+    <span>${typeDef.icon || ''} ${title}</span>
+    <button onclick="document.getElementById('${bid}').close()" class="sbd-close">✕</button>
+  </div>
+  <div class="sbd-b">${body}</div>
+  ${footerHtml}
+</dialog>`
+  }
+
+  // ── VOCAB matching ─────────────────────────────────────────────────────────
+  if (type === 'VOCAB' && model === 'matching') {
+    const words = data.words || []
+    if (!words.length) return null
+
+    // Shuffle indices: rotate by ceil(n/3) (matches preview rotation)
+    const shuffled = words.map((_, i) => i)
+    const offset = Math.ceil(words.length / 3)
+    for (let i = 0; i < offset; i++) shuffled.push(shuffled.shift())
+
+    const body = `
+      <div style="font-size:12px;margin-bottom:10px;color:#555;font-style:italic">
+        Select the correct meaning for each term.
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <tr style="background:#9BBB59;color:#fff">
+          <th style="padding:6px 8px;text-align:left;width:35%">Term</th>
+          <th style="padding:6px 8px;text-align:left">Meaning</th>
+        </tr>
+        ${words.map((wd, i) => `
+        <tr style="border-bottom:1px solid #eee">
+          <td style="padding:8px;font-weight:700">${i + 1}. ${wd.w}</td>
+          <td style="padding:6px 8px">
+            <select id="${bid}_s${i}" style="width:100%;padding:4px 8px;border:2px solid #ddd;border-radius:4px;font-size:12px">
+              <option value="">— select —</option>
+              ${shuffled.map(si => `<option value="${si}">${words[si].d}</option>`).join('')}
+            </select>
+          </td>
+        </tr>`).join('')}
+      </table>
+      <div id="${bid}_res" style="margin-top:10px;font-size:13px;font-weight:700"></div>`
+
+    const footer = `
+      <button onclick="${bid}_chk()" class="sbd-check">Verificar ✓</button>
+      <button onclick="${bid}_rst()" class="sbd-reset">Reiniciar</button>`
+
+    const script = `
+<script>
+function ${bid}_chk(){
+  var w=${JSON.stringify(words)},ok=0;
+  w.forEach(function(_,i){
+    var s=document.getElementById('${bid}_s'+i);
+    if(!s)return;
+    if(parseInt(s.value)===i){s.style.borderColor='#9BBB59';s.style.background='#f9fff4';ok++;}
+    else{s.style.borderColor='#C0504D';s.style.background='#fff0f0';}
+  });
+  var el=document.getElementById('${bid}_res'),pct=Math.round(ok/w.length*100);
+  el.innerHTML=ok+'/'+w.length+' correct ('+pct+'%)';
+  el.style.color=pct>=80?'#375623':pct>=50?'#F79646':'#C0504D';
+}
+function ${bid}_rst(){
+  var w=${JSON.stringify(words)};
+  w.forEach(function(_,i){var s=document.getElementById('${bid}_s'+i);if(s){s.value='';s.style.borderColor='#ddd';s.style.background='#fff';}});
+  document.getElementById('${bid}_res').innerHTML='';
+}
+</script>`
+    return dialog('VOCAB — Match Columns', body, footer) + script
+  }
+
+  // ── GRAMMAR fill-blank ────────────────────────────────────────────────────
+  if (type === 'GRAMMAR' && model === 'fill-blank') {
+    const sentences = data.sentences || []
+    if (!sentences.length) return null
+
+    const body = `
+      ${data.grammar_point ? `<div style="font-size:11px;font-weight:700;color:#375623;text-transform:uppercase;margin-bottom:6px">${data.grammar_point}</div>` : ''}
+      ${data.instructions ? `<div style="font-size:11px;color:#666;font-style:italic;margin-bottom:10px">${data.instructions}</div>` : ''}
+      ${sentences.map((s, i) => {
+        const withInput = (s.sent || '').replace(/___/g,
+          `<input type="text" id="${bid}_i${i}" autocomplete="off"
+            style="min-width:80px;border:none;border-bottom:2px solid #375623;padding:2px 6px;font-size:12px;outline:none;background:transparent">`)
+        return `<div style="margin-bottom:10px;font-size:12px;padding:8px;border:1px solid #e8f0e0;border-radius:4px">
+          <span style="color:#375623;font-weight:700;margin-right:6px">${i + 1}.</span>${withInput}
+        </div>`
+      }).join('')}
+      <div id="${bid}_res" style="margin-top:8px;font-size:13px;font-weight:700"></div>`
+
+    const footer = `
+      <button onclick="${bid}_chk()" class="sbd-check">Verificar ✓</button>
+      <button onclick="${bid}_rst()" class="sbd-reset">Reiniciar</button>`
+
+    const script = `
+<script>
+function ${bid}_chk(){
+  var s=${JSON.stringify(sentences)},ok=0;
+  s.forEach(function(row,i){
+    var inp=document.getElementById('${bid}_i'+i);if(!inp)return;
+    var ans=(row.answer||'').trim().toLowerCase(),val=(inp.value||'').trim().toLowerCase();
+    if(ans&&val===ans){inp.style.borderBottomColor='#9BBB59';inp.style.color='#375623';ok++;}
+    else if(val){inp.style.borderBottomColor='#C0504D';inp.style.color='#C0504D';}
+  });
+  var el=document.getElementById('${bid}_res');
+  el.innerHTML=ok+'/'+s.length+' correct';
+  el.style.color=ok===s.length?'#375623':'#C0504D';
+}
+function ${bid}_rst(){
+  var s=${JSON.stringify(sentences)};
+  s.forEach(function(_,i){var inp=document.getElementById('${bid}_i'+i);if(inp){inp.value='';inp.style.borderBottomColor='#375623';inp.style.color='#222';}});
+  document.getElementById('${bid}_res').innerHTML='';
+}
+</script>`
+    return dialog('Grammar — Fill in the Blank', body, footer) + script
+  }
+
+  // ── GRAMMAR choose ────────────────────────────────────────────────────────
+  if (type === 'GRAMMAR' && model === 'choose') {
+    const items = data.items || []
+    if (!items.length) return null
+
+    const body = `
+      ${data.grammar_point ? `<div style="font-size:11px;font-weight:700;color:#375623;text-transform:uppercase;margin-bottom:6px">${data.grammar_point}</div>` : ''}
+      ${data.instructions ? `<div style="font-size:11px;color:#666;font-style:italic;margin-bottom:10px">${data.instructions}</div>` : ''}
+      ${items.map((item, i) => `
+        <div style="margin-bottom:12px;font-size:12px;padding:8px;border:1px solid #e8f0e0;border-radius:4px">
+          <div style="margin-bottom:8px"><span style="color:#375623;font-weight:700">${i + 1}.</span> ${item.sentence || ''}</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            ${(item.options || []).map((o, j) => `
+              <button id="${bid}_i${i}_${j}" onclick="${bid}_sel(${i},${j},${item.options.length})"
+                style="padding:5px 14px;border:2px solid #ddd;border-radius:20px;font-size:12px;background:#f9f9f9;cursor:pointer">${o}</button>`
+            ).join('')}
+          </div>
+        </div>`).join('')}
+      <div id="${bid}_res" style="margin-top:8px;font-size:13px;font-weight:700"></div>`
+
+    const footer = `
+      <button onclick="${bid}_chk()" class="sbd-check">Verificar ✓</button>
+      <button onclick="${bid}_rst()" class="sbd-reset">Reiniciar</button>`
+
+    const script = `
+<script>
+var ${bid}_sel_map={};
+function ${bid}_sel(i,j,tot){
+  for(var k=0;k<tot;k++){var b=document.getElementById('${bid}_i'+i+'_'+k);if(b){b.style.background='#f9f9f9';b.style.borderColor='#ddd';b.style.color='#222';}}
+  var s=document.getElementById('${bid}_i'+i+'_'+j);if(s){s.style.background='#375623';s.style.borderColor='#375623';s.style.color='#fff';}
+  ${bid}_sel_map[i]=j;
+}
+function ${bid}_chk(){
+  var items=${JSON.stringify(items)},ok=0;
+  items.forEach(function(item,i){
+    var ci=${bid}_sel_map[i];if(ci===undefined)return;
+    var val=item.options[ci],btn=document.getElementById('${bid}_i'+i+'_'+ci);
+    if(val===item.answer){if(btn){btn.style.background='#9BBB59';btn.style.borderColor='#9BBB59';}ok++;}
+    else{
+      if(btn){btn.style.background='#C0504D';btn.style.borderColor='#C0504D';}
+      var ci2=(item.options||[]).indexOf(item.answer);
+      if(ci2>=0){var b2=document.getElementById('${bid}_i'+i+'_'+ci2);if(b2){b2.style.background='#9BBB59';b2.style.borderColor='#9BBB59';}}
+    }
+  });
+  var el=document.getElementById('${bid}_res');
+  el.innerHTML=ok+'/'+items.length+' correct';
+  el.style.color=ok===items.length?'#375623':'#C0504D';
+}
+function ${bid}_rst(){
+  var items=${JSON.stringify(items)};
+  ${bid}_sel_map={};
+  items.forEach(function(item,i){(item.options||[]).forEach(function(_,j){var b=document.getElementById('${bid}_i'+i+'_'+j);if(b){b.style.background='#f9f9f9';b.style.borderColor='#ddd';b.style.color='#222';}});});
+  document.getElementById('${bid}_res').innerHTML='';
+}
+</script>`
+    return dialog('Grammar — Choose the Form', body, footer) + script
+  }
+
+  // ── READING true-false ────────────────────────────────────────────────────
+  if (type === 'READING' && model === 'true-false') {
+    const stmts = data.statements || []
+    if (!stmts.length) return null
+
+    const passageBox = data.passage
+      ? `<div style="font-size:12px;line-height:1.7;background:#f0f4ff;border-left:3px solid #17375E;padding:10px 12px;border-radius:0 4px 4px 0;margin-bottom:14px">${data.passage}</div>`
+      : ''
+
+    const body = passageBox + stmts.map((st, i) => {
+      const text = typeof st === 'string' ? st : (st?.s || '')
+      return `
+      <div style="margin-bottom:14px;padding:10px;background:#f7faff;border:1px solid #d0dcf0;border-radius:6px;font-size:12px">
+        <div style="font-weight:600;color:#1F3864;margin-bottom:8px;line-height:1.5">${i + 1}. ${text}</div>
+        <div style="display:flex;gap:8px">
+          <button id="${bid}_t${i}" onclick="${bid}_pick(${i},'T')"
+            style="padding:6px 20px;border:2px solid #17375E;border-radius:4px;font-size:12px;font-weight:700;background:#fff;color:#17375E;cursor:pointer">TRUE</button>
+          <button id="${bid}_f${i}" onclick="${bid}_pick(${i},'F')"
+            style="padding:6px 20px;border:2px solid #17375E;border-radius:4px;font-size:12px;font-weight:700;background:#fff;color:#17375E;cursor:pointer">FALSE</button>
+        </div>
+      </div>`
+    }).join('')
+
+    const footer = `
+      <button onclick="${bid}_done()" class="sbd-check">Listo ✓</button>
+      <button onclick="${bid}_rst()" class="sbd-reset">Reiniciar</button>
+      <div id="${bid}_res" style="font-size:12px;margin-left:8px;align-self:center"></div>`
+
+    const script = `
+<script>
+var ${bid}_ans={};
+function ${bid}_pick(i,v){
+  ${bid}_ans[i]=v;
+  var t=document.getElementById('${bid}_t'+i),f=document.getElementById('${bid}_f'+i);
+  if(v==='T'){t.style.background='#17375E';t.style.color='#fff';f.style.background='#fff';f.style.color='#17375E';}
+  else{f.style.background='#17375E';f.style.color='#fff';t.style.background='#fff';t.style.color='#17375E';}
+}
+function ${bid}_done(){
+  var tot=${stmts.length},answered=Object.keys(${bid}_ans).length;
+  var el=document.getElementById('${bid}_res');
+  if(answered<tot){el.innerHTML='<span style="color:#C0504D">'+(tot-answered)+' sin responder</span>';}
+  else{el.innerHTML='<span style="color:#375623">¡Completado! ✓</span>';}
+}
+function ${bid}_rst(){
+  ${bid}_ans={};
+  for(var i=0;i<${stmts.length};i++){
+    var t=document.getElementById('${bid}_t'+i),f=document.getElementById('${bid}_f'+i);
+    if(t){t.style.background='#fff';t.style.color='#17375E';}
+    if(f){f.style.background='#fff';f.style.color='#17375E';}
+  }
+  document.getElementById('${bid}_res').innerHTML='';
+}
+</script>`
+    return dialog('Reading — True / False', body, footer) + script
+  }
+
+  // ── READING comprehension ─────────────────────────────────────────────────
+  if (type === 'READING' && model === 'comprehension') {
+    const questions = data.questions || []
+    if (!questions.length) return null
+
+    const passageBox = data.passage
+      ? `<div style="font-size:12px;line-height:1.7;background:#f0f4ff;border-left:3px solid #17375E;padding:10px 12px;border-radius:0 4px 4px 0;margin-bottom:14px">${data.passage}</div>`
+      : ''
+
+    const body = passageBox + questions.map((q, i) => `
+      <div style="margin-bottom:14px;font-size:12px">
+        <div style="font-weight:600;margin-bottom:6px">${i + 1}. ${q.q || ''}</div>
+        <textarea id="${bid}_a${i}" rows="${q.lines || 2}"
+          style="width:100%;border:2px solid #ccc;border-radius:4px;padding:6px 8px;font-size:12px;font-family:Arial,sans-serif;box-sizing:border-box;resize:vertical"
+          placeholder="Write your answer here…"></textarea>
+      </div>`).join('')
+
+    const footer = `
+      <button onclick="${bid}_done()" class="sbd-check">Listo ✓</button>
+      <div id="${bid}_res" style="font-size:12px;margin-left:8px;align-self:center"></div>`
+
+    const script = `
+<script>
+function ${bid}_done(){
+  var tot=${questions.length},ok=0;
+  for(var i=0;i<tot;i++){var ta=document.getElementById('${bid}_a'+i);if(ta&&ta.value.trim())ok++;}
+  var el=document.getElementById('${bid}_res');
+  if(ok<tot){el.innerHTML='<span style="color:#C0504D">'+(tot-ok)+' pregunta(s) sin responder</span>';}
+  else{el.innerHTML='<span style="color:#375623">¡Completado! ✓</span>';}
+}
+</script>`
+    return dialog('Reading — Comprehension', body, footer) + script
+  }
+
+  // ── EXIT TICKET can-do ────────────────────────────────────────────────────
+  if (type === 'EXIT_TICKET' && model === 'can-do') {
+    const skills = data.skills || []
+    if (!skills.length) return null
+
+    const emojis  = ['😊', '😐', '😕']
+    const labels  = ['I got it!', 'Almost', 'Need help']
+
+    const body = `
+      <div style="font-size:12px;color:#555;margin-bottom:12px">Tap the emoji that best describes how you feel about each skill.</div>
+      ${skills.map((sk, i) => `
+        <div style="margin-bottom:12px;padding:10px;background:#fff8e6;border-radius:6px;border:1px solid #ffe0b0">
+          <div style="font-size:12px;font-weight:600;margin-bottom:8px">I can <strong>${sk}</strong></div>
+          <div style="display:flex;gap:10px">
+            ${emojis.map((e, j) => `
+              <button id="${bid}_e${i}_${j}" onclick="${bid}_pick(${i},${j},${emojis.length})"
+                style="display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 14px;border:2px solid #ddd;border-radius:8px;background:#fff;cursor:pointer">
+                <span style="font-size:22px">${e}</span>
+                <span style="font-size:9px;color:#888">${labels[j]}</span>
+              </button>`).join('')}
+          </div>
+        </div>`).join('')}
+      <div id="${bid}_res" style="font-size:13px;font-weight:700;margin-top:6px"></div>`
+
+    const footer = `
+      <button onclick="${bid}_done()" class="sbd-check">Enviar ✓</button>
+      <button onclick="${bid}_rst()" class="sbd-reset">Reiniciar</button>`
+
+    const script = `
+<script>
+var ${bid}_picks={};
+function ${bid}_pick(i,j,tot){
+  for(var k=0;k<tot;k++){var b=document.getElementById('${bid}_e'+i+'_'+k);if(b){b.style.borderColor='#ddd';b.style.background='#fff';}}
+  var s=document.getElementById('${bid}_e'+i+'_'+j);if(s){s.style.borderColor='#C55A11';s.style.background='#fff8e6';}
+  ${bid}_picks[i]=j;
+}
+function ${bid}_done(){
+  var tot=${skills.length},answered=Object.keys(${bid}_picks).length,el=document.getElementById('${bid}_res');
+  if(answered<tot){el.innerHTML='<span style="color:#C0504D">'+(tot-answered)+' sin completar</span>';}
+  else{el.innerHTML='<span style="color:#C55A11">¡Exit Ticket enviado! ✓</span>';}
+}
+function ${bid}_rst(){
+  ${bid}_picks={};
+  for(var i=0;i<${skills.length};i++)for(var j=0;j<3;j++){var b=document.getElementById('${bid}_e'+i+'_'+j);if(b){b.style.borderColor='#ddd';b.style.background='#fff';}}
+  document.getElementById('${bid}_res').innerHTML='';
+}
+</script>`
+    return dialog('Exit Ticket — Can-Do', body, footer) + script
+  }
+
+  // ── EXIT TICKET rating ────────────────────────────────────────────────────
+  if (type === 'EXIT_TICKET' && model === 'rating') {
+    const statements = data.statements || []
+    if (!statements.length) return null
+
+    const body = `
+      <div style="font-size:12px;color:#555;margin-bottom:12px">Rate your understanding: 1 = I'm lost · 5 = I got it!</div>
+      ${statements.map((st, i) => `
+        <div style="margin-bottom:14px;padding:10px;background:#fff8e6;border-radius:6px;border:1px solid #ffe0b0">
+          <div style="font-size:12px;font-weight:600;margin-bottom:8px">${i + 1}. ${st}</div>
+          <div style="display:flex;gap:8px">
+            ${[1,2,3,4,5].map(n => `
+              <button id="${bid}_r${i}_${n}" onclick="${bid}_rate(${i},${n})"
+                style="width:40px;height:40px;border:2px solid #C55A11;border-radius:50%;font-size:13px;font-weight:700;color:#C55A11;background:#fff;cursor:pointer">${n}</button>`
+            ).join('')}
+          </div>
+        </div>`).join('')}
+      <div id="${bid}_res" style="font-size:13px;font-weight:700;margin-top:6px"></div>`
+
+    const footer = `
+      <button onclick="${bid}_done()" class="sbd-check">Enviar ✓</button>
+      <button onclick="${bid}_rst()" class="sbd-reset">Reiniciar</button>`
+
+    const script = `
+<script>
+var ${bid}_ratings={};
+function ${bid}_rate(i,n){
+  for(var k=1;k<=5;k++){var b=document.getElementById('${bid}_r'+i+'_'+k);if(b){b.style.background='#fff';b.style.color='#C55A11';}}
+  for(var k=1;k<=n;k++){var b=document.getElementById('${bid}_r'+i+'_'+k);if(b){b.style.background='#C55A11';b.style.color='#fff';}}
+  ${bid}_ratings[i]=n;
+}
+function ${bid}_done(){
+  var tot=${statements.length},answered=Object.keys(${bid}_ratings).length,el=document.getElementById('${bid}_res');
+  if(answered<tot){el.innerHTML='<span style="color:#C0504D">'+(tot-answered)+' sin calificar</span>';}
+  else{el.innerHTML='<span style="color:#C55A11">¡Self-Rating enviado! ✓</span>';}
+}
+function ${bid}_rst(){
+  ${bid}_ratings={};
+  for(var i=0;i<${statements.length};i++)for(var k=1;k<=5;k++){var b=document.getElementById('${bid}_r'+i+'_'+k);if(b){b.style.background='#fff';b.style.color='#C55A11';}}
+  document.getElementById('${bid}_res').innerHTML='';
+}
+</script>`
+    return dialog('Exit Ticket — Self-Rating', body, footer) + script
+  }
+
+  return null
+}
+
 // ── SmartBlocks list + add button ─────────────────────────────────────────────
-export function SmartBlocksList({ blocks = [], onChange, aiContext }) {
+export const SmartBlocksList = memo(function SmartBlocksList({ blocks = [], onChange, aiContext }) {
+  const { showToast } = useToast()
   const [modalOpen,    setModalOpen]    = useState(false)
   const [editId,       setEditId]       = useState(null)
   const [suggesting,   setSuggesting]   = useState(false)
   const [suggestError, setSuggestError] = useState(null)
 
-  function handleDelete(id) {
+  const handleDelete = useCallback((id) => {
     onChange(blocks.filter(b => b.id !== id))
-  }
+  }, [blocks, onChange])
 
-  function handleEdit(id) {
+  const handleEdit = useCallback((id) => {
     setEditId(id)
     setModalOpen(true)
-  }
+  }, [])
 
-  function handleSave(block) {
+  const handleSave = useCallback((block) => {
     if (editId != null) {
       onChange(blocks.map(b => b.id === editId ? { ...block, id: editId } : b))
     } else {
@@ -305,9 +690,9 @@ export function SmartBlocksList({ blocks = [], onChange, aiContext }) {
     }
     setModalOpen(false)
     setEditId(null)
-  }
+  }, [editId, blocks, onChange])
 
-  async function handleAISuggest() {
+  const handleAISuggest = useCallback(async () => {
     if (!aiContext) return
     setSuggesting(true)
     setSuggestError(null)
@@ -317,13 +702,18 @@ export function SmartBlocksList({ blocks = [], onChange, aiContext }) {
         onChange([...blocks, { ...result, id: Date.now() }])
       }
     } catch (e) {
-      setSuggestError(e.message || 'Error al sugerir bloque')
+      const errorMsg = e.message || 'Error al sugerir bloque'
+      setSuggestError(errorMsg)
+      showToast(errorMsg, 'error')
     } finally {
       setSuggesting(false)
     }
-  }
+  }, [aiContext, blocks, onChange, showToast])
 
-  const editingBlock = editId != null ? blocks.find(b => b.id === editId) : null
+  const editingBlock = useMemo(() =>
+    editId != null ? blocks.find(b => b.id === editId) : null,
+    [editId, blocks]
+  )
 
   return (
     <div className="sb-list">
@@ -343,7 +733,7 @@ export function SmartBlocksList({ blocks = [], onChange, aiContext }) {
               </div>
             </div>
             <div className="sb-chip-preview"
-              dangerouslySetInnerHTML={{ __html: blockPreviewHTML(b) }} />
+              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(blockPreviewHTML(b)) }} />
           </div>
         )
       })}
@@ -375,7 +765,7 @@ export function SmartBlocksList({ blocks = [], onChange, aiContext }) {
       )}
     </div>
   )
-}
+})
 
 // ── SmartBlockModal — 3-step wizard ──────────────────────────────────────────
 function SmartBlockModal({ initial, onSave, onClose }) {
@@ -555,7 +945,7 @@ function BlockForm({ type, model, data, onChange }) {
         <div className="ge-field">
           <label>{model === 'cards' ? '🃏 Vocab Cards' : '🔀 Match Columns'}</label>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr 1.2fr 28px', gap: '6px', marginBottom: '4px', fontSize: '10px', fontWeight: 700, color: '#666' }}>
-            <span>WORD</span><span>DEFINITION</span><span>{model==='cards'?'EXAMPLE':'TRANSLATION'}</span><span />
+            <span>WORD</span><span>DEFINITION</span><span>{model==='cards'?'EXAMPLE':'IN CONTEXT'}</span><span />
           </div>
           {words.map((wd, i) => (
             <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr 1.2fr 28px', gap: '6px', marginBottom: '4px' }}>

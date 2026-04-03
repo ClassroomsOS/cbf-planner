@@ -5,7 +5,7 @@ import RichEditor from '../components/RichEditor'
 import { exportGuideDocx } from '../utils/exportDocx'
 import { exportHtml, exportPdf } from '../utils/exportHtml'
 import ImageUploader from '../components/ImageUploader'
-import SmartBlocksList from '../components/SmartBlocks'
+import { SmartBlocksList } from '../components/SmartBlocks'
 import { AISuggestButton, AIAnalyzerModal, AIGeneratorModal } from '../components/AIComponents'
 import CommentsPanel from '../components/CommentsPanel'
 import SectionPreview from '../components/SectionPreview'
@@ -15,6 +15,8 @@ import LayoutSelectorModal, { LAYOUT_ELIGIBLE } from '../components/LayoutSelect
 import LearningTargetSelector from '../components/LearningTargetSelector'
 import { useToast } from '../context/ToastContext'
 import { logError } from '../utils/logger'
+import { SECTIONS, RICH_SECTIONS } from '../utils/constants'
+import { toISO, formatDateEN, getDayName, MONTHS_EN, DAYS_EN, MONTHS_ES } from '../utils/dateUtils'
 
 // ── localStorage draft helpers ──────────────────────────────────────────────
 const DRAFT_PREFIX = 'cbf_draft_'
@@ -43,35 +45,7 @@ function clearDraftLocal(planId) {
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const SECTIONS = [
-  { key: 'subject',    label: 'SUBJECT TO BE WORKED', hex: '#4F81BD', time: '~8 min'  },
-  { key: 'motivation', label: 'MOTIVATION',            hex: '#4BACC6', time: '~8 min'  },
-  { key: 'activity',   label: 'ACTIVITY',              hex: '#F79646', time: '~15 min' },
-  { key: 'skill',      label: 'SKILL DEVELOPMENT',     hex: '#8064A2', time: '~40 min' },
-  { key: 'closing',    label: 'CLOSING',               hex: '#9BBB59', time: '~8 min'  },
-  { key: 'assignment', label: 'ASSIGNMENT',             hex: '#4E84A2', time: '~5 min'  },
-]
-
-const MONTHS_EN = ['January','February','March','April','May','June','July','August','September','October','November','December']
-const DAYS_EN   = ['Monday','Tuesday','Wednesday','Thursday','Friday']
-const MONTHS_ES = ['Ene.','Feb.','Mar.','Abr.','May.','Jun.','Jul.','Ago.','Sep.','Oct.','Nov.','Dic.']
-
 // ── Helpers ──────────────────────────────────────────────────────────────────
-
-function toISO(date) {
-  return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`
-}
-
-function formatDateEN(isoDate) {
-  const [y,m,d] = isoDate.split('-').map(Number)
-  const suf = [,'st','nd','rd'][d] || 'th'
-  return `${MONTHS_EN[m-1]} ${d}${suf}, ${y}`
-}
-
-function getDayName(isoDate) {
-  const date = new Date(isoDate + 'T12:00:00')
-  return DAYS_EN[date.getDay() - 1] || ''
-}
 
 function buildEmptySection(time) {
   return { time, content: '', images: [], audios: [], videos: [], smartBlocks: [] }
@@ -102,8 +76,8 @@ function buildInitialContent({ grade, subject, period, week, dateRange }, teache
       fechas:     dateRange || '',
     },
     objetivo: {
-      general:   '',
-      indicador: '',
+      general:     '',
+      indicadores: [''],
       principio: school?.indicator_principle
         || 'El mundo y sus malos deseos pasarán, pero el que hace la voluntad de Dios vivirá para siempre.',
     },
@@ -139,6 +113,7 @@ export default function GuideEditorPage({ teacher }) {
   const [showCorrections, setShowCorrections] = useState(false)
   const [showPreview,     setShowPreview]     = useState(true)
   const [linkedTarget,    setLinkedTarget]    = useState(null)
+  const [monthPrinciples, setMonthPrinciples] = useState(null)
 
   const dirtyRef   = useRef(false)
   const contentRef = useRef(null)
@@ -166,6 +141,13 @@ export default function GuideEditorPage({ teacher }) {
       } else if (!c.days || Object.keys(c.days).length === 0) {
         c.days = await buildDaysFromDB(data, c)
       }
+      // Migrate old indicador (string) → indicadores (array)
+      if (c.objetivo) {
+        if (!c.objetivo.indicadores) {
+          c.objetivo.indicadores = c.objetivo.indicador ? [c.objetivo.indicador] : ['']
+        }
+      }
+
       // Always fetch logo fresh from school (prop may be stale from session start)
       const { data: schoolData } = await supabase
         .from('schools').select('logo_url').eq('id', teacher.school_id).single()
@@ -377,18 +359,25 @@ export default function GuideEditorPage({ teacher }) {
   const dayPanels = content
     ? Object.entries(content.days || {})
         .sort(([a],[b]) => a.localeCompare(b))
-        .map(([iso]) => ({ key: `day-${iso}`, iso, label: getDayName(iso) }))
+        .map(([iso, day]) => {
+          const filled = SECTIONS.filter(s => {
+            const sec = day.sections?.[s.key]
+            return !!(sec?.content || (sec?.images||[]).length || (sec?.smartBlocks||[]).length)
+          }).length
+          return { key: `day-${iso}`, iso, label: getDayName(iso), filled, total: SECTIONS.length }
+        })
     : []
 
   const panels = [
     { key: 'header',   label: '1 · Encabezado',  dot: '#2E5598' },
     { key: 'info',     label: '2 · Información', dot: '#4BACC6' },
-    { key: 'objetivo', label: '3 · Objetivo',    dot: '#9BBB59' },
+    { key: 'objetivo', label: '3 · Logro',        dot: '#9BBB59' },
     { key: 'verse',    label: '4 · Versículo',   dot: '#C9A84C' },
     ...dayPanels.map(d => ({
       key: d.key, label: d.label,
       sub: `${MONTHS_ES[parseInt(d.iso.slice(5,7))-1]} ${parseInt(d.iso.slice(8,10))}`,
       dot: '#4BACC6',
+      filled: d.filled, total: d.total,
     })),
     { key: 'summary', label: '★ Resumen', dot: '#8064A2' },
   ]
@@ -400,6 +389,29 @@ export default function GuideEditorPage({ teacher }) {
         .map(([iso]) => iso)
         .sort()
     : []
+
+  // ── Cargar principios del mes de la guía ──
+  useEffect(() => {
+    if (!content || !teacher.school_id) return
+    const iso = activeDays[0] || new Date().toISOString().slice(0, 10)
+    const year  = parseInt(iso.slice(0, 4))
+    const month = parseInt(iso.slice(5, 7))
+    supabase
+      .from('school_monthly_principles')
+      .select('*')
+      .eq('school_id', teacher.school_id)
+      .eq('year', year)
+      .eq('month', month)
+      .maybeSingle()
+      .then(({ data }) => setMonthPrinciples(data || null))
+  }, [teacher.school_id, content?.days])
+
+  // ── Objeto de principios unificado para la IA ──
+  const principles = content ? {
+    yearVerse:          { text: content.verse?.text || school.year_verse || '', ref: content.verse?.ref || school.year_verse_ref || '' },
+    monthVerse:         { text: monthPrinciples?.month_verse || '', ref: monthPrinciples?.month_verse_ref || '' },
+    indicatorPrinciple: monthPrinciples?.indicator_principle || school.indicator_principle || '',
+  } : null
 
   // ── Field helpers ──
   function inputField(label, value, path, placeholder = '') {
@@ -501,10 +513,10 @@ export default function GuideEditorPage({ teacher }) {
         </div>
         <div className="ge-save-area">
           <span className={`ge-save-status ge-save-${saveStatus}`}>
-            {saveStatus === 'saving'  && '⏳ Guardando…'}
-            {saveStatus === 'saved'   && '✅ Guardado'}
-            {saveStatus === 'unsaved' && '● Sin guardar'}
-            {saveStatus === 'error'   && '⚠️ Error'}
+            {saveStatus === 'saving'  && <><span className="ge-save-pulse" />Guardando…</>}
+            {saveStatus === 'saved'   && '✓ Guardado'}
+            {saveStatus === 'unsaved' && '● Cambios sin guardar'}
+            {saveStatus === 'error'   && '⚠ Error al guardar'}
           </span>
           <button className="btn-primary" onClick={doSave} disabled={saveStatus === 'saving'}>
             💾 Guardar
@@ -525,23 +537,34 @@ export default function GuideEditorPage({ teacher }) {
               🔧 Correcciones
             </button>
           )}
+          {/* Botón principal: Imprimir / PDF */}
+          <button className="ge-print-btn"
+            onClick={() => { doSave(); exportPdf(contentRef.current) }}
+            title="Guardar e imprimir como PDF">
+            🖨️ Imprimir / PDF
+          </button>
+
           <div className="ge-export-wrap">
-            <button className="btn-primary btn-save"
+            <button className="btn-secondary"
+              style={{ fontSize: '12px' }}
               onClick={() => setExportOpen(o => !o)}>
-              📄 Exportar ▾
+              ⋯ Más opciones ▾
             </button>
             {exportOpen && (
               <div className="ge-export-menu" onMouseLeave={() => setExportOpen(false)}>
+                <div style={{ padding: '4px 12px 6px', fontSize: '10px', fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '.5px' }}>
+                  Exportar como
+                </div>
                 <button onClick={async () => { setExportOpen(false); await doSave(); exportGuideDocx(contentRef.current) }}>
-                  📄 Word (.docx)
+                  📄 Word (.docx) — para correcciones
                 </button>
                 <button onClick={() => { setExportOpen(false); exportHtml(contentRef.current) }}>
-                  🌐 HTML
-                </button>
-                <button onClick={() => { setExportOpen(false); exportPdf(contentRef.current) }}>
-                  🖨️ PDF (imprimir)
+                  🌐 HTML — archivo web
                 </button>
                 <hr style={{ margin: '4px 0', border: 'none', borderTop: '1px solid #e0e6f0' }} />
+                <div style={{ padding: '4px 12px 6px', fontSize: '10px', fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '.5px' }}>
+                  Inteligencia Artificial
+                </div>
                 {features.ai_analyze !== false && (
                   <button onClick={() => { setExportOpen(false); setShowAnalyzer(true) }}>
                     🔍 Analizar con IA
@@ -570,6 +593,14 @@ export default function GuideEditorPage({ teacher }) {
               <span className="ge-nav-label">
                 {p.label}
                 {p.sub && <span className="ge-nav-sub">{p.sub}</span>}
+                {p.total != null && (
+                  <span className="ge-nav-day-progress">
+                    <span className="ge-nav-day-bar">
+                      <span style={{ width: `${(p.filled / p.total) * 100}%` }} />
+                    </span>
+                    <span className="ge-nav-day-count">{p.filled}/{p.total}</span>
+                  </span>
+                )}
               </span>
             </button>
           ))}
@@ -654,7 +685,7 @@ export default function GuideEditorPage({ teacher }) {
           {/* OBJETIVO */}
           {activePanel === 'objetivo' && (
             <div className="card">
-              <div className="card-title"><div className="badge">3</div> Objetivo de Aprendizaje</div>
+              <div className="card-title"><div className="badge">3</div> Logro de Aprendizaje</div>
               <LearningTargetSelector
                 planId={id}
                 subject={content.info.asignatura}
@@ -668,23 +699,63 @@ export default function GuideEditorPage({ teacher }) {
                   if (target) {
                     // Auto-fill objetivo fields from the linked target
                     setContentField(['objetivo', 'general'], target.description)
-                    setContentField(['objetivo', 'indicador'],
-                      `El estudiante demuestra este desempeño cuando logra: ${target.description}`
+                    setContentField(['objetivo', 'indicadores'],
+                      target.indicadores?.length
+                        ? target.indicadores
+                        : [`El estudiante demuestra este logro cuando: ${target.description}`]
                     )
                   }
                 }}
               />
               {plan?.target_id && (
                 <div style={{ fontSize: '11px', color: '#888', margin: '-4px 0 8px', fontStyle: 'italic' }}>
-                  ↑ Al vincular un objetivo, los campos de abajo se llenan automáticamente. Puedes editarlos para esta semana.
+                  ↑ Al vincular un logro, los campos de abajo se llenan automáticamente. Puedes editarlos para esta semana.
                 </div>
               )}
-              {richField('Objetivo general de la semana (va al documento exportado)',
+              {richField('Logro de la semana (va al documento exportado)',
                 content.objetivo.general, ['objetivo','general'],
                 'Al finalizar la semana, el estudiante estará en capacidad de…', 100)}
-              {richField('Indicador de logro / Desempeño',
-                content.objetivo.indicador, ['objetivo','indicador'],
-                'El estudiante demuestra el objetivo cuando…', 80)}
+              <div className="ge-field">
+                <label>Indicadores de Logro</label>
+                {(content.objetivo.indicadores || ['']).map((ind, idx) => (
+                  <div key={idx} style={{ display: 'flex', gap: '8px', marginBottom: '8px', alignItems: 'flex-start' }}>
+                    <span style={{ minWidth: '18px', paddingTop: '8px', color: '#9BBB59', fontWeight: 700, fontSize: '13px' }}>{idx + 1}.</span>
+                    <textarea
+                      value={ind}
+                      onChange={e => {
+                        const arr = [...(content.objetivo.indicadores || [''])]
+                        arr[idx] = e.target.value
+                        setContentField(['objetivo', 'indicadores'], arr)
+                      }}
+                      placeholder="El estudiante demuestra el logro cuando…"
+                      rows={2}
+                      className="ge-input"
+                      style={{ flex: 1, resize: 'vertical' }}
+                    />
+                    {content.objetivo.indicadores?.length > 1 && (
+                      <button
+                        onClick={() => {
+                          const arr = [...content.objetivo.indicadores]
+                          arr.splice(idx, 1)
+                          setContentField(['objetivo', 'indicadores'], arr)
+                        }}
+                        style={{ background: 'none', border: 'none', color: '#bbb', cursor: 'pointer', fontSize: '16px', padding: '6px 2px', lineHeight: 1 }}
+                        title="Eliminar indicador"
+                      >✕</button>
+                    )}
+                  </div>
+                ))}
+                <button
+                  onClick={() => {
+                    const arr = [...(content.objetivo.indicadores || [''])]
+                    arr.push('')
+                    setContentField(['objetivo', 'indicadores'], arr)
+                  }}
+                  style={{ fontSize: '12px', color: '#9BBB59', border: '1px solid #9BBB59', background: 'none', borderRadius: '6px', padding: '4px 12px', cursor: 'pointer', marginTop: '2px' }}
+                >
+                  + Agregar indicador
+                </button>
+              </div>
               {inputField('Principio del indicador institucional',
                 content.objetivo.principio, ['objetivo','principio'])}
             </div>
@@ -716,9 +787,8 @@ export default function GuideEditorPage({ teacher }) {
               grade={content.info.grado}
               subject={content.info.asignatura}
               objective={content.objetivo.general}
-              showPreview={showPreview}
-              setShowPreview={setShowPreview}
               learningTarget={linkedTarget}
+              principles={principles}
             />
           )}
 
@@ -740,6 +810,7 @@ export default function GuideEditorPage({ teacher }) {
       {showAnalyzer && (
         <AIAnalyzerModal
           content={contentRef.current}
+          principles={principles}
           onClose={() => setShowAnalyzer(false)}
         />
       )}
@@ -770,6 +841,7 @@ export default function GuideEditorPage({ teacher }) {
           onApply={handleApplyGenerated}
           onClose={() => setShowGenerator(false)}
           learningTarget={linkedTarget}
+          principles={principles}
         />
       )}
 
@@ -779,11 +851,35 @@ export default function GuideEditorPage({ teacher }) {
 
 // ── DayPanel ─────────────────────────────────────────────────────────────────
 
-function DayPanel({ iso, day, setContentField, toggleDayActive, openSections, toggleSection, planId, grade, subject, objective, showPreview, setShowPreview, learningTarget }) {
+function DayPanel({ iso, day, setContentField, toggleDayActive, openSections, toggleSection, planId, grade, subject, objective, learningTarget, principles }) {
   const { features } = useFeatures()
   const base = ['days', iso]
-  const [layoutModal, setLayoutModal] = useState(null)
-  // layoutModal = { sectionKey, sectionLabel } | null
+  const [layoutModal,    setLayoutModal]    = useState(null)
+  const [sectionPreviews, setSectionPreviews] = useState({})
+  const sectionRefs = useRef({})
+
+  function togglePreview(key) {
+    setSectionPreviews(p => ({ ...p, [key]: !p[key] }))
+  }
+
+  function jumpToSection(s) {
+    const sKey = `${iso}-${s.key}`
+    if (!openSections[sKey]) toggleSection(sKey)
+    setTimeout(() => {
+      sectionRefs.current[s.key]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 50)
+  }
+
+  function getContentPeek(html) {
+    if (!html) return ''
+    const text = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+    return text.length > 64 ? text.slice(0, 64) + '…' : text
+  }
+
+  function wordCount(html) {
+    if (!html) return 0
+    return html.replace(/<[^>]+>/g, ' ').trim().split(/\s+/).filter(Boolean).length
+  }
 
   return (
     <div className="card">
@@ -824,32 +920,92 @@ function DayPanel({ iso, day, setContentField, toggleDayActive, openSections, to
             </div>
           </div>
 
+          {/* ── Sticky section navigator ── */}
+          <div className="ge-section-nav">
+            {SECTIONS.map(s => {
+              const sKey     = `${iso}-${s.key}`
+              const section  = day.sections?.[s.key]
+              const hasContent = !!(section?.content || (section?.images||[]).length || (section?.smartBlocks||[]).length)
+              return (
+                <button
+                  key={s.key}
+                  className={`ge-section-nav-pill ${openSections[sKey] ? 'active' : ''}`}
+                  style={{ '--pill-color': s.hex }}
+                  onClick={() => jumpToSection(s)}
+                  title={s.label}
+                >
+                  <span className={`ge-nav-dot ${hasContent ? 'filled' : ''}`} />
+                  {s.short}
+                </button>
+              )
+            })}
+          </div>
+
           {SECTIONS.map(s => {
             const sKey    = `${iso}-${s.key}`
             const isOpen  = openSections[sKey]
             const section = day.sections?.[s.key] || buildEmptySection(s.time)
+            const peek    = getContentPeek(section.content)
+            const sbCount  = (section.smartBlocks || []).length
+            const imgCount = (section.images      || []).length
+            const vidCount = (section.videos      || []).length
+            const hasContent = !!(section.content || imgCount || sbCount)
+            const wc = wordCount(section.content)
+            const showPreview = sectionPreviews[s.key]
 
             return (
-              <div key={s.key} className="ge-section-block">
+              <div key={s.key} className="ge-section-block"
+                ref={el => sectionRefs.current[s.key] = el}>
+
+                {/* ── Header ── */}
                 <div className={`ge-section-hdr ${isOpen ? 'open' : ''}`}
                   style={{ background: s.hex }}
-                  onClick={() => toggleSection(sKey)}>
-                  <span>{s.label}</span>
-                  <span className="ge-section-arrow">{isOpen ? '▲' : '▼'}</span>
+                  onClick={() => toggleSection(sKey)}
+                  tabIndex={0}
+                  role="button"
+                  aria-expanded={isOpen}
+                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleSection(sKey) } }}>
+
+                  {isOpen ? (
+                    <>
+                      <div className="ge-section-hdr-left">
+                        <span className="ge-section-label">{s.label}</span>
+                        <span className="ge-section-time">{section.time || s.time}</span>
+                      </div>
+                      <span className="ge-section-arrow">▲</span>
+                    </>
+                  ) : (
+                    <>
+                      <div className="ge-section-hdr-left">
+                        <span className={`ge-section-status-dot ${hasContent ? 'done' : ''}`} />
+                        <span className="ge-section-label">{s.label}</span>
+                        {peek && <span className="ge-section-peek">{peek}</span>}
+                      </div>
+                      <div className="ge-section-hdr-right">
+                        {sbCount  > 0 && <span className="ge-chip">🧩 {sbCount}</span>}
+                        {imgCount > 0 && <span className="ge-chip">🖼 {imgCount}</span>}
+                        {vidCount > 0 && <span className="ge-chip">🎬 {vidCount}</span>}
+                        <span className="ge-section-arrow">▼</span>
+                      </div>
+                    </>
+                  )}
                 </div>
 
-                {isOpen && (
+                {/* ── Animated body ── */}
+                <div className={`ge-section-body-wrap ${isOpen ? 'open' : ''}`}>
                   <div className="ge-section-body">
+
                     <div className="ge-field" style={{ maxWidth: '180px' }}>
                       <label>Tiempo estimado</label>
                       <input type="text" value={section.time || s.time}
                         onChange={e => setContentField([...base,'sections',s.key,'time'], e.target.value)} />
                     </div>
+
                     <div className="ge-field">
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                         <label style={{ margin: 0 }}>Contenido / Actividades</label>
                         <button
-                          onClick={() => setShowPreview(v => !v)}
+                          onClick={e => { e.stopPropagation(); togglePreview(s.key) }}
                           style={{
                             fontSize: '11px', padding: '2px 8px', borderRadius: '6px',
                             border: '1px solid #c5d5f0', background: showPreview ? '#f0f4ff' : '#fff',
@@ -864,61 +1020,65 @@ function DayPanel({ iso, day, setContentField, toggleDayActive, openSections, to
                         placeholder="Describe las actividades de esta sección…"
                         minHeight={120}
                       />
-                      {features.wysiwyg !== false && showPreview && (section.content || (section.images && section.images.length > 0)) && (
-                        <SectionPreview
-                          section={section}
-                          sectionMeta={s}
-                        />
+                      {wc > 0 && (
+                        <div className="ge-word-count">{wc} palabra{wc !== 1 ? 's' : ''}</div>
+                      )}
+                      {features.wysiwyg !== false && showPreview && (section.content || imgCount > 0) && (
+                        <SectionPreview section={section} sectionMeta={s} />
                       )}
                     </div>
 
-                    {/* ── Sugerencia IA por sección ── */}
-                    {features.ai_suggest !== false && <AISuggestButton
-                      section={s}
-                      grade={grade}
-                      subject={subject}
-                      objective={objective}
-                      unit={day.unit}
-                      dayName={getDayName(iso)}
-                      existingContent={section.content}
-                      onInsert={val => setContentField([...base,'sections',s.key,'content'], val)}
-                      learningTarget={learningTarget}
-                    />}
+                    {/* ── Sugerencia IA, imágenes, SmartBlocks y video — solo en RICH_SECTIONS ── */}
+                    {RICH_SECTIONS.includes(s.key) && <>
+                      {features.ai_suggest !== false && <AISuggestButton
+                        section={s}
+                        grade={grade}
+                        subject={subject}
+                        objective={objective}
+                        unit={day.unit}
+                        dayName={getDayName(iso)}
+                        existingContent={section.content}
+                        onInsert={val => setContentField([...base,'sections',s.key,'content'], val)}
+                        learningTarget={learningTarget}
+                        principles={principles}
+                      />}
 
-                    <div className="ge-field">
-                      <label>Imágenes</label>
-                      <ImageUploader
-                        planId={planId}
-                        dayIso={iso}
-                        sectionKey={s.key}
-                        images={section.images || []}
-                        onChange={imgs => setContentField([...base,'sections',s.key,'images'], imgs)}
-                      />
-                    </div>
-                    <div className="ge-field">
-                      <label>🧩 Bloques Inteligentes</label>
-                      <SmartBlocksList
-                        blocks={section.smartBlocks || []}
-                        onChange={blocks => setContentField([...base,'sections',s.key,'smartBlocks'], blocks)}
-                        aiContext={{
-                          sectionMeta:     s,
-                          grade,
-                          subject,
-                          objective,
-                          unit:            day.unit,
-                          dayName:         getDayName(iso),
-                          existingContent: section.content,
-                          learningTarget,
-                        }}
-                      />
-                    </div>
-                    <div className="ge-field">
-                      <label>🎬 Videos (YouTube / Vimeo)</label>
-                      <VideoList
-                        videos={section.videos || []}
-                        onChange={vids => setContentField([...base,'sections',s.key,'videos'], vids)}
-                      />
-                    </div>
+                      <div className="ge-field">
+                        <label>Imágenes</label>
+                        <ImageUploader
+                          planId={planId}
+                          dayIso={iso}
+                          sectionKey={s.key}
+                          images={section.images || []}
+                          onChange={imgs => setContentField([...base,'sections',s.key,'images'], imgs)}
+                        />
+                      </div>
+                      <div className="ge-field">
+                        <label>🧩 Bloques Inteligentes</label>
+                        <SmartBlocksList
+                          blocks={section.smartBlocks || []}
+                          onChange={blocks => setContentField([...base,'sections',s.key,'smartBlocks'], blocks)}
+                          aiContext={{
+                            sectionMeta:     s,
+                            grade,
+                            subject,
+                            objective,
+                            unit:            day.unit,
+                            dayName:         getDayName(iso),
+                            existingContent: section.content,
+                            learningTarget,
+                            principles,
+                          }}
+                        />
+                      </div>
+                      <div className="ge-field">
+                        <label>🎬 Videos (YouTube / Vimeo)</label>
+                        <VideoList
+                          videos={section.videos || []}
+                          onChange={vids => setContentField([...base,'sections',s.key,'videos'], vids)}
+                        />
+                      </div>
+                    </>}
 
                     {/* ── Layout visual (solo secciones elegibles) ── */}
                     {LAYOUT_ELIGIBLE.includes(s.key) && (
@@ -943,7 +1103,8 @@ function DayPanel({ iso, day, setContentField, toggleDayActive, openSections, to
                       </div>
                     )}
                   </div>
-                )}
+                </div>
+
               </div>
             )
           })}

@@ -1,27 +1,23 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
+import { generateIndicadores } from '../utils/AIAssistant'
+import { useToast } from '../context/ToastContext'
+import { TAXONOMY_LEVELS, ACADEMIC_PERIODS } from '../utils/constants'
 import './LearningTargets.css'
 
 // ── Constants ────────────────────────────────────────────────────────────────
-
-const TAXONOMY_LEVELS = [
-  { value: 'recognize', label: 'Reconocer', emoji: '👁️', desc: 'Identificar, recordar, nombrar' },
-  { value: 'apply',     label: 'Aplicar',    emoji: '🛠️', desc: 'Usar, demostrar, resolver' },
-  { value: 'produce',   label: 'Producir',   emoji: '✨', desc: 'Crear, diseñar, componer' },
-]
-
-const PERIODS = [
-  { value: 1, label: '1er Período' },
-  { value: 2, label: '2do Período' },
-  { value: 3, label: '3er Período' },
-  { value: 4, label: '4to Período' },
-]
+// Map ACADEMIC_PERIODS to legacy format for this component
+const PERIODS = ACADEMIC_PERIODS.map((p, i) => ({
+  value: i + 1,
+  label: p.label.replace(' 2026', '')
+}))
 
 // ── Main Component ──────────────────────────────────────────────────────────
 
 export default function LearningTargetsPage({ teacher }) {
   const navigate = useNavigate()
+  const { showToast } = useToast()
   const school   = teacher.schools || {}
 
   // ── State ──
@@ -30,7 +26,11 @@ export default function LearningTargetsPage({ teacher }) {
   const [loading,       setLoading]       = useState(true)
   const [showForm,      setShowForm]      = useState(false)
   const [editingId,     setEditingId]     = useState(null)
-  const [saving,        setSaving]        = useState(false)
+  const [saving,         setSaving]         = useState(false)
+  const [generatingInd,  setGeneratingInd]  = useState(false)
+  const [aiIndError,     setAiIndError]     = useState(null)
+  const [monthPrinciple, setMonthPrinciple] = useState(null)
+  const [linkedProjects, setLinkedProjects] = useState({}) // { target_id: [project, ...] }
 
   // ── Filters ──
   const [filterSubject, setFilterSubject] = useState('all')
@@ -40,14 +40,46 @@ export default function LearningTargetsPage({ teacher }) {
   // ── Form state ──
   const emptyForm = {
     subject: '', grade: '', group_name: '', period: 1,
-    description: '', taxonomy: 'apply', prerequisite_ids: [],
+    description: '', taxonomy: 'apply', prerequisite_ids: [], indicadores: [],
   }
   const [form, setForm] = useState(emptyForm)
 
   // ── Load data ──
   useEffect(() => {
     loadData()
+    loadMonthPrinciple()
   }, [])
+
+  // Reload linked projects whenever targets change
+  useEffect(() => {
+    if (targets.length === 0) return
+    const ids = targets.map(t => t.id)
+    supabase
+      .from('news_projects')
+      .select('id, title, subject, grade, section, period, status, target_id, target_indicador')
+      .eq('school_id', teacher.school_id)
+      .in('target_id', ids)
+      .then(({ data }) => {
+        const map = {}
+        ;(data || []).forEach(p => {
+          if (!map[p.target_id]) map[p.target_id] = []
+          map[p.target_id].push(p)
+        })
+        setLinkedProjects(map)
+      })
+  }, [targets])
+
+  async function loadMonthPrinciple() {
+    const now = new Date()
+    const { data } = await supabase
+      .from('school_monthly_principles')
+      .select('month_verse, month_verse_ref, indicator_principle')
+      .eq('school_id', teacher.school_id)
+      .eq('year',  now.getFullYear())
+      .eq('month', now.getMonth() + 1)
+      .maybeSingle()
+    if (data) setMonthPrinciple(data)
+  }
 
   async function loadData() {
     setLoading(true)
@@ -132,14 +164,17 @@ export default function LearningTargetsPage({ teacher }) {
       description:      target.description,
       taxonomy:         target.taxonomy,
       prerequisite_ids: target.prerequisite_ids || [],
+      indicadores:      target.indicadores || [],
     })
     setEditingId(target.id)
+    setAiIndError(null)
     setShowForm(true)
   }
 
   function closeForm() {
     setShowForm(false)
     setEditingId(null)
+    setAiIndError(null)
     setForm(emptyForm)
   }
 
@@ -162,6 +197,7 @@ export default function LearningTargetsPage({ teacher }) {
       description:      form.description.trim(),
       taxonomy:         form.taxonomy,
       prerequisite_ids: form.prerequisite_ids,
+      indicadores:      form.indicadores.filter(Boolean),
     }
 
     if (editingId) {
@@ -182,7 +218,7 @@ export default function LearningTargetsPage({ teacher }) {
 
   // ── Delete ──
   async function handleDelete(id) {
-    if (!window.confirm('¿Eliminar este objetivo de desempeño?')) return
+    if (!window.confirm('¿Eliminar este logro de desempeño?')) return
     await supabase.from('learning_targets').delete().eq('id', id)
     await loadData()
   }
@@ -253,12 +289,12 @@ export default function LearningTargetsPage({ teacher }) {
           ← Mis Guías
         </button>
         <div className="ge-topbar-info">
-          <span className="ge-guide-title">🎯 Objetivos de Desempeño</span>
+          <span className="ge-guide-title">🎯 Logros de Desempeño</span>
           <span className="ge-guide-dates">{school.name || 'Mi Colegio'}</span>
         </div>
         <div className="ge-save-area">
           <button className="btn-primary" onClick={openNewForm}>
-            + Nuevo objetivo
+            + Nuevo logro
           </button>
         </div>
       </div>
@@ -320,17 +356,17 @@ export default function LearningTargetsPage({ teacher }) {
             <div className="lt-empty-icon">🎯</div>
             <h3>
               {targets.length === 0
-                ? 'Aún no tienes objetivos de desempeño'
+                ? 'Aún no tienes logros de desempeño'
                 : 'Sin resultados para estos filtros'}
             </h3>
             <p>
               {targets.length === 0
-                ? 'Los objetivos son el corazón de la planeación diferenciada. Define qué debería poder hacer el estudiante — no qué tema "cubre" la semana.'
-                : 'Prueba ajustando los filtros o crea un nuevo objetivo.'}
+                ? 'Los logros son el corazón de la planeación diferenciada. Define qué debería poder hacer el estudiante — no qué tema "cubre" la semana.'
+                : 'Prueba ajustando los filtros o crea un nuevo logro.'}
             </p>
             {targets.length === 0 && (
               <button className="btn-primary" onClick={openNewForm} style={{ marginTop: '12px' }}>
-                + Crear mi primer objetivo
+                + Crear mi primer logro
               </button>
             )}
           </div>
@@ -382,6 +418,12 @@ export default function LearningTargetsPage({ teacher }) {
 
                   <p className="lt-card-description">{t.description}</p>
 
+                  {t.indicadores?.length > 0 && (
+                    <ol style={{ margin: '6px 0 8px', paddingLeft: '20px', fontSize: '12px', color: '#555', lineHeight: 1.6 }}>
+                      {t.indicadores.map((ind, i) => <li key={i}>{ind}</li>)}
+                    </ol>
+                  )}
+
                   {prereqs.length > 0 && (
                     <div className="lt-card-prereqs">
                       <span className="lt-prereq-label">Prerequisitos:</span>
@@ -393,9 +435,30 @@ export default function LearningTargetsPage({ teacher }) {
                     </div>
                   )}
 
+                  {/* Linked NEWS projects */}
+                  {linkedProjects[t.id]?.length > 0 && (
+                    <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: '#2E5598', textTransform: 'uppercase' }}>
+                        📋 Proyectos NEWS vinculados
+                      </div>
+                      {linkedProjects[t.id].map(p => (
+                        <div key={p.id} style={{ fontSize: 11, padding: '6px 10px', borderRadius: 8, background: '#EEF2FB', border: '1px solid #c5d5f0' }}>
+                          <div style={{ fontWeight: 700, color: '#1A3A8F' }}>
+                            {p.title} · {p.grade} {p.section} · P{p.period}
+                          </div>
+                          {p.target_indicador && (
+                            <div style={{ color: '#555', marginTop: 2, lineHeight: 1.4 }}>
+                              ↳ {p.target_indicador}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   {!t.is_active && (
                     <div className="lt-inactive-banner">
-                      Objetivo inactivo — no aparece en el selector de guías
+                      Logro inactivo — no aparece en el selector de guías
                     </div>
                   )}
                 </div>
@@ -410,7 +473,7 @@ export default function LearningTargetsPage({ teacher }) {
         <div className="lt-modal-overlay">
           <div className="lt-modal" onClick={e => e.stopPropagation()}>
             <div className="lt-modal-header">
-              <h3>{editingId ? '✏️ Editar objetivo' : '🎯 Nuevo objetivo de desempeño'}</h3>
+              <h3>{editingId ? '✏️ Editar logro' : '🎯 Nuevo logro de desempeño'}</h3>
               <button className="lt-modal-close" onClick={closeForm}>✕</button>
             </div>
 
@@ -498,12 +561,95 @@ export default function LearningTargetsPage({ teacher }) {
                 </div>
               </div>
 
+              {/* Indicadores de Logro */}
+              <div className="ge-field">
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <label style={{ margin: 0 }}>Indicadores de Logro</label>
+                  <button
+                    onClick={async () => {
+                      if (!form.description.trim()) return
+                      setGeneratingInd(true)
+                      setAiIndError(null)
+                      try {
+                        const result = await generateIndicadores({
+                          description: form.description,
+                          taxonomy:    form.taxonomy,
+                          subject:     form.subject,
+                          grade:       form.grade,
+                          principles: {
+                            yearVerse:          { text: school.year_verse || '', ref: school.year_verse_ref || '' },
+                            monthVerse:         { text: monthPrinciple?.month_verse || '', ref: monthPrinciple?.month_verse_ref || '' },
+                            indicatorPrinciple: monthPrinciple?.indicator_principle || school.indicator_principle || '',
+                          },
+                        })
+                        updateForm('indicadores', result)
+                      } catch (e) {
+                        const errorMsg = e.message || 'Error al generar indicadores'
+                        setAiIndError(errorMsg)
+                        showToast(errorMsg, 'error')
+                      } finally {
+                        setGeneratingInd(false)
+                      }
+                    }}
+                    disabled={generatingInd || !form.description.trim()}
+                    style={{
+                      fontSize: '12px', padding: '4px 12px', borderRadius: '6px',
+                      border: '1px solid #9BBB59', background: generatingInd ? '#f0f7e0' : '#f6fff0',
+                      color: '#5a8a00', cursor: 'pointer', fontWeight: 600,
+                      opacity: !form.description.trim() ? 0.5 : 1,
+                    }}
+                  >
+                    {generatingInd ? '⏳ Generando…' : '✨ Generar con IA'}
+                  </button>
+                </div>
+                {aiIndError && (
+                  <div style={{ fontSize: '12px', color: '#c0392b', marginBottom: '8px' }}>{aiIndError}</div>
+                )}
+                {(form.indicadores.length === 0) && !generatingInd && (
+                  <div style={{ fontSize: '12px', color: '#aaa', fontStyle: 'italic', marginBottom: '8px' }}>
+                    Escribe el logro y el nivel taxonómico, luego haz clic en "✨ Generar con IA" o agrega indicadores manualmente.
+                  </div>
+                )}
+                {form.indicadores.map((ind, idx) => (
+                  <div key={idx} style={{ display: 'flex', gap: '8px', marginBottom: '6px', alignItems: 'flex-start' }}>
+                    <span style={{ minWidth: '18px', paddingTop: '7px', color: '#9BBB59', fontWeight: 700, fontSize: '13px' }}>{idx + 1}.</span>
+                    <textarea
+                      value={ind}
+                      onChange={e => {
+                        const arr = [...form.indicadores]
+                        arr[idx] = e.target.value
+                        updateForm('indicadores', arr)
+                      }}
+                      placeholder="El estudiante demuestra el logro cuando…"
+                      rows={2}
+                      className="lt-textarea"
+                      style={{ flex: 1, resize: 'vertical' }}
+                    />
+                    <button
+                      onClick={() => {
+                        const arr = [...form.indicadores]
+                        arr.splice(idx, 1)
+                        updateForm('indicadores', arr)
+                      }}
+                      style={{ background: 'none', border: 'none', color: '#bbb', cursor: 'pointer', fontSize: '16px', padding: '6px 2px' }}
+                      title="Eliminar indicador"
+                    >✕</button>
+                  </div>
+                ))}
+                <button
+                  onClick={() => updateForm('indicadores', [...form.indicadores, ''])}
+                  style={{ fontSize: '12px', color: '#9BBB59', border: '1px solid #9BBB59', background: 'none', borderRadius: '6px', padding: '4px 12px', cursor: 'pointer', marginTop: '2px' }}
+                >
+                  + Agregar indicador
+                </button>
+              </div>
+
               {/* Prerequisites */}
               {availablePrereqs.length > 0 && (
                 <div className="ge-field">
                   <label>Prerequisitos <span style={{ color: '#999', fontWeight: 400 }}>(opcional)</span></label>
                   <span className="lt-field-hint" style={{ marginBottom: '8px', display: 'block' }}>
-                    ¿Qué necesita dominar el estudiante antes de intentar este objetivo?
+                    ¿Qué necesita dominar el estudiante antes de intentar este logro?
                   </span>
                   <div className="lt-prereq-list">
                     {availablePrereqs.map(t => {
@@ -539,7 +685,7 @@ export default function LearningTargetsPage({ teacher }) {
                 onClick={handleSave}
                 disabled={saving || !form.description.trim() || !form.subject || !form.grade}
               >
-                {saving ? '⏳ Guardando…' : editingId ? '💾 Actualizar' : '🎯 Crear objetivo'}
+                {saving ? '⏳ Guardando…' : editingId ? '💾 Actualizar' : '🎯 Crear logro'}
               </button>
             </div>
           </div>

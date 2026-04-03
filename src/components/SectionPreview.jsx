@@ -2,7 +2,10 @@
 // Preview en tiempo real de una sección: texto + imágenes con layout elegido.
 // Soporta 1-4 imágenes con grid automático.
 
-export default function SectionPreview({ section, sectionMeta }) {
+import { memo } from 'react'
+import DOMPurify from 'dompurify'
+
+const SectionPreview = memo(function SectionPreview({ section, sectionMeta }) {
   const content = section?.content || ''
   const images  = section?.images  || []
   const time    = section?.time    || sectionMeta?.time || ''
@@ -17,7 +20,7 @@ export default function SectionPreview({ section, sectionMeta }) {
   const textBlock = content ? (
     <div
       style={{ fontSize: '12px', lineHeight: 1.8, color: '#222' }}
-      dangerouslySetInnerHTML={{ __html: content }}
+      dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(content) }}
     />
   ) : (
     <p style={{ color: '#ccc', fontSize: '12px', fontStyle: 'italic', margin: 0 }}>—</p>
@@ -89,67 +92,87 @@ export default function SectionPreview({ section, sectionMeta }) {
       </div>
     </div>
   )
-}
+})
+
+export default SectionPreview
 
 // ── Image grid — tamaños óptimos por cantidad ─────────────────────────────────
 
 function buildImageGrid(images, isSide = false) {
-  const n = Math.min(images.length, 4) // máximo 4
-  const imgs = images.slice(0, 4)
+  const n    = Math.min(images.length, 6)
+  const imgs = images.slice(0, 6)
+  const gap  = '4px'
 
-  const imgStyle = {
-    width: '100%', objectFit: 'cover', borderRadius: '4px', display: 'block',
+  const imgStyle = { width: '100%', objectFit: 'cover', borderRadius: '4px', display: 'block' }
+
+  function imgBox(img, i, ratio = '4/3') {
+    return (
+      <div key={i} style={{ aspectRatio: ratio, overflow: 'hidden', borderRadius: '4px' }}>
+        <img src={img.url} alt={img.name || ''} style={imgStyle} />
+      </div>
+    )
   }
 
-  // Layout lateral: imágenes apiladas en columna con altura controlada
+  // Layout lateral: 1-2 → columna, 3+ → mini-grid 2 cols
   if (isSide) {
+    if (n <= 2) {
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap }}>
+          {imgs.map((img, i) => imgBox(img, i))}
+        </div>
+      )
+    }
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-        {imgs.map((img, i) => (
-          <div key={i} style={{ aspectRatio: '4/3', overflow: 'hidden', borderRadius: '4px' }}>
-            <img src={img.url} alt={img.name || ''} style={imgStyle} />
-          </div>
-        ))}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap }}>
+        {imgs.map((img, i) => imgBox(img, i, '1/1'))}
       </div>
     )
   }
 
   if (n === 1) {
     return (
-      <img src={imgs[0].url} alt={imgs[0].name || ''}
-        style={{ ...imgStyle, maxHeight: '200px', objectFit: 'contain' }} />
+      <div style={{ aspectRatio: '16/9', overflow: 'hidden', borderRadius: '4px' }}>
+        <img src={imgs[0].url} alt={imgs[0].name || ''} style={imgStyle} />
+      </div>
     )
   }
-
   if (n === 2) {
     return (
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
-        {imgs.map((img, i) => (
-          <img key={i} src={img.url} alt={img.name || ''}
-            style={{ ...imgStyle, aspectRatio: '4/3' }} />
-        ))}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap }}>
+        {imgs.map((img, i) => imgBox(img, i))}
       </div>
     )
   }
-
   if (n === 3) {
     return (
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '4px' }}>
-        {imgs.map((img, i) => (
-          <img key={i} src={img.url} alt={img.name || ''}
-            style={{ ...imgStyle, aspectRatio: '4/3' }} />
-        ))}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap }}>
+        {imgs.map((img, i) => imgBox(img, i))}
       </div>
     )
   }
-
-  // 4 imágenes: 2×2
+  if (n === 4) {
+    return (
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap }}>
+        {imgs.map((img, i) => imgBox(img, i))}
+      </div>
+    )
+  }
+  if (n === 5) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap }}>
+          {imgs.slice(0, 3).map((img, i) => imgBox(img, i, '3/2'))}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap }}>
+          {imgs.slice(3, 5).map((img, i) => imgBox(img, i, '3/2'))}
+        </div>
+      </div>
+    )
+  }
+  // 6 → 3×2
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
-      {imgs.map((img, i) => (
-        <img key={i} src={img.url} alt={img.name || ''}
-          style={{ ...imgStyle, aspectRatio: '4/3' }} />
-      ))}
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap }}>
+      {imgs.map((img, i) => imgBox(img, i, '3/2'))}
     </div>
   )
 }

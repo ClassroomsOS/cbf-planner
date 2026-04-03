@@ -6,7 +6,50 @@ import { Color } from '@tiptap/extension-color'
 import Highlight from '@tiptap/extension-highlight'
 import Link from '@tiptap/extension-link'
 import TextAlign from '@tiptap/extension-text-align'
-import { useEffect, useCallback } from 'react'
+import FontFamily from '@tiptap/extension-font-family'
+import { Extension } from '@tiptap/core'
+import { useEffect } from 'react'
+
+// ── Custom FontSize extension ─────────────────────────────────────────────────
+const FontSize = Extension.create({
+  name: 'fontSize',
+  addOptions() { return { types: ['textStyle'] } },
+  addGlobalAttributes() {
+    return [{
+      types: this.options.types,
+      attributes: {
+        fontSize: {
+          default: null,
+          parseHTML: el => el.style.fontSize || null,
+          renderHTML: attrs => {
+            if (!attrs.fontSize) return {}
+            return { style: `font-size: ${attrs.fontSize}` }
+          },
+        },
+      },
+    }]
+  },
+  addCommands() {
+    return {
+      setFontSize: size => ({ chain }) =>
+        chain().setMark('textStyle', { fontSize: size }).run(),
+      unsetFontSize: () => ({ chain }) =>
+        chain().setMark('textStyle', { fontSize: null }).removeEmptyTextStyle().run(),
+    }
+  },
+})
+
+const FONTS = [
+  { label: 'Por defecto', value: '' },
+  { label: 'Arial',        value: 'Arial, sans-serif' },
+  { label: 'Times New Roman', value: "'Times New Roman', serif" },
+  { label: 'Georgia',      value: 'Georgia, serif' },
+  { label: 'Verdana',      value: 'Verdana, sans-serif' },
+  { label: 'Courier New',  value: "'Courier New', monospace" },
+  { label: 'Calibri',      value: 'Calibri, sans-serif' },
+]
+
+const SIZES = ['8px','9px','10px','11px','12px','14px','16px','18px','20px','24px','28px','32px','36px']
 
 export default function RichEditor({ value, onChange, placeholder, minHeight = 100 }) {
   const editor = useEditor({
@@ -18,6 +61,8 @@ export default function RichEditor({ value, onChange, placeholder, minHeight = 1
       Highlight.configure({ multicolor: true }),
       Link.configure({ openOnClick: false }),
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
+      FontFamily,
+      FontSize,
     ],
     content: value || '',
     editorProps: {
@@ -55,10 +100,45 @@ export default function RichEditor({ value, onChange, placeholder, minHeight = 1
     editor.chain().focus().setLink({ href: url }).run()
   }
 
+  const currentFont = editor.getAttributes('textStyle').fontFamily || ''
+  const currentSize = editor.getAttributes('textStyle').fontSize   || ''
+
   return (
     <div className="rte-wrap">
       {/* ── Toolbar ── */}
       <div className="rte-toolbar">
+
+        {/* Font family */}
+        <select
+          className="rte-select"
+          value={currentFont}
+          title="Fuente"
+          onChange={e => {
+            const v = e.target.value
+            if (v) editor.chain().focus().setFontFamily(v).run()
+            else   editor.chain().focus().unsetFontFamily().run()
+          }}
+        >
+          {FONTS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+        </select>
+
+        {/* Font size */}
+        <select
+          className="rte-select rte-select-size"
+          value={currentSize}
+          title="Tamaño"
+          onChange={e => {
+            const v = e.target.value
+            if (v) editor.chain().focus().setFontSize(v).run()
+            else   editor.chain().focus().unsetFontSize().run()
+          }}
+        >
+          <option value="">Tam.</option>
+          {SIZES.map(s => <option key={s} value={s}>{s.replace('px','')}</option>)}
+        </select>
+
+        <div className="rte-sep" />
+
         {/* Text style */}
         <button type="button" className={isActive('bold')}
           onMouseDown={e => { e.preventDefault(); editor.chain().focus().toggleBold().run() }}

@@ -1,22 +1,37 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import useNewsProjects from '../hooks/useNewsProjects'
 import useRubricTemplates from '../hooks/useRubricTemplates'
 import NewsProjectEditor from '../components/news/NewsProjectEditor'
 import NewsProjectCard from '../components/news/NewsProjectCard'
 import NewsTimeline from '../components/news/NewsTimeline'
+import { supabase } from '../supabase'
+import { ACADEMIC_PERIODS } from '../utils/constants'
 
-const PERIODS = [
-  { value: 1, label: 'Período 1' },
-  { value: 2, label: 'Período 2' },
-  { value: 3, label: 'Período 3' },
-  { value: 4, label: 'Período 4' }
-]
+// Map to legacy format for this component
+const PERIODS = ACADEMIC_PERIODS.map((p, i) => ({
+  value: i + 1,
+  label: `Período ${i + 1}`
+}))
 
 export default function NewsPage({ teacher }) {
+  const school = teacher.schools || {}
   const [selectedPeriod, setSelectedPeriod] = useState(1)
   const [editorOpen, setEditorOpen] = useState(false)
   const [editingProject, setEditingProject] = useState(null)
   const [filterSubject, setFilterSubject] = useState('')
+  const [monthPrinciple, setMonthPrinciple] = useState(null)
+
+  useEffect(() => {
+    const now = new Date()
+    supabase
+      .from('school_monthly_principles')
+      .select('month_verse, month_verse_ref, indicator_principle')
+      .eq('school_id', teacher.school_id)
+      .eq('year',  now.getFullYear())
+      .eq('month', now.getMonth() + 1)
+      .maybeSingle()
+      .then(({ data }) => { if (data) setMonthPrinciple(data) })
+  }, [teacher.school_id])
 
   const { 
     projects, loading, error,
@@ -237,10 +252,13 @@ export default function NewsPage({ teacher }) {
         <NewsProjectEditor
           teacher={teacher}
           project={editingProject}
+          initialPeriod={selectedPeriod}
           templates={templates}
           cloneForProject={cloneForProject}
           onSave={handleSave}
           onClose={() => { setEditorOpen(false); setEditingProject(null) }}
+          yearVerse={{ text: school.year_verse || '', ref: school.year_verse_ref || '' }}
+          monthVerse={{ text: monthPrinciple?.month_verse || '', ref: monthPrinciple?.month_verse_ref || '' }}
         />
       )}
     </div>

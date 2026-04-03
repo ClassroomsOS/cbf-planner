@@ -88,7 +88,7 @@ export default function LearningTargetSelector({
   if (loading) {
     return (
       <div style={{ padding: '12px', color: '#888', fontSize: '13px' }}>
-        Cargando objetivos…
+        Cargando logros…
       </div>
     )
   }
@@ -96,7 +96,7 @@ export default function LearningTargetSelector({
   return (
     <div className="ge-field" style={{ marginBottom: '16px' }}>
       <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-        🎯 Objetivo de desempeño vinculado
+        🎯 Logro de desempeño vinculado
       </label>
 
       {/* Current selection */}
@@ -129,7 +129,7 @@ export default function LearningTargetSelector({
               background: 'none', border: 'none', fontSize: '16px',
               color: '#999', cursor: 'pointer', padding: '0 4px',
             }}
-            title="Desvincular objetivo"
+            title="Desvincular logro"
           >
             ✕
           </button>
@@ -139,7 +139,7 @@ export default function LearningTargetSelector({
           padding: '10px 14px', background: '#fef9ee', borderRadius: '8px',
           border: '1px dashed #d4b96a', fontSize: '13px', color: '#8a7030',
         }}>
-          Ningún objetivo vinculado — esta guía no tiene un ancla de desempeño.
+          Ningún logro vinculado — esta guía no tiene un ancla de desempeño.
         </div>
       )}
 
@@ -154,13 +154,13 @@ export default function LearningTargetSelector({
             color: '#2E5598', cursor: 'pointer', fontWeight: 600,
           }}
         >
-          {expanded ? '▲ Cerrar selector' : `🎯 Elegir objetivo (${targets.length} disponibles)`}
+          {expanded ? '▲ Cerrar selector' : `🎯 Elegir logro (${targets.length} disponibles)`}
         </button>
       )}
 
       {targets.length === 0 && !selectedTarget && (
         <p style={{ fontSize: '12px', color: '#999', marginTop: '6px' }}>
-          No hay objetivos activos para {subject} · {grade}.{' '}
+          No hay logros activos para {subject} · {grade}.{' '}
           <a
             href="#"
             onClick={e => { e.preventDefault(); navigate('/targets') }}

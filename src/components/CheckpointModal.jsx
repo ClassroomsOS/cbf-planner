@@ -132,7 +132,7 @@ export default function CheckpointModal({ previousPlan, target, teacher, onCompl
               fontSize: '11px', fontWeight: 700, color: '#888', marginBottom: '6px',
               textTransform: 'uppercase', letterSpacing: '0.5px',
             }}>
-              Objetivo de la semana {previousPlan.week_number}
+              Logro de la semana {previousPlan.week_number}
             </div>
             <div style={{ fontSize: '14px', color: '#333', lineHeight: 1.5, fontWeight: 500 }}>
               {target.description}

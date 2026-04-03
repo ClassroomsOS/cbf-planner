@@ -1,35 +1,39 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback, memo } from 'react'
 import { suggestSectionActivity, analyzeGuide, generateGuideStructure } from '../utils/AIAssistant'
+import { useToast } from '../context/ToastContext'
 
 // ══════════════════════════════════════════════════════════════
 // PUNTO 1 — AISuggestButton (inline en cada sección)
 // ══════════════════════════════════════════════════════════════
-export function AISuggestButton({ section, grade, subject, objective, unit, dayName, existingContent, onInsert, learningTarget }) {
+export const AISuggestButton = memo(function AISuggestButton({ section, grade, subject, objective, unit, dayName, existingContent, onInsert, learningTarget, principles }) {
+  const { showToast } = useToast()
   const [loading,     setLoading]     = useState(false)
   const [suggestion,  setSuggestion]  = useState(null)
   const [error,       setError]       = useState(null)
   const [open,        setOpen]        = useState(false)
 
-  async function handleSuggest() {
+  const handleSuggest = useCallback(async () => {
     setLoading(true); setError(null); setSuggestion(null); setOpen(true)
     try {
       const result = await suggestSectionActivity({
-        section, grade, subject, objective, unit, dayName, existingContent, learningTarget
+        section, grade, subject, objective, unit, dayName, existingContent, learningTarget, principles
       })
       setSuggestion(result)
     } catch (e) {
-      setError(e.message)
+      const errorMsg = e.message || 'Error al generar sugerencia'
+      setError(errorMsg)
+      showToast(errorMsg, 'error')
     }
     setLoading(false)
-  }
+  }, [section, grade, subject, objective, unit, dayName, existingContent, learningTarget, principles, showToast])
 
-  function handleInsert() {
+  const handleInsert = useCallback(() => {
     if (suggestion) {
       onInsert(suggestion)
       setOpen(false)
       setSuggestion(null)
     }
-  }
+  }, [suggestion, onInsert])
 
   return (
     <div className="ai-suggest-wrap">
@@ -69,12 +73,13 @@ export function AISuggestButton({ section, grade, subject, objective, unit, dayN
       )}
     </div>
   )
-}
+})
 
 // ══════════════════════════════════════════════════════════════
 // PUNTO 2 — AIAnalyzerModal (análisis completo pre-export)
 // ══════════════════════════════════════════════════════════════
-export function AIAnalyzerModal({ content, onClose }) {
+export function AIAnalyzerModal({ content, onClose, principles }) {
+  const { showToast } = useToast()
   const [loading,  setLoading]  = useState(false)
   const [analysis, setAnalysis] = useState(null)
   const [error,    setError]    = useState(null)
@@ -82,10 +87,12 @@ export function AIAnalyzerModal({ content, onClose }) {
   async function handleAnalyze() {
     setLoading(true); setError(null); setAnalysis(null)
     try {
-      const result = await analyzeGuide(content)
+      const result = await analyzeGuide(content, null, principles)
       setAnalysis(result)
     } catch (e) {
-      setError(e.message)
+      const errorMsg = e.message || 'Error al analizar la guía'
+      setError(errorMsg)
+      showToast(errorMsg, 'error')
     }
     setLoading(false)
   }
@@ -97,10 +104,11 @@ export function AIAnalyzerModal({ content, onClose }) {
   function formatAnalysis(text) {
     if (!text) return null
     const sections = [
-      { marker: '✅ Fortalezas',       color: '#9BBB59', bg: '#f0fff4' },
-      { marker: '⚠️ Alertas',          color: '#F79646', bg: '#fffbf0' },
-      { marker: '💡 Sugerencias',      color: '#4BACC6', bg: '#f0faff' },
-      { marker: '📊 Balance de tiempos', color: '#8064A2', bg: '#f8f4ff' },
+      { marker: '✅ Fortalezas',                  color: '#9BBB59', bg: '#f0fff4' },
+      { marker: '⚠️ Alertas',                     color: '#F79646', bg: '#fffbf0' },
+      { marker: '💡 Sugerencias',                 color: '#4BACC6', bg: '#f0faff' },
+      { marker: '📊 Balance de tiempos',          color: '#8064A2', bg: '#f8f4ff' },
+      { marker: '🙏 Integración del principio bíblico', color: '#C9A84C', bg: '#fffbf0' },
     ]
 
     let result = text
@@ -182,7 +190,8 @@ export function AIAnalyzerModal({ content, onClose }) {
 // ══════════════════════════════════════════════════════════════
 // PUNTO 3 — AIGeneratorModal (generar guía desde objetivo)
 // ══════════════════════════════════════════════════════════════
-export function AIGeneratorModal({ grade, subject, period, activeDays, currentContent, onApply, onClose, learningTarget }) {
+export function AIGeneratorModal({ grade, subject, period, activeDays, currentContent, onApply, onClose, learningTarget, principles }) {
+  const { showToast } = useToast()
   const [objective, setObjective] = useState(learningTarget?.description || '')
   const [unit,      setUnit]      = useState('')
   const [loading,   setLoading]   = useState(false)
@@ -233,11 +242,13 @@ export function AIGeneratorModal({ grade, subject, period, activeDays, currentCo
     setLoading(true); setError(null); setPreview(null)
     try {
       const result = await generateGuideStructure({
-        grade, subject, period, objective, unit, activeDays, learningTarget
+        grade, subject, period, objective, unit, activeDays, learningTarget, principles
       })
       setPreview(result)
     } catch (e) {
-      setError(e.message)
+      const errorMsg = e.message || 'Error al generar la guía'
+      setError(errorMsg)
+      showToast(errorMsg, 'error')
     }
     setLoading(false)
   }
@@ -253,8 +264,8 @@ export function AIGeneratorModal({ grade, subject, period, activeDays, currentCo
     // GuideEditorPage: merge preview into existing content
     var base = JSON.parse(JSON.stringify(currentContent))
     if (preview.objetivo) {
-      if (preview.objetivo.general)   base.objetivo.general   = preview.objetivo.general
-      if (preview.objetivo.indicador) base.objetivo.indicador = preview.objetivo.indicador
+      if (preview.objetivo.general)     base.objetivo.general     = preview.objetivo.general
+      if (preview.objetivo.indicadores) base.objetivo.indicadores = preview.objetivo.indicadores
     }
     if (preview.days) {
       var dKeys = Object.keys(preview.days)
@@ -305,7 +316,7 @@ export function AIGeneratorModal({ grade, subject, period, activeDays, currentCo
                   <span style={{ fontSize: '18px' }}>🎯</span>
                   <div>
                     <div style={{ fontSize: '11px', fontWeight: 700, color: '#2d7a2d', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                      Objetivo de desempeño vinculado
+                      Logro de desempeño vinculado
                     </div>
                     <div style={{ fontSize: '13px', color: '#1a5c1a', lineHeight: 1.5 }}>
                       {learningTarget.description}
@@ -386,11 +397,11 @@ export function AIGeneratorModal({ grade, subject, period, activeDays, currentCo
               {/* Objective preview */}
               {preview.objetivo && (
                 <div style={{ background: '#eef7e0', border: '1px solid #9BBB59', borderRadius: '8px', padding: '12px 14px', marginBottom: '16px' }}>
-                  <div style={{ fontWeight: 700, fontSize: '12px', color: '#9BBB59', marginBottom: '6px' }}>🎯 Objetivo generado</div>
+                  <div style={{ fontWeight: 700, fontSize: '12px', color: '#9BBB59', marginBottom: '6px' }}>🎯 Logro generado</div>
                   <div style={{ fontSize: '12px', color: '#333', lineHeight: 1.6 }}>{preview.objetivo.general}</div>
-                  {preview.objetivo.indicador && (
-                    <div style={{ fontSize: '11px', color: '#666', marginTop: '4px' }}>📋 {preview.objetivo.indicador}</div>
-                  )}
+                  {preview.objetivo.indicadores?.filter(Boolean).map((ind, i) => (
+                    <div key={i} style={{ fontSize: '11px', color: '#666', marginTop: '4px' }}>📋 {ind}</div>
+                  ))}
                 </div>
               )}
 

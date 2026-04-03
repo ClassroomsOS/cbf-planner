@@ -1,7 +1,25 @@
 import { useState, useEffect } from 'react'
+import { z } from 'zod'
 import { supabase } from '../supabase'
+import { useToast } from '../context/ToastContext'
+
+// Validation schema
+const profileSchema = z.object({
+  fullName: z.string()
+    .min(2, 'El nombre debe tener al menos 2 caracteres')
+    .max(100, 'El nombre no puede exceder 100 caracteres')
+    .trim()
+    .refine(val => val.split(' ').length >= 2, 'Ingresa tu nombre completo (nombre y apellido)'),
+  initials: z.string()
+    .max(3, 'Las iniciales no pueden exceder 3 caracteres')
+    .regex(/^[A-Za-z]*$/, 'Las iniciales solo pueden contener letras')
+    .optional(),
+  schoolId: z.string()
+    .uuid('Debes seleccionar un colegio válido'),
+})
 
 export default function ProfileSetupPage({ session, onComplete }) {
+  const { showToast } = useToast()
   const [schools,  setSchools]  = useState([])
   const [loading,  setLoading]  = useState(false)
   const [error,    setError]    = useState(null)
@@ -15,19 +33,30 @@ export default function ProfileSetupPage({ session, onComplete }) {
   }, [])
 
   async function handleSave() {
-    if (!schoolId || !fullName.trim()) {
-      setError('Completa tu nombre y selecciona el colegio.')
+    setError(null)
+
+    // Validate input
+    const validation = profileSchema.safeParse({
+      fullName: fullName.trim(),
+      initials: initials.trim(),
+      schoolId,
+    })
+
+    if (!validation.success) {
+      const firstError = validation.error.errors[0].message
+      setError(firstError)
+      showToast(firstError, 'error')
       return
     }
+
     setLoading(true)
-    setError(null)
 
     const { error: insertError } = await supabase.from('teachers').insert({
       id:        session.user.id,
       school_id: schoolId,
       full_name: fullName.trim(),
       initials:  initials.trim().toUpperCase() ||
-                 fullName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase(),
+                 fullName.trim().split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase(),
       email:     session.user.email,
       subjects:  [],
       class_subjects: [],
@@ -36,13 +65,27 @@ export default function ProfileSetupPage({ session, onComplete }) {
       role:      'teacher',
     })
 
-    if (insertError) { setError(insertError.message); setLoading(false); return }
+    if (insertError) {
+      setError(insertError.message)
+      showToast('Error al crear el perfil: ' + insertError.message, 'error')
+      setLoading(false)
+      return
+    }
 
-    const { data } = await supabase
+    const { data, error: fetchError } = await supabase
       .from('teachers')
       .select('*, schools(*)')
       .eq('id', session.user.id)
       .single()
+
+    if (fetchError) {
+      setError(fetchError.message)
+      showToast('Error al cargar el perfil: ' + fetchError.message, 'error')
+      setLoading(false)
+      return
+    }
+
+    showToast('Perfil creado exitosamente. Esperando aprobación del coordinador.', 'success', 5000)
     onComplete(data)
     setLoading(false)
   }

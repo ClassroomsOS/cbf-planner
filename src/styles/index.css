@@ -25,6 +25,22 @@ body {
 button { cursor: pointer; font-family: inherit; }
 input, select, textarea { font-family: inherit; font-size: 13px; }
 
+/* ── ACCESSIBILITY: Focus rings ──
+   :focus-visible fires only on keyboard navigation, not on mouse click.
+   This keeps the UI clean for mouse users while giving keyboard users
+   a visible indicator of where they are. ── */
+:focus { outline: none; }
+:focus-visible {
+  outline: 2px solid #4BACC6;
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+/* Section headers have colored backgrounds — use inset white ring */
+.ge-section-hdr:focus-visible {
+  outline: 2px solid rgba(255,255,255,0.85);
+  outline-offset: -3px;
+}
+
 /* Prevent zoom on input focus (iOS) */
 @media (max-width: 767px) {
   input, select, textarea { font-size: 16px; }
@@ -371,7 +387,6 @@ select {
   /* Prevent zoom on iOS — must keep 16px on mobile (set above) */
 }
 input:focus, select:focus, textarea:focus {
-  outline: none;
   border-color: #4BACC6;
   background: #fff;
 }
@@ -1065,8 +1080,11 @@ input:focus, select:focus, textarea:focus {
   padding: 10px 16px;
   background: #fff;
   border-bottom: 1.5px solid #dde5f0;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
   flex-shrink: 0;
   flex-wrap: wrap;
+  position: relative;
+  z-index: 20;
 }
 .ge-back-btn {
   background: none;
@@ -1098,13 +1116,59 @@ input:focus, select:focus, textarea:focus {
   display: flex; align-items: center; gap: 10px;
   flex-shrink: 0;
 }
-.ge-save-status {
-  font-size: 11px; font-weight: 700; white-space: nowrap;
+
+.ge-print-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 16px;
+  border-radius: 8px;
+  border: none;
+  background: linear-gradient(135deg, #C0504D 0%, #a03030 100%);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(192,80,77,0.35);
+  transition: transform .15s, box-shadow .15s, filter .15s;
+  letter-spacing: .2px;
 }
-.ge-save-saved   { color: #9BBB59; }
-.ge-save-unsaved { color: #C9A84C; }
-.ge-save-saving  { color: #4BACC6; }
-.ge-save-error   { color: #cc3333; }
+.ge-print-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(192,80,77,0.45);
+  filter: brightness(1.08);
+}
+.ge-print-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 4px rgba(192,80,77,0.3);
+}
+.ge-save-status {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px; font-weight: 700; white-space: nowrap;
+  padding: 3px 10px;
+  border-radius: 20px;
+  transition: background .3s, color .3s;
+}
+.ge-save-saved   { color: #3a7d44; background: #edfaf0; }
+.ge-save-unsaved { color: #8a5f00; background: #fff8e1; }
+.ge-save-saving  { color: #1a6ea8; background: #e8f4ff; }
+.ge-save-error   { color: #cc3333; background: #fff0f0; }
+
+.ge-save-pulse {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: #4BACC6;
+  animation: ge-pulse 1s ease-in-out infinite;
+  flex-shrink: 0;
+}
+@keyframes ge-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: .4; transform: scale(.7); }
+}
 
 /* ── Body: nav + content ── */
 .ge-body {
@@ -1163,6 +1227,36 @@ input:focus, select:focus, textarea:focus {
   font-size: 10px; font-weight: 400;
   color: #999; margin-top: 1px;
 }
+.ge-nav-day-progress {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 4px;
+}
+.ge-nav-day-bar {
+  flex: 1;
+  height: 3px;
+  background: #dde5f0;
+  border-radius: 2px;
+  overflow: hidden;
+  min-width: 40px;
+}
+.ge-nav-day-bar span {
+  display: block;
+  height: 100%;
+  background: #4BACC6;
+  border-radius: 2px;
+  transition: width .4s cubic-bezier(0.4,0,0.2,1);
+}
+.ge-nav-item.active .ge-nav-day-bar { background: rgba(255,255,255,.3); }
+.ge-nav-item.active .ge-nav-day-bar span { background: #fff; }
+.ge-nav-day-count {
+  font-size: 9px;
+  font-weight: 700;
+  color: #aaa;
+  white-space: nowrap;
+}
+.ge-nav-item.active .ge-nav-day-count { color: rgba(255,255,255,.7); }
 
 /* Mobile: nav becomes horizontal scrollable strip */
 @media (max-width: 767px) {
@@ -1190,6 +1284,10 @@ input:focus, select:focus, textarea:focus {
     border-bottom-color: #2E5598;
   }
   .ge-nav-sub { display: none; }
+  .ge-nav-day-progress { display: none; }
+  .ge-section-nav { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 6px; }
+  .ge-section-nav-pill { flex-shrink: 0; font-size: 9px; padding: 3px 8px; }
+  .ge-section-peek { display: none; }
 }
 
 /* ── Content area ── */
@@ -1227,7 +1325,6 @@ input:focus, select:focus, textarea:focus {
 }
 .ge-field input[type="text"]:focus,
 .ge-field textarea:focus {
-  outline: none;
   border-color: #4BACC6;
   background: #fff;
 }
@@ -1273,30 +1370,142 @@ input:focus, select:focus, textarea:focus {
 }
 .ge-toggle-row label { cursor: pointer; }
 
+/* ── Sticky section navigator ── */
+.ge-section-nav {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 8px 0 12px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #fff;
+  border-bottom: 1px solid #eef2f8;
+  margin-bottom: 12px;
+}
+.ge-section-nav-pill {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 2px solid var(--pill-color);
+  background: transparent;
+  color: var(--pill-color);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .4px;
+  cursor: pointer;
+  transition: background .15s, color .15s, transform .1s;
+}
+.ge-section-nav-pill:hover  { background: var(--pill-color); color: #fff; transform: translateY(-1px); }
+.ge-section-nav-pill.active { background: var(--pill-color); color: #fff; }
+.ge-nav-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  flex-shrink: 0;
+  transition: background .15s;
+}
+.ge-nav-dot.filled { background: currentColor; }
+
 /* ── Section blocks ── */
 .ge-section-block {
   border: 1.5px solid #eee;
   border-radius: 8px;
   margin-bottom: 10px;
   overflow: hidden;
+  scroll-margin-top: 8px;
 }
 .ge-section-hdr {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 14px;
+  padding: 9px 14px;
   font-size: 11px; font-weight: 700;
   color: #fff;
   cursor: pointer;
   user-select: none;
   transition: filter .15s;
+  min-height: 40px;
 }
 .ge-section-hdr:hover { filter: brightness(1.08); }
-.ge-section-arrow { font-size: 10px; }
+.ge-section-arrow { font-size: 10px; flex-shrink: 0; }
 
+.ge-section-hdr-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+}
+.ge-section-hdr-right {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+.ge-section-label { font-weight: 700; white-space: nowrap; font-size: 11px; }
+.ge-section-time  { font-size: 10px; opacity: .75; white-space: nowrap; }
+.ge-section-peek  {
+  font-size: 10px;
+  font-weight: 400;
+  opacity: .75;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 280px;
+}
+.ge-section-status-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255,255,255,0.6);
+  flex-shrink: 0;
+  transition: background .2s, border-color .2s;
+}
+.ge-section-status-dot.done {
+  background: #fff;
+  border-color: #fff;
+}
+
+/* Content chips */
+.ge-chip {
+  font-size: 9px;
+  font-weight: 700;
+  background: rgba(255,255,255,0.2);
+  border-radius: 10px;
+  padding: 2px 6px;
+  white-space: nowrap;
+}
+
+/* Word count */
+.ge-word-count {
+  font-size: 10px;
+  color: #aaa;
+  text-align: right;
+  margin-top: 3px;
+  letter-spacing: .2px;
+}
+
+/* ── Animated accordion body ── */
+.ge-section-body-wrap {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.ge-section-body-wrap.open {
+  grid-template-rows: 1fr;
+}
 .ge-section-body {
-  padding: 14px;
+  overflow: hidden;
+  padding: 0 14px;
   background: #fafcff;
+  transition: padding 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.ge-section-body-wrap.open .ge-section-body {
+  padding: 14px;
 }
 
 /* ── Info / Phase2 notices ── */
@@ -1745,6 +1954,21 @@ input:focus, select:focus, textarea:focus {
 }
 .rte-btn:hover  { background: rgba(255,255,255,0.22); border-color: rgba(255,255,255,0.5); }
 .rte-btn.active { background: rgba(75,172,198,0.45); border-color: #4BACC6; }
+
+.rte-select {
+  background: rgba(255,255,255,0.08);
+  border: 1.5px solid rgba(255,255,255,0.2);
+  color: #fff;
+  border-radius: 4px;
+  font-size: 11px;
+  padding: 2px 4px;
+  height: 28px;
+  cursor: pointer;
+  max-width: 120px;
+}
+.rte-select-size { max-width: 52px; }
+.rte-select:focus { border-color: #4BACC6; }
+.rte-select option { background: #1F3864; color: #fff; }
 
 .rte-sep {
   width: 1px; height: 20px;

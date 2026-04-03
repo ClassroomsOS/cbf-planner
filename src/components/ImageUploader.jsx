@@ -1,7 +1,10 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useCallback, memo } from 'react'
 import { supabase } from '../supabase'
+import { useToast } from '../context/ToastContext'
+import { imageUploadSchema } from '../utils/validationSchemas'
 
-export default function ImageUploader({ planId, dayIso, sectionKey, images = [], onChange }) {
+const ImageUploader = memo(function ImageUploader({ planId, dayIso, sectionKey, images = [], onChange }) {
+  const { showToast } = useToast()
   const [uploading, setUploading] = useState(false)
   const inputRef = useRef()
 
@@ -11,29 +14,58 @@ export default function ImageUploader({ planId, dayIso, sectionKey, images = [],
     const remaining = MAX_IMAGES - images.length
     const files = Array.from(e.target.files).slice(0, remaining)
     if (!files.length) return
+
+    // Validate each file
+    const validFiles = []
+    for (const file of files) {
+      const validation = imageUploadSchema.safeParse({ file, name: file.name })
+      if (!validation.success) {
+        const error = validation.error.errors[0]
+        showToast(`${file.name}: ${error.message}`, 'error')
+        continue
+      }
+      validFiles.push(file)
+    }
+
+    if (validFiles.length === 0) {
+      e.target.value = ''
+      return
+    }
+
     setUploading(true)
 
     const uploaded = []
-    for (const file of files) {
+    for (const file of validFiles) {
       const ext  = file.name.split('.').pop()
       const path = `${planId}/${dayIso}/${sectionKey}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
 
-      // Compress before upload
-      const compressed = await compressImage(file)
+      try {
+        // Compress before upload
+        const compressed = await compressImage(file)
 
-      const { data, error } = await supabase.storage
-        .from('guide-images')
-        .upload(path, compressed.blob, { contentType: compressed.type, upsert: false })
+        const { data, error } = await supabase.storage
+          .from('guide-images')
+          .upload(path, compressed.blob, { contentType: compressed.type, upsert: false })
 
-      if (!error) {
+        if (error) {
+          showToast(`Error al subir ${file.name}: ${error.message}`, 'error')
+          continue
+        }
+
         const { data: urlData } = supabase.storage
           .from('guide-images')
           .getPublicUrl(path)
         uploaded.push({ url: urlData.publicUrl, path, name: file.name })
+      } catch (err) {
+        showToast(`Error al procesar ${file.name}: ${err.message}`, 'error')
       }
     }
 
-    onChange([...images, ...uploaded])
+    if (uploaded.length > 0) {
+      onChange([...images, ...uploaded])
+      showToast(`${uploaded.length} imagen${uploaded.length > 1 ? 'es' : ''} subida${uploaded.length > 1 ? 's' : ''} exitosamente`, 'success')
+    }
+
     setUploading(false)
     e.target.value = ''
   }
@@ -47,7 +79,7 @@ export default function ImageUploader({ planId, dayIso, sectionKey, images = [],
     onChange(images.map(i => i.path === img.path ? { ...i, link } : i))
   }
 
-  const MAX_IMAGES = 4
+  const MAX_IMAGES = 6
   const atMax = images.length >= MAX_IMAGES
 
   return (
@@ -79,7 +111,7 @@ export default function ImageUploader({ planId, dayIso, sectionKey, images = [],
         </div>
       )}
 
-      {/* Aviso de cantidad */}
+      {/* Avisos de cantidad */}
       {images.length === MAX_IMAGES && (
         <div style={{
           fontSize: '11px', color: '#8a5c00', background: '#fff8e6',
@@ -89,13 +121,22 @@ export default function ImageUploader({ planId, dayIso, sectionKey, images = [],
           🚫 Límite de {MAX_IMAGES} imágenes por sección alcanzado.
         </div>
       )}
-      {images.length === 3 && (
+      {images.length === 5 && (
+        <div style={{
+          fontSize: '11px', color: '#555', background: '#f5f5f5',
+          border: '1px solid #ddd', borderRadius: '6px',
+          padding: '6px 10px', marginBottom: '6px',
+        }}>
+          💡 Con 6 imágenes se usa un grid 3×2. Puedes agregar una más.
+        </div>
+      )}
+      {images.length === 4 && (
         <div style={{
           fontSize: '11px', color: '#2E5598', background: '#f0f4ff',
           border: '1px solid #c5d5f0', borderRadius: '6px',
           padding: '6px 10px', marginBottom: '6px',
         }}>
-          💡 Tip de diseño: 2 imágenes es lo más efectivo visualmente.
+          💡 Tip: 4 imágenes forman un grid 2×2 equilibrado.
         </div>
       )}
 
@@ -114,13 +155,15 @@ export default function ImageUploader({ planId, dayIso, sectionKey, images = [],
           />
           {uploading
             ? <span>⏳ Subiendo…</span>
-            : <span>🖼️ {images.length > 0 ? `+ Agregar imagen (${images.length}/${MAX_IMAGES})` : 'Clic para subir imagen(es)'}</span>
+            : <span>🖼️ {images.length > 0 ? `+ Agregar imagen (${images.length}/${MAX_IMAGES})` : `Clic para subir imágenes (máx. ${MAX_IMAGES})`}</span>
           }
         </div>
       )}
     </div>
   )
-}
+})
+
+export default ImageUploader
 
 // ── Image compression ─────────────────────────────────────────────────────────
 const MAX_PX   = 900

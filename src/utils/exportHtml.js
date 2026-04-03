@@ -2,7 +2,7 @@
 // Builds the CBF guide as a standalone HTML string and optionally downloads it
 // or opens it for printing (PDF).
 
-import { blockPreviewHTML, BLOCK_TYPES } from '../components/SmartBlocks'
+import { blockPreviewHTML, blockInteractiveHTML, BLOCK_TYPES } from '../components/SmartBlocks'
 
 const SECTIONS = [
   { key: 'subject',    label: 'SUBJECT TO BE WORKED', hex: '4F81BD', time: '~8 min'  },
@@ -30,9 +30,9 @@ function getEmbedUrl(url) {
   return null
 }
 
-function sectionContent(section) {
+function sectionContent(section, idPrefix = '') {
   const html        = section?.content || ''
-  const images      = (section?.images || []).slice(0, 4)
+  const images      = (section?.images || []).slice(0, 6)
   const videos      = section?.videos      || []
   const smartBlocks = section?.smartBlocks || []
 
@@ -61,13 +61,15 @@ function sectionContent(section) {
     : ''
 
   const smartHtml = smartBlocks.length > 0
-    ? smartBlocks.map(b => {
+    ? smartBlocks.map((b, idx) => {
         const typeDef = BLOCK_TYPES[b.type] || {}
+        const bid = idPrefix ? `sbd_${idPrefix}_${idx}` : `sbd_${b.id || idx}`
+        const interactive = blockInteractiveHTML(b, bid) || ''
         return `<div style="margin-top:8px;border:2px solid #${typeDef.color||'cccccc'};border-radius:6px;overflow:hidden">
           <div style="background:#${typeDef.color||'666666'};color:#fff;padding:5px 12px;font-size:11px;font-weight:700">
             ${typeDef.icon||''} ${typeDef.label||b.type}
           </div>
-          <div style="padding:10px 14px;background:#fff">${blockPreviewHTML(b)}</div>
+          <div style="padding:10px 14px;background:#fff">${blockPreviewHTML(b)}${interactive}</div>
         </div>`
       }).join('')
     : ''
@@ -99,8 +101,9 @@ function sectionContent(section) {
 
 // ── Image grid HTML — tamaños óptimos por cantidad ────────────────────────────
 function buildImageGrid(images, layout) {
-  const n = images.length
+  const n        = images.length
   const isVertical = layout === 'right' || layout === 'left'
+  const gap      = '4px'
 
   function imgTag(img) {
     const tag = `<img src="${img.url}" alt="${esc(img.name || '')}"
@@ -110,40 +113,43 @@ function buildImageGrid(images, layout) {
       : tag
   }
 
-  // For vertical (right/left): images stacked in a column with fixed aspect ratio
-  if (isVertical) {
-    const items = images.map(img =>
-      `<div style="aspect-ratio:4/3;overflow:hidden;border-radius:5px;margin-bottom:4px">${imgTag(img)}</div>`
-    ).join('')
-    return `<div>${items}</div>`
+  function cell(img, ratio = '4/3') {
+    return `<div style="aspect-ratio:${ratio};overflow:hidden;border-radius:5px">${imgTag(img)}</div>`
   }
 
-  // For below: grid by count
-  const gap = '4px'
-  if (n === 1) {
-    return `<div style="aspect-ratio:16/9;overflow:hidden;border-radius:5px">${imgTag(images[0])}</div>`
-  }
-  if (n === 2) {
+  // Vertical (right/left): 1-2 → columna, 3+ → mini-grid 2 cols
+  if (isVertical) {
+    if (n <= 2) {
+      return `<div>${images.map(img => `<div style="aspect-ratio:4/3;overflow:hidden;border-radius:5px;margin-bottom:4px">${imgTag(img)}</div>`).join('')}</div>`
+    }
     return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:${gap}">
-      ${images.map(img => `<div style="aspect-ratio:4/3;overflow:hidden;border-radius:5px">${imgTag(img)}</div>`).join('')}
+      ${images.map(img => cell(img, '1/1')).join('')}
     </div>`
   }
-  if (n === 3) {
-    return `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:${gap}">
-      ${images.map(img => `<div style="aspect-ratio:4/3;overflow:hidden;border-radius:5px">${imgTag(img)}</div>`).join('')}
+
+  // Below: grid by count
+  if (n === 1) return cell(images[0], '16/9')
+  if (n === 2) return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:${gap}">${images.map(img => cell(img)).join('')}</div>`
+  if (n === 3) return `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:${gap}">${images.map(img => cell(img)).join('')}</div>`
+  if (n === 4) return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:${gap}">${images.map(img => cell(img)).join('')}</div>`
+  if (n === 5) return `
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:${gap};margin-bottom:${gap}">
+      ${images.slice(0, 3).map(img => cell(img, '3/2')).join('')}
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:${gap}">
+      ${images.slice(3, 5).map(img => cell(img, '3/2')).join('')}
     </div>`
-  }
-  // 4 → 2×2
-  return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:${gap}">
-    ${images.map(img => `<div style="aspect-ratio:4/3;overflow:hidden;border-radius:5px">${imgTag(img)}</div>`).join('')}
-  </div>`
+  // 6 → 3×2
+  return `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:${gap}">${images.map(img => cell(img, '3/2')).join('')}</div>`
 }
 
 function buildDayBlock(iso, day) {
+  const isoKey = iso.replace(/-/g, '')
   const secRows = SECTIONS.map(s => {
     const sd = day.sections?.[s.key] || {}
+    const idPrefix = `${isoKey}_${s.key}`
     return `
-    <tr>
+    <tr style="break-inside:avoid;page-break-inside:avoid">
       <td style="background:#${s.hex};color:#fff;font-weight:700;font-size:11px;
                  padding:8px 10px;width:140px;vertical-align:top;
                  border:1px solid #ddd;white-space:nowrap">
@@ -151,13 +157,13 @@ function buildDayBlock(iso, day) {
         <span style="font-weight:400;font-size:10px;opacity:.75">${sd.time || s.time}</span>
       </td>
       <td style="padding:10px 14px;vertical-align:top;border:1px solid #ddd;background:#fff">
-        ${sectionContent(sd)}
+        ${sectionContent(sd, idPrefix)}
       </td>
     </tr>`
   }).join('')
 
   return `
-  <div style="margin-bottom:20px;border-radius:6px;overflow:hidden;border:2px solid #2E5598">
+  <div class="day-block" style="margin-bottom:20px;border-radius:6px;overflow:hidden;border:2px solid #2E5598">
     <div style="background:#1F3864;color:#fff;padding:10px 16px;
                 display:flex;justify-content:space-between;align-items:center">
       <span style="font-weight:700;font-size:14px">
@@ -197,10 +203,98 @@ export function buildHtml(content) {
   body { font-family: Arial, sans-serif; max-width: 960px; margin: 0 auto; padding: 20px; color: #222; }
   * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
   a { color: #2E5598; }
-  @media print { body { padding: 0; max-width: 100%; } }
+  @media print {
+    body { padding: 0; max-width: 100%; }
+    tr   { break-inside: avoid; page-break-inside: avoid; }
+    .day-block { break-before: auto; page-break-before: auto; }
+    .day-block + .day-block { break-before: page; page-break-before: always; }
+    .pdf-fab { display: none !important; }
+    .sbd-launch { display: none !important; }
+  }
+  /* ── SmartBlock Interactive Dialogs ──────────────────────────────── */
+  dialog.sbd {
+    border: none; border-radius: 12px; padding: 0;
+    max-width: 600px; width: 90vw; max-height: 85vh;
+    display: flex; flex-direction: column;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.30);
+  }
+  dialog.sbd::backdrop { background: rgba(0,0,0,0.50); }
+  .sbd-h {
+    flex-shrink: 0;
+    color: #fff; padding: 12px 16px;
+    display: flex; justify-content: space-between; align-items: center;
+    font-weight: 700; font-size: 14px; font-family: Arial, sans-serif;
+  }
+  .sbd-close {
+    background: rgba(255,255,255,0.20); border: none; color: #fff;
+    width: 30px; height: 30px; border-radius: 50%;
+    cursor: pointer; font-size: 15px; line-height: 1;
+  }
+  .sbd-b {
+    flex: 1; min-height: 0;
+    padding: 16px; overflow-y: auto;
+    font-family: Arial, sans-serif;
+  }
+  .sbd-f {
+    flex-shrink: 0;
+    padding: 10px 16px; border-top: 1px solid #eee;
+    display: flex; gap: 8px; align-items: center; justify-content: flex-end;
+    font-family: Arial, sans-serif;
+  }
+  .sbd-launch {
+    display: inline-flex; align-items: center; gap: 6px;
+    margin-top: 10px; padding: 8px 18px;
+    color: #fff; border: none; border-radius: 20px;
+    font-size: 12px; font-weight: 700; font-family: Arial, sans-serif;
+    cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.20);
+    transition: transform .12s, box-shadow .12s;
+  }
+  .sbd-launch:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,0,0,0.28); }
+  .sbd-check {
+    padding: 8px 20px; background: #2E5598; color: #fff;
+    border: none; border-radius: 6px;
+    font-size: 13px; font-weight: 700; font-family: Arial, sans-serif; cursor: pointer;
+  }
+  .sbd-reset {
+    padding: 8px 16px; background: #f0f0f0; color: #555;
+    border: none; border-radius: 6px;
+    font-size: 13px; font-family: Arial, sans-serif; cursor: pointer;
+  }
 </style>
 </head>
 <body>
+
+<!-- Botón flotante Guardar como PDF -->
+<button class="pdf-fab" onclick="window.print()" title="Guardar o imprimir como PDF">
+  🖨️ Guardar como PDF
+</button>
+<style>
+  .pdf-fab {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 9999;
+    padding: 12px 22px;
+    background: linear-gradient(135deg, #C0504D 0%, #8B1A1A 100%);
+    color: #fff;
+    border: none;
+    border-radius: 50px;
+    font-size: 14px;
+    font-weight: 700;
+    font-family: Arial, sans-serif;
+    cursor: pointer;
+    box-shadow: 0 4px 18px rgba(192,80,77,0.5);
+    transition: transform .15s, box-shadow .15s;
+    letter-spacing: .3px;
+  }
+  .pdf-fab:hover {
+    transform: translateY(-2px) scale(1.03);
+    box-shadow: 0 8px 24px rgba(192,80,77,0.6);
+  }
+  .pdf-fab:active {
+    transform: translateY(0) scale(.98);
+  }
+</style>
 
 <!-- Encabezado institucional -->
 <table style="width:100%;border:2px solid #2E5598;border-collapse:collapse;margin-bottom:12px">
@@ -237,46 +331,56 @@ export function buildHtml(content) {
   </tr>
 </table>
 
-<!-- Objetivo -->
-${o.general || o.indicador ? `
+<!-- Logro -->
+${(() => {
+  const indicadores = o.indicadores?.filter(Boolean).length
+    ? o.indicadores.filter(Boolean)
+    : o.indicador ? [o.indicador] : []
+  if (!o.general && !indicadores.length) return ''
+  const indHtml = indicadores.length
+    ? `<ol style="margin:0;padding-left:18px;font-size:12px;line-height:1.8">${indicadores.map(ind => `<li>${ind}</li>`).join('')}</ol>`
+    : '<div style="font-size:12px;line-height:1.6">—</div>'
+  const principioRow = o.principio ? `
+  <tr>
+    <td colspan="2" style="padding:8px 14px;background:#f0f5f0;border-top:1px solid #ddd;
+                           font-size:11px;color:#555;font-style:italic;border-left:3px solid #9BBB59">
+      <strong style="font-style:normal;color:#9BBB59">Principio:</strong> ${esc(o.principio)}
+    </td>
+  </tr>` : ''
+  return `
 <table style="width:100%;border:2px solid #2E5598;border-collapse:collapse;margin-bottom:12px">
   <tr>
     <td colspan="2" style="background:#9BBB59;color:#fff;font-weight:700;font-size:12px;
                            padding:7px 14px;text-transform:uppercase">
-      🎯 Objetivo de Aprendizaje
+      🎯 Logro de Aprendizaje
     </td>
   </tr>
   <tr>
     <td style="width:50%;padding:10px 14px;vertical-align:top;
                border-top:1px solid #ddd;border-right:1px solid #ddd">
       <div style="font-size:10px;font-weight:700;color:#9BBB59;text-transform:uppercase;margin-bottom:5px">
-        Objetivo General
+        Logro
       </div>
       <div style="font-size:12px;line-height:1.6">${o.general || '—'}</div>
     </td>
     <td style="width:50%;padding:10px 14px;vertical-align:top;border-top:1px solid #ddd">
       <div style="font-size:10px;font-weight:700;color:#9BBB59;text-transform:uppercase;margin-bottom:5px">
-        Indicador de Logro
+        Indicadores de Logro
       </div>
-      <div style="font-size:12px;line-height:1.6">${o.indicador || '—'}</div>
+      ${indHtml}
     </td>
   </tr>
-  ${o.principio ? `
-  <tr>
-    <td colspan="2" style="padding:8px 14px;background:#f0f5f0;border-top:1px solid #ddd;
-                           font-size:11px;color:#555;font-style:italic;border-left:3px solid #9BBB59">
-      <strong style="font-style:normal;color:#9BBB59">Principio:</strong> ${esc(o.principio)}
-    </td>
-  </tr>` : ''}
-</table>` : ''}
+  ${principioRow}
+</table>`
+})()}
 
 <!-- Versículo -->
 ${v.text ? `
 <div style="background:#FFF8E7;border-left:4px solid #C9A84C;padding:10px 16px;
             border-radius:0 6px 6px 0;margin-bottom:14px;font-style:italic;
             font-size:12px;color:#5a4000;line-height:1.6">
-  «${esc(v.text)}»<br>
-  <strong style="font-style:normal;color:#C9A84C">— ${esc(v.ref)}</strong>
+  ${v.text}
+  ${v.ref ? `<div style="margin-top:4px"><strong style="font-style:normal;color:#C9A84C">— ${esc(v.ref)}</strong></div>` : ''}
 </div>` : ''}
 
 <!-- Actividades -->
@@ -325,10 +429,23 @@ export function exportHtml(content) {
 }
 
 export function exportPdf(content) {
+  const i    = content.info || {}
   const html = buildHtml(content)
-  const w    = window.open('', '_blank')
-  if (!w) { alert('Activa las ventanas emergentes para exportar PDF.'); return }
-  w.document.write(html)
+  const tip  = `<div id="pdf-tip" style="
+    position:fixed;top:12px;right:12px;z-index:9999;
+    background:#1F3864;color:#fff;padding:10px 16px;border-radius:8px;
+    font-family:Arial,sans-serif;font-size:12px;line-height:1.6;
+    box-shadow:0 4px 16px rgba(0,0,0,0.25)">
+    🖨️ <strong>Para guardar como PDF:</strong><br>
+    En el diálogo de impresión selecciona<br>
+    <em>"Guardar como PDF"</em> como destino.
+  </div>
+  <script>setTimeout(()=>{const e=document.getElementById('pdf-tip');if(e)e.style.display='none'},6000)<\/script>`
+
+  const fullHtml = html.replace('</body>', tip + '</body>')
+  const w = window.open('', '_blank')
+  if (!w) { alert('Activa las ventanas emergentes para imprimir.'); return }
+  w.document.write(fullHtml)
   w.document.close()
-  setTimeout(() => w.print(), 800)
+  setTimeout(() => w.print(), 900)
 }
