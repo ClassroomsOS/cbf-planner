@@ -460,6 +460,67 @@ Si el colegio usa Moodle u otra plataforma LMS que soporte SCORM/xAPI, exportar 
 
 ---
 
+### Otros pendientes menores
+- Revisar comportamiento mobile del editor en pantallas < 480px
+- Considerar accesibilidad: focus rings, navegación por teclado entre secciones
+
+---
+
+## Sprint 1 — Estado actual
+
+### ✅ AI: Generación completa de rúbricas (IMPLEMENTADO)
+`generateRubric()` en `AIAssistant.js` genera automáticamente rúbricas analíticas completas con 5 niveles por criterio. El docente NO tiene que llenar nivel por nivel — la AI genera todo basándose en los indicadores de logro del proyecto.
+- **Ubicación:** `NewsProjectEditor.jsx` → pestaña "Rubric" → botón "✨ Generar con IA"
+- **Commit:** `bcf80a4` (sprint1-B)
+- Genera 3-5 criterios según complejidad del proyecto
+- Nivel 5 = cumplimiento total del indicador (100%)
+- Niveles 4-3-2-1 = gradaciones descendentes
+- Incluye criterio formativo espiritual si el proyecto tiene principio bíblico
+
+### ✅ NEWS modal: Jerarquía Pedagógica Visual (IMPLEMENTADO)
+
+**Commits:** `ac339c6`, `3c6927d`
+
+`NewsProjectEditor.jsx` muestra la jerarquía completa **Principios → Logro → Indicador → Proyecto** de forma visual y prominente:
+
+#### 1. Principios Bíblicos — Hero Section
+- Banner azul/dorado en la parte superior del modal (siempre visible)
+- Muestra **Versículo del Año** y **Versículo del Mes** lado a lado
+- Diseño tipo card con comillas, texto grande y referencias destacadas
+- Props: `principles: { yearVerse, yearVerseRef, monthVerse, monthVerseRef }`
+- Pasado desde `NewsPage` (carga `schools.year_verse*` + `school_monthly_principles.month_verse*`)
+
+#### 2. Logro de Desempeño — Card Visual (NO dropdown)
+- Sección verde grande en pestaña "📝 Proyecto"
+- Cuando hay logro seleccionado → muestra **card completa** con:
+  - Badge de taxonomía con emoji (👁️ Reconocer / 🛠️ Aplicar / ✨ Producir)
+  - Descripción completa del logro (no truncada)
+  - Botón "Cambiar logro" para abrir selector
+- Cuando NO hay logro → muestra **lista de cards clickeables** con todos los logros disponibles
+- Carga automática de `learning_targets` filtrados por `subject + grade + period`
+- Flexible match: permite logros con `grade="10.°"` cuando el proyecto es `grade="10.° A"`
+- Guarda en `news_projects.target_id` (UUID)
+
+#### 3. Indicadores de Logro — Radio Button Cards
+- Aparece automáticamente cuando hay logro seleccionado
+- Muestra **TODOS los indicadores** del logro simultáneamente (no dropdown)
+- Cards grandes clickeables con radio button visual (○ / ◉)
+- Texto completo de cada indicador (no truncado)
+- Labels "INDICADOR 1/2/3" + texto
+- Sombra verde en el seleccionado
+- Helper text: "El estudiante demuestra que alcanzó el logro cuando cumple este indicador..."
+- Guarda en `news_projects.target_indicador` (text)
+- Si el logro NO tiene indicadores → muestra mensaje informativo
+
+#### 4. Dropdowns inteligentes (Subject/Grade/Section)
+- Cascada filtrada desde `teacher_assignments`
+- **Subject** → lista de materias asignadas
+- **Grade** → filtra por materia seleccionada  
+- **Section** → filtra por materia + grado
+- Evita errores de digitación y proyectos huérfanos
+
+**Rationale:** Los dropdowns ocultaban la jerarquía pedagógica. La nueva UI hace visible que el proyecto NEWS es la **prueba** de que el estudiante alcanzó un indicador específico de un logro, alineado a los principios bíblicos institucionales.
+
 ### 🟡 NEWS: Subir imágenes del textbook
 En la pestaña Textbook del NEWS, permitir subir fotos/scans del scope & sequence del libro.
 - Guardar en Supabase Storage (bucket `guide-images` ya existe)
