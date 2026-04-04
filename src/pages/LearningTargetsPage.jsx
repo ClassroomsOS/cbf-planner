@@ -635,21 +635,23 @@ export default function LearningTargetsPage({ teacher }) {
                   </div>
                 </div>}
 
-                {/* ── Logro del Período ── */}
-                <div className="ge-field" style={{ marginTop: 4 }}>
-                  <label>Logro del Período</label>
-                  <textarea
-                    value={form.description}
-                    onChange={e => updateForm('description', e.target.value)}
-                    placeholder="El estudiante narra una experiencia pasada usando al menos 3 formas verbales correctas en un párrafo de 5 oraciones."
-                    rows={4}
-                    className="lt-textarea"
-                  />
-                  <span className="lt-field-hint">
-                    Anatomía: <strong>verbo cognitivo</strong> + contenido específico + condición de desempeño + dimensión valorativa.<br />
-                    Describe lo que el estudiante debería poder <strong>hacer</strong>, no el tema que "cubre."
-                  </span>
-                </div>
+                {/* ── Logro del Período (Modelo A only) ── */}
+                {!MODELO_B_SUBJECTS.includes(form.subject) && (
+                  <div className="ge-field" style={{ marginTop: 4 }}>
+                    <label>Logro del Período</label>
+                    <textarea
+                      value={form.description}
+                      onChange={e => updateForm('description', e.target.value)}
+                      placeholder="El estudiante narra una experiencia pasada usando al menos 3 formas verbales correctas en un párrafo de 5 oraciones."
+                      rows={4}
+                      className="lt-textarea"
+                    />
+                    <span className="lt-field-hint">
+                      Anatomía: <strong>verbo cognitivo</strong> + contenido específico + condición de desempeño + dimensión valorativa.<br />
+                      Describe lo que el estudiante debería poder <strong>hacer</strong>, no el tema que "cubre."
+                    </span>
+                  </div>
+                )}
 
                 {/* ── Indicadores ── */}
 
@@ -662,6 +664,7 @@ export default function LearningTargetsPage({ teacher }) {
                         const hasContent = obj.texto_en || obj.texto_es
                         return (
                           <button key={h}
+                            data-skill={h}
                             className={`lt-skill-tab ${activeTabB === i ? 'active' : ''}`}
                             onClick={() => setActiveTabB(i)}>
                             <span>{HABILIDAD_ICONS[h]}</span>
@@ -1003,7 +1006,7 @@ export default function LearningTargetsPage({ teacher }) {
               <button
                 className="btn-primary"
                 onClick={handleSave}
-                disabled={saving || !form.description.trim() || !form.subject || !form.grade}
+                disabled={saving || (!MODELO_B_SUBJECTS.includes(form.subject) && !form.description.trim()) || !form.subject || !form.grade}
               >
                 {saving ? '⏳ Guardando…' : editingId ? '💾 Actualizar' : '🎯 Crear logro'}
               </button>

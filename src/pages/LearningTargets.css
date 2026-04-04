@@ -673,8 +673,8 @@
   gap: 0;
   border: 1px solid #dde5f5;
   border-radius: 10px;
-  overflow: hidden;
-  margin-top: 4px;
+  overflow: visible;
+  margin-top: 0;
 }
 
 .lt-skill-tabs-hdr {
@@ -682,6 +682,8 @@
   grid-template-columns: repeat(4, 1fr);
   background: #f0f4fb;
   border-bottom: 1px solid #dde5f5;
+  border-radius: 10px 10px 0 0;
+  overflow: hidden;
 }
 
 .lt-skill-tab {
@@ -689,7 +691,7 @@
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  padding: 8px 4px 6px;
+  padding: 10px 4px 7px;
   font-size: 11px;
   font-weight: 600;
   color: #6b7a99;
@@ -701,14 +703,18 @@
   transition: background 0.15s, color 0.15s;
 }
 .lt-skill-tab:last-child { border-right: none; }
-.lt-skill-tab:hover { background: #e4ecfa; color: #1F3864; }
-.lt-skill-tab.active {
-  background: #fff;
-  color: #1F3864;
-  font-weight: 700;
-  box-shadow: inset 0 -2px 0 #2E5598;
-}
-.lt-skill-tab > span:first-child { font-size: 16px; line-height: 1; }
+.lt-skill-tab > span:first-child { font-size: 18px; line-height: 1; }
+
+/* Per-skill accent colors */
+.lt-skill-tab[data-skill="Speaking"]:hover  { background: #f4f0fa; color: #8064A2; }
+.lt-skill-tab[data-skill="Listening"]:hover { background: #e8f6fb; color: #4BACC6; }
+.lt-skill-tab[data-skill="Reading"]:hover   { background: #fff3e8; color: #E07820; }
+.lt-skill-tab[data-skill="Writing"]:hover   { background: #f0f7e8; color: #6A8A30; }
+
+.lt-skill-tab[data-skill="Speaking"].active  { background: #f4f0fa; color: #8064A2; font-weight: 700; box-shadow: inset 0 -3px 0 #8064A2; }
+.lt-skill-tab[data-skill="Listening"].active { background: #e8f6fb; color: #4BACC6; font-weight: 700; box-shadow: inset 0 -3px 0 #4BACC6; }
+.lt-skill-tab[data-skill="Reading"].active   { background: #fff3e8; color: #E07820; font-weight: 700; box-shadow: inset 0 -3px 0 #F79646; }
+.lt-skill-tab[data-skill="Writing"].active   { background: #f0f7e8; color: #6A8A30; font-weight: 700; box-shadow: inset 0 -3px 0 #9BBB59; }
 
 .lt-skill-tab-dot {
   position: absolute;
@@ -717,8 +723,11 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #9BBB59;
 }
+.lt-skill-tab[data-skill="Speaking"]  .lt-skill-tab-dot { background: #8064A2; }
+.lt-skill-tab[data-skill="Listening"] .lt-skill-tab-dot { background: #4BACC6; }
+.lt-skill-tab[data-skill="Reading"]   .lt-skill-tab-dot { background: #F79646; }
+.lt-skill-tab[data-skill="Writing"]   .lt-skill-tab-dot { background: #9BBB59; }
 
 .lt-skill-tab-body {
   padding: 14px 14px 10px;
@@ -726,6 +735,7 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+  border-radius: 0 0 9px 9px;
 }
 
 .lt-skill-taxonomy {
