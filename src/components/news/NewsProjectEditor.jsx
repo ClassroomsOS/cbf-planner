@@ -6,7 +6,7 @@ import { generateRubric } from '../../utils/AIAssistant'
 import { MODELO_B_SUBJECTS } from '../../utils/constants'
 import { getIndText } from '../../pages/LearningTargetsPage'
 
-const MODELO_B_COMPETENCIAS = ['Sociolingüística', 'Lingüística', 'Pragmática']
+const MODELO_B_COMPETENCIAS = ['Sociolingüística', 'Lingüística', 'Pragmática', 'Intercultural']
 const MODELO_B_OPERADORES   = ['Deducir', 'Generalizar', 'Sintetizar', 'Retener', 'Evaluar']
 const MODELO_B_HABILIDADES  = ['Speaking', 'Listening', 'Reading', 'Writing']
 
@@ -1028,6 +1028,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
                         { key: 'Sociolingüística', desc: 'Usar el idioma según el contexto social — formal, informal, cultural' },
                         { key: 'Lingüística',      desc: 'Dominar gramática, vocabulario y estructura del idioma' },
                         { key: 'Pragmática',       desc: 'Comunicar con propósito real en situaciones concretas' },
+                        { key: 'Intercultural',    desc: 'Comunicar reconociendo diferencias culturales y construyendo puentes de entendimiento — pilar de Byram' },
                       ].map(({ key, desc }) => {
                         const selected = form.competencias.includes(key)
                         const hovered  = hoveredComp === key
@@ -1074,6 +1075,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
                               'Sociolingüística': 'Usar el idioma según el contexto social — formal, informal, cultural',
                               'Lingüística':      'Dominar gramática, vocabulario y estructura del idioma',
                               'Pragmática':       'Comunicar con propósito real en situaciones concretas',
+                              'Intercultural':    'Comunicar reconociendo diferencias culturales y construyendo puentes de entendimiento — pilar de Byram',
                             }
                             return <><strong>{hoveredComp}:</strong> {DESCS[hoveredComp]}</>
                           })()
