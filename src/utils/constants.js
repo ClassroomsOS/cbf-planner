@@ -44,7 +44,7 @@ export const ACADEMIC_PERIODS = [
 // ── Modelo B — Materias en inglés (estructura pedagógica diferente) ───────────
 // Language Arts, Social Studies y Science usan competencias/habilidades/operadores
 // en lugar de Logro + Temáticas del Modelo A. Úsalo para mostrar UI diferente.
-export const MODELO_B_SUBJECTS = ['Language Arts', 'Social Studies', 'Science']
+export const MODELO_B_SUBJECTS = ['Language Arts', 'Social Studies', 'Science', 'Lingua Skill']
 
 // ── Default Subject List ──────────────────────────────────────────────────────
 export const DEFAULT_SUBJECTS = [

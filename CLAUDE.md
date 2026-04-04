@@ -565,6 +565,12 @@ Si el colegio usa Moodle u otra plataforma LMS que soporte SCORM/xAPI, exportar 
 
 ---
 
+### 🟡 NEWS: Marco pedagógico Modelo A — pendiente de UX educativa
+El modal de NEWS para materias estándar (Matemáticas, Química, Física, Ciencias Naturales, Competencias Ciudadanas, Christian Life, Español, etc.) no tiene ninguna sección explicativa equivalente al marco pedagógico de Modelo B. El docente nuevo no sabe qué es un Logro, una Temática ni un Indicador, ni qué impacto tienen en la IA.
+- Crear sección educativa en `NewsProjectEditor` para `news_model === 'standard'`
+- Explicar: Logro → Temáticas → Indicadores → cómo la IA los usa
+- Mostrar consecuencia dinámica similar al contador de Modelo B
+
 ### 🟡 NEWS: Subir imágenes del textbook
 En la pestaña Textbook del NEWS, permitir subir fotos/scans del scope & sequence del libro.
 - Guardar en Supabase Storage (bucket `guide-images` ya existe)
