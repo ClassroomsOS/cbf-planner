@@ -889,7 +889,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
                     <p style={styles.stepDesc}>Describe qué harán los estudiantes y cuáles son las condiciones de entrega.</p>
                   </div>
 
-                  {form.news_model === 'language' ? (
+                  {form.news_model === 'language' && form.target_id ? (
                     <div style={{ background: '#f0f7f0', border: '1px solid #b8d8b8', borderRadius: 10, padding: '14px 16px', marginBottom: 4 }}>
                       <div style={{ fontSize: 10, fontWeight: 800, color: '#2d7a2d', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 10 }}>
                         🔒 Definido en Indicadores de Logro — solo lectura
@@ -965,7 +965,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
 
                   <div style={{ background: '#F0F4FF', borderRadius: 12, padding: '12px 16px', border: '1px solid #D0DCFF' }}>
                     <h4 style={{ fontSize: 11, fontWeight: 800, color: '#1A3A8F', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.3px' }}>✝️ Integración Bíblica</h4>
-                    {form.news_model === 'language' ? (
+                    {form.news_model === 'language' && form.target_id ? (
                       <div style={{ fontSize: 10, color: '#5566AA', marginBottom: 8, fontStyle: 'italic' }}>
                         🔒 Definido en Indicadores de Logro — solo lectura
                       </div>
@@ -973,14 +973,14 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                       <div style={styles.field}>
                         <label style={styles.label}>Principio / Versículo</label>
-                        {form.news_model === 'language'
+                        {form.news_model === 'language' && form.target_id
                           ? <div style={{ fontSize: 13, color: '#1A3A8F', fontWeight: 600, padding: '6px 0' }}>{form.biblical_principle || '—'}</div>
                           : <input value={form.biblical_principle} onChange={e => updateForm('biblical_principle', e.target.value)} placeholder="1 John 2:17" style={styles.input} />
                         }
                       </div>
                       <div style={styles.field}>
                         <label style={styles.label}>Reflexión requerida</label>
-                        {form.news_model === 'language'
+                        {form.news_model === 'language' && form.target_id
                           ? <div style={{ fontSize: 13, color: '#1A3A8F', padding: '6px 0', lineHeight: 1.5 }}>{form.biblical_reflection || '—'}</div>
                           : <input value={form.biblical_reflection} onChange={e => updateForm('biblical_reflection', e.target.value)} placeholder="Explicar cómo enfrentar el cambio..." style={styles.input} />
                         }
