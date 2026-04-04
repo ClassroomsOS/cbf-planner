@@ -9,11 +9,12 @@ const MONTHS_ES = [
 ]
 
 const TYPE_CONFIG = {
-  holiday_national: { label: 'Festivo nacional',   emoji: '🇨🇴', color: '#fff0f0', text: '#cc3333' },
-  holiday_regional: { label: 'Festivo regional',   emoji: '🎊',  color: '#fff4e0', text: '#b36200' },
-  suspension:       { label: 'Suspensión',          emoji: '🚫',  color: '#ffe0e0', text: '#cc0000' },
-  special_event:    { label: 'Evento especial',     emoji: '⭐',  color: '#e8f5d6', text: '#3a6b1a' },
-  holiday_local:    { label: 'Festivo local',       emoji: '📍',  color: '#f0e8ff', text: '#6b3aaa' },
+  holiday_national:      { label: 'Festivo nacional',      emoji: '🇨🇴', color: '#fff0f0', text: '#cc3333' },
+  holiday_regional:      { label: 'Festivo regional',      emoji: '🎊',  color: '#fff4e0', text: '#b36200' },
+  holiday_institutional: { label: 'Festivo institucional', emoji: '🏫',  color: '#f0e8ff', text: '#6b3aaa' },
+  school_break:          { label: 'Suspensión / Receso',   emoji: '🚫',  color: '#ffe0e0', text: '#cc0000' },
+  exam_period:           { label: 'Período de exámenes',   emoji: '📝',  color: '#e8f0ff', text: '#1A3A8F' },
+  event:                 { label: 'Evento especial',       emoji: '⭐',  color: '#e8f5d6', text: '#3a6b1a' },
 }
 
 function toISO(dateStr) {
@@ -85,7 +86,7 @@ const LEVEL_OPTIONS = [
 
 const BLANK_FORM = {
   date:             '',
-  event_type:       'suspension',
+  event_type:       'school_break',
   name:             '',
   is_school_day:    false,
   level:            '',
@@ -125,7 +126,7 @@ export default function CalendarPage({ teacher }) {
       const next = { ...prev, [field]: value }
       // Auto-set is_school_day based on event_type
       if (field === 'event_type') {
-        next.is_school_day = value === 'special_event'
+        next.is_school_day = value === 'event'
       }
       return next
     })
