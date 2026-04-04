@@ -148,7 +148,13 @@ export default function CalendarPage({ teacher }) {
       await createCalendarAnnouncement(saved)
     }
     setSaving(false)
-    if (error) { showToast('Error al guardar el evento', 'error'); return }
+    if (error) {
+      const msg = error.code === '23505'
+        ? 'Ya existe una entrada para esa fecha. Elimínala primero.'
+        : (error.message || 'Error al guardar el evento')
+      showToast(msg, 'error')
+      return
+    }
     setShowForm(false)
     setForm(BLANK_FORM)
     fetchEntries()
@@ -195,7 +201,13 @@ export default function CalendarPage({ teacher }) {
     }))
     const { error } = await supabase.from('school_calendar').insert(rows)
     setLoadingHolidays(false)
-    if (error) { showToast('Error al importar festivos', 'error'); return }
+    if (error) {
+      const msg = error.code === '23505'
+        ? 'Algunos festivos ya existían. Elimínalos primero e intenta de nuevo.'
+        : (error.message || 'Error al importar festivos')
+      showToast(msg, 'error')
+      return
+    }
     showToast(`✓ ${holidayPreview.length} festivos nacionales de ${holidayYear} agregados`, 'success')
     setHolidayPreview(null)
     fetchEntries()
