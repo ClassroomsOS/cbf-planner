@@ -302,6 +302,29 @@ Font/size marks are applied only to selected text — they do NOT affect AI-inse
 - **`getIndText(ind)`** — helper inlineado en `GuideEditorPage` (igual que en `LearningTargetsPage`) para normalizar string o objeto Modelo B a texto display.
 - Solo queda editable: `objetivo.principio` (Principio del Indicador Institucional).
 
+#### SmartBlock injection from NEWS activities (first load)
+
+When a guide is opened for the first time (empty `days` in DB), `load()` automatically injects SmartBlocks derived from scheduled NEWS activities:
+
+1. Queries `news_projects` filtered by `school_id + subject`; filters by grade using `startsWith` (e.g. `"10.° A".startsWith("10.°")`)
+2. For each project's `actividades_evaluativas`, checks if `act.fecha` falls within the guide's day keys
+3. Calls `guessSmartBlock(act)` to map the activity to a block type
+4. Inserts the block into the appropriate section (skips if same type already exists)
+
+**`guessSmartBlock(act)`** — file-level helper in `GuideEditorPage.jsx`. Maps activity name keywords to SmartBlock stubs:
+
+| Keyword match | Type | Model | Section |
+|---|---|---|---|
+| `dict` | `DICTATION` | `word-grid` | `skill` |
+| `quiz`, `test` | `QUIZ` | `topic-card` | `skill` |
+| `reading`, `lectura` | `READING` | `comprehension` | `skill` |
+| `speaking`, `oral` | `SPEAKING` | `rubric` | `skill` |
+| `vocab` | `VOCAB` | `matching` | `activity` |
+| `exit`, `ticket` | `EXIT_TICKET` | `can-do` | `closing` |
+| (no match) | `null` | — | — |
+
+Returns `{ type, model, section, data }` or `null`. The `data` stub pre-fills `instructions`/`topics`/`skills` from `act.descripcion || act.nombre`. Injection fires **only once** (when savedDays was empty) and de-dupes by type per section.
+
 #### Left nav panel
 - **El nav abre directamente en `1 · Indicador`** — los paneles Encabezado e Información fueron removidos del nav para docentes (son datos de contexto, no de trabajo diario).
 - El nav tiene 2 pasos fijos (`1 · Indicador`, `2 · Versículo`) + días + `★ Resumen`.
@@ -354,7 +377,7 @@ CBF es una **escuela cristiana confesional**. Los tres principios son el norte d
 | `lesson_plans` | One row per guide. `content` JSONB holds all plan data. `grade` = combined label. Links to `target_id`, `news_project_id`. `week_count int` (1 or 2) — 2-week guides store both weeks in the same row. |
 | `learning_targets` | **Logros del trimestre** (meta macro). `description` = el Logro (Modelo A only — empty for Modelo B). `taxonomy` enum: `recognize | apply | produce` (Modelo A global; Modelo B stores per-indicator taxonomy inside each object). `indicadores jsonb` = array of strings (Modelo A) or objects `{habilidad, taxonomy, texto_en, principio_biblico: {titulo, referencia, cita}, es_titulo, es_descripcion, es_grupo}` (Modelo B). `tematica_names jsonb` = parallel array with Temática names (Modelo A) or skill names (Modelo B). `news_model text` ('standard'\|'language', default 'standard'). |
 | `school_monthly_principles` | Principios rectores por mes. `school_id, year, month, month_verse, month_verse_ref, indicator_principle`. UNIQUE(school_id, year, month) |
-| `news_projects` | NEWS (project-based learning) projects. Links to `rubric_templates` via `rubric_template_id`. Links to `learning_targets` via `target_id` (UUID). Field `target_indicador` (text) stores the selected indicator from `learning_targets.indicadores[]`. `news_model text` ('standard'\|'language'). Modelo B: `competencias jsonb`, `operadores_intelectuales jsonb`, `habilidades jsonb`, `actividades_evaluativas jsonb` (array de `{nombre, descripcion, porcentaje}`). Para Modelo B, los 4 proyectos (uno por habilidad) se crean automáticamente al crear el Logro — ver flujo abajo. |
+| `news_projects` | NEWS (project-based learning) projects. Links to `rubric_templates` via `rubric_template_id`. Links to `learning_targets` via `target_id` (UUID). Field `target_indicador` (text) stores the selected indicator from `learning_targets.indicadores[]`. `news_model text` ('standard'\|'language'). Modelo B: `competencias jsonb`, `operadores_intelectuales jsonb`, `habilidades jsonb`, `actividades_evaluativas jsonb` (array de `{nombre, descripcion, porcentaje, fecha: 'YYYY-MM-DD'}`). Para Modelo B, los 4 proyectos (uno por habilidad) se crean automáticamente al crear el Logro — ver flujo abajo. |
 | `school_calendar` | Holiday/event data. `is_school_day: false` = holiday. `level` (elementary|middle|high|NULL=todos). `affects_planning boolean`. `created_by uuid` |
 | `checkpoints` | Records whether a teacher evaluated a learning target at end of week |
 | `weekly_agendas` | Agenda semanal por grado/sección. `grade`, `section`, `week_start date`, `devotional`, `notes`, `content jsonb` (entries[{subject,teacher_name,days:{date:text}}]), `status` (draft/ready/sent) |
@@ -391,7 +414,8 @@ Ruta `/planner`. Pantalla de inicio del flujo de creación de guías.
 
 - **Header degradado** con selector de duración (1 semana / 2 semanas) integrado — guarda `week_count` en `lesson_plans`.
 - **4-field grid:** Grado, Materia, Semana, Período (sin Duration — está en el header).
-- **Callout de logro vinculado** (`.planner-linked-target`) — aparece en cuanto se selecciona grado + materia. Muestra el logro activo del período con su nivel taxonómico.
+- **Callout de indicador vinculado** (`.planner-linked-target`) — aparece en cuanto se selecciona grado + materia. Muestra el indicador de logro activo del período con su nivel taxonómico.
+- **Callout hitos NEWS** (`.planner-news-hitos`) — aparece cuando hay actividades evaluativas de `news_projects` programadas en el rango de fechas de la semana seleccionada. Consulta `news_projects` por `school_id+subject`, filtra client-side por grade (`startsWith`) y por fechas en el rango semanal. Muestra: fecha formateada, nombre, descripción, skill con color, % peso. Estado: `weeklyNewsHitos[]`.
 - **Period chips** (`.wc-periods`) — cada día de clase muestra los períodos del horario del docente (ej: `2do · 3ro`). Días sin clase muestran `.wc-no-class`.
 - **Indicador de guía existente** (`.planner-existing-plan`) — callout ámbar que aparece si ya existe una guía para esa combinación grado+materia+semana. Muestra el progreso (cuántas secciones completadas). Botón cambia a `📋 Continuar guía →` en vez de `✏️ Crear guía →`. No bloquea ni sobreescribe — solo avisa.
 
@@ -582,12 +606,25 @@ Al presionar "Crear Logro" para una materia Modelo B (`handleSave` en `LearningT
 - Indicador de total % con validación (verde = 100%, rojo = excede 100%, amarillo = incompleto)
 - Estado en `form.actividades_evaluativas[]`, persistido en `news_projects.actividades_evaluativas` (JSONB)
 - `NewsProjectCard` muestra chip "📋 N actividades" cuando el proyecto tiene actividades
+- Estructura de cada actividad: `{ nombre, descripcion, porcentaje, fecha: 'YYYY-MM-DD' | null }`
+- Lista ordenada cronológicamente por `fecha`; items sin fecha marcados en gris
+
+**Nuevo step "📅 Línea de Tiempo"** (después de Actividades):
+- Agrupa actividades por semana ISO (lunes–viernes)
+- Dot de color en línea vertical: color de habilidad para Modelo B, verde para Modelo A
+- `SKILL_COLOR: { Speaking: '#8064A2', Listening: '#4BACC6', Reading: '#F79646', Writing: '#9BBB59' }`
+- `due_date` del proyecto aparece como hito 🏁 rojo en su semana
+- Panel ámbar para actividades sin fecha + botón "Asignar fechas" → vuelve al step Actividades
+- Empty state si no hay fechas ni due_date
+
+**Paso "Actividades" abierto para ambos modelos** (antes solo Modelo B).
 
 **Migración SQL requerida:**
 ```sql
 ALTER TABLE news_projects
 ADD COLUMN IF NOT EXISTS actividades_evaluativas jsonb DEFAULT '[]'::jsonb;
 ```
+No se requiere migración para `fecha` — es un campo dentro del JSONB existente.
 
 ### Rúbrica CBF (especificación obligatoria)
 **Siempre 8 criterios × 5 niveles** (Superior/Alto/Básico/Bajo/Muy Bajo):
