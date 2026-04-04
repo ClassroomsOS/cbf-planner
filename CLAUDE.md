@@ -91,25 +91,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Rationale:** Múltiples sesiones concurrentes + falta de commits = pérdida de trabajo.
 
 ### Scripts de automatización:
-
-**Commit rápido:**
-```bash
-./.claude/auto-commit.sh "feat(scope): descripción"
-```
-Este script:
-- Muestra cambios pendientes
-- Hace `git add -A`
-- Commitea con el mensaje + co-author tag
-- Muestra confirmación
-
-**Verificación antes de salir:**
-```bash
-./.claude/session-end-check.sh
-```
-Este script:
-- Verifica si hay cambios sin commitear
-- Si hay cambios → muestra advertencia
-- Si no hay cambios → aprueba el fin de sesión
+- Commit rápido: `./.claude/auto-commit.sh "feat(scope): descripción"`
+- Verificación antes de salir: `./.claude/session-end-check.sh`
 
 **Claude DEBE ejecutar `.claude/session-end-check.sh` al final de CADA sesión antes de despedirse del usuario.**
 
@@ -161,11 +144,6 @@ Supabase Realtime is used for instant notifications and messages updates instead
 - Filters applied: `school_id=eq.X` for notifications, `to_id=eq.X` for messages
 - RLS policies are automatically respected by Realtime
 - Subscriptions are cleaned up on component unmount
-
-**Performance impact:**
-- **Before:** 20-30 users × 2 queries/minute = 40-60 queries/minute constant load
-- **After:** 2 subscriptions/user, updates only when data actually changes
-- **Reduction:** ~95% fewer database queries, instant UX updates (no 60s delay)
 
 **Auto-save in GuideEditorPage:** The only remaining `setInterval` is for auto-saving lesson plans every 30s. This is intentional and local to the editor — not polling remote data.
 
@@ -286,9 +264,6 @@ Each section's `smartBlocks[]` holds structured content blocks with this shape:
 
 All modals in SmartBlocks use `createPortal(…, document.body)` to prevent click-outside-closes-modal bugs caused by DOM ancestor event bubbling.
 
-#### VOCAB matching model
-The `matching` model displays **3 columns**: TERMS | MEANINGS | IN CONTEXT. All words are shown (not split in half). The editor labels the 3rd column "IN CONTEXT" (stored as `wd.e`). Both `blockPreviewHTML` and `buildSmartBlockDocx` use `pct: 18/42/40` proportions.
-
 ### Image layout system
 
 Each section can have up to **6 images** in `section.images[]` (uploaded via `ImageUploader`, compressed to max 900px / JPEG 0.82). Position is controlled by `section.image_layout: 'below' | 'right' | 'left'` (set via `LayoutSelectorModal`).
@@ -328,16 +303,10 @@ Both exports render: text content, images (with layout), videos (HTML only — i
 
 **DOCX export specifics:**
 - All section `TableRow`s have `cantSplit: true` — Word will not split a section row across pages
-- Image paragraphs for 5–6 images use 2 rows of `ImageRun`s sized proportionally
 
 ### Rich Text Editor (`src/components/RichEditor.jsx`)
 
-Uses **Tiptap** with these extensions: StarterKit, Underline, TextStyle, Color, Highlight (multicolor), Link, TextAlign, FontFamily (`@tiptap/extension-font-family`), and a custom `FontSize` extension.
-
-**Font family options:** Por defecto, Arial, Times New Roman, Georgia, Verdana, Courier New, Calibri.
-**Font size options:** 8px – 36px.
-
-Font/size marks are applied only to selected text — they do NOT affect AI-inserted content (which uses `setContent()` and enters clean).
+Uses **Tiptap** with these extensions: StarterKit, Underline, TextStyle, Color, Highlight (multicolor), Link, TextAlign, FontFamily, and a custom `FontSize` extension. Font/size marks apply only to selected text — they do NOT affect AI-inserted content (which uses `setContent()`).
 
 ### Guide Editor UX (`src/pages/GuideEditorPage.jsx`)
 
@@ -474,7 +443,6 @@ Ruta `/planner`. Pantalla de inicio del flujo de creación de guías.
 - **`PlannerPeriodTimeline`** — componente definido al final de `PlannerPage.jsx`. Aparece entre el callout de indicador y el callout de hitos, cuando `plannerNewsProjects.length > 0`. Muestra **todas las actividades evaluativas y fechas de entrega del período** agrupadas por semana ISO. La semana seleccionada se resalta en azul navy con badge "★ Esta semana". Cada evento muestra: icono, nombre, descripción, skill badge, porcentaje y fecha. Tipos detectados por `detectActivityType(nombre)` vía keywords: 🎤 Dictation, 📝 Quiz/Test, 📖 Reading, 🗣 Speaking, 🎧 Listening, ✍️ Writing, 🔤 Vocab, 🔧 Workshop, 🚪 Exit Ticket. Entregas NEWS marcadas con 🏁 en el color de la habilidad. Helper `isoMonday(dateStr)` calcula el lunes de la semana para agrupar.
 - **Callout hitos NEWS** (`.planner-news-hitos`) — aparece cuando hay actividades evaluativas de `news_projects` programadas en el rango de fechas de la semana seleccionada. Consulta `news_projects` por `school_id+subject`, filtra client-side por grade (`startsWith`) y por fechas en el rango semanal. Muestra: fecha formateada, nombre, descripción, skill con color, % peso. Estado: `weeklyNewsHitos[]`.
 
-> **Nota:** El componente `NewsTimeline` (horizontal, en la lista de NEWS) fue eliminado de `NewsPage.jsx`. El timeline del período ahora vive en `PlannerPage`.
 - **Period chips** (`.wc-periods`) — cada día de clase muestra los períodos del horario del docente (ej: `2do · 3ro`). Días sin clase muestran `.wc-no-class`.
 - **Indicador de guía existente** (`.planner-existing-plan`) — callout ámbar que aparece si ya existe una guía para esa combinación grado+materia+semana. Muestra el progreso (cuántas secciones completadas). Botón cambia a `📋 Continuar guía →` en vez de `✏️ Crear guía →`. No bloquea ni sobreescribe — solo avisa.
 
@@ -505,93 +473,6 @@ Ambos headers usan texto blanco, badge de tipo (`lt-modal-type-tag` para Logros,
 ### Deploy
 
 Push to `main` triggers GitHub Actions → `npm run build` → GitHub Pages. The build injects `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` from GitHub Secrets (the Edge Function URL is derived from `VITE_SUPABASE_URL` at runtime in `AIAssistant.js`).
-
----
-
-## State Management & Custom Hooks
-
-### Zustand Store
-
-**`src/stores/useUIStore.js`** - Global UI state management
-```js
-import useUIStore from '../stores/useUIStore'
-
-// In component
-const { globalLoading, setGlobalLoading } = useUIStore()
-const { sidebarOpen, toggleSidebar } = useUIStore()
-const { saveStatus, setSaveStatus } = useUIStore()
-```
-
-**Available state:**
-- `globalLoading` - Global loading indicator
-- `toasts` - Toast notification queue
-- `sidebarOpen` - Sidebar visibility
-- `activeModal` - Current active modal name
-- `saveStatus` - Save status indicator ('saved' | 'saving' | 'unsaved' | 'error')
-
-### Custom Hooks
-
-All hooks available via: `import { useForm, useToggle, ... } from '../hooks'`
-
-#### **`useForm(initialValues, onSubmit, validationSchema?)`**
-Form state management with Zod validation
-```js
-const form = useForm(
-  { name: '', email: '' },
-  async (values) => { await saveData(values) },
-  myZodSchema
-)
-
-<input {...form.handleChange} name="name" value={form.values.name} />
-{form.errors.name && <span>{form.errors.name}</span>}
-<button onClick={form.handleSubmit}>Submit</button>
-```
-
-**Returns:** `{ values, errors, touched, isSubmitting, handleChange, handleBlur, handleSubmit, reset, isValid, isDirty }`
-
-#### **`useAutoSave(data, onSave, options?)`**
-Debounced auto-save with optional delay
-```js
-const { saveNow } = useAutoSave(
-  content,
-  async (data) => { await supabase.from('plans').update(data) },
-  { delay: 2000, enabled: true }
-)
-```
-
-**Options:** `{ delay: 2000, enabled: true, dependencies: [] }`
-
-#### **`usePersistentState(key, initialValue, options?)`**
-useState with localStorage persistence
-```js
-const [theme, setTheme, clearTheme] = usePersistentState('theme', 'light')
-// Automatically syncs to localStorage
-```
-
-**Options:** `{ serialize: true, debounce: 0 }`
-
-#### **`useToggle(initialValue?)`**
-Boolean toggle state management
-```js
-const [isOpen, toggle, setTrue, setFalse] = useToggle(false)
-
-<button onClick={toggle}>Toggle</button>
-<button onClick={setTrue}>Open</button>
-```
-
-#### **`useAsync(asyncFunction, immediate?)`**
-Async operations with loading/error states
-```js
-const { execute, loading, data, error } = useAsync(
-  async (id) => { return await fetchData(id) }
-)
-
-<button onClick={() => execute(123)} disabled={loading}>
-  {loading ? 'Loading...' : 'Fetch Data'}
-</button>
-```
-
-**Returns:** `{ execute, loading, data, error, reset, isSuccess, isError, isIdle }`
 
 ---
 
@@ -708,27 +589,7 @@ Los prompts de IA para Logros e Indicadores deben usar los 6 verbos de Bloom com
 
 ## Roadmap — Pendiente
 
-### 🔴 Capa 2 — Tracking de completitud (REQUIERE INFRAESTRUCTURA)
-Que el profesor vea quién completó cada SmartBlock interactivo.
-
-**Opción A (simple):** Botón "Enviar resultados" en el modal → estudiante escribe su nombre → POST a un Supabase Edge Function abierto → profesor ve dashboard. Sin cuentas de estudiantes.
-
-**Opción B (robusta):** Cuentas de estudiantes en el sistema → resultados vinculados a identidad. Requiere nuevo rol `student` en `teachers` o tabla `students` nueva.
-
-**Decisión pendiente:** Evaluar si el virtual campus (plataforma del colegio) ya trackea completitud de archivos HTML — en ese caso Capa 2 puede no ser necesaria.
-
----
-
-### 🟢 Capa 3 — Integración con Virtual Campus (LARGO PLAZO)
-Si el colegio usa Moodle u otra plataforma LMS que soporte SCORM/xAPI, exportar paquetes SCORM desde CBF Planner para tracking nativo de la plataforma. Proyecto separado.
-
----
-
-### 🟡 NEWS: Marco pedagógico Modelo A — pendiente de UX educativa
-El modal de NEWS para materias estándar (Matemáticas, Química, Física, Ciencias Naturales, Competencias Ciudadanas, Christian Life, Español, etc.) no tiene ninguna sección explicativa equivalente al marco pedagógico de Modelo B. El docente nuevo no sabe qué es un Logro, una Temática ni un Indicador, ni qué impacto tienen en la IA.
-- Crear sección educativa en `NewsProjectEditor` para `news_model === 'standard'`
-- Explicar: Logro → Temáticas → Indicadores → cómo la IA los usa
-- Mostrar consecuencia dinámica similar al contador de Modelo B
-
-### 🟡 Calendario: Flujo de reprogramación asistido por AI (pospuesto)
-Cuando un evento con `affects_planning=true` se crea, ofrecer al docente una sugerencia automática de cómo redistribuir las guías afectadas.
+- **🔴 Capa 2 — Tracking de completitud SmartBlocks** — evaluar si el virtual campus ya trackea HTML; si no, botón "Enviar resultados" → Edge Function → dashboard docente.
+- **🟢 Capa 3 — SCORM/xAPI** — largo plazo, proyecto separado.
+- **🟡 NEWS Modelo A** — agregar sección educativa en `NewsProjectEditor` para `news_model === 'standard'` explicando Logro→Temáticas→Indicadores.
+- **🟡 Calendario** — reprogramación asistida por IA cuando `affects_planning=true`.
