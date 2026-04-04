@@ -3,7 +3,6 @@ import useNewsProjects from '../hooks/useNewsProjects'
 import useRubricTemplates from '../hooks/useRubricTemplates'
 import NewsProjectEditor from '../components/news/NewsProjectEditor'
 import NewsProjectCard from '../components/news/NewsProjectCard'
-import NewsTimeline from '../components/news/NewsTimeline'
 import { supabase } from '../supabase'
 import { ACADEMIC_PERIODS } from '../utils/constants'
 
@@ -217,11 +216,6 @@ export default function NewsPage({ teacher }) {
           </div>
         ))}
       </div>
-
-      {/* Timeline */}
-      {filteredProjects.length > 0 && (
-        <NewsTimeline projects={filteredProjects} onEdit={handleEdit} />
-      )}
 
       {/* Loading / Error / Empty */}
       {loading && (

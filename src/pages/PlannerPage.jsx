@@ -411,6 +411,15 @@ export default function PlannerPage({ teacher }) {
             </div>
           )}
 
+          {/* Timeline completo del período */}
+          {plannerNewsProjects.length > 0 && (
+            <PlannerPeriodTimeline
+              projects={plannerNewsProjects}
+              currentMonday={monday}
+              weekCount={weekCount}
+            />
+          )}
+
           {/* Hitos NEWS esta semana */}
           {weeklyNewsHitos.length > 0 && (
             <div className="planner-news-hitos">
@@ -731,6 +740,249 @@ export default function PlannerPage({ teacher }) {
           onClose={() => setCheckpointData(null)}
         />
       )}
+    </div>
+  )
+}
+
+// ── PlannerPeriodTimeline ──────────────────────────────────────────────────────
+const SKILL_COLOR = {
+  Speaking: '#8064A2', Listening: '#4BACC6', Reading: '#F79646', Writing: '#9BBB59'
+}
+
+function detectActivityType(nombre) {
+  const n = (nombre || '').toLowerCase()
+  if (n.includes('dict'))                         return { icon: '🎤', color: '#4BACC6',  label: 'Dictation'  }
+  if (n.includes('quiz') || n.includes('test'))   return { icon: '📝', color: '#C0504D',  label: 'Quiz'       }
+  if (n.includes('reading') || n.includes('lectura')) return { icon: '📖', color: '#F79646', label: 'Reading' }
+  if (n.includes('speaking') || n.includes('oral'))   return { icon: '🗣', color: '#8064A2', label: 'Speaking' }
+  if (n.includes('listening'))                    return { icon: '🎧', color: '#4BACC6',  label: 'Listening'  }
+  if (n.includes('writing') || n.includes('escrit')) return { icon: '✍️', color: '#9BBB59', label: 'Writing'  }
+  if (n.includes('vocab'))                        return { icon: '🔤', color: '#9BBB59',  label: 'Vocab'      }
+  if (n.includes('exit') || n.includes('ticket')) return { icon: '🚪', color: '#C55A11',  label: 'Exit Ticket'}
+  if (n.includes('workshop'))                     return { icon: '🔧', color: '#F79646',  label: 'Workshop'   }
+  return                                                 { icon: '📋', color: '#1A3A8F',  label: 'Actividad'  }
+}
+
+function isoMonday(dateStr) {
+  const d = new Date(dateStr + 'T12:00:00')
+  const day = d.getDay()
+  const diff = day === 0 ? -6 : 1 - day
+  d.setDate(d.getDate() + diff)
+  return d.toISOString().slice(0, 10)
+}
+
+function formatWeekRange(monStr) {
+  const mon = new Date(monStr + 'T12:00:00')
+  const fri = new Date(mon)
+  fri.setDate(fri.getDate() + 4)
+  const opts = { day: 'numeric', month: 'short' }
+  return `${mon.toLocaleDateString('es-CO', opts)} – ${fri.toLocaleDateString('es-CO', opts)}`
+}
+
+function PlannerPeriodTimeline({ projects, currentMonday, weekCount }) {
+  const allEvents = useMemo(() => {
+    const events = []
+    projects.forEach(p => {
+      ;(p.actividades_evaluativas || []).forEach(act => {
+        if (!act.fecha) return
+        const { icon, color, label } = detectActivityType(act.nombre)
+        events.push({
+          date: act.fecha, kind: 'activity',
+          nombre: act.nombre, descripcion: act.descripcion,
+          porcentaje: act.porcentaje, skill: p.skill,
+          projectTitle: p.title, icon, color, label,
+        })
+      })
+      if (p.due_date) {
+        const sc = SKILL_COLOR[p.skill] || '#1A3A8F'
+        events.push({
+          date: p.due_date, kind: 'project',
+          nombre: p.title, skill: p.skill,
+          projectTitle: p.title,
+          icon: '🏁', color: sc, label: 'Entrega',
+        })
+      }
+    })
+    events.sort((a, b) => a.date.localeCompare(b.date))
+    return events
+  }, [projects])
+
+  if (allEvents.length === 0) return null
+
+  const currentWeekKey = isoMonday(toISO(currentMonday))
+  const mon2 = new Date(currentMonday)
+  mon2.setDate(mon2.getDate() + 7)
+  const nextWeekKey = weekCount === 2 ? isoMonday(toISO(mon2)) : null
+
+  // Group by week
+  const weekMap = {}
+  allEvents.forEach(ev => {
+    const wk = isoMonday(ev.date)
+    if (!weekMap[wk]) weekMap[wk] = []
+    weekMap[wk].push(ev)
+  })
+  const sortedWeeks = Object.keys(weekMap).sort()
+
+  return (
+    <div style={{
+      background: 'linear-gradient(160deg, #f8faff 0%, #ffffff 100%)',
+      border: '1.5px solid #dde6f8',
+      borderRadius: 14,
+      padding: '18px 20px',
+      marginBottom: 16,
+    }}>
+      {/* Header */}
+      <div style={{
+        fontSize: 11, fontWeight: 800, color: '#1A3A8F',
+        textTransform: 'uppercase', letterSpacing: '0.6px',
+        marginBottom: 14, display: 'flex', alignItems: 'center', gap: 6
+      }}>
+        <span style={{ fontSize: 14 }}>🗓</span> Timeline del Período
+        <span style={{
+          marginLeft: 'auto', fontSize: 10, color: '#aaa', fontWeight: 600,
+          textTransform: 'none', letterSpacing: 0
+        }}>
+          {allEvents.length} actividad{allEvents.length !== 1 ? 'es' : ''}
+        </span>
+      </div>
+
+      {/* Legend */}
+      <div style={{ display: 'flex', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
+        {[
+          { icon: '🏁', color: '#CC1F27', label: 'Entrega NEWS' },
+          { icon: '🎤', color: '#4BACC6', label: 'Dictation' },
+          { icon: '📝', color: '#C0504D', label: 'Quiz / Test' },
+          { icon: '📖', color: '#F79646', label: 'Reading' },
+          { icon: '🗣', color: '#8064A2', label: 'Speaking' },
+          { icon: '✍️', color: '#9BBB59', label: 'Writing' },
+        ].map(it => (
+          <span key={it.label} style={{
+            fontSize: 10, color: it.color, fontWeight: 700,
+            display: 'flex', alignItems: 'center', gap: 3
+          }}>
+            <span>{it.icon}</span>{it.label}
+          </span>
+        ))}
+      </div>
+
+      {/* Week groups */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {sortedWeeks.map((wk, wIdx) => {
+          const isCurrent = wk === currentWeekKey || (nextWeekKey && wk === nextWeekKey)
+          const weekEvents = weekMap[wk]
+          const wkNum = getSchoolWeek(new Date(wk + 'T12:00:00'))
+
+          return (
+            <div key={wk} style={{
+              borderRadius: 10,
+              border: isCurrent ? '2px solid #1A3A8F' : '1.5px solid #eceef5',
+              background: isCurrent ? '#eef2fb' : 'white',
+              overflow: 'hidden',
+              boxShadow: isCurrent ? '0 2px 12px rgba(26,58,143,0.10)' : '0 1px 4px rgba(0,0,0,0.04)',
+            }}>
+              {/* Week header */}
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                padding: '7px 14px',
+                background: isCurrent
+                  ? 'linear-gradient(90deg, #1A3A8F, #2E5598)'
+                  : '#f5f6fa',
+                borderBottom: '1px solid ' + (isCurrent ? 'transparent' : '#eee'),
+              }}>
+                <span style={{
+                  fontSize: 11, fontWeight: 800,
+                  color: isCurrent ? 'white' : '#1A3A8F',
+                }}>Sem. {wkNum}</span>
+                <span style={{
+                  fontSize: 11,
+                  color: isCurrent ? 'rgba(255,255,255,0.75)' : '#999',
+                  fontWeight: 600,
+                }}>{formatWeekRange(wk)}</span>
+                {isCurrent && (
+                  <span style={{
+                    marginLeft: 'auto', fontSize: 9, fontWeight: 900,
+                    background: 'rgba(255,255,255,0.18)', color: 'white',
+                    padding: '2px 9px', borderRadius: 6, letterSpacing: '0.4px',
+                    textTransform: 'uppercase',
+                  }}>★ Esta semana</span>
+                )}
+                {!isCurrent && (
+                  <span style={{
+                    marginLeft: 'auto', fontSize: 10, color: '#bbb', fontWeight: 700,
+                  }}>{weekEvents.length} evento{weekEvents.length !== 1 ? 's' : ''}</span>
+                )}
+              </div>
+
+              {/* Events */}
+              <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 7 }}>
+                {weekEvents.map((ev, i) => (
+                  <div key={i} style={{
+                    display: 'flex', alignItems: 'flex-start', gap: 10,
+                    paddingLeft: 10,
+                    borderLeft: `3px solid ${ev.color}`,
+                  }}>
+                    {/* Icon */}
+                    <span style={{ fontSize: 15, lineHeight: 1, marginTop: 1 }}>{ev.icon}</span>
+
+                    {/* Content */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                        <span style={{
+                          fontSize: 12, fontWeight: 700,
+                          color: ev.kind === 'project' ? ev.color : '#1a1a2e',
+                        }}>
+                          {ev.nombre}
+                        </span>
+                        {ev.kind === 'project' && (
+                          <span style={{
+                            fontSize: 9, fontWeight: 800, color: ev.color,
+                            background: ev.color + '15', border: `1px solid ${ev.color}40`,
+                            padding: '1px 6px', borderRadius: 4, textTransform: 'uppercase',
+                          }}>Entrega</span>
+                        )}
+                        {ev.skill && ev.kind !== 'project' && (
+                          <span style={{
+                            fontSize: 9, fontWeight: 700,
+                            color: SKILL_COLOR[ev.skill] || '#1A3A8F',
+                            background: (SKILL_COLOR[ev.skill] || '#1A3A8F') + '18',
+                            padding: '1px 6px', borderRadius: 4,
+                          }}>{ev.skill}</span>
+                        )}
+                      </div>
+                      {ev.descripcion && ev.kind !== 'project' && (
+                        <div style={{ fontSize: 10, color: '#999', marginTop: 2, lineHeight: 1.4 }}>
+                          {ev.descripcion}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Right meta */}
+                    <div style={{
+                      flexShrink: 0, textAlign: 'right',
+                      display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2,
+                    }}>
+                      <span style={{
+                        fontSize: 10, color: '#999', fontWeight: 600, whiteSpace: 'nowrap',
+                      }}>
+                        {new Date(ev.date + 'T12:00:00').toLocaleDateString('es-CO', {
+                          weekday: 'short', day: 'numeric', month: 'short'
+                        })}
+                      </span>
+                      {ev.porcentaje > 0 && (
+                        <span style={{
+                          fontSize: 10, fontWeight: 800,
+                          color: ev.color, background: ev.color + '18',
+                          padding: '1px 6px', borderRadius: 4,
+                        }}>{ev.porcentaje}%</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
