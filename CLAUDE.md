@@ -545,6 +545,8 @@ Cada pestaña tiene: selector taxonómico propio + campo EN (indicador en inglé
 
 **Auto-creación de proyectos NEWS al crear Logro Modelo B:**
 Al presionar "Crear Logro" para una materia Modelo B (`handleSave` en `LearningTargetsPage.jsx`), el sistema:
+> ⚠️ **Gotcha:** La validación `if (!form.description.trim()) return` debe ejecutarse **después** de calcular `isModeloB`, no antes — en Modelo B `description` siempre está vacío porque el campo no se muestra en la UI.
+
 1. Inserta el `learning_targets` row y obtiene su `id`
 2. Auto-inserta 4 `news_projects` rows — uno por habilidad (Speaking / Listening / Reading / Writing)
 3. Cada proyecto pre-cargado con: `es_titulo` (o nombre de habilidad), `es_descripcion`, `es_grupo` → `conditions`, principio bíblico (`biblical_principle` / `biblical_reflection`), `skill` (lowercase), `target_id`, `habilidades`, `news_model: 'language'`, `status: 'draft'`
