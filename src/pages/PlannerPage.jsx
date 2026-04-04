@@ -207,7 +207,7 @@ export default function PlannerPage({ teacher }) {
       if (!dates.length) { setCalData({}); stopCalLoading(); return }
       let calQuery = supabase
         .from('school_calendar')
-        .select('date, name, type, is_school_day')
+        .select('date, name, event_type, is_school_day')
         .eq('school_id', teacher.school_id)
         .in('date', dates)
       if (teacher.level) {

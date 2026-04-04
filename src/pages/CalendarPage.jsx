@@ -85,7 +85,7 @@ const LEVEL_OPTIONS = [
 
 const BLANK_FORM = {
   date:             '',
-  type:             'suspension',
+  event_type:       'suspension',
   name:             '',
   is_school_day:    false,
   level:            '',
@@ -123,8 +123,8 @@ export default function CalendarPage({ teacher }) {
   function handleFormChange(field, value) {
     setForm(prev => {
       const next = { ...prev, [field]: value }
-      // Auto-set is_school_day based on type
-      if (field === 'type') {
+      // Auto-set is_school_day based on event_type
+      if (field === 'event_type') {
         next.is_school_day = value === 'special_event'
       }
       return next
@@ -137,7 +137,7 @@ export default function CalendarPage({ teacher }) {
     const { data: saved, error } = await supabase.from('school_calendar').insert({
       school_id:        teacher.school_id,
       date:             form.date,
-      type:             form.type,
+      event_type:       form.event_type,
       name:             form.name.trim(),
       is_school_day:    form.is_school_day,
       level:            form.level || null,
@@ -163,12 +163,12 @@ export default function CalendarPage({ teacher }) {
   async function createCalendarAnnouncement(entry) {
     const levelLabel = entry.level ? LEVEL_LABELS[entry.level] : 'todos los niveles'
     const dateStr = formatDateES(entry.date)
-    const typeCfg = TYPE_CONFIG[entry.type]
+    const typeCfg = TYPE_CONFIG[entry.event_type]
     await supabase.from('announcements').insert({
       school_id:   teacher.school_id,
       author_id:   teacher.id,
       title:       `⚠️ Afecta planificación: ${entry.name}`,
-      body:        `El ${dateStr} ha sido marcado como "${typeCfg?.label || entry.type}" (${levelLabel}). Revisa tus guías de esa semana y ajusta el contenido si es necesario.`,
+      body:        `El ${dateStr} ha sido marcado como "${typeCfg?.label || entry.event_type}" (${levelLabel}). Revisa tus guías de esa semana y ajusta el contenido si es necesario.`,
       target_role: 'teacher',
     })
   }
@@ -192,7 +192,7 @@ export default function CalendarPage({ teacher }) {
     const rows = holidayPreview.map(h => ({
       school_id:        teacher.school_id,
       date:             h.date,
-      type:             'holiday_national',
+      event_type:       'holiday_national',
       name:             h.name,
       is_school_day:    false,
       level:            null,
@@ -215,7 +215,7 @@ export default function CalendarPage({ teacher }) {
   // Filters
   const filtered = entries.filter(e => {
     const monthMatch = filterMonth === 'all' || e.date.slice(5, 7) === filterMonth
-    const typeMatch  = filterType  === 'all' || e.type === filterType
+    const typeMatch  = filterType  === 'all' || e.event_type === filterType
     const levelMatch = filterLevel === 'all' || (e.level || '') === filterLevel
     return monthMatch && typeMatch && levelMatch
   })
@@ -356,7 +356,7 @@ export default function CalendarPage({ teacher }) {
               </div>
               <div className="form-field">
                 <label>Tipo</label>
-                <select value={form.type} onChange={e => handleFormChange('type', e.target.value)}>
+                <select value={form.event_type} onChange={e => handleFormChange('event_type', e.target.value)}>
                   {Object.entries(TYPE_CONFIG)
                     .filter(([k]) => k !== 'holiday_national')
                     .map(([k, v]) => (
@@ -425,8 +425,8 @@ export default function CalendarPage({ teacher }) {
                   <span className="cal-month-count">{items.length} entrada{items.length !== 1 ? 's' : ''}</span>
                 </div>
                 {items.map(entry => {
-                  const cfg = TYPE_CONFIG[entry.type] || TYPE_CONFIG.suspension
-                  const editable = isEditable(entry.type)
+                  const cfg = TYPE_CONFIG[entry.event_type] || TYPE_CONFIG.suspension
+                  const editable = isEditable(entry.event_type)
                   return (
                     <div key={entry.id} className="cal-entry"
                       style={{ borderLeftColor: cfg.text, background: cfg.color }}>
