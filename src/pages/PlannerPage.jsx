@@ -75,7 +75,7 @@ export default function PlannerPage({ teacher }) {
     async function fetchTarget() {
       const { data } = await supabase
         .from('learning_targets')
-        .select('id, description, taxonomy, grade, group_name')
+        .select('id, description, taxonomy, grade, group_name, indicadores, news_model')
         .eq('school_id', teacher.school_id)
         .eq('subject', subject)
         .eq('is_active', true)
