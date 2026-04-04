@@ -277,11 +277,8 @@ export const AIGeneratorModal = memo(function AIGeneratorModal({ grade, subject,
       return
     }
     // GuideEditorPage: merge preview into existing content
+    // objetivo.general e indicadores NO se sobreescriben — vienen de learning_targets (read-only)
     var base = JSON.parse(JSON.stringify(currentContent))
-    if (preview.objetivo) {
-      if (preview.objetivo.general)     base.objetivo.general     = preview.objetivo.general
-      if (preview.objetivo.indicadores) base.objetivo.indicadores = preview.objetivo.indicadores
-    }
     if (preview.days) {
       var dKeys = Object.keys(preview.days)
       for (var di = 0; di < dKeys.length; di++) {
@@ -462,16 +459,6 @@ export const AIGeneratorModal = memo(function AIGeneratorModal({ grade, subject,
 
           {preview && !loading && (
             <>
-              {/* Objective preview */}
-              {preview.objetivo && (
-                <div style={{ background: '#eef7e0', border: '1px solid #9BBB59', borderRadius: '8px', padding: '12px 14px', marginBottom: '16px' }}>
-                  <div style={{ fontWeight: 700, fontSize: '12px', color: '#9BBB59', marginBottom: '6px' }}>🎯 Logro generado</div>
-                  <div style={{ fontSize: '12px', color: '#333', lineHeight: 1.6 }}>{preview.objetivo.general}</div>
-                  {preview.objetivo.indicadores?.filter(Boolean).map((ind, i) => (
-                    <div key={i} style={{ fontSize: '11px', color: '#666', marginTop: '4px' }}>📋 {ind}</div>
-                  ))}
-                </div>
-              )}
 
               {/* Days preview */}
               {Object.entries(preview.days || {})
