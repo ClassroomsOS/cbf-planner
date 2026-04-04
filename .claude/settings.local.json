@@ -13,7 +13,10 @@
       "Bash(where node:*)",
       "Bash(node -e ':*)",
       "Bash(node:*)",
-      "Bash(find \"/c/BOSTON FLEX/ClassroomOS/cbf-planner/src\" -type f \\\\\\( -name \"*.jsx\" -o -name \"*.js\" \\\\\\) -exec wc -l {} +)"
+      "Bash(find \"/c/BOSTON FLEX/ClassroomOS/cbf-planner/src\" -type f \\\\\\( -name \"*.jsx\" -o -name \"*.js\" \\\\\\) -exec wc -l {} +)",
+      "Bash(./supabase.exe db:*)",
+      "Bash(npx supabase:*)",
+      "Bash(./.claude/auto-commit.sh \"feat\\(calendar\\): Sprint 3 — nivel por evento, afecta_planificación y notificación en cascada\")"
     ]
   }
 }

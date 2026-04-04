@@ -113,11 +113,15 @@ export default function PlannerPage({ teacher }) {
       startCalLoading()
       const dates = allWeekDays.map(toISO)
       if (!dates.length) { setCalData({}); stopCalLoading(); return }
-      const { data } = await supabase
+      let calQuery = supabase
         .from('school_calendar')
         .select('date, name, type, is_school_day')
         .eq('school_id', teacher.school_id)
         .in('date', dates)
+      if (teacher.level) {
+        calQuery = calQuery.or(`level.is.null,level.eq.${teacher.level}`)
+      }
+      const { data } = await calQuery
       const map = {}
       if (data) data.forEach(row => { map[row.date] = row })
       setCalData(map)

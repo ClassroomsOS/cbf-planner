@@ -249,9 +249,13 @@ export default function GuideEditorPage({ teacher }) {
     if (!isos.length) return {}
 
     // ── Filtrar festivos del calendario escolar ──
-    const { data: calData } = await supabase
+    let calQuery = supabase
       .from('school_calendar').select('date, is_school_day, name')
       .eq('school_id', teacher.school_id).in('date', isos)
+    if (teacher.level) {
+      calQuery = calQuery.or(`level.is.null,level.eq.${teacher.level}`)
+    }
+    const { data: calData } = await calQuery
     const holMap = {}
     if (calData) calData.forEach(r => { holMap[r.date] = r })
 

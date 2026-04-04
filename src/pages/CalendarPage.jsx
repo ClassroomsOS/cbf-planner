@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
+import { LEVEL_LABELS } from '../utils/roles'
 
 const MONTHS_ES = [
   'Enero','Febrero','Marzo','Abril','Mayo','Junio',
@@ -24,11 +25,20 @@ function formatDateES(isoDate) {
   return `${d} de ${MONTHS_ES[m - 1]} de ${y}`
 }
 
+const LEVEL_OPTIONS = [
+  { value: '',            label: 'Todos los niveles' },
+  { value: 'elementary',  label: LEVEL_LABELS.elementary },
+  { value: 'middle',      label: LEVEL_LABELS.middle },
+  { value: 'high',        label: LEVEL_LABELS.high },
+]
+
 const BLANK_FORM = {
-  date:          '',
-  type:          'suspension',
-  name:          '',
-  is_school_day: false,
+  date:             '',
+  type:             'suspension',
+  name:             '',
+  is_school_day:    false,
+  level:            '',
+  affects_planning: false,
 }
 
 export default function CalendarPage({ teacher }) {
@@ -38,8 +48,9 @@ export default function CalendarPage({ teacher }) {
   const [form,       setForm]       = useState(BLANK_FORM)
   const [saving,     setSaving]     = useState(false)
   const [deleteId,   setDeleteId]   = useState(null)
-  const [filterType, setFilterType] = useState('all')
-  const [filterMonth,setFilterMonth]= useState('all')
+  const [filterType,  setFilterType]  = useState('all')
+  const [filterMonth, setFilterMonth] = useState('all')
+  const [filterLevel, setFilterLevel] = useState('all')
 
   useEffect(() => { fetchEntries() }, [])
 
@@ -68,19 +79,38 @@ export default function CalendarPage({ teacher }) {
   async function handleSave() {
     if (!form.date || !form.name.trim()) return
     setSaving(true)
-    const { error } = await supabase.from('school_calendar').insert({
-      school_id:     teacher.school_id,
-      date:          form.date,
-      type:          form.type,
-      name:          form.name.trim(),
-      is_school_day: form.is_school_day,
-    })
+    const { data: saved, error } = await supabase.from('school_calendar').insert({
+      school_id:        teacher.school_id,
+      date:             form.date,
+      type:             form.type,
+      name:             form.name.trim(),
+      is_school_day:    form.is_school_day,
+      level:            form.level || null,
+      affects_planning: form.affects_planning,
+      created_by:       teacher.id,
+    }).select().single()
+    if (!error && form.affects_planning && saved) {
+      await createCalendarAnnouncement(saved)
+    }
     setSaving(false)
     if (!error) {
       setShowForm(false)
       setForm(BLANK_FORM)
       fetchEntries()
     }
+  }
+
+  async function createCalendarAnnouncement(entry) {
+    const levelLabel = entry.level ? LEVEL_LABELS[entry.level] : 'todos los niveles'
+    const dateStr = formatDateES(entry.date)
+    const typeCfg = TYPE_CONFIG[entry.type]
+    await supabase.from('announcements').insert({
+      school_id:   teacher.school_id,
+      author_id:   teacher.id,
+      title:       `⚠️ Afecta planificación: ${entry.name}`,
+      body:        `El ${dateStr} ha sido marcado como "${typeCfg?.label || entry.type}" (${levelLabel}). Revisa tus guías de esa semana y ajusta el contenido si es necesario.`,
+      target_role: 'teacher',
+    })
   }
 
   async function handleDelete(id) {
@@ -91,9 +121,10 @@ export default function CalendarPage({ teacher }) {
 
   // Filters
   const filtered = entries.filter(e => {
-    const monthMatch  = filterMonth === 'all' || e.date.slice(5, 7) === filterMonth
-    const typeMatch   = filterType  === 'all' || e.type === filterType
-    return monthMatch && typeMatch
+    const monthMatch = filterMonth === 'all' || e.date.slice(5, 7) === filterMonth
+    const typeMatch  = filterType  === 'all' || e.type === filterType
+    const levelMatch = filterLevel === 'all' || (e.level || '') === filterLevel
+    return monthMatch && typeMatch && levelMatch
   })
 
   // Group by month
@@ -133,6 +164,12 @@ export default function CalendarPage({ teacher }) {
                 <option key={k} value={k}>{v.emoji} {v.label}</option>
               ))}
             </select>
+            <select value={filterLevel} onChange={e => setFilterLevel(e.target.value)}>
+              <option value="all">Todos los niveles</option>
+              {LEVEL_OPTIONS.filter(o => o.value).map(o => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
           </div>
           <button className="btn-primary" onClick={() => { setShowForm(true); setForm(BLANK_FORM) }}>
             + Agregar día especial
@@ -153,27 +190,46 @@ export default function CalendarPage({ teacher }) {
                 <label>Tipo</label>
                 <select value={form.type} onChange={e => handleFormChange('type', e.target.value)}>
                   {Object.entries(TYPE_CONFIG)
-                    .filter(([k]) => k !== 'holiday_national') // no crear festivos nacionales manualmente
+                    .filter(([k]) => k !== 'holiday_national')
                     .map(([k, v]) => (
                       <option key={k} value={k}>{v.emoji} {v.label}</option>
                     ))}
                 </select>
               </div>
             </div>
-            <div className="form-field">
-              <label>Descripción</label>
-              <input type="text" value={form.name}
-                placeholder="Ej: Suspensión de clases por lluvia"
-                onChange={e => handleFormChange('name', e.target.value)} />
+            <div className="g2" style={{ marginBottom: '10px' }}>
+              <div className="form-field">
+                <label>Descripción</label>
+                <input type="text" value={form.name}
+                  placeholder="Ej: Suspensión de clases por lluvia"
+                  onChange={e => handleFormChange('name', e.target.value)} />
+              </div>
+              <div className="form-field">
+                <label>Nivel educativo</label>
+                <select value={form.level} onChange={e => handleFormChange('level', e.target.value)}>
+                  {LEVEL_OPTIONS.map(o => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </div>
             </div>
-            <div className="form-field">
+            <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', marginBottom: '6px' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
                 <input type="checkbox"
                   checked={form.is_school_day}
                   onChange={e => handleFormChange('is_school_day', e.target.checked)}
                   style={{ width: 'auto', accentColor: '#9BBB59' }} />
                 <span style={{ textTransform: 'none', letterSpacing: 0, fontSize: '12px', fontWeight: 600 }}>
-                  Es día de clase (marcar solo para eventos especiales con clases normales)
+                  Es día de clase
+                </span>
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                <input type="checkbox"
+                  checked={form.affects_planning}
+                  onChange={e => handleFormChange('affects_planning', e.target.checked)}
+                  style={{ width: 'auto', accentColor: '#8064A2' }} />
+                <span style={{ textTransform: 'none', letterSpacing: 0, fontSize: '12px', fontWeight: 600, color: '#8064A2' }}>
+                  ⚠️ Afecta planificación (notifica a docentes)
                 </span>
               </label>
             </div>
@@ -216,9 +272,19 @@ export default function CalendarPage({ teacher }) {
                               style={{ background: cfg.text, color: '#fff' }}>
                               {cfg.label}
                             </span>
+                            {entry.level && (
+                              <span className="cal-entry-type-badge" style={{ background: '#4BACC6', color: '#fff' }}>
+                                {LEVEL_LABELS[entry.level]}
+                              </span>
+                            )}
                             {!entry.is_school_day && (
                               <span className="cal-entry-type-badge" style={{ background: '#888', color: '#fff' }}>
                                 Sin clases
+                              </span>
+                            )}
+                            {entry.affects_planning && (
+                              <span className="cal-entry-type-badge" style={{ background: '#8064A2', color: '#fff' }}>
+                                ⚠️ Afecta guías
                               </span>
                             )}
                           </div>
