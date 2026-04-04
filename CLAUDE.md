@@ -146,6 +146,17 @@ Client-side entry point is `src/utils/AIAssistant.js`, which exposes:
 
 `generateGuideStructure` auto-retries with a more concise prompt when the response is truncated (JSON parse failure). It also asks Claude to include an optional `smartBlock` field in `activity` and `skill` sections (max 2 per day).
 
+**`AIGeneratorModal` — fuente de verdad del objetivo:**
+El modal (`src/components/AIComponents.jsx`) nunca pide al docente que reescriba el indicador. El `objective` que se pasa a `generateGuideStructure` se deriva en `handleGenerate` en este orden de prioridad:
+1. `activeIndicator.texto_en || activeIndicator.habilidad` (indicador detectado automáticamente por semana)
+2. Indicador del `selectedSkill` elegido en el skill picker (Modelo B sin `activeIndicator`)
+3. `learningTarget.description` (Modelo A)
+
+**Estados del modal:**
+- **Sin `learningTarget`** → muestra mensaje ámbar *"Ve al panel 1 · Indicador"* y oculta el formulario. El docente no puede generar sin contexto pedagógico.
+- **Modelo B sin skill seleccionada** → skill picker visible, botón deshabilitado hasta elegir habilidad.
+- **Con indicador resuelto** → card verde read-only + campo Unidad/Tema/Libro + botón activo.
+
 `suggestSmartBlock` receives `{ sectionMeta, grade, subject, objective, unit, dayName, existingContent, existingBlocks, learningTarget, planId }` and returns `{ type, model, data }` ready to insert. It aligns the suggestion to the learning target's taxonomy level:
 - `recognize` → VOCAB matching, QUIZ topic-card, READING true-false
 - `apply` → DICTATION, GRAMMAR fill-blank, WORKSHOP stations, READING comprehension
