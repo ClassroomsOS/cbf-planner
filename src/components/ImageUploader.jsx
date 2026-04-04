@@ -3,7 +3,7 @@ import { supabase } from '../supabase'
 import { useToast } from '../context/ToastContext'
 import { imageUploadSchema } from '../utils/validationSchemas'
 
-const ImageUploader = memo(function ImageUploader({ planId, dayIso, sectionKey, images = [], onChange }) {
+const ImageUploader = memo(function ImageUploader({ planId, dayIso, sectionKey, pathPrefix, images = [], onChange, maxImages, showLink = true }) {
   const { showToast } = useToast()
   const [uploading, setUploading] = useState(false)
   const inputRef = useRef()
@@ -11,7 +11,8 @@ const ImageUploader = memo(function ImageUploader({ planId, dayIso, sectionKey, 
   // images = [{ url, path, name }]
 
   async function handleFiles(e) {
-    const remaining = MAX_IMAGES - images.length
+    const limit = maxImages ?? MAX_IMAGES
+    const remaining = limit - images.length
     const files = Array.from(e.target.files).slice(0, remaining)
     if (!files.length) return
 
@@ -37,7 +38,10 @@ const ImageUploader = memo(function ImageUploader({ planId, dayIso, sectionKey, 
     const uploaded = []
     for (const file of validFiles) {
       const ext  = file.name.split('.').pop()
-      const path = `${planId}/${dayIso}/${sectionKey}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
+      const slug = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
+      const path = pathPrefix
+        ? `${pathPrefix}/${slug}`
+        : `${planId}/${dayIso}/${sectionKey}/${slug}`
 
       try {
         // Compress before upload
@@ -79,8 +83,8 @@ const ImageUploader = memo(function ImageUploader({ planId, dayIso, sectionKey, 
     onChange(images.map(i => i.path === img.path ? { ...i, link } : i))
   }
 
-  const MAX_IMAGES = 6
-  const atMax = images.length >= MAX_IMAGES
+  const limit = maxImages ?? MAX_IMAGES
+  const atMax = images.length >= limit
 
   return (
     <div className="img-uploader">
@@ -94,49 +98,33 @@ const ImageUploader = memo(function ImageUploader({ planId, dayIso, sectionKey, 
                 className="img-thumb-del"
                 onClick={() => removeImage(img)}
                 title="Eliminar imagen">✕</button>
-              <input
-                type="url"
-                placeholder="🔗 Link (opcional)"
-                value={img.link || ''}
-                onChange={e => updateLink(img, e.target.value)}
-                style={{
-                  display: 'block', width: '100%', marginTop: '4px',
-                  fontSize: '11px', padding: '3px 6px', borderRadius: '5px',
-                  border: '1px solid #c5d5f0', boxSizing: 'border-box',
-                  color: '#2E5598',
-                }}
-              />
+              {showLink && (
+                <input
+                  type="url"
+                  placeholder="🔗 Link (opcional)"
+                  value={img.link || ''}
+                  onChange={e => updateLink(img, e.target.value)}
+                  style={{
+                    display: 'block', width: '100%', marginTop: '4px',
+                    fontSize: '11px', padding: '3px 6px', borderRadius: '5px',
+                    border: '1px solid #c5d5f0', boxSizing: 'border-box',
+                    color: '#2E5598',
+                  }}
+                />
+              )}
             </div>
           ))}
         </div>
       )}
 
       {/* Avisos de cantidad */}
-      {images.length === MAX_IMAGES && (
+      {images.length === limit && (
         <div style={{
           fontSize: '11px', color: '#8a5c00', background: '#fff8e6',
           border: '1px solid #f5c300', borderRadius: '6px',
           padding: '6px 10px', marginBottom: '6px',
         }}>
-          🚫 Límite de {MAX_IMAGES} imágenes por sección alcanzado.
-        </div>
-      )}
-      {images.length === 5 && (
-        <div style={{
-          fontSize: '11px', color: '#555', background: '#f5f5f5',
-          border: '1px solid #ddd', borderRadius: '6px',
-          padding: '6px 10px', marginBottom: '6px',
-        }}>
-          💡 Con 6 imágenes se usa un grid 3×2. Puedes agregar una más.
-        </div>
-      )}
-      {images.length === 4 && (
-        <div style={{
-          fontSize: '11px', color: '#2E5598', background: '#f0f4ff',
-          border: '1px solid #c5d5f0', borderRadius: '6px',
-          padding: '6px 10px', marginBottom: '6px',
-        }}>
-          💡 Tip: 4 imágenes forman un grid 2×2 equilibrado.
+          🚫 Límite de {limit} imágenes alcanzado.
         </div>
       )}
 
@@ -155,7 +143,7 @@ const ImageUploader = memo(function ImageUploader({ planId, dayIso, sectionKey, 
           />
           {uploading
             ? <span>⏳ Subiendo…</span>
-            : <span>🖼️ {images.length > 0 ? `+ Agregar imagen (${images.length}/${MAX_IMAGES})` : `Clic para subir imágenes (máx. ${MAX_IMAGES})`}</span>
+            : <span>🖼️ {images.length > 0 ? `+ Agregar (${images.length}/${limit})` : `Clic para subir imágenes (máx. ${limit})`}</span>
           }
         </div>
       )}

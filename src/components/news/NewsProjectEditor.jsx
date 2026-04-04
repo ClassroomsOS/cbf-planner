@@ -6,6 +6,7 @@ import { generateRubric } from '../../utils/AIAssistant'
 import { exportRubricHtml } from '../../utils/exportRubricHtml'
 import { MODELO_B_SUBJECTS } from '../../utils/constants'
 import { getIndText } from '../../pages/LearningTargetsPage'
+import ImageUploader from '../ImageUploader'
 
 const MODELO_B_COMPETENCIAS = ['Sociolingüística', 'Lingüística', 'Pragmática', 'Intercultural']
 const MODELO_B_OPERADORES   = ['Deducir', 'Generalizar', 'Sintetizar', 'Retener', 'Evaluar']
@@ -27,7 +28,7 @@ const LEVEL_LABELS = [
   { score: 1, label: 'Beginning', color: '#CC1F27' }
 ]
 
-const EMPTY_TEXTBOOK = { book: '', units: [], grammar: [], vocabulary: [], pages: { student: '', workbook: '' } }
+const EMPTY_TEXTBOOK = { book: '', units: [], grammar: [], vocabulary: [], pages: { student: '', workbook: '' }, images: [] }
 
 const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, project, templates, cloneForProject, onSave, onClose, principles }) {
   const isEditing = !!project
@@ -997,6 +998,31 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
                   <TagField label="Unidades" tags={form.textbook_reference.units || []} value={tagInput.units} onChange={v => setTagInput(p => ({ ...p, units: v }))} onAdd={() => addTag('units')} onRemove={(i) => removeTag('units', i)} placeholder="1" />
                   <TagField label="Gramática" tags={form.textbook_reference.grammar || []} value={tagInput.grammar} onChange={v => setTagInput(p => ({ ...p, grammar: v }))} onAdd={() => addTag('grammar')} onRemove={(i) => removeTag('grammar', i)} placeholder="past simple" />
                   <TagField label="Vocabulario" tags={form.textbook_reference.vocabulary || []} value={tagInput.vocabulary} onChange={v => setTagInput(p => ({ ...p, vocabulary: v }))} onAdd={() => addTag('vocabulary')} onRemove={(i) => removeTag('vocabulary', i)} placeholder="music" />
+
+                  {/* ── Imágenes del textbook ── */}
+                  <div>
+                    <label style={styles.label}>Fotos / Scans del Textbook</label>
+                    <p style={{ margin: '2px 0 8px', fontSize: 12, color: '#666' }}>
+                      Sube fotos del scope &amp; sequence o páginas de referencia. La IA las usará para contextualizar el contenido.
+                    </p>
+                    {project?.id ? (
+                      <ImageUploader
+                        pathPrefix={`news/${project.id}/textbook`}
+                        images={form.textbook_reference.images || []}
+                        onChange={imgs => updateTextbook('images', imgs)}
+                        maxImages={8}
+                        showLink={false}
+                      />
+                    ) : (
+                      <div style={{
+                        fontSize: 12, color: '#8a5c00', background: '#fff8e6',
+                        border: '1px solid #f5c300', borderRadius: 8,
+                        padding: '10px 14px',
+                      }}>
+                        📸 Guarda el proyecto primero para subir imágenes de referencia.
+                      </div>
+                    )}
+                  </div>
 
                   <button onClick={() => setActiveStep(form.news_model === 'language' ? 'actividades' : 'rubric')} style={styles.btnNext}>
                     Siguiente: {form.news_model === 'language' ? 'Actividades →' : 'Rúbrica →'}
