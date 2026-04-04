@@ -258,6 +258,7 @@ export default function NewsPage({ teacher }) {
       {editorOpen && (
         <NewsProjectEditor
           teacher={teacher}
+          school={school}
           project={editingProject}
           templates={templates}
           cloneForProject={cloneForProject}

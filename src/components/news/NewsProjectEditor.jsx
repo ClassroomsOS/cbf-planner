@@ -3,6 +3,7 @@ import { supabase } from '../../supabase'
 import { useToast } from '../../context/ToastContext'
 import { useFocusTrap } from '../../hooks/useFocusTrap'
 import { generateRubric } from '../../utils/AIAssistant'
+import { exportRubricHtml } from '../../utils/exportRubricHtml'
 import { MODELO_B_SUBJECTS } from '../../utils/constants'
 import { getIndText } from '../../pages/LearningTargetsPage'
 
@@ -28,7 +29,7 @@ const LEVEL_LABELS = [
 
 const EMPTY_TEXTBOOK = { book: '', units: [], grammar: [], vocabulary: [], pages: { student: '', workbook: '' } }
 
-const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, templates, cloneForProject, onSave, onClose, principles }) {
+const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, project, templates, cloneForProject, onSave, onClose, principles }) {
   const isEditing = !!project
   const { showToast } = useToast()
 
@@ -912,7 +913,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
 
                   <div style={{ background: '#F0F4FF', borderRadius: 12, padding: '12px 16px', border: '1px solid #D0DCFF' }}>
                     <h4 style={{ fontSize: 11, fontWeight: 800, color: '#1A3A8F', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.3px' }}>✝️ Integración Bíblica</h4>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                       <div style={styles.field}>
                         <label style={styles.label}>Principio / Versículo</label>
                         <input value={form.biblical_principle} onChange={e => updateForm('biblical_principle', e.target.value)} placeholder="1 John 2:17" style={styles.input} />
@@ -976,6 +977,18 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
                     <h3 style={styles.stepTitle}>Rúbrica de evaluación</h3>
                     <p style={styles.stepDesc}>Define los criterios de evaluación. La IA puede generarlos a partir del título, descripción e indicador.</p>
                   </div>
+
+                  {form.rubric.length > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <button
+                        type="button"
+                        onClick={() => exportRubricHtml(form, principles, school)}
+                        style={{ padding: '9px 18px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg, #1A3A8F 0%, #0d2260 100%)', color: 'white', fontSize: 12, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 7, boxShadow: '0 2px 8px rgba(26,58,143,0.25)' }}
+                      >
+                        <span>📊</span> Abrir rúbrica interactiva
+                      </button>
+                    </div>
+                  )}
 
                   <div style={{ background: '#F8F8FC', borderRadius: 10, border: '1px solid #E0E0F0', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                     <button
