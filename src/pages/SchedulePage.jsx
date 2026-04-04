@@ -256,9 +256,12 @@ export default function SchedulePage({ teacher }) {
 
 // ── ScheduleGrid ───────────────────────────────────────────────
 function parseTimeMin(timeStr) {
-  // Accepts "7:40", "07:40", "07:40:00"
+  // Accepts "7:40", "07:40", "07:40:00", "1:30" (12h PM in school schedule)
   const parts = timeStr.slice(0, 5).split(':').map(Number)
-  return parts[0] * 60 + (parts[1] || 0)
+  let h = parts[0], m = parts[1] || 0
+  // School hours: if h < 6 it must be afternoon (1:30 PM, 2:15 PM, etc.)
+  if (h > 0 && h < 6) h += 12
+  return h * 60 + m
 }
 
 function ScheduleGrid({ cellMap, view, slots }) {
