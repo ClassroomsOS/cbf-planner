@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
+import { canManage, roleLabel } from '../utils/roles'
 
 export default function CommentsPanel({ planId, teacher, onClose }) {
   const [comments, setComments] = useState([])
@@ -102,15 +103,15 @@ export default function CommentsPanel({ planId, teacher, onClose }) {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: '12px', fontWeight: 700, color: '#333' }}>
                     {c.author?.full_name || 'Docente'}
-                    {c.author?.role === 'admin' && (
+                    {canManage(c.author?.role) && (
                       <span style={{ marginLeft: '4px', fontSize: '10px', background: '#2E5598', color: '#fff', padding: '1px 5px', borderRadius: '8px' }}>
-                        Admin
+                        {roleLabel(c.author.role)}
                       </span>
                     )}
                   </div>
                   <div style={{ fontSize: '10px', color: '#999' }}>{formatDate(c.created_at)}</div>
                 </div>
-                {(teacher.role === 'admin' || c.author_id === teacher.id) && (
+                {(canManage(teacher.role) || c.author_id === teacher.id) && (
                   <button
                     onClick={() => toggleResolved(c)}
                     title={c.resolved ? 'Marcar pendiente' : 'Marcar resuelto'}

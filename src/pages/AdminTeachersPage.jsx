@@ -3,6 +3,7 @@ import { supabase } from '../supabase'
 import { useToast } from '../context/ToastContext'
 import { teacherStatusUpdateSchema, teacherRoleUpdateSchema } from '../utils/validationSchemas'
 import { PERIODS, DAYS, DEFAULT_SUBJECTS } from '../utils/constants'
+import { canManage, canChangeRole, roleLabel, ROLE_STYLES, LEVEL_LABELS, isSuperAdmin } from '../utils/roles'
 
 // ── Main Page ─────────────────────────────────────────────────
 export default function AdminTeachersPage({ teacher: admin }) {
@@ -20,7 +21,7 @@ export default function AdminTeachersPage({ teacher: admin }) {
     setLoading(true)
     const [{ data: tData }, { data: aData }, { data: sData }] = await Promise.all([
       supabase.from('teachers')
-        .select('id, full_name, initials, email, role')
+        .select('id, full_name, initials, email, role, level, status')
         .eq('school_id', admin.school_id)
         .order('full_name'),
       supabase.from('teacher_assignments')
@@ -158,15 +159,16 @@ export default function AdminTeachersPage({ teacher: admin }) {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {teachers.filter(t => t.status !== 'pending').map(t => {
-            const tas = getTeacherAssignments(t.id)
-            const isAdmin = t.role === 'admin'
+            const tas      = getTeacherAssignments(t.id)
+            const roleStyle = ROLE_STYLES[t.role] || ROLE_STYLES.teacher
+            const isSelf   = t.id === admin.id
             return (
-              <div key={t.id} className="mp-card" onClick={() => openTeacher(t)}
-                style={{ cursor: isAdmin && t.id === admin.id ? 'default' : 'pointer' }}>
+              <div key={t.id} className="mp-card" onClick={() => !isSelf && openTeacher(t)}
+                style={{ cursor: isSelf ? 'default' : 'pointer' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
                   <div style={{
                     width: '38px', height: '38px', borderRadius: '50%',
-                    background: isAdmin ? '#2E5598' : '#9BBB59',
+                    background: roleStyle.color,
                     color: '#fff', display: 'flex', alignItems: 'center',
                     justifyContent: 'center', fontWeight: 700, fontSize: '13px',
                     flexShrink: 0,
@@ -174,9 +176,20 @@ export default function AdminTeachersPage({ teacher: admin }) {
                     {t.initials || t.full_name.split(' ').map(w=>w[0]).join('').slice(0,2)}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 700, fontSize: '13px', color: '#1F3864' }}>
+                    <div style={{ fontWeight: 700, fontSize: '13px', color: '#1F3864', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                       {t.full_name}
-                      {isAdmin && <span style={{ marginLeft: '8px', fontSize: '10px', background: '#2E5598', color: '#fff', padding: '1px 7px', borderRadius: '10px' }}>Admin</span>}
+                      <span style={{
+                        fontSize: '10px', background: roleStyle.bg, color: roleStyle.color,
+                        border: `1px solid ${roleStyle.color}33`,
+                        padding: '1px 7px', borderRadius: '10px', fontWeight: 700,
+                      }}>
+                        {roleStyle.icon} {roleLabel(t.role)}
+                      </span>
+                      {t.level && (
+                        <span style={{ fontSize: '10px', background: '#f5f5f5', color: '#666', padding: '1px 7px', borderRadius: '10px' }}>
+                          {LEVEL_LABELS[t.level]}
+                        </span>
+                      )}
                     </div>
                     <div style={{ fontSize: '11px', color: '#888', marginTop: '2px' }}>{t.email}</div>
                     {tas.length > 0 && (
@@ -192,14 +205,14 @@ export default function AdminTeachersPage({ teacher: admin }) {
                         ))}
                       </div>
                     )}
-                    {tas.length === 0 && !isAdmin && (
+                    {tas.length === 0 && !canManage(t.role) && t.role !== 'director' && t.role !== 'psicopedagoga' && (
                       <div style={{ fontSize: '11px', color: '#F79646', marginTop: '4px', fontStyle: 'italic' }}>
                         ⚠️ Sin asignaciones
                       </div>
                     )}
                   </div>
                 </div>
-                {!isAdmin && <span className="mp-arrow">→</span>}
+                {!isSelf && <span className="mp-arrow">→</span>}
               </div>
             )
           })}
@@ -402,6 +415,9 @@ function AssignmentModal({ teacher, admin, school, allAssignments, onClose, onSa
             </div>
           ))}
 
+          {/* ── Rol y Nivel ── */}
+          <RoleAndLevelEditor teacher={teacher} admin={admin} />
+
           {/* Add new assignment */}
           <div style={{ background: '#f8faff', border: '1.5px solid #dde5f0', borderRadius: '10px', padding: '14px', marginBottom: '20px' }}>
             <div style={{ fontSize: '11px', fontWeight: 700, color: '#2E5598', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: '10px' }}>
@@ -510,6 +526,83 @@ function AssignmentModal({ teacher, admin, school, allAssignments, onClose, onSa
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+// ── RoleAndLevelEditor ─────────────────────────────────────────────────────────
+// Inline section inside AssignmentModal for changing role and level.
+function RoleAndLevelEditor({ teacher, admin }) {
+  const { showToast } = useToast()
+  const [role,    setRole]    = useState(teacher.role || 'teacher')
+  const [level,   setLevel]   = useState(teacher.level || '')
+  const [saving,  setSaving]  = useState(false)
+
+  const ALL_ROLES = [
+    { value: 'teacher',       label: '👩‍🏫 Docente' },
+    { value: 'admin',         label: '🏫 Coordinador' },
+    { value: 'director',      label: '📋 Director de Grupo' },
+    { value: 'psicopedagoga', label: '💜 Psicopedagoga' },
+    ...(isSuperAdmin(admin.role) ? [{ value: 'superadmin', label: '🔑 Superadmin' }] : []),
+  ]
+
+  async function handleSave() {
+    if (!canChangeRole(admin.role, role)) {
+      showToast('No tienes permisos para asignar ese rol.', 'error')
+      return
+    }
+    setSaving(true)
+    const { error } = await supabase
+      .from('teachers')
+      .update({ role, level: level || null })
+      .eq('id', teacher.id)
+    setSaving(false)
+    if (error) {
+      showToast('Error al guardar rol: ' + error.message, 'error')
+    } else {
+      showToast(`Rol actualizado: ${role}`, 'success')
+    }
+  }
+
+  const unchanged = role === (teacher.role || 'teacher') && level === (teacher.level || '')
+
+  return (
+    <div style={{ background: '#faf9ff', border: '1.5px solid #d6c9f0', borderRadius: '10px', padding: '14px', marginBottom: '16px' }}>
+      <div style={{ fontSize: '11px', fontWeight: 700, color: '#8064A2', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: '10px' }}>
+        🔑 Rol y Nivel educativo
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 10 }}>
+        <div className="ge-field">
+          <label>Rol</label>
+          <select value={role} onChange={e => setRole(e.target.value)}>
+            {ALL_ROLES.map(r => (
+              <option key={r.value} value={r.value}
+                disabled={r.value === 'superadmin' && !isSuperAdmin(admin.role)}>
+                {r.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="ge-field">
+          <label>Nivel <span style={{ color: '#999', fontWeight: 400 }}>(opcional)</span></label>
+          <select value={level} onChange={e => setLevel(e.target.value)}>
+            <option value="">— Sin asignar —</option>
+            <option value="elementary">Primaria</option>
+            <option value="middle">Bachillerato Básico</option>
+            <option value="high">Bachillerato Superior</option>
+          </select>
+        </div>
+      </div>
+      {!unchanged && (
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="btn-primary btn-save"
+          style={{ fontSize: '12px', padding: '6px 16px' }}
+        >
+          {saving ? '⏳ Guardando…' : '💾 Guardar rol y nivel'}
+        </button>
+      )}
     </div>
   )
 }

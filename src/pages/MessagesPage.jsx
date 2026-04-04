@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useFeatures } from '../context/FeaturesContext'
 import { supabase } from '../supabase'
+import { canManage } from '../utils/roles'
 
 export default function MessagesPage({ teacher }) {
   const { features } = useFeatures()
@@ -219,7 +220,7 @@ export default function MessagesPage({ teacher }) {
                       <option value="">— Seleccionar destinatario —</option>
                       {teachers.map(t => (
                         <option key={t.id} value={t.id}>
-                          {t.full_name} {t.role === 'admin' ? '(Admin)' : ''}
+                          {t.full_name} {canManage(t.role) ? '(Admin)' : ''}
                         </option>
                       ))}
                     </select>

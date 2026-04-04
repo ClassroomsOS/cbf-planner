@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
+import { canManage } from '../utils/roles'
 
 const TYPE_CONFIG = {
   plan_submitted: { icon: '📬', label: 'Guía enviada',   color: '#F79646' },
@@ -16,7 +17,7 @@ const TARGET_LABELS = {
 
 export default function NotificationsPage({ teacher, onRead }) {
   const navigate   = useNavigate()
-  const isAdmin    = teacher.role === 'admin'
+  const isAdmin    = canManage(teacher.role)
   const [tab,      setTab]      = useState(isAdmin ? 'announcements' : 'notifs')
   const [notifs,   setNotifs]   = useState([])
   const [announce, setAnnounce] = useState([])

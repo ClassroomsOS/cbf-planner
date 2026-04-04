@@ -13,8 +13,10 @@ import SettingsPage        from './SettingsPage'
 import LearningTargetsPage from './LearningTargetsPage'
 import NewsPage            from './NewsPage'
 import PrinciplesPage      from './PrinciplesPage'
+import DirectorPage        from './DirectorPage'
 import ProfileModal        from '../components/ProfileModal'
 import { FeaturesProvider, useFeatures } from '../context/FeaturesContext'
+import { canManage, canAccessCalendar, isDirector, canReadAllPlans } from '../utils/roles'
 
 // ── Wrapper — provides context ────────────────────────────────
 export default function DashboardPage({ session, teacher, setTeacher }) {
@@ -30,7 +32,9 @@ function DashboardInner({ session, teacher, setTeacher }) {
   const [showProfile, setShowProfile] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const navigate = useNavigate()
-  const isAdmin  = teacher.role === 'admin'
+  const isAdmin   = canManage(teacher.role)        // admin + superadmin
+  const hasCalendar = canAccessCalendar(teacher.role) // admin + superadmin + psicopedagoga
+  const hasDirectorView = isDirector(teacher.role)
   const { features } = useFeatures()
 
   const [unread,         setUnread]         = useState(0)
@@ -45,6 +49,8 @@ function DashboardInner({ session, teacher, setTeacher }) {
         .eq('read', false)
         .eq('school_id', teacher.school_id)
       query = isAdmin ? query.eq('to_role', 'admin') : query.eq('to_id', teacher.id)
+      // directors receive teacher notifications (not admin)
+
       const { count } = await query
       setUnread(count || 0)
     } catch { setUnread(0) }
@@ -187,7 +193,30 @@ function DashboardInner({ session, teacher, setTeacher }) {
             Uso de IA
           </NavLink>
 
-          {/* ── ADMINISTRACIÓN ── */}
+          {/* ── DIRECTOR DE GRUPO ── */}
+          {hasDirectorView && (
+            <>
+              <div className="sb-nav-divider" />
+              <NavLink to="/director" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
+                <span className="dot" style={{ background: '#B8860B' }} />
+                📋 Vista de mi Grado
+              </NavLink>
+            </>
+          )}
+
+          {/* ── CALENDARIO (admin + psicopedagoga) ── */}
+          {hasCalendar && !isAdmin && (
+            <>
+              <div className="sb-nav-divider" />
+              <NavLink to="/calendar" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
+                <span className="dot" style={{ background: '#C9A84C' }} />
+                Calendario
+                <span className="sb-admin-badge">Psicoped.</span>
+              </NavLink>
+            </>
+          )}
+
+          {/* ── ADMINISTRACIÓN (admin + superadmin) ── */}
           {isAdmin && (
             <>
               <div className="sb-nav-divider" />
@@ -235,12 +264,19 @@ function DashboardInner({ session, teacher, setTeacher }) {
           <Route path="/principles"  element={<PrinciplesPage       teacher={teacher} />} />
           <Route path="/ai-usage"   element={<AIUsagePage          teacher={teacher} />} />
           <Route path="/messages"   element={<MessagesPage         teacher={teacher} onUpdate={fetchUnreadMessages} />} />
+          {hasDirectorView && (
+            <Route path="/director" element={<DirectorPage teacher={teacher} />} />
+          )}
+          {hasCalendar && !isAdmin && (
+            <Route path="/calendar" element={<CalendarPage teacher={teacher} />} />
+          )}
           {isAdmin && (
             <>
               <Route path="/calendar"      element={<CalendarPage      teacher={teacher} />} />
               <Route path="/notifications" element={<NotificationsPage teacher={teacher} onRead={() => setUnread(0)} />} />
               <Route path="/teachers"      element={<AdminTeachersPage teacher={teacher} />} />
               <Route path="/settings"      element={<SettingsPage      teacher={teacher} />} />
+              <Route path="/director"      element={<DirectorPage      teacher={teacher} />} />
             </>
           )}
         </Routes>

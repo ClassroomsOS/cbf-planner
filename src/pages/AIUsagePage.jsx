@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase'
+import { canManage } from '../utils/roles'
 
 const TYPE_CONFIG = {
   suggest:  { label: 'Sugerencias',  icon: '✨', color: '#8064A2' },
@@ -11,7 +12,7 @@ const TYPE_CONFIG = {
 const MONTHS_ES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
 
 export default function AIUsagePage({ teacher }) {
-  const isAdmin = teacher.role === 'admin'
+  const isAdmin = canManage(teacher.role)
   const [data,      setData]      = useState([])
   const [teachers,  setTeachers]  = useState([])
   const [loading,   setLoading]   = useState(true)

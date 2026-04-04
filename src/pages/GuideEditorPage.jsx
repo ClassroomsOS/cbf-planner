@@ -16,6 +16,7 @@ import LearningTargetSelector from '../components/LearningTargetSelector'
 import { useToast } from '../context/ToastContext'
 import { logError } from '../utils/logger'
 import { SECTIONS, RICH_SECTIONS } from '../utils/constants'
+import { canManage } from '../utils/roles'
 import { toISO, formatDateEN, getDayName, MONTHS_EN, DAYS_EN, MONTHS_ES } from '../utils/dateUtils'
 import { useToggle } from '../hooks'
 
@@ -629,7 +630,7 @@ export default function GuideEditorPage({ teacher }) {
                 </div>
                 <div className="ge-context-teacher">{content.info.docente}</div>
               </div>
-              {teacher.role === 'admin' && (
+              {canManage(teacher.role) && (
                 <div className="ge-context-admin-links">
                   <button className="ge-context-edit-btn" onClick={() => setActivePanel('header')}>
                     ⚙ Encabezado

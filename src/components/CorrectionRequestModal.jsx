@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, memo } from 'react'
 import { supabase } from '../supabase'
 import { useFocusTrap } from '../hooks/useFocusTrap'
+import { canManage } from '../utils/roles'
 
 const SECTION_LABELS = {
   subject: 'Subject to be Worked', motivation: 'Motivation',
@@ -216,7 +217,7 @@ const CorrectionRequestModal = memo(function CorrectionRequestModal({ planId, te
                       }}>
                       ✅ Marcar resuelto
                     </button>
-                    {teacher.role === 'admin' && (
+                    {canManage(teacher.role) && (
                       <button
                         onClick={() => updateStatus(r.id, 'rejected')}
                         style={{
