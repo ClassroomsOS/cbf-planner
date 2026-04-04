@@ -21,6 +21,36 @@ import { toISO, formatDateEN, getDayName, MONTHS_EN, DAYS_EN, MONTHS_ES } from '
 import { useToggle } from '../hooks'
 import { importGuideFromDocx } from '../utils/AIAssistant'
 
+// ── Map activity name → SmartBlock stub ──────────────────────────────────────
+function guessSmartBlock(act) {
+  const n = (act.nombre || '').toLowerCase()
+  if (n.includes('dict')) return {
+    type: 'DICTATION', model: 'word-grid', section: 'skill',
+    data: { words: [], instructions: act.descripcion || act.nombre, time: '10 min' }
+  }
+  if (n.includes('quiz') || n.includes('test')) return {
+    type: 'QUIZ', model: 'topic-card', section: 'skill',
+    data: { date: act.fecha || '', unit: act.descripcion || '', topics: act.descripcion || act.nombre }
+  }
+  if (n.includes('reading') || n.includes('lectura')) return {
+    type: 'READING', model: 'comprehension', section: 'skill',
+    data: { passage: '', questions: [{ q: act.descripcion || act.nombre, lines: 3 }] }
+  }
+  if (n.includes('speaking') || n.includes('oral')) return {
+    type: 'SPEAKING', model: 'rubric', section: 'skill',
+    data: { criteria: [{ name: 'Fluency', pts: 5 }, { name: 'Vocabulary', pts: 5 }, { name: 'Pronunciation', pts: 5 }] }
+  }
+  if (n.includes('vocab')) return {
+    type: 'VOCAB', model: 'matching', section: 'activity',
+    data: { words: [] }
+  }
+  if (n.includes('exit') || n.includes('ticket')) return {
+    type: 'EXIT_TICKET', model: 'can-do', section: 'closing',
+    data: { skills: [act.descripcion || act.nombre] }
+  }
+  return null
+}
+
 // ── Indicator text helper (handles Modelo A strings + Modelo B objects) ─────
 function getIndText(ind) {
   if (!ind) return ''
@@ -162,6 +192,26 @@ export default function GuideEditorPage({ teacher }) {
         }
       } else if (!c.days || Object.keys(c.days).length === 0) {
         c.days = await buildDaysFromDB(data, c)
+        // First-ever load: inject SmartBlocks from scheduled NEWS activities
+        const { data: newsProjects } = await supabase
+          .from('news_projects')
+          .select('id, skill, grade, actividades_evaluativas')
+          .eq('school_id', teacher.school_id)
+          .eq('subject', data.subject)
+        const dayIsos = new Set(Object.keys(c.days))
+        ;(newsProjects || []).forEach(np => {
+          if (!data.grade?.startsWith(np.grade || '')) return
+          ;(np.actividades_evaluativas || []).forEach(act => {
+            if (!act.fecha || !dayIsos.has(act.fecha)) return
+            const stub = guessSmartBlock(act)
+            if (!stub) return
+            const sec = c.days[act.fecha]?.sections?.[stub.section]
+            if (!sec) return
+            const existing = sec.smartBlocks || []
+            if (existing.some(b => b.type === stub.type)) return // already has one
+            sec.smartBlocks = [...existing, { id: Date.now() + Math.random(), type: stub.type, model: stub.model, data: stub.data }]
+          })
+        })
       }
       // Migrate old indicador (string) → indicadores (array)
       if (c.objetivo) {

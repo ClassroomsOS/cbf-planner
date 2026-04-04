@@ -47,6 +47,8 @@ export default function PlannerPage({ teacher }) {
   // checkpointData = { previousPlan, target, pendingAction } | null
   // ── Active learning target for this grade/subject ──
   const [activeTarget, setActiveTarget] = useState(null)
+  // ── NEWS activity hitos scheduled this week ──
+  const [weeklyNewsHitos, setWeeklyNewsHitos] = useState([])
   // ── Existing plan for current selection ──
   const [existingPlan, setExistingPlan] = useState(null)
   // ── Current month's biblical principles ──
@@ -89,6 +91,33 @@ export default function PlannerPage({ teacher }) {
     }
     fetchTarget()
   }, [grade, subject])
+
+  // Fetch NEWS activity hitos for this week
+  useEffect(() => {
+    if (!grade || !subject) { setWeeklyNewsHitos([]); return }
+    const w1 = getWeekDays(monday)
+    const mon2 = new Date(monday); mon2.setDate(mon2.getDate() + 7)
+    const allDays = weekCount === 2 ? [...w1, ...getWeekDays(mon2)] : w1
+    const weekDates = new Set(allDays.map(toISO))
+    supabase
+      .from('news_projects')
+      .select('id, title, skill, grade, section, actividades_evaluativas')
+      .eq('school_id', teacher.school_id)
+      .eq('subject', subject)
+      .then(({ data }) => {
+        const hitos = []
+        ;(data || []).forEach(np => {
+          if (!grade.startsWith(np.grade || '')) return
+          ;(np.actividades_evaluativas || []).forEach(act => {
+            if (act.fecha && weekDates.has(act.fecha)) {
+              hitos.push({ date: act.fecha, nombre: act.nombre, descripcion: act.descripcion, skill: np.skill, porcentaje: act.porcentaje })
+            }
+          })
+        })
+        hitos.sort((a, b) => a.date.localeCompare(b.date))
+        setWeeklyNewsHitos(hitos)
+      })
+  }, [grade, subject, monday, weekCount])
 
   const monday2     = (() => { const d = new Date(monday); d.setDate(d.getDate() + 7); return d })()
   const week1Days   = getWeekDays(monday)
@@ -342,6 +371,33 @@ export default function PlannerPage({ teacher }) {
                   : activeTarget.taxonomy === 'apply' ? '🛠 Aplicar'
                   : '✨ Producir'}
               </span>
+            </div>
+          )}
+
+          {/* Hitos NEWS esta semana */}
+          {weeklyNewsHitos.length > 0 && (
+            <div className="planner-news-hitos">
+              <span className="pnh-icon">📋</span>
+              <div className="pnh-content">
+                <div className="pnh-label">Actividades evaluativas programadas esta semana</div>
+                <div className="pnh-list">
+                  {weeklyNewsHitos.map((h, i) => {
+                    const SKILL_COLOR = { Speaking: '#8064A2', Listening: '#4BACC6', Reading: '#F79646', Writing: '#9BBB59' }
+                    const sc = SKILL_COLOR[h.skill]
+                    return (
+                      <div key={i} className="pnh-item">
+                        <span className="pnh-date">
+                          {new Date(h.date + 'T12:00:00').toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric', month: 'short' })}
+                        </span>
+                        <span className="pnh-nombre">{h.nombre}</span>
+                        {h.descripcion && <span style={{ color: '#888', fontSize: '11px' }}>{h.descripcion}</span>}
+                        {h.skill && <span className="pnh-skill" style={{ background: sc + '22', color: sc, border: `1px solid ${sc}55` }}>{h.skill}</span>}
+                        {h.porcentaje > 0 && <span style={{ fontSize: '11px', color: '#888' }}>{h.porcentaje}%</span>}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
             </div>
           )}
 
