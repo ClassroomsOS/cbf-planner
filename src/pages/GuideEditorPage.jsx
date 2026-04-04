@@ -670,45 +670,30 @@ export default function GuideEditorPage({ teacher }) {
               {inputField('Proceso', content.header.proceso, ['header','proceso'])}
               <div className="ge-field">
                 <label>Logo del colegio</label>
-                {content.header.logo_url ? (
-                  <div className="logo-preview-wrap">
-                    <img src={content.header.logo_url} alt="Logo" className="logo-preview-img" />
-                    <button className="logo-remove-btn"
-                      onClick={async () => {
-                        setContentField(['header','logo_url'], null)
-                        await supabase.from('schools')
-                          .update({ logo_url: null })
-                          .eq('id', teacher.school_id)
-                      }}>
-                      ✕ Quitar logo
-                    </button>
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: '14px',
+                  background: '#f8fbff', border: '1px solid #d5e0f5',
+                  borderRadius: '8px', padding: '12px 16px',
+                }}>
+                  {content.header.logo_url
+                    ? <img src={content.header.logo_url} alt="Logo"
+                        style={{ height: '48px', width: 'auto', objectFit: 'contain',
+                          borderRadius: '4px', border: '1px solid #eee' }} />
+                    : <div style={{ fontSize: '24px' }}>🏫</div>
+                  }
+                  <div>
+                    <div style={{ fontSize: '12px', color: '#555', fontWeight: 500 }}>
+                      {content.header.logo_url ? 'Logo institucional activo' : 'Sin logo cargado'}
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#999', marginTop: '3px' }}>
+                      El logo se administra desde{' '}
+                      <a href="/cbf-planner/settings" style={{ color: '#2E5598', fontWeight: 600 }}>
+                        Panel de control → Identidad institucional
+                      </a>
+                      {' '}y se aplica a todas las guías automáticamente.
+                    </div>
                   </div>
-                ) : (
-                  <label className="logo-upload-area">
-                    <input type="file" accept="image/*" style={{ display:'none' }}
-                      onChange={async e => {
-                        const file = e.target.files[0]
-                        if (!file) return
-                        const ext  = file.name.split('.').pop()
-                        const path = `logos/${teacher.school_id}/${Date.now()}.${ext}`
-                        const { error } = await supabase.storage
-                          .from('guide-images')
-                          .upload(path, file, { upsert: true })
-                        if (!error) {
-                          const { data: urlData } = supabase.storage
-                            .from('guide-images').getPublicUrl(path)
-                          const logoUrl = urlData.publicUrl
-                          // Save to guide content
-                          setContentField(['header','logo_url'], logoUrl)
-                          // Also save to school so all future guides use it
-                          await supabase.from('schools')
-                            .update({ logo_url: logoUrl })
-                            .eq('id', teacher.school_id)
-                        }
-                      }} />
-                    🏫 Clic para subir logo del colegio
-                  </label>
-                )}
+                </div>
               </div>
             </div>
           )}
