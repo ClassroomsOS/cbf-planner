@@ -236,7 +236,7 @@ export default function NewsPage({ teacher }) {
               </h3>
               <div style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(320, 1fr))',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
                 gap: 16
               }}>
                 {groupProjects.map(project => (

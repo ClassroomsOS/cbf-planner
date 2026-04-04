@@ -636,6 +636,20 @@ Implementación de la estructura Modelo A + Modelo B según el Marco Teórico.
 - **Precios**: input $3/MTok, output $15/MTok — constantes en `AIAssistant.js`.
 - **Pendiente en Supabase:** ejecutar `supabase/migrations/20260403_sprint6_ai_avanzado.sql`
 
-### Sprint 7 — Responsive / PWA
-- Mobile-first para NewsPage, GuideEditor y Agenda
-- Evaluar PWA para uso offline básico
+### ✅ Sprint 7 COMPLETADO — Responsive / PWA
+
+**PWA (Progressive Web App):**
+- `public/manifest.json` — nombre, scope `/cbf-planner/`, colores `#2E5598`/`#1F3864`, ícono SVG maskable
+- `public/sw.js` — service worker manual (sin dependencias nuevas): cache-first para JS/CSS/SVG, network-first para navegación, network-only para Supabase
+- `index.html` — `<link rel="manifest">`, `<meta name="theme-color">`, metas Apple PWA
+- `src/main.jsx` — registro del SW en `window.load`
+
+**Responsive CSS (`src/styles/index.css`, bloque Sprint 7):**
+- `.card-title { flex-wrap: wrap }` — evita overflow de botones en AgendaEditor y otros headers
+- `@media ≤479px`: `.ge-topbar-info` oculto (título/fechas), `.ge-print-label` oculto (botón icon-only), save status comprimido
+- `@media ≤767px`: `.ge-grid-3 { grid-template-columns: 1fr }` — campos del formulario en columna única en tablet/mobile
+
+**Fixes:**
+- `NewsPage.jsx`: `minmax(320, 1fr)` → `minmax(320px, 1fr)` — bug que impedía que la grilla de proyectos funcionara en mobile
+- `GuideEditorPage.jsx`: label del botón Print envuelto en `<span className="ge-print-label">` para poder ocultarlo con CSS en pantallas pequeñas
+- `SchedulePage.jsx`, `AgendaPage.jsx`: ya tenían `overflowX: 'auto'` — sin cambios necesarios

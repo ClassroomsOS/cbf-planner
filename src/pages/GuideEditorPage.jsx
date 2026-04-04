@@ -599,7 +599,7 @@ export default function GuideEditorPage({ teacher }) {
           <button className="ge-print-btn"
             onClick={() => { doSave(); exportPdf(contentRef.current) }}
             title="Guardar e imprimir como PDF">
-            🖨️ Imprimir / PDF
+            🖨️ <span className="ge-print-label">Imprimir / PDF</span>
           </button>
 
           <div className="ge-export-wrap">

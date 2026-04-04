@@ -1,0 +1,19 @@
+{
+  "name": "CBF Planner",
+  "short_name": "CBF Planner",
+  "description": "Herramienta de planificación pedagógica para docentes CBF",
+  "start_url": "/cbf-planner/",
+  "scope": "/cbf-planner/",
+  "display": "standalone",
+  "background_color": "#1F3864",
+  "theme_color": "#2E5598",
+  "lang": "es",
+  "icons": [
+    {
+      "src": "/cbf-planner/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any maskable"
+    }
+  ]
+}

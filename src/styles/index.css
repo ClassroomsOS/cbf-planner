@@ -2314,3 +2314,40 @@ input:focus, select:focus, textarea:focus {
   cursor: pointer; transition: all .15s;
 }
 .logo-remove-btn:hover { background: #fff0f0; }
+
+/* ================================================================
+   SPRINT 7 — RESPONSIVE / MOBILE
+   ================================================================ */
+
+/* card-title: allow wrapping so trailing buttons don't overflow */
+.card-title { flex-wrap: wrap; }
+
+/* ── GuideEditor topbar on phones (≤479px) ── */
+@media (max-width: 479px) {
+  /* Hide title/dates — actions are what matter */
+  .ge-topbar-info { display: none; }
+  .ge-topbar      { padding: 8px 10px; gap: 6px; }
+
+  /* Compact print button: icon only */
+  .ge-print-btn   { padding: 7px 10px; }
+  .ge-print-label { display: none; }
+
+  /* Shrink save status pill */
+  .ge-save-status { font-size: 10px; padding: 3px 7px; }
+
+  /* Agenda editor: stack action buttons below title */
+  .card-title > div[style] { flex-wrap: wrap; gap: 6px; }
+}
+
+/* ── AgendaEditor top actions: wrap on tablet too ── */
+@media (max-width: 767px) {
+  /* Make the ge-grid-3 single-column on phones */
+  .ge-grid-3 { grid-template-columns: 1fr !important; }
+}
+
+/* ── NewsPage: ensure full-width cards on small phones ── */
+@media (max-width: 479px) {
+  /* The grid already uses minmax(320px,1fr) but on a 375px phone
+     that still produces 1 col. Ensure the container doesn't add padding overflow */
+  .news-page-wrap { padding: 0 8px; }
+}
