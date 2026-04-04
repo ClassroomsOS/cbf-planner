@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { AIGeneratorModal } from '../components/AIComponents'
@@ -49,6 +49,7 @@ export default function PlannerPage({ teacher }) {
   const [activeTarget, setActiveTarget] = useState(null)
   // ── Whether any NEWS projects exist for this grade+subject ──
   const [hasNews, setHasNews] = useState(null) // null = not checked yet
+  const [plannerNewsProjects, setPlannerNewsProjects] = useState([])
   // ── NEWS activity hitos scheduled this week ──
   const [weeklyNewsHitos, setWeeklyNewsHitos] = useState([])
   // ── Existing plan for current selection ──
@@ -103,12 +104,13 @@ export default function PlannerPage({ teacher }) {
     const weekDates = new Set(allDays.map(toISO))
     supabase
       .from('news_projects')
-      .select('id, title, skill, grade, section, actividades_evaluativas')
+      .select('id, title, skill, grade, section, actividades_evaluativas, due_date, target_indicador')
       .eq('school_id', teacher.school_id)
       .eq('subject', subject)
       .then(({ data }) => {
         const all = (data || []).filter(np => grade.startsWith(np.grade || ''))
         setHasNews(all.length > 0)
+        setPlannerNewsProjects(all)
         const hitos = []
         all.forEach(np => {
           ;(np.actividades_evaluativas || []).forEach(act => {
@@ -128,6 +130,34 @@ export default function PlannerPage({ teacher }) {
   const allWeekDays = weekCount === 2 ? [...week1Days, ...week2Days] : week1Days
   const weekNumber  = getSchoolWeek(monday)
   const dateRange   = formatRange(allWeekDays)
+
+  // Derive active indicator from the nearest NEWS project after the selected week
+  const plannerActiveIndicator = useMemo(() => {
+    if (!plannerNewsProjects.length || !activeTarget) return null
+    const firstDay = toISO(allWeekDays[0])
+    const dayKeys  = new Set(allWeekDays.map(toISO))
+
+    // Priority 1: activity date in the selected week
+    const byActivity = plannerNewsProjects.find(np =>
+      (np.actividades_evaluativas || []).some(act => act.fecha && dayKeys.has(act.fecha))
+    )
+    if (byActivity) {
+      const ind = (activeTarget.indicadores || []).find(
+        i => typeof i === 'object' && i.habilidad?.toLowerCase() === byActivity.skill?.toLowerCase()
+      )
+      return ind || null
+    }
+
+    // Priority 2: nearest due_date >= firstDay
+    const np = plannerNewsProjects
+      .filter(p => p.due_date && p.due_date >= firstDay)
+      .sort((a, b) => a.due_date.localeCompare(b.due_date))[0]
+    if (!np) return null
+
+    return (activeTarget.indicadores || []).find(
+      i => typeof i === 'object' && i.habilidad?.toLowerCase() === np.skill?.toLowerCase()
+    ) || null
+  }, [plannerNewsProjects, activeTarget, monday, weekCount])
 
   // Fetch existing plan for current grade/subject/week selection
   useEffect(() => {
@@ -568,6 +598,7 @@ export default function PlannerPage({ teacher }) {
           period={period}
           activeDays={activeDays.map(d => toISO(d))}
           learningTarget={activeTarget}
+          activeIndicator={plannerActiveIndicator}
           principles={{
             yearVerse:          { text: school.year_verse || '', ref: school.year_verse_ref || '' },
             monthVerse:         { text: monthPrinciple?.month_verse || '', ref: monthPrinciple?.month_verse_ref || '' },

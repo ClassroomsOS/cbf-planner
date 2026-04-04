@@ -346,7 +346,7 @@ export const AIGeneratorModal = memo(function AIGeneratorModal({ grade, subject,
                   <div style={{ fontSize: '11px', fontWeight: 700, color: '#555', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                     ¿Qué habilidad trabaja esta guía?
                   </div>
-                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     {['Speaking', 'Listening', 'Reading', 'Writing'].map(skill => {
                       const ind = (learningTarget?.indicadores || []).find(
                         i => typeof i === 'object' && i.habilidad?.toLowerCase() === skill.toLowerCase()
@@ -355,17 +355,24 @@ export const AIGeneratorModal = memo(function AIGeneratorModal({ grade, subject,
                       return (
                         <button
                           key={skill}
-                          onClick={() => {
-                            setSelectedSkill(skill)
-                          }}
+                          onClick={() => setSelectedSkill(skill)}
                           style={{
-                            padding: '8px 16px', borderRadius: '20px', border: `2px solid ${SKILL_COLORS[skill]}`,
+                            padding: '10px 14px', borderRadius: '10px',
+                            border: `2px solid ${SKILL_COLORS[skill]}`,
                             background: isActive ? SKILL_COLORS[skill] : '#fff',
-                            color: isActive ? '#fff' : SKILL_COLORS[skill],
+                            color: isActive ? '#fff' : '#333',
                             fontWeight: 700, fontSize: '13px', cursor: 'pointer',
+                            textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '3px',
                           }}
                         >
-                          {SKILL_ICONS[skill]} {skill}
+                          <span style={{ color: isActive ? '#fff' : SKILL_COLORS[skill] }}>
+                            {SKILL_ICONS[skill]} {skill}
+                          </span>
+                          {ind?.texto_en && (
+                            <span style={{ fontSize: '11px', fontWeight: 400, opacity: 0.85, lineHeight: 1.4 }}>
+                              {ind.texto_en}
+                            </span>
+                          )}
                         </button>
                       )
                     })}
