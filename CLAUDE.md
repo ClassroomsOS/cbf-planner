@@ -189,6 +189,8 @@ Client-side entry point is `src/utils/AIAssistant.js`, which exposes:
 
 `generateGuideStructure` auto-retries with a more concise prompt when the response is truncated (JSON parse failure). It also asks Claude to include an optional `smartBlock` field in `activity` and `skill` sections (max 2 per day).
 
+`generateGuideStructure` recibe `activeNewsProject` y construye un bloque `📋 CONTEXTO DEL PROYECTO NEWS` que incluye: título, descripción, condiciones de entrega, `due_date`, libro/unidades/gramática/vocab del textbook, competencias, operadores intelectuales, habilidades, principio y reflexión bíblica, y **`actividades_evaluativas`** — las actividades que caen en la semana actual se marcan con `⚠️` para que la IA las priorice; las próximas se listan como contexto. Esto permite que la IA genere contenido alineado con los hitos evaluativos ya programados.
+
 **`AIGeneratorModal` — fuente de verdad del objetivo:**
 El modal (`src/components/AIComponents.jsx`) nunca pide al docente que reescriba el indicador. El `objective` que se pasa a `generateGuideStructure` se deriva en `handleGenerate` en este orden de prioridad:
 1. `activeIndicator.texto_en || activeIndicator.habilidad` (indicador detectado automáticamente por semana)
@@ -311,7 +313,7 @@ DOCX day tables use **3 columns** `[1760, 5605, 3435]` DXA. Header and unit rows
 
 | File | Function | Notes |
 |---|---|---|
-| `src/utils/exportHtml.js` | `exportHtml()`, `exportPdf()`, `buildHtml()` | Imports `blockPreviewHTML` + `BLOCK_TYPES` from SmartBlocks.jsx for block rendering. Tabla indicadores: **full-width una columna** (se eliminó la columna "Logro" izquierda). Objetos Modelo B normalizados a texto plano. |
+| `src/utils/exportHtml.js` | `exportHtml(content, newsProject?)`, `exportPdf(content, newsProject?)`, `buildHtml(content, newsProject?)` | Imports `blockPreviewHTML` + `BLOCK_TYPES` from SmartBlocks.jsx for block rendering. Tabla indicadores: **full-width una columna** (se eliminó la columna "Logro" izquierda). Objetos Modelo B normalizados a texto plano. Bloque `📋 Proyecto NEWS` entre indicadores y versículo: condiciones, textbook (libro/unidades/gramática/vocab), principio bíblico, reflexión, y actividades evaluativas como chips con fecha y %. |
 | `src/utils/exportDocx.js` | `exportGuideDocx()` | `buildSmartBlockDocx(block)` handles all 9 block types natively. Tabla indicadores: **full-width una columna**, header `INDICADORES DE LOGRO`. Objetos Modelo B normalizados. Solo renderiza si hay indicadores (`_indicadores.length > 0`). |
 | `src/utils/exportRubricHtml.js` | `exportRubricHtml(project, principles, school)` | Genera HTML interactivo autocontenido para evaluar proyectos NEWS en tiempo real. Clickear celda de rúbrica → calcula nota (escala 1.0–5.0 Boston Flex). Incluye: banner de verso, escala visual, panel de puntaje, tabla interactiva con JS embebido, panel de resultado con override y comentarios, botón imprimir. Abre en `window.open('', '_blank')`. |
 
@@ -654,7 +656,8 @@ Al presionar "Crear Logro" para una materia Modelo B (`handleSave` en `LearningT
 - Abrir NEWS → ver los 4 proyectos organizados por habilidad
 - Editar cada proyecto → completar: textbook reference, **actividades evaluativas**, rúbrica
 
-**`NewsProjectEditor` — step "Actividades" (Modelo B únicamente):**
+**`NewsProjectEditor` — step "Actividades" (ambos modelos):**
+**Flujo de navegación:** Identificación → Indicador → [Marco — solo Modelo B] → Contenido → Fechas → Textbook → **Actividades → Línea de Tiempo** → Rúbrica. El botón "Siguiente" del paso Textbook siempre lleva a Actividades (antes solo Modelo B llegaba ahí).
 - Aparece entre Textbook y Rúbrica en el nav sidebar
 - UI: formulario para agregar actividades `{nombre, descripcion, porcentaje}` + lista con eliminar
 - Indicador de total % con validación (verde = 100%, rojo = excede 100%, amarillo = incompleto)
@@ -671,7 +674,7 @@ Al presionar "Crear Logro" para una materia Modelo B (`handleSave` en `LearningT
 - Panel ámbar para actividades sin fecha + botón "Asignar fechas" → vuelve al step Actividades
 - Empty state si no hay fechas ni due_date
 
-**Paso "Actividades" abierto para ambos modelos** (antes solo Modelo B).
+**Paso "Actividades" y "Línea de Tiempo" abiertos para ambos modelos** (antes solo Modelo B).
 
 **Migración SQL requerida:**
 ```sql
