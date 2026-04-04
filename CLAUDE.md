@@ -151,7 +151,9 @@ Client-side entry point is `src/utils/AIAssistant.js`, which exposes:
 - `apply` → DICTATION, GRAMMAR fill-blank, WORKSHOP stations, READING comprehension
 - `produce` → SPEAKING rubric, WORKSHOP roles, EXIT_TICKET can-do
 
-`generateIndicadores()` has 3 modes: **Modelo B** (`isModeloB=true`) → 4 objects `{habilidad, texto_en, texto_es, principio_biblico}`; **Modelo A + tematicaNames** → N strings, one per Temática; **Modelo A fallback** → 3 generic strings. The `getIndText(ind)` helper (exported from `LearningTargetsPage.jsx`) normalizes either format to a display string — use it everywhere indicators may be objects.
+`generateIndicadores()` has 3 modes: **Modelo B** (`isModeloB=true`) → 4 objects `{habilidad, texto_en, principio_biblico}`; **Modelo A + tematicaNames** → N strings, one per Temática; **Modelo A fallback** → 3 generic strings. The `getIndText(ind)` helper (exported from `LearningTargetsPage.jsx`) normalizes either format to a display string — use it everywhere indicators may be objects.
+
+`extractJSONArray(text)` — internal helper in `AIAssistant.js` that first tries `JSON.parse(text)`, then falls back to regex `/\[[\s\S]*\]/` extraction. Used in `generateIndicadores()` to handle responses where Claude wraps JSON in markdown code fences.
 
 `callClaude()` reads the response as text first (`response.text()`), then parses JSON — this prevents cryptic "Unexpected token" errors when the Edge Function returns a non-JSON error message.
 
@@ -296,6 +298,7 @@ Font/size marks are applied only to selected text — they do NOT affect AI-inse
 - **El nav abre directamente en `1 · Logro`** — los paneles Encabezado e Información fueron removidos del nav para docentes (son datos de contexto, no de trabajo diario).
 - El nav tiene 2 pasos fijos (`1 · Logro`, `2 · Versículo`) + días + `★ Resumen`.
 - Day items show a mini progress bar + `filled/total` count (e.g. `3/6`) indicating how many sections have content. Bar turns white when the day is active.
+- **Guías de 2 semanas:** When `plan.week_count === 2`, the nav renders "Semana 1" and "Semana 2" section separators between day items. Both weeks' days are stored in the same `lesson_plans` row. On load, if ≤5 days are saved, `buildDaysFromDB` fills in the missing week-2 days from the teacher's schedule.
 
 #### Context Banner (`.ge-context-banner`)
 - Banner read-only siempre visible en la parte superior del área de contenido.
@@ -340,8 +343,8 @@ CBF es una **escuela cristiana confesional**. Los tres principios son el norte d
 | `teachers` | User profiles. `status`, `role`, `school_id`, `default_class/subject/period`, `ai_monthly_limit int` (0=ilimitado) |
 | `schools` | Multi-tenant root. `features` JSONB, `year_verse`, `logo_url` |
 | `teacher_assignments` | Admin-controlled class assignments. `grade` (base only, e.g. `"10.°"`), `section`, `subject`, `schedule` JSONB (keys: `mon/tue/wed/thu/fri`, values: period arrays), `classroom text` (salón físico) |
-| `lesson_plans` | One row per guide. `content` JSONB holds all plan data. `grade` = combined label. Links to `target_id`, `news_project_id` |
-| `learning_targets` | **Logros del trimestre** (meta macro). `description` = el Logro. `taxonomy` enum: `recognize | apply | produce`. `indicadores jsonb` = array de strings (uno por Temática). `tematica_names jsonb` = array paralelo con el nombre de cada Temática. `trimestre smallint` (1/2/3, nullable). `news_model text` ('standard'\|'language', default 'standard'). |
+| `lesson_plans` | One row per guide. `content` JSONB holds all plan data. `grade` = combined label. Links to `target_id`, `news_project_id`. `week_count int` (1 or 2) — 2-week guides store both weeks in the same row. |
+| `learning_targets` | **Logros del trimestre** (meta macro). `description` = el Logro (Modelo A only — empty for Modelo B). `taxonomy` enum: `recognize | apply | produce` (Modelo A global; Modelo B stores per-indicator taxonomy inside each object). `indicadores jsonb` = array of strings (Modelo A) or objects `{habilidad, taxonomy, texto_en, principio_biblico: {titulo, referencia, cita}, es_titulo, es_descripcion, es_grupo}` (Modelo B). `tematica_names jsonb` = parallel array with Temática names (Modelo A) or skill names (Modelo B). `news_model text` ('standard'\|'language', default 'standard'). |
 | `school_monthly_principles` | Principios rectores por mes. `school_id, year, month, month_verse, month_verse_ref, indicator_principle`. UNIQUE(school_id, year, month) |
 | `news_projects` | NEWS (project-based learning) projects. Links to `rubric_templates` via `rubric_template_id`. Links to `learning_targets` via `target_id` (UUID). Field `target_indicador` (text) stores the selected indicator from `learning_targets.indicadores[]`. `news_model text` ('standard'\|'language'). Modelo B: `competencias jsonb`, `operadores_intelectuales jsonb`, `habilidades jsonb`. |
 | `school_calendar` | Holiday/event data. `is_school_day: false` = holiday. `level` (elementary|middle|high|NULL=todos). `affects_planning boolean`. `created_by uuid` |
@@ -373,6 +376,16 @@ Ruta `/settings`. Solo accesible para admin. Contiene:
 ### Logging
 
 Use `logError(err, { page, action, entityId })` and `logActivity(action, entityType, entityId, description)` from `src/utils/logger.js`. For Supabase calls that might fail, use the `safeAsync()` wrapper which returns `{ data, error }` and auto-logs.
+
+### PlannerPage UX (`src/pages/PlannerPage.jsx`)
+
+Ruta `/planner`. Pantalla de inicio del flujo de creación de guías.
+
+- **Header degradado** con selector de duración (1 semana / 2 semanas) integrado — guarda `week_count` en `lesson_plans`.
+- **4-field grid:** Grado, Materia, Semana, Período (sin Duration — está en el header).
+- **Callout de logro vinculado** (`.planner-linked-target`) — aparece en cuanto se selecciona grado + materia. Muestra el logro activo del período con su nivel taxonómico.
+- **Period chips** (`.wc-periods`) — cada día de clase muestra los períodos del horario del docente (ej: `2do · 3ro`). Días sin clase muestran `.wc-no-class`.
+- **Indicador de guía existente** (`.planner-existing-plan`) — callout ámbar que aparece si ya existe una guía para esa combinación grado+materia+semana. Muestra el progreso (cuántas secciones completadas). Botón cambia a `📋 Continuar guía →` en vez de `✏️ Crear guía →`. No bloquea ni sobreescribe — solo avisa.
 
 ### Checkpoint flow
 
@@ -515,12 +528,20 @@ COMPETENCIAS (Sociolingüística / Lingüística / Pragmática)
 OPERADORES INTELECTUALES (Deducir / Generalizar / Sintetizar / Retener / Evaluar)
   ├── INDICADOR 1 — Speaking
   │     ├── PRINCIPIO BÍBLICO PROPIO (versículo específico del indicador)
-  │     ├── ENUNCIADO: inglés + traducción al español
+  │     ├── ENUNCIADO: solo en inglés (texto_en)
   │     ├── ES EMBEBIDA (proyecto + tamaño de grupo + criterios)
   │     └── ACTIVIDADES ESTÁNDAR (Dictados, Quiz, Cambridge One, Plan Lector, PET Prep)
   ├── INDICADOR 2 — Listening / 3 — Reading / 4 — Writing (misma estructura)
   └── RÚBRICA FINAL (organizada por habilidad)
 ```
+
+**UI del modal Logros — Modelo B:** El campo "Logro del Período" NO aparece (no aplica). En su lugar, 4 pestañas fijas con color propio:
+- 🎤 **Speaking** — púrpura `#8064A2`
+- 🎧 **Listening** — teal `#4BACC6`
+- 📖 **Reading** — naranja `#F79646`
+- ✍️ **Writing** — verde `#9BBB59`
+
+Cada pestaña tiene: selector taxonómico propio + campo EN (indicador en inglés) + principio bíblico (título, referencia, cita) + ES embebida (título, descripción, grupo). **No hay generación por IA** — los docentes llenan los indicadores que ya tienen definidos. La traducción al español fue eliminada (`texto_es` no se captura en la UI, aunque el campo persiste en DB por compatibilidad).
 
 ### Rúbrica CBF (especificación obligatoria)
 **Siempre 8 criterios × 5 niveles** (Superior/Alto/Básico/Bajo/Muy Bajo):
