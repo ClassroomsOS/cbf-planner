@@ -15,9 +15,10 @@ import NewsPage            from './NewsPage'
 import PrinciplesPage      from './PrinciplesPage'
 import DirectorPage        from './DirectorPage'
 import SchedulePage        from './SchedulePage'
+import AgendaPage          from './AgendaPage'
 import ProfileModal        from '../components/ProfileModal'
 import { FeaturesProvider, useFeatures } from '../context/FeaturesContext'
-import { canManage, canAccessCalendar, isDirector, canReadAllPlans, canViewSchedule } from '../utils/roles'
+import { canManage, canAccessCalendar, isDirector, canReadAllPlans, canViewSchedule, canManageAgendas } from '../utils/roles'
 
 // ── Wrapper — provides context ────────────────────────────────
 export default function DashboardPage({ session, teacher, setTeacher }) {
@@ -36,7 +37,8 @@ function DashboardInner({ session, teacher, setTeacher }) {
   const isAdmin   = canManage(teacher.role)        // admin + superadmin
   const hasCalendar = canAccessCalendar(teacher.role) // admin + superadmin + psicopedagoga
   const hasDirectorView = isDirector(teacher.role)
-  const hasScheduleView = canViewSchedule(teacher.role) // admin + superadmin + director + psicopedagoga
+  const hasScheduleView = canViewSchedule(teacher.role)   // admin + superadmin + director + psicopedagoga
+  const hasAgendas = canManageAgendas(teacher.role)        // admin + superadmin + director
   const { features } = useFeatures()
 
   const [unread,         setUnread]         = useState(0)
@@ -214,6 +216,15 @@ function DashboardInner({ session, teacher, setTeacher }) {
               </NavLink>
             </>
           )}
+          {hasAgendas && !isAdmin && (
+            <>
+              <div className="sb-nav-divider" />
+              <NavLink to="/agenda" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
+                <span className="dot" style={{ background: '#9BBB59' }} />
+                📋 Agenda Semanal
+              </NavLink>
+            </>
+          )}
 
           {/* ── CALENDARIO (admin + psicopedagoga) ── */}
           {hasCalendar && !isAdmin && (
@@ -248,6 +259,11 @@ function DashboardInner({ session, teacher, setTeacher }) {
               <NavLink to="/schedule" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
                 <span className="dot" style={{ background: '#4BACC6' }} />
                 🗓 Horario
+                <span className="sb-admin-badge">Admin</span>
+              </NavLink>
+              <NavLink to="/agenda" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
+                <span className="dot" style={{ background: '#9BBB59' }} />
+                📋 Agenda Semanal
                 <span className="sb-admin-badge">Admin</span>
               </NavLink>
               <NavLink to="/settings" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
@@ -289,10 +305,14 @@ function DashboardInner({ session, teacher, setTeacher }) {
           {hasScheduleView && !isAdmin && (
             <Route path="/schedule" element={<SchedulePage teacher={teacher} />} />
           )}
+          {hasAgendas && !isAdmin && (
+            <Route path="/agenda" element={<AgendaPage teacher={teacher} />} />
+          )}
           {isAdmin && (
             <>
               <Route path="/calendar"      element={<CalendarPage      teacher={teacher} />} />
               <Route path="/schedule"      element={<SchedulePage      teacher={teacher} />} />
+              <Route path="/agenda"        element={<AgendaPage        teacher={teacher} />} />
               <Route path="/notifications" element={<NotificationsPage teacher={teacher} onRead={() => setUnread(0)} />} />
               <Route path="/teachers"      element={<AdminTeachersPage teacher={teacher} />} />
               <Route path="/settings"      element={<SettingsPage      teacher={teacher} />} />

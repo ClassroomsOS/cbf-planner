@@ -50,6 +50,10 @@ export const canReadAllPlans = (role) =>
 export const canViewSchedule = (role) =>
   role === 'admin' || role === 'superadmin' || role === 'director' || role === 'psicopedagoga'
 
+/** Can create/edit weekly agendas for parents */
+export const canManageAgendas = (role) =>
+  role === 'admin' || role === 'superadmin' || role === 'director'
+
 /** Can change another teacher's role (admin can promote to anything except superadmin) */
 export const canChangeRole = (actorRole, targetNewRole) => {
   if (actorRole === 'superadmin') return true
