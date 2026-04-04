@@ -718,14 +718,6 @@ export default function LearningTargetsPage({ teacher }) {
                               rows={3} className="lt-textarea" style={{ width: '100%', resize: 'vertical', boxSizing: 'border-box', fontSize: 13 }} />
                           </div>
 
-                          {/* Indicador ES */}
-                          <div style={{ marginBottom: 14 }}>
-                            <div style={{ fontSize: 10, color: '#888', fontWeight: 700, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.3px' }}>ES — Traducción al español</div>
-                            <textarea value={obj.texto_es} onChange={e => updateObjField('texto_es', e.target.value)}
-                              placeholder="El estudiante presenta información claramente usando vocabulario apropiado..."
-                              rows={2} className="lt-textarea" style={{ width: '100%', resize: 'vertical', boxSizing: 'border-box', fontSize: 13 }} />
-                          </div>
-
                           {/* Principio bíblico */}
                           <div style={{ padding: '10px 12px', borderRadius: 8, background: '#EEF2FB', border: '1px solid #c5d5f0', marginBottom: 10 }}>
                             <div style={{ fontSize: 10, fontWeight: 700, color: '#1A3A8F', marginBottom: 8 }}>✝️ Principio Bíblico del Indicador</div>
