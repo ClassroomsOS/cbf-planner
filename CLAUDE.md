@@ -139,7 +139,7 @@ Client-side entry point is `src/utils/AIAssistant.js`, which exposes:
 | `generateGuideStructure()` | Generate full week structure as JSON (includes SmartBlocks) | 16000 |
 | `suggestSmartBlock()` | Suggest one SmartBlock for a section based on context + taxonomy | 1200 |
 | `generateRubric()` | Generate complete 5-level rubric (**exactly 8 criteria**) for NEWS project | 4000 |
-| `generateIndicadores()` | Generate indicators per Temática for a learning target | 1500 |
+| `generateIndicadores()` | Generate indicators per Temática (Modelo A) or per habilidad (Modelo B) | 1500/2000 |
 
 `generateGuideStructure` auto-retries with a more concise prompt when the response is truncated (JSON parse failure). It also asks Claude to include an optional `smartBlock` field in `activity` and `skill` sections (max 2 per day).
 
@@ -147,6 +147,8 @@ Client-side entry point is `src/utils/AIAssistant.js`, which exposes:
 - `recognize` → VOCAB matching, QUIZ topic-card, READING true-false
 - `apply` → DICTATION, GRAMMAR fill-blank, WORKSHOP stations, READING comprehension
 - `produce` → SPEAKING rubric, WORKSHOP roles, EXIT_TICKET can-do
+
+`generateIndicadores()` has 3 modes: **Modelo B** (`isModeloB=true`) → 4 objects `{habilidad, texto_en, texto_es, principio_biblico}`; **Modelo A + tematicaNames** → N strings, one per Temática; **Modelo A fallback** → 3 generic strings. The `getIndText(ind)` helper (exported from `LearningTargetsPage.jsx`) normalizes either format to a display string — use it everywhere indicators may be objects.
 
 `callClaude()` reads the response as text first (`response.text()`), then parses JSON — this prevents cryptic "Unexpected token" errors when the Edge Function returns a non-JSON error message.
 
@@ -510,7 +512,7 @@ OPERADORES INTELECTUALES (Deducir / Generalizar / Sintetizar / Retener / Evaluar
 | `learning_targets.trimestre` | ✅ Implementado Sprint 1 | — |
 | `news_projects.news_model` ('standard'\|'language') | ✅ Implementado Sprint 1 | — |
 | `news_projects.competencias/operadores/habilidades` (Modelo B) | ✅ Implementado Sprint 1 | — |
-| Indicadores Modelo B como objetos `{habilidad, texto_en, texto_es, principio_biblico, es_embebida}` | ❌ Falta | Sprint 2 |
+| Indicadores Modelo B como objetos `{habilidad, texto_en, texto_es, principio_biblico, es_embebida}` | ✅ Implementado Sprint 2 | — |
 | `generateRubric()` → exactamente 8 criterios (prompt + validación) | ✅ Implementado Sprint 1 | — |
 | `MODELO_B_SUBJECTS` en constants.js | ✅ Implementado Sprint 1 | — |
 
@@ -574,10 +576,11 @@ Implementación de la estructura Modelo A + Modelo B según el Marco Teórico.
 - `generateRubric()`: exactamente 8 criterios × 5 niveles (prompt forzado + validación post-parse)
 - `MODELO_B_SUBJECTS = ['Language Arts', 'Social Studies', 'Science']` en constants.js
 
-**Pendiente Sprint 2:**
-- Indicadores Modelo B como objetos `{habilidad, texto_en, texto_es, principio_biblico, es_embebida}`
-- `generateIndicadores()`: 1 por Temática con nombre, no 3 genéricos
-- `LearningTargetSelector`: filtrar por trimestre
+**Sprint 2 completado:**
+- Indicadores Modelo B: objetos `{habilidad, texto_en, texto_es, principio_biblico, es_titulo, es_descripcion, es_grupo}`
+- `generateIndicadores()`: Modelo A = 1 por Temática | Modelo B = 4 objetos por habilidad
+- `LearningTargetSelector`: badge T1/T2/T3, ordena targets del trimestre actual primero
+- `getIndText(ind)` helper exportado desde LearningTargetsPage para normalizar string|objeto
 
 ---
 
