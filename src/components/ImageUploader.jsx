@@ -160,10 +160,13 @@ const MAX_PX   = 900
 const QUALITY  = 0.82
 
 function compressImage(file) {
-  return new Promise(resolve => {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('Tiempo de espera al procesar la imagen')), 15000)
     const reader = new FileReader()
+    reader.onerror = () => { clearTimeout(timer); reject(new Error('No se pudo leer el archivo')) }
     reader.onload = e => {
       const img = new Image()
+      img.onerror = () => { clearTimeout(timer); reject(new Error('Archivo de imagen inválido')) }
       img.onload = () => {
         let { width, height } = img
         if (width > MAX_PX || height > MAX_PX) {
@@ -174,7 +177,7 @@ function compressImage(file) {
         canvas.width = width; canvas.height = height
         canvas.getContext('2d').drawImage(img, 0, 0, width, height)
         const outType = file.type === 'image/png' && file.size < 100*1024 ? 'image/png' : 'image/jpeg'
-        canvas.toBlob(blob => resolve({ blob, type: outType }), outType, QUALITY)
+        canvas.toBlob(blob => { clearTimeout(timer); resolve({ blob, type: outType }) }, outType, QUALITY)
       }
       img.src = e.target.result
     }
