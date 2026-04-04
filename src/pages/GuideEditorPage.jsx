@@ -293,10 +293,10 @@ export default function GuideEditorPage({ teacher }) {
   }, [plan?.target_id])
 
   // ── Derive active NEWS project for this guide's date range ──
-  // Priority 1 (Modelo B): a NEWS activity fecha falls within the guide's days
-  // Priority 2 (Modelo A + B fallback): the NEWS whose due_date is the nearest
-  //   future date from the guide's first day — following the hito-chain logic:
-  //   every guide belongs to the segment that ends at the next upcoming proyecto.
+  // Priority 1: a NEWS activity fecha falls within the guide's days
+  // Priority 2: nearest due_date AFTER the guide's first day — the next hito
+  //   this guide is building toward. A guide never looks at a NEWS whose
+  //   due_date is before the guide's own date.
   const activeNewsProject = useMemo(() => {
     if (!linkedNewsProjects.length || !content) return null
     const dayKeys = new Set(Object.keys(content.days || {}))
@@ -304,17 +304,17 @@ export default function GuideEditorPage({ teacher }) {
     const sortedDays = [...dayKeys].sort()
     const firstDay = sortedDays[0]
 
-    // Priority 1: activity date falls in guide's week (Modelo B standard path)
+    // Priority 1: activity date falls in guide's week
     const byActivity = linkedNewsProjects.find(np =>
       (np.actividades_evaluativas || []).some(act => act.fecha && dayKeys.has(act.fecha))
     )
     if (byActivity) return byActivity
 
-    // Priority 2: nearest upcoming due_date from the guide's first day
-    const withDueDate = linkedNewsProjects
+    // Priority 2: nearest due_date on or after the guide's first day
+    const future = linkedNewsProjects
       .filter(np => np.due_date && np.due_date >= firstDay)
       .sort((a, b) => a.due_date.localeCompare(b.due_date))
-    if (withDueDate.length) return withDueDate[0]
+    if (future.length) return future[0]
 
     return null
   }, [linkedNewsProjects, content?.days])
