@@ -39,7 +39,7 @@ export default function LearningTargetSelector({
     // then filter client-side for flexible grade/group matching
     const { data } = await supabase
       .from('learning_targets')
-      .select('id, description, taxonomy, grade, group_name, prerequisite_ids, trimestre, tematica_names')
+      .select('id, description, taxonomy, grade, group_name, prerequisite_ids, trimestre, tematica_names, indicadores, news_model')
       .eq('school_id', schoolId)
       .eq('subject', subject)
       .eq('is_active', true)
@@ -119,7 +119,10 @@ export default function LearningTargetSelector({
           </span>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: '13px', color: '#1a5c1a', fontWeight: 600, lineHeight: '1.4' }}>
-              {selectedTarget.description}
+              {selectedTarget.description ||
+                (selectedTarget.tematica_names?.length
+                  ? selectedTarget.tematica_names.join(' · ')
+                  : '(Modelo B)')}
             </div>
             {selectedTarget.group_name && (
               <span style={{
@@ -205,7 +208,8 @@ export default function LearningTargetSelector({
                 </span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: '13px', color: '#333', lineHeight: '1.4' }}>
-                    {t.description}
+                    {t.description ||
+                      (t.tematica_names?.length ? t.tematica_names.join(' · ') : '(Modelo B)')}
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '4px' }}>
                     {t.group_name && (

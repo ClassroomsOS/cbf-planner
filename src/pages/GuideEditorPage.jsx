@@ -15,11 +15,18 @@ import LayoutSelectorModal, { LAYOUT_ELIGIBLE } from '../components/LayoutSelect
 import LearningTargetSelector from '../components/LearningTargetSelector'
 import { useToast } from '../context/ToastContext'
 import { logError } from '../utils/logger'
-import { SECTIONS, RICH_SECTIONS } from '../utils/constants'
+import { SECTIONS, RICH_SECTIONS, MODELO_B_SUBJECTS } from '../utils/constants'
 import { canManage } from '../utils/roles'
 import { toISO, formatDateEN, getDayName, MONTHS_EN, DAYS_EN, MONTHS_ES } from '../utils/dateUtils'
 import { useToggle } from '../hooks'
 import { importGuideFromDocx } from '../utils/AIAssistant'
+
+// ── Indicator text helper (handles Modelo A strings + Modelo B objects) ─────
+function getIndText(ind) {
+  if (!ind) return ''
+  if (typeof ind === 'string') return ind
+  return ind.texto_es || ind.texto_en || ind.habilidad || ''
+}
 
 // ── localStorage draft helpers ──────────────────────────────────────────────
 const DRAFT_PREFIX = 'cbf_draft_'
@@ -109,7 +116,8 @@ export default function GuideEditorPage({ teacher }) {
   const [saveStatus,    setSaveStatus]    = useState('saved')
   const [loading,       setLoading]       = useState(true)
   const [draftRestore,  setDraftRestore]  = useState(null) // { content, savedAt } | null
-  const [linkedTarget,    setLinkedTarget]    = useState(null)
+  const [linkedTarget,      setLinkedTarget]      = useState(null)
+  const [linkedNewsProjects, setLinkedNewsProjects] = useState([])
   const [monthPrinciples, setMonthPrinciples] = useState(null)
 
   // ── Modal/UI toggles (migrated to useToggle) ──
@@ -162,6 +170,30 @@ export default function GuideEditorPage({ teacher }) {
         }
       }
 
+      // Auto-populate objetivo from linked target when fields are still empty
+      if (data.target_id && c.objetivo) {
+        const objetivoIsEmpty = !c.objetivo.general &&
+          (!c.objetivo.indicadores || c.objetivo.indicadores.every(i => !getIndText(i)))
+        if (objetivoIsEmpty) {
+          const { data: target } = await supabase
+            .from('learning_targets')
+            .select('id, description, indicadores, news_model, tematica_names')
+            .eq('id', data.target_id)
+            .single()
+          if (target) {
+            if (target.description) c.objetivo.general = target.description
+            if (target.indicadores?.length) {
+              c.objetivo.indicadores = target.indicadores.map(ind =>
+                typeof ind === 'object'
+                  ? (ind.texto_en || ind.habilidad || '')
+                  : (ind || '')
+              ).filter(Boolean)
+              if (!c.objetivo.indicadores.length) c.objetivo.indicadores = ['']
+            }
+          }
+        }
+      }
+
       // Always fetch logo fresh from school (prop may be stale from session start)
       const { data: schoolData } = await supabase
         .from('schools').select('logo_url').eq('id', teacher.school_id).single()
@@ -192,10 +224,22 @@ export default function GuideEditorPage({ teacher }) {
     if (!plan?.target_id) { setLinkedTarget(null); return }
     supabase
       .from('learning_targets')
-      .select('id, description, taxonomy, group_name, prerequisite_ids')
+      .select('id, description, taxonomy, group_name, prerequisite_ids, indicadores, news_model, tematica_names')
       .eq('id', plan.target_id)
       .single()
       .then(({ data }) => setLinkedTarget(data || null))
+  }, [plan?.target_id])
+
+  // ── Load NEWS projects linked to the same target ──
+  useEffect(() => {
+    if (!plan?.target_id) { setLinkedNewsProjects([]); return }
+    supabase
+      .from('news_projects')
+      .select('id, title, subject, status, skill, news_model')
+      .eq('target_id', plan.target_id)
+      .eq('school_id', teacher.school_id)
+      .limit(4)
+      .then(({ data }) => setLinkedNewsProjects(data || []))
   }, [plan?.target_id])
 
   async function buildDaysFromDB(data, c) {
@@ -831,12 +875,16 @@ export default function GuideEditorPage({ teacher }) {
                 onChange={(targetId, target) => {
                   setPlan(prev => ({ ...prev, target_id: targetId }))
                   if (target) {
-                    // Auto-fill objetivo fields from the linked target
-                    setContentField(['objetivo', 'general'], target.description)
+                    setContentField(['objetivo', 'general'], target.description || '')
+                    const inds = target.indicadores?.length
+                      ? target.indicadores.map(ind =>
+                          typeof ind === 'object'
+                            ? (ind.texto_en || ind.habilidad || '')
+                            : (ind || '')
+                        ).filter(Boolean)
+                      : []
                     setContentField(['objetivo', 'indicadores'],
-                      target.indicadores?.length
-                        ? target.indicadores
-                        : [`El estudiante demuestra este logro cuando: ${target.description}`]
+                      inds.length ? inds : [`El estudiante demuestra este logro cuando: ${target.description || ''}`]
                     )
                   }
                 }}
@@ -844,6 +892,30 @@ export default function GuideEditorPage({ teacher }) {
               {plan?.target_id && (
                 <div style={{ fontSize: '11px', color: '#888', margin: '-4px 0 8px', fontStyle: 'italic' }}>
                   ↑ Al vincular un logro, los campos de abajo se llenan automáticamente. Puedes editarlos para esta semana.
+                </div>
+              )}
+              {linkedNewsProjects.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', margin: '0 0 12px' }}>
+                  <span style={{ fontSize: '11px', color: '#666', alignSelf: 'center' }}>📋 Proyecto(s) NEWS:</span>
+                  {linkedNewsProjects.map(np => {
+                    const STATUS_COLOR = { draft: '#e8a020', active: '#2E5598', completed: '#1A6B3A' }
+                    const label = np.title || (np.skill ? `${np.skill}` : np.subject)
+                    return (
+                      <a
+                        key={np.id}
+                        href="#"
+                        onClick={e => { e.preventDefault(); navigate('/news') }}
+                        style={{
+                          fontSize: '11px', fontWeight: 600, padding: '3px 10px', borderRadius: '12px',
+                          background: '#f0f7ff', border: `1px solid ${STATUS_COLOR[np.status] || '#c5d5f0'}`,
+                          color: STATUS_COLOR[np.status] || '#2E5598', textDecoration: 'none',
+                        }}
+                        title="Ver en NEWS"
+                      >
+                        {label}
+                      </a>
+                    )
+                  })}
                 </div>
               )}
               {richField('Logro de la semana (va al documento exportado)',
@@ -855,7 +927,7 @@ export default function GuideEditorPage({ teacher }) {
                   <div key={idx} style={{ display: 'flex', gap: '8px', marginBottom: '8px', alignItems: 'flex-start' }}>
                     <span style={{ minWidth: '18px', paddingTop: '8px', color: '#9BBB59', fontWeight: 700, fontSize: '13px' }}>{idx + 1}.</span>
                     <textarea
-                      value={ind}
+                      value={getIndText(ind)}
                       onChange={e => {
                         const arr = [...(content.objetivo.indicadores || [''])]
                         arr[idx] = e.target.value
