@@ -428,7 +428,6 @@ export default function SettingsPage({ teacher }) {
             </div>
           </div>
         )}
-      </div>
 
         {/* ── Franjas del Horario expandible ── */}
         {showSlots && (
