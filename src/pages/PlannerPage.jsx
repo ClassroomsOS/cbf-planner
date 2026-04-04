@@ -47,6 +47,8 @@ export default function PlannerPage({ teacher }) {
   // checkpointData = { previousPlan, target, pendingAction } | null
   // ── Active learning target for this grade/subject ──
   const [activeTarget, setActiveTarget] = useState(null)
+  // ── Whether any NEWS projects exist for this grade+subject ──
+  const [hasNews, setHasNews] = useState(null) // null = not checked yet
   // ── NEWS activity hitos scheduled this week ──
   const [weeklyNewsHitos, setWeeklyNewsHitos] = useState([])
   // ── Existing plan for current selection ──
@@ -92,9 +94,9 @@ export default function PlannerPage({ teacher }) {
     fetchTarget()
   }, [grade, subject])
 
-  // Fetch NEWS activity hitos for this week
+  // Fetch NEWS projects — check existence + hitos for this week
   useEffect(() => {
-    if (!grade || !subject) { setWeeklyNewsHitos([]); return }
+    if (!grade || !subject) { setWeeklyNewsHitos([]); setHasNews(null); return }
     const w1 = getWeekDays(monday)
     const mon2 = new Date(monday); mon2.setDate(mon2.getDate() + 7)
     const allDays = weekCount === 2 ? [...w1, ...getWeekDays(mon2)] : w1
@@ -105,9 +107,10 @@ export default function PlannerPage({ teacher }) {
       .eq('school_id', teacher.school_id)
       .eq('subject', subject)
       .then(({ data }) => {
+        const all = (data || []).filter(np => grade.startsWith(np.grade || ''))
+        setHasNews(all.length > 0)
         const hitos = []
-        ;(data || []).forEach(np => {
-          if (!grade.startsWith(np.grade || '')) return
+        all.forEach(np => {
           ;(np.actividades_evaluativas || []).forEach(act => {
             if (act.fecha && weekDates.has(act.fecha)) {
               hitos.push({ date: act.fecha, nombre: act.nombre, descripcion: act.descripcion, skill: np.skill, porcentaje: act.porcentaje })
@@ -509,12 +512,33 @@ export default function PlannerPage({ teacher }) {
 
           {error && <div className="alert alert-error">⚠️ {error}</div>}
 
+          {/* Bloqueo: no hay NEWS para este grado+materia */}
+          {grade && subject && hasNews === false && (
+            <div style={{
+              background: '#fff8e1', border: '1px solid #f5c842', borderRadius: 10,
+              padding: '14px 18px', marginBottom: 16, display: 'flex', gap: 12, alignItems: 'flex-start'
+            }}>
+              <span style={{ fontSize: 22 }}>📋</span>
+              <div>
+                <div style={{ fontWeight: 800, fontSize: 14, color: '#7a5c00', marginBottom: 4 }}>
+                  Paso previo requerido: Proyectos NEWS
+                </div>
+                <div style={{ fontSize: 13, color: '#7a5c00', lineHeight: 1.6 }}>
+                  Antes de crear guías debes tener al menos un <strong>Proyecto NEWS</strong> para
+                  {subject ? ` ${subject}` : ' esta materia'}. El proyecto define el hito y el indicador
+                  que guiará la planificación semanal.
+                  <br />Ve a <strong>📋 NEWS Projects</strong> en el menú lateral para comenzar.
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Acciones */}
           <div className="planner-actions">
             <button
               className="planner-btn-primary"
               onClick={handleCreateGuide}
-              disabled={creating || !grade || !subject}>
+              disabled={creating || !grade || !subject || hasNews === false}>
               {creating ? '⏳ Abriendo…'
                 : existingPlan ? '📋 Continuar guía →'
                 : '✏️ Crear guía →'}
