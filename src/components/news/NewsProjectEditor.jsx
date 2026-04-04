@@ -359,7 +359,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
         isDone: !!(form.subject && form.grade && form.section)
       },
       {
-        key: 'logro', icon: '🎯', label: 'Logro',
+        key: 'logro', icon: '🎯', label: 'Indicador',
         isDone: !!form.target_id
       },
       ...(form.news_model === 'language' ? [{
@@ -628,7 +628,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
                   )}
 
                   <button onClick={() => setActiveStep('logro')} style={styles.btnNext}>
-                    Siguiente: Logro →
+                    Siguiente: Indicador →
                   </button>
                 </div>
               )}
@@ -637,13 +637,13 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
               {activeStep === 'logro' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
                   <div>
-                    <h3 style={styles.stepTitle}>Logro de Desempeño</h3>
-                    <p style={styles.stepDesc}>Vincula el proyecto con el Logro e Indicador que el estudiante demostrará al completarlo.</p>
+                    <h3 style={styles.stepTitle}>Indicador de Logro</h3>
+                    <p style={styles.stepDesc}>Vincula el proyecto con el Indicador de Logro que el estudiante demostrará al completarlo.</p>
                   </div>
 
                   <div style={{ background: '#F0F7F0', borderRadius: 12, padding: 16, border: '1px solid #E8F0E8' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                      <h4 style={{ fontSize: 11, fontWeight: 800, color: '#1A5C1A', margin: 0, textTransform: 'uppercase', letterSpacing: '0.3px' }}>🎯 Logro Vinculado</h4>
+                      <h4 style={{ fontSize: 11, fontWeight: 800, color: '#1A5C1A', margin: 0, textTransform: 'uppercase', letterSpacing: '0.3px' }}>🎯 Indicador de Logro Vinculado</h4>
                       {form.target_id && (
                         <button onClick={() => setShowTargetSelector(true)} style={{ fontSize: 10, padding: '4px 8px', borderRadius: 4, border: '1px solid #9BBB59', background: 'transparent', color: '#5a8a00', cursor: 'pointer', fontWeight: 600 }}>
                           Cambiar
@@ -677,13 +677,13 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
                         {learningTargets.length === 0 && form.subject && form.grade ? (
                           <div style={{ padding: '8px', borderRadius: 6, background: '#FFF9E6', border: '1px dashed #F5C300', textAlign: 'center' }}>
                             <div style={{ fontSize: 10, color: '#8B6914', lineHeight: 1.3 }}>
-                              No hay logros activos para <strong>{form.subject} · {form.grade}</strong>.<br />Crea uno primero en "Logros de Desempeño".
+                              No hay indicadores de logro activos para <strong>{form.subject} · {form.grade}</strong>.<br />Crea uno primero en "Indicadores de Logro".
                             </div>
                           </div>
                         ) : learningTargets.length > 0 ? (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
                             <div style={{ fontSize: 9, fontWeight: 700, color: '#5a8a00', marginBottom: 2, textTransform: 'uppercase', letterSpacing: '0.3px' }}>
-                              Selecciona el logro que este proyecto evalúa:
+                              Selecciona el indicador de logro que este proyecto evalúa:
                             </div>
                             {learningTargets.map(t => {
                               const TAXONOMY_EMOJI = { recognize: '👁️', apply: '🛠️', produce: '✨' }
@@ -1123,7 +1123,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
                       className="news-btn-primary"
                       onClick={handleGenerateRubric}
                       disabled={generatingRubric || !form.title || !form.description || !form.target_indicador}
-                      title={!form.title || !form.description ? 'Completa título y descripción en el paso Contenido' : !form.target_indicador ? 'Selecciona un indicador en el paso Logro' : ''}
+                      title={!form.title || !form.description ? 'Completa título y descripción en el paso Contenido' : !form.target_indicador ? 'Selecciona un indicador en el paso Indicador' : ''}
                       style={{ padding: '8px 16px', borderRadius: 8, border: 'none', flexShrink: 0, background: 'linear-gradient(135deg, #7C3AED 0%, #9333EA 100%)', color: 'white', fontSize: 12, fontWeight: 700, cursor: generatingRubric || !form.title || !form.description || !form.target_indicador ? 'not-allowed' : 'pointer', opacity: generatingRubric || !form.title || !form.description || !form.target_indicador ? 0.5 : 1, display: 'flex', alignItems: 'center', gap: 6, boxShadow: '0 2px 8px rgba(124,58,237,0.25)' }}>
                       {generatingRubric ? (
                         <>

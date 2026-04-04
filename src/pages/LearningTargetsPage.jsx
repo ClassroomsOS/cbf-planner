@@ -297,7 +297,7 @@ export default function LearningTargetsPage({ teacher }) {
           }
         })
         await supabase.from('news_projects').insert(newsProjects)
-        showToast('Logro creado. 4 proyectos NEWS generados automáticamente.', 'success')
+        showToast('Indicador de logro creado. 4 proyectos NEWS generados automáticamente.', 'success')
       }
     }
 
@@ -308,7 +308,7 @@ export default function LearningTargetsPage({ teacher }) {
 
   // ── Delete ──
   async function handleDelete(id) {
-    if (!window.confirm('¿Eliminar este logro del trimestre?')) return
+    if (!window.confirm('¿Eliminar este indicador de logro?')) return
     await supabase.from('learning_targets').delete().eq('id', id)
     await loadData()
   }
@@ -379,7 +379,7 @@ export default function LearningTargetsPage({ teacher }) {
           ← Mis Guías
         </button>
         <div className="ge-topbar-info">
-          <span className="ge-guide-title">🎯 Logros de Desempeño</span>
+          <span className="ge-guide-title">🎯 Indicadores de Logro</span>
           <span className="ge-guide-dates">{school.name || 'Mi Colegio'}</span>
         </div>
         <div className="ge-save-area">
@@ -446,17 +446,17 @@ export default function LearningTargetsPage({ teacher }) {
             <div className="lt-empty-icon">🎯</div>
             <h3>
               {targets.length === 0
-                ? 'Aún no tienes logros del trimestre'
+                ? 'Aún no tienes indicadores de logro'
                 : 'Sin resultados para estos filtros'}
             </h3>
             <p>
               {targets.length === 0
-                ? 'El logro del trimestre es la meta macro: verbo cognitivo + contenido + condición + dimensión valorativa. Define qué puede hacer el estudiante, no qué tema "cubre" la semana.'
-                : 'Prueba ajustando los filtros o crea un nuevo logro.'}
+                ? 'El indicador de logro es la meta observable: verbo cognitivo + contenido + condición + dimensión valorativa. Define qué puede hacer el estudiante, no qué tema "cubre" la semana.'
+                : 'Prueba ajustando los filtros o crea un nuevo indicador de logro.'}
             </p>
             {targets.length === 0 && (
               <button className="btn-primary" onClick={openNewForm} style={{ marginTop: '12px' }}>
-                + Crear mi primer logro del trimestre
+                + Crear mi primer indicador de logro
               </button>
             )}
           </div>
@@ -486,7 +486,7 @@ export default function LearningTargetsPage({ teacher }) {
                         className="lt-action-btn"
                         onClick={() => handleToggleActive(t.id, t.is_active)}
                         title={t.is_active ? 'Desactivar' : 'Activar'}
-                        aria-label={t.is_active ? 'Desactivar logro' : 'Activar logro'}
+                        aria-label={t.is_active ? 'Desactivar indicador' : 'Activar indicador'}
                       >
                         {t.is_active ? '🟢' : '⚪'}
                       </button>
@@ -494,7 +494,7 @@ export default function LearningTargetsPage({ teacher }) {
                         className="lt-action-btn"
                         onClick={() => openEditForm(t)}
                         title="Editar"
-                        aria-label="Editar logro"
+                        aria-label="Editar indicador"
                       >
                         ✏️
                       </button>
@@ -502,7 +502,7 @@ export default function LearningTargetsPage({ teacher }) {
                         className="lt-action-btn delete"
                         onClick={() => handleDelete(t.id)}
                         title="Eliminar"
-                        aria-label="Eliminar logro"
+                        aria-label="Eliminar indicador"
                       >
                         🗑️
                       </button>
@@ -581,10 +581,10 @@ export default function LearningTargetsPage({ teacher }) {
           <div className="lt-modal" onClick={e => e.stopPropagation()}>
             <div className="lt-modal-header">
               <div>
-                <span className="lt-modal-type-tag">🎯 Logro de Desempeño</span>
-                <h3>{editingId ? 'Editar logro del trimestre' : 'Nuevo logro del trimestre'}</h3>
+                <span className="lt-modal-type-tag">🎯 Indicador de Logro</span>
+                <h3>{editingId ? 'Editar indicador de logro' : 'Nuevo indicador de logro'}</h3>
               </div>
-              <button className="lt-modal-close" onClick={closeForm} aria-label="Cerrar formulario de logro">✕</button>
+              <button className="lt-modal-close" onClick={closeForm} aria-label="Cerrar formulario">✕</button>
             </div>
 
             <div className="lt-modal-body">
@@ -928,7 +928,7 @@ export default function LearningTargetsPage({ teacher }) {
                                     arr[idx] = e.target.value
                                     updateForm('indicadores', arr)
                                   }}
-                                  placeholder="El estudiante demuestra el logro cuando…"
+                                  placeholder="El estudiante demuestra el indicador cuando…"
                                   rows={2}
                                   className="lt-textarea"
                                   style={{ width: '100%', resize: 'vertical', boxSizing: 'border-box' }}
@@ -1034,7 +1034,7 @@ export default function LearningTargetsPage({ teacher }) {
                 onClick={handleSave}
                 disabled={saving || (!MODELO_B_SUBJECTS.includes(form.subject) && !form.description.trim()) || !form.subject || !form.grade}
               >
-                {saving ? '⏳ Guardando…' : editingId ? '💾 Actualizar' : '🎯 Crear logro'}
+                {saving ? '⏳ Guardando…' : editingId ? '💾 Actualizar' : '🎯 Crear indicador de logro'}
               </button>
             </div>
           </div>

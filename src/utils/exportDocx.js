@@ -743,12 +743,12 @@ export async function exportGuideDocx(content, filename) {
       columnWidths: [halfW, PW - halfW],
       rows: [
         new TableRow({ children: [
-          mkCell([mkP(mkR('🎯  LOGRO DE APRENDIZAJE', { bold: true, size: 20, color: 'FFFFFF' }), AlignmentType.CENTER)],
+          mkCell([mkP(mkR('🎯  INDICADOR DE LOGRO', { bold: true, size: 20, color: 'FFFFFF' }), AlignmentType.CENTER)],
             PW, { fill: '9BBB59', borders: allB(bBlue), span: 2 }),
         ]}),
         new TableRow({ children: [
           mkCell([
-            mkP(mkR('Logro', { bold: true, size: 16, color: '9BBB59' })),
+            mkP(mkR('Indicador de Logro', { bold: true, size: 16, color: '9BBB59' })),
             emptyPara(),
             ...htmlToParas(o.general, 18),
           ], halfW, { borders: allB(bGray), va: VerticalAlign.TOP, margins: { top: 100, bottom: 100, left: 140, right: 100 } }),

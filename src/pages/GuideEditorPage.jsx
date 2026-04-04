@@ -480,7 +480,7 @@ export default function GuideEditorPage({ teacher }) {
     : []
 
   const panels = [
-    { key: 'objetivo', label: '1 · Logro',       dot: '#9BBB59' },
+    { key: 'objetivo', label: '1 · Indicador',    dot: '#9BBB59' },
     { key: 'verse',    label: '2 · Versículo',   dot: '#C9A84C' },
     ...dayPanels.map(d => ({
       key: d.key, iso: d.iso, label: d.label,
@@ -863,7 +863,7 @@ export default function GuideEditorPage({ teacher }) {
           {/* OBJETIVO */}
           {activePanel === 'objetivo' && (
             <div className="card">
-              <div className="card-title"><div className="badge">1</div> Logro de Aprendizaje</div>
+              <div className="card-title"><div className="badge">1</div> Indicador de Logro</div>
               <LearningTargetSelector
                 planId={id}
                 subject={content.info.asignatura}
@@ -918,7 +918,7 @@ export default function GuideEditorPage({ teacher }) {
                   })}
                 </div>
               )}
-              {richField('Logro de la semana (va al documento exportado)',
+              {richField('Indicador de Logro (va al documento exportado)',
                 content.objetivo.general, ['objetivo','general'],
                 'Al finalizar la semana, el estudiante estará en capacidad de…', 100)}
               <div className="ge-field">
@@ -933,7 +933,7 @@ export default function GuideEditorPage({ teacher }) {
                         arr[idx] = e.target.value
                         setContentField(['objetivo', 'indicadores'], arr)
                       }}
-                      placeholder="El estudiante demuestra el logro cuando…"
+                      placeholder="El estudiante demuestra el indicador cuando…"
                       rows={2}
                       className="ge-input"
                       style={{ flex: 1, resize: 'vertical' }}
@@ -1002,7 +1002,7 @@ export default function GuideEditorPage({ teacher }) {
           {activePanel === 'summary' && (
             <div className="card">
               <div className="card-title"><div className="badge">★</div> Resumen y próxima semana</div>
-              {richField('Lo trabajado / logros de la semana',
+              {richField('Lo trabajado esta semana',
                 content.summary.done, ['summary','done'], 'Actividades completadas esta semana…', 120)}
               {richField('Próxima semana – contenidos',
                 content.summary.next, ['summary','next'], 'Temas de la próxima semana…', 100)}

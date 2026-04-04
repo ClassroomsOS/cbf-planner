@@ -175,7 +175,7 @@ function DashboardInner({ session, teacher, setTeacher }) {
           </NavLink>
           <NavLink to="/targets" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
             <span className="dot" style={{ background: '#C9A84C' }} />
-            🎯 Logros
+            🎯 Indicadores de Logro
           </NavLink>
           <NavLink to="/news" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
             <span className="dot" style={{ background: '#C0504D' }} />
