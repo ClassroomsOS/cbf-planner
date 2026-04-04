@@ -851,117 +851,186 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
               {form.news_model === 'language' && (
                 <div style={{
                   background: 'linear-gradient(135deg, #EEF2FB 0%, #F5F8FF 100%)',
-                  borderRadius: 12, padding: '14px 16px',
+                  borderRadius: 12, padding: '16px 18px',
                   border: '1px solid #c5d5f0'
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                    <span style={{ fontSize: 14 }}>🌐</span>
-                    <h4 style={{ fontSize: 11, fontWeight: 800, color: '#1A3A8F', margin: 0, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-                      Modelo B — Lengua
+                  {/* Header */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                    <span style={{ fontSize: 15 }}>🌐</span>
+                    <h4 style={{ fontSize: 12, fontWeight: 800, color: '#1A3A8F', margin: 0, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                      Marco pedagógico — Lengua
                     </h4>
-                    <span style={{ fontSize: 9, color: '#888', fontStyle: 'italic' }}>Auto-detectado por materia</span>
+                    <span style={{ fontSize: 9, color: '#888', fontStyle: 'italic', marginLeft: 2 }}>Auto-detectado por materia</span>
                   </div>
 
-                  {/* Competencias */}
-                  <div style={{ marginBottom: 12 }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: '#1A3A8F', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: 6 }}>
-                      Competencias
+                  {/* Info strip */}
+                  <div style={{
+                    background: '#fff', border: '1px solid #c5d5f0', borderRadius: 8,
+                    padding: '10px 12px', marginBottom: 16,
+                    display: 'flex', gap: 10, alignItems: 'flex-start',
+                  }}>
+                    <span style={{ fontSize: 16, flexShrink: 0 }}>💡</span>
+                    <div style={{ fontSize: 11, color: '#444', lineHeight: 1.6 }}>
+                      <strong style={{ color: '#1A3A8F' }}>¿Para qué sirve esta sección?</strong><br />
+                      Le dice a la IA <em>cómo construir los indicadores</em> de este proyecto.
+                      Cada <strong>Habilidad</strong> que selecciones genera un indicador propio —
+                      en inglés y español — con su versículo bíblico específico.
+                      Los <strong>Operadores</strong> y <strong>Competencias</strong> ajustan
+                      el nivel cognitivo y la dimensión del idioma que se evalúa.
                     </div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                      {MODELO_B_COMPETENCIAS.map(c => {
-                        const selected = form.competencias.includes(c)
+                  </div>
+
+                  {/* 1 · Habilidades (primero — más concretas) */}
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ marginBottom: 6 }}>
+                      <div style={{ fontSize: 11, fontWeight: 800, color: '#8064A2', textTransform: 'uppercase', letterSpacing: '0.3px' }}>
+                        1 · Habilidades de comunicación
+                      </div>
+                      <div style={{ fontSize: 10, color: '#666', marginTop: 2 }}>
+                        ¿En qué habilidades del idioma trabaja este proyecto? Selecciona todas las que apliquen.
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {[
+                        { key: 'Speaking',  icon: '🎤', desc: 'Expresión oral' },
+                        { key: 'Listening', icon: '🎧', desc: 'Comprensión auditiva' },
+                        { key: 'Reading',   icon: '📖', desc: 'Comprensión lectora' },
+                        { key: 'Writing',   icon: '✍️',  desc: 'Producción escrita' },
+                      ].map(({ key, icon, desc }) => {
+                        const selected = form.habilidades.includes(key)
                         return (
                           <button
-                            key={c}
+                            key={key}
                             type="button"
                             onClick={() => {
                               const next = selected
-                                ? form.competencias.filter(x => x !== c)
-                                : [...form.competencias, c]
-                              updateForm('competencias', next)
+                                ? form.habilidades.filter(x => x !== key)
+                                : [...form.habilidades, key]
+                              updateForm('habilidades', next)
                             }}
                             style={{
-                              padding: '5px 12px', borderRadius: 20, fontSize: 11, cursor: 'pointer',
-                              border: selected ? '2px solid #1A3A8F' : '1px solid #c5d5f0',
-                              background: selected ? '#1A3A8F' : '#fff',
-                              color: selected ? '#fff' : '#1A3A8F',
-                              fontWeight: selected ? 700 : 400,
-                              transition: 'all 0.15s'
+                              display: 'flex', flexDirection: 'column', alignItems: 'center',
+                              padding: '8px 16px', borderRadius: 10, cursor: 'pointer',
+                              border: selected ? '2px solid #8064A2' : '1.5px solid #d0d8f0',
+                              background: selected ? '#8064A2' : '#fff',
+                              color: selected ? '#fff' : '#555',
+                              transition: 'all 0.15s', minWidth: 72,
                             }}
                           >
-                            {c}
+                            <span style={{ fontSize: 18, lineHeight: 1 }}>{icon}</span>
+                            <span style={{ fontSize: 11, fontWeight: 700, marginTop: 3 }}>{key}</span>
+                            <span style={{ fontSize: 9, opacity: 0.75, marginTop: 1 }}>{desc}</span>
                           </button>
                         )
                       })}
                     </div>
+                    {/* Consecuencia dinámica */}
+                    <div style={{
+                      marginTop: 8, fontSize: 10, borderRadius: 6, padding: '5px 10px',
+                      background: form.habilidades.length > 0 ? '#f0ebf8' : '#fff8e1',
+                      color: form.habilidades.length > 0 ? '#6a4a8a' : '#9a7000',
+                      border: `1px solid ${form.habilidades.length > 0 ? '#c9b8e8' : '#f0d080'}`,
+                      display: 'inline-block',
+                    }}>
+                      {form.habilidades.length > 0
+                        ? `→ La IA generará ${form.habilidades.length} indicador${form.habilidades.length > 1 ? 'es' : ''}: ${form.habilidades.join(', ')}`
+                        : '⚠ Selecciona al menos una habilidad para poder generar indicadores con IA'}
+                    </div>
                   </div>
 
-                  {/* Operadores Intelectuales */}
-                  <div style={{ marginBottom: 12 }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: '#1A3A8F', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: 6 }}>
-                      Operadores Intelectuales
+                  {/* 2 · Operadores Intelectuales */}
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ marginBottom: 6 }}>
+                      <div style={{ fontSize: 11, fontWeight: 800, color: '#4F81BD', textTransform: 'uppercase', letterSpacing: '0.3px' }}>
+                        2 · Operadores Intelectuales
+                      </div>
+                      <div style={{ fontSize: 10, color: '#666', marginTop: 2 }}>
+                        ¿Qué hace el estudiante con el idioma? Definen el nivel de pensamiento que exige el proyecto.
+                      </div>
                     </div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                      {MODELO_B_OPERADORES.map(o => {
-                        const selected = form.operadores_intelectuales.includes(o)
+                      {[
+                        { key: 'Deducir',     desc: 'Llegar a conclusiones a partir de pistas del texto' },
+                        { key: 'Generalizar', desc: 'Aplicar una regla o concepto a nuevos contextos' },
+                        { key: 'Sintetizar',  desc: 'Resumir y conectar las ideas principales' },
+                        { key: 'Retener',     desc: 'Memorizar y recordar información clave' },
+                        { key: 'Evaluar',     desc: 'Juzgar, opinar y justificar con el idioma' },
+                      ].map(({ key, desc }) => {
+                        const selected = form.operadores_intelectuales.includes(key)
                         return (
                           <button
-                            key={o}
+                            key={key}
                             type="button"
+                            title={desc}
                             onClick={() => {
                               const next = selected
-                                ? form.operadores_intelectuales.filter(x => x !== o)
-                                : [...form.operadores_intelectuales, o]
+                                ? form.operadores_intelectuales.filter(x => x !== key)
+                                : [...form.operadores_intelectuales, key]
                               updateForm('operadores_intelectuales', next)
                             }}
                             style={{
-                              padding: '5px 12px', borderRadius: 20, fontSize: 11, cursor: 'pointer',
+                              padding: '5px 13px', borderRadius: 20, fontSize: 11, cursor: 'pointer',
                               border: selected ? '2px solid #4F81BD' : '1px solid #c5d5f0',
                               background: selected ? '#4F81BD' : '#fff',
                               color: selected ? '#fff' : '#4F81BD',
                               fontWeight: selected ? 700 : 400,
-                              transition: 'all 0.15s'
+                              transition: 'all 0.15s',
                             }}
                           >
-                            {o}
+                            {key}
                           </button>
                         )
                       })}
+                    </div>
+                    <div style={{ fontSize: 9, color: '#999', marginTop: 5, fontStyle: 'italic' }}>
+                      Pasa el cursor sobre cada opción para ver su descripción.
                     </div>
                   </div>
 
-                  {/* Habilidades */}
+                  {/* 3 · Competencias */}
                   <div>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: '#1A3A8F', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: 6 }}>
-                      Habilidades de comunicación
+                    <div style={{ marginBottom: 6 }}>
+                      <div style={{ fontSize: 11, fontWeight: 800, color: '#1A3A8F', textTransform: 'uppercase', letterSpacing: '0.3px' }}>
+                        3 · Competencias lingüísticas
+                      </div>
+                      <div style={{ fontSize: 10, color: '#666', marginTop: 2 }}>
+                        ¿Qué dimensión del idioma evalúa este proyecto?
+                      </div>
                     </div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                      {MODELO_B_HABILIDADES.map(h => {
-                        const selected = form.habilidades.includes(h)
-                        const ICONS = { Speaking: '🎤', Listening: '🎧', Reading: '📖', Writing: '✍️' }
+                      {[
+                        { key: 'Sociolingüística', desc: 'Usar el idioma según el contexto social — formal, informal, cultural' },
+                        { key: 'Lingüística',      desc: 'Dominar gramática, vocabulario y estructura del idioma' },
+                        { key: 'Pragmática',       desc: 'Comunicar con propósito real en situaciones concretas' },
+                      ].map(({ key, desc }) => {
+                        const selected = form.competencias.includes(key)
                         return (
                           <button
-                            key={h}
+                            key={key}
                             type="button"
+                            title={desc}
                             onClick={() => {
                               const next = selected
-                                ? form.habilidades.filter(x => x !== h)
-                                : [...form.habilidades, h]
-                              updateForm('habilidades', next)
+                                ? form.competencias.filter(x => x !== key)
+                                : [...form.competencias, key]
+                              updateForm('competencias', next)
                             }}
                             style={{
-                              padding: '5px 14px', borderRadius: 20, fontSize: 11, cursor: 'pointer',
-                              border: selected ? '2px solid #8064A2' : '1px solid #c5d5f0',
-                              background: selected ? '#8064A2' : '#fff',
-                              color: selected ? '#fff' : '#8064A2',
+                              padding: '5px 13px', borderRadius: 20, fontSize: 11, cursor: 'pointer',
+                              border: selected ? '2px solid #1A3A8F' : '1px solid #c5d5f0',
+                              background: selected ? '#1A3A8F' : '#fff',
+                              color: selected ? '#fff' : '#1A3A8F',
                               fontWeight: selected ? 700 : 400,
-                              transition: 'all 0.15s'
+                              transition: 'all 0.15s',
                             }}
                           >
-                            {ICONS[h]} {h}
+                            {key}
                           </button>
                         )
                       })}
+                    </div>
+                    <div style={{ fontSize: 9, color: '#999', marginTop: 5, fontStyle: 'italic' }}>
+                      Pasa el cursor sobre cada opción para ver su descripción.
                     </div>
                   </div>
                 </div>
