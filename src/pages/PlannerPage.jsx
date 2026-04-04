@@ -47,6 +47,8 @@ export default function PlannerPage({ teacher }) {
   // checkpointData = { previousPlan, target, pendingAction } | null
   // ── Active learning target for this grade/subject ──
   const [activeTarget, setActiveTarget] = useState(null)
+  // ── Existing plan for current selection ──
+  const [existingPlan, setExistingPlan] = useState(null)
   // ── Current month's biblical principles ──
   const [monthPrinciple, setMonthPrinciple] = useState(null)
 
@@ -95,6 +97,20 @@ export default function PlannerPage({ teacher }) {
   const weekNumber  = getSchoolWeek(monday)
   const dateRange   = formatRange(allWeekDays)
 
+  // Fetch existing plan for current grade/subject/week selection
+  useEffect(() => {
+    if (!grade || !subject) { setExistingPlan(null); return }
+    supabase
+      .from('lesson_plans')
+      .select('id, status, date_range, week_count, content')
+      .eq('teacher_id', teacher.id)
+      .eq('grade', grade)
+      .eq('subject', subject)
+      .eq('week_number', weekNumber)
+      .maybeSingle()
+      .then(({ data }) => setExistingPlan(data || null))
+  }, [grade, subject, weekNumber])
+
   // Subjects available for selected class (from assignments)
   const availableSubjects = grade
     ? assignments.filter(a => `${a.grade} ${a.section}` === grade).map(a => a.subject)
@@ -103,6 +119,17 @@ export default function PlannerPage({ teacher }) {
   const selectedAssignment = assignments.find(a => `${a.grade} ${a.section}` === grade && a.subject === subject)
   const section = selectedAssignment?.section || ''
   const DAY_KEY_MAP = ['mon','tue','wed','thu','fri']
+
+  // Compute progress of existing plan: days with at least one section filled
+  const existingPlanProgress = (() => {
+    if (!existingPlan?.content?.days) return null
+    const days = Object.values(existingPlan.content.days)
+    if (!days.length) return null
+    const withContent = days.filter(day =>
+      Object.values(day.sections || {}).some(s => s.content || (s.smartBlocks||[]).length || (s.images||[]).length)
+    ).length
+    return { total: days.length, withContent }
+  })()
 
   useEffect(() => {
     if (subject && !availableSubjects.includes(subject)) setSubject('')
@@ -188,7 +215,7 @@ export default function PlannerPage({ teacher }) {
 
     const { data: existing } = await supabase
       .from('lesson_plans')
-      .select('id')
+      .select('id, week_count')
       .eq('teacher_id', teacher.id)
       .eq('grade',       grade)
       .eq('subject',     subject)
@@ -196,6 +223,11 @@ export default function PlannerPage({ teacher }) {
       .maybeSingle()
 
     if (existing) {
+      if ((existing.week_count || 1) !== weekCount) {
+        await supabase.from('lesson_plans')
+          .update({ week_count: weekCount, date_range: dateRange })
+          .eq('id', existing.id)
+      }
       navigate(`/editor/${existing.id}`)
       return
     }
@@ -239,159 +271,214 @@ export default function PlannerPage({ teacher }) {
 
   return (
     <div className="planner-wrap">
-      <div className="card">
-        <div className="card-title">
-          <div className="badge">📋</div>
-          Nueva Guía de Aprendizaje
-        </div>
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
 
-        {/* Clase + Asignatura + Período + Semana */}
-        <div className="g4">
-          <div className="field">
-            <label>Grado / Clase</label>
-            <select value={grade} onChange={e => setGrade(e.target.value)}>
-              <option value="">— Seleccionar —</option>
-              {classLabels.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </div>
-          <div className="field">
-            <label>Asignatura</label>
-            <select value={subject} onChange={e => setSubject(e.target.value)}>
-              <option value="">— Seleccionar —</option>
-              {availableSubjects.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-          <div className="field">
-            <label>Período</label>
-            <select value={period} onChange={e => setPeriod(e.target.value)}>
-              <option value="1.er Período 2026">1.er Período 2026</option>
-              <option value="2.do Período 2026">2.do Período 2026</option>
-              <option value="3.er Período 2026">3.er Período 2026</option>
-              <option value="4.to Período 2026">4.to Período 2026</option>
-            </select>
-          </div>
-          <div className="field">
-            <label>Semana N°</label>
-            <input type="text" readOnly value={weekCount === 2 ? `Sem. ${weekNumber}–${weekNumber + 1}` : `Semana ${weekNumber}`}
-              style={{ background: '#f0f4ff', fontWeight: 700, color: '#2E5598', cursor: 'default' }} />
-          </div>
-          <div className="field">
-            <label>Duración</label>
-            <div style={{ display: 'flex', gap: '6px' }}>
-              {[1, 2].map(n => (
-                <button key={n}
-                  onClick={() => setWeekCount(n)}
-                  style={{
-                    flex: 1, padding: '8px 0', borderRadius: '8px', border: '2px solid',
-                    borderColor: weekCount === n ? '#2E5598' : '#c5d5f0',
-                    background: weekCount === n ? '#2E5598' : '#f0f4ff',
-                    color: weekCount === n ? '#fff' : '#2E5598',
-                    fontWeight: 700, cursor: 'pointer', fontSize: '13px',
-                  }}>
-                  {n} sem.
-                </button>
-              ))}
+        {/* ── Gradient Header ── */}
+        <div className="planner-header">
+          <div className="planner-header-left">
+            <div className="planner-header-icon">📋</div>
+            <div>
+              <div className="planner-header-title">Nueva Guía de Aprendizaje</div>
+              <div className="planner-header-sub">Selecciona tu clase y semana para comenzar</div>
             </div>
+          </div>
+          <div className="planner-duration-toggle">
+            {[1, 2].map(n => (
+              <button key={n}
+                className={`planner-dur-btn ${weekCount === n ? 'active' : ''}`}
+                onClick={() => setWeekCount(n)}>
+                {n} sem.
+              </button>
+            ))}
           </div>
         </div>
 
-        {/* Week picker */}
-        <div className="week-picker-section">
-          <div className="week-nav">
-            <button className="btn-week-nav"
-              onClick={() => { const d = new Date(monday); d.setDate(d.getDate()-7); setMonday(d) }}>‹</button>
-            <div className="week-input-wrap">
-              <label>Ir a semana del</label>
-              <input
-                type="date"
-                value={toISO(monday)}
-                onChange={e => {
-                  if (e.target.value) setMonday(getMondayOf(new Date(e.target.value + 'T12:00:00')))
-                }}
-              />
+        {/* ── Body ── */}
+        <div className="planner-body">
+
+          {/* Clase + Asignatura + Período + Semana */}
+          <div className="g4">
+            <div className="field">
+              <label>Grado / Clase</label>
+              <select value={grade} onChange={e => setGrade(e.target.value)}>
+                <option value="">— Seleccionar —</option>
+                {classLabels.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
             </div>
-            <button className="btn-week-nav"
-              onClick={() => { const d = new Date(monday); d.setDate(d.getDate()+7); setMonday(d) }}>›</button>
+            <div className="field">
+              <label>Asignatura</label>
+              <select value={subject} onChange={e => setSubject(e.target.value)}>
+                <option value="">— Seleccionar —</option>
+                {availableSubjects.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div className="field">
+              <label>Período</label>
+              <select value={period} onChange={e => setPeriod(e.target.value)}>
+                <option value="1.er Período 2026">1.er Período 2026</option>
+                <option value="2.do Período 2026">2.do Período 2026</option>
+                <option value="3.er Período 2026">3.er Período 2026</option>
+                <option value="4.to Período 2026">4.to Período 2026</option>
+              </select>
+            </div>
+            <div className="field">
+              <label>Semana N°</label>
+              <input type="text" readOnly
+                value={weekCount === 2 ? `Sem. ${weekNumber}–${weekNumber + 1}` : `Semana ${weekNumber}`}
+                style={{ background: '#f0f4ff', fontWeight: 700, color: '#2E5598', cursor: 'default' }} />
+            </div>
           </div>
 
-          {/* Mini calendar */}
-          {[week1Days, ...(weekCount === 2 ? [week2Days] : [])].map((wDays, wIdx) => (
-            <div key={wIdx}>
-              {weekCount === 2 && (
-                <div style={{ fontSize: '11px', fontWeight: 700, color: '#2E5598', margin: '8px 0 4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  Semana {weekNumber + wIdx}
-                </div>
-              )}
-              <div className="week-calendar">
-                {wDays.map((d, i) => {
-                  const iso = toISO(d)
-                  const cal = calData[iso]
-                  const isHoliday = cal && cal.is_school_day === false
-                  const isScheduled = !selectedAssignment?.schedule || !Object.keys(selectedAssignment.schedule).length || !!selectedAssignment.schedule[DAY_KEY_MAP[i]]
-                  return (
-                    <div key={iso} className={`wc-day ${isHoliday ? 'wc-holiday' : isScheduled ? 'wc-active' : 'wc-holiday'}`}>
-                      <div className="wc-day-name">{DAYS_ES[i]}</div>
-                      <div className="wc-day-num">{d.getDate()}</div>
-                      <div className="wc-day-month">{MONTHS_ES[d.getMonth()]}</div>
-                      {calLoading ? (
-                        <div className="wc-tag wc-loading">…</div>
-                      ) : isHoliday ? (
-                        <div className="wc-tag wc-tag-holiday" title={cal.name}>
-                          🚫 {cal.name.length > 13 ? cal.name.slice(0, 12) + '…' : cal.name}
-                        </div>
-                      ) : isScheduled ? (
-                        <div className="wc-tag wc-tag-active">✓ Clase</div>
-                      ) : (
-                        <div className="wc-tag" style={{ background: '#e8e8e8', color: '#999' }}>— Sin clase</div>
-                      )}
-                    </div>
-                  )
-                })}
+          {/* Logro vinculado */}
+          {activeTarget && grade && subject && (
+            <div className="planner-linked-target">
+              <span className="plt-icon">🎯</span>
+              <div className="plt-content">
+                <div className="plt-label">Logro de desempeño vinculado</div>
+                <div className="plt-text">{activeTarget.description}</div>
               </div>
+              <span className="plt-tax">
+                {activeTarget.taxonomy === 'recognize' ? '👁 Reconocer'
+                  : activeTarget.taxonomy === 'apply' ? '🛠 Aplicar'
+                  : '✨ Producir'}
+              </span>
             </div>
-          ))}
-
-          <div className="week-summary">
-            <span className="week-range">📅 {dateRange}</span>
-            <span className="week-active-count">
-              {activeDays.length} día{activeDays.length !== 1 ? 's' : ''} de clase
-              {allWeekDays.length - activeDays.length > 0 &&
-                ` · ${allWeekDays.length - activeDays.length} sin clase`}
-            </span>
-          </div>
-        </div>
-
-        {/* Versículo */}
-        <div className="verse-box">
-          {school.year_verse}
-          <span className="verse-ref">— {school.year_verse_ref}</span>
-        </div>
-
-        {error && <div className="alert alert-error">⚠️ {error}</div>}
-
-        <div style={{ display: 'flex', gap: '10px', marginTop: '14px', flexWrap: 'wrap' }}>
-          <button
-            className="btn-primary btn-save"
-            onClick={handleCreateGuide}
-            disabled={creating || !grade || !subject}>
-            {creating ? '⏳ Creando…' : '✏️ Crear / Abrir guía →'}
-          </button>
-          {grade && subject && (
-            <button
-              className="btn-primary"
-              style={{ background: '#8064A2' }}
-              onClick={async () => {
-                const pending = await checkPendingCheckpoint('ai')
-                if (pending) {
-                  setCheckpointData({ ...pending, pendingAction: 'ai' })
-                } else {
-                  openGenerator()
-                }
-              }}
-              disabled={creating}>
-              🤖 Generar con IA
-            </button>
           )}
+
+          {/* Guía existente */}
+          {existingPlan && (
+            <div className="planner-existing-plan">
+              <div className="pep-icon">
+                {existingPlan.status === 'published' ? '✅' : '📝'}
+              </div>
+              <div className="pep-content">
+                <div className="pep-title">
+                  {existingPlan.status === 'published' ? 'Guía publicada' : 'Guía en borrador'}
+                  {existingPlan.week_count === 2 && <span className="pep-badge">2 semanas</span>}
+                </div>
+                <div className="pep-meta">{existingPlan.date_range}</div>
+                {existingPlanProgress && (
+                  <div className="pep-progress">
+                    <div className="pep-progress-bar">
+                      <div className="pep-progress-fill"
+                        style={{ width: `${(existingPlanProgress.withContent / existingPlanProgress.total) * 100}%` }} />
+                    </div>
+                    <span className="pep-progress-label">
+                      {existingPlanProgress.withContent} de {existingPlanProgress.total} días con contenido
+                    </span>
+                  </div>
+                )}
+              </div>
+              <div className="pep-hint">El botón abrirá esta guía</div>
+            </div>
+          )}
+
+          {/* Week picker */}
+          <div className="week-picker-section">
+            <div className="week-nav">
+              <button className="btn-week-nav"
+                onClick={() => { const d = new Date(monday); d.setDate(d.getDate()-7); setMonday(d) }}>‹</button>
+              <div className="week-input-wrap">
+                <label>Ir a semana del</label>
+                <input
+                  type="date"
+                  value={toISO(monday)}
+                  onChange={e => {
+                    if (e.target.value) setMonday(getMondayOf(new Date(e.target.value + 'T12:00:00')))
+                  }}
+                />
+              </div>
+              <button className="btn-week-nav"
+                onClick={() => { const d = new Date(monday); d.setDate(d.getDate()+7); setMonday(d) }}>›</button>
+            </div>
+
+            {/* Mini calendar */}
+            {[week1Days, ...(weekCount === 2 ? [week2Days] : [])].map((wDays, wIdx) => (
+              <div key={wIdx}>
+                {weekCount === 2 && (
+                  <div style={{ fontSize: '11px', fontWeight: 700, color: '#2E5598', padding: '6px 14px 2px', textTransform: 'uppercase', letterSpacing: '0.5px', background: '#f7f9ff' }}>
+                    Semana {weekNumber + wIdx}
+                  </div>
+                )}
+                <div className="week-calendar">
+                  {wDays.map((d, i) => {
+                    const iso = toISO(d)
+                    const cal = calData[iso]
+                    const isHoliday = cal && cal.is_school_day === false
+                    const isScheduled = !selectedAssignment?.schedule || !Object.keys(selectedAssignment.schedule).length || !!selectedAssignment.schedule[DAY_KEY_MAP[i]]
+                    const periods = selectedAssignment?.schedule?.[DAY_KEY_MAP[i]] || []
+                    return (
+                      <div key={iso} className={`wc-day ${isHoliday ? 'wc-holiday' : isScheduled ? 'wc-active' : 'wc-no-class'}`}>
+                        <div className="wc-day-name">{DAYS_ES[i]}</div>
+                        <div className="wc-day-num">{d.getDate()}</div>
+                        <div className="wc-day-month">{MONTHS_ES[d.getMonth()]}</div>
+                        {calLoading ? (
+                          <div className="wc-tag wc-loading">…</div>
+                        ) : isHoliday ? (
+                          <div className="wc-tag wc-tag-holiday" title={cal.name}>
+                            🚫 {cal.name.length > 13 ? cal.name.slice(0, 12) + '…' : cal.name}
+                          </div>
+                        ) : isScheduled ? (
+                          <>
+                            <div className="wc-tag wc-tag-active">✓ Clase</div>
+                            {periods.length > 0 && (
+                              <div className="wc-periods">{periods.join(' · ')}</div>
+                            )}
+                          </>
+                        ) : (
+                          <div className="wc-tag" style={{ background: '#e8e8e8', color: '#aaa' }}>— Sin clase</div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
+
+            <div className="week-summary">
+              <span className="week-range">📅 {dateRange}</span>
+              <span className="week-active-count">
+                {activeDays.length} día{activeDays.length !== 1 ? 's' : ''} de clase
+                {allWeekDays.length - activeDays.length > 0 &&
+                  ` · ${allWeekDays.length - activeDays.length} sin clase`}
+              </span>
+            </div>
+          </div>
+
+          {/* Versículo */}
+          <div className="verse-box">
+            {school.year_verse}
+            <span className="verse-ref">— {school.year_verse_ref}</span>
+          </div>
+
+          {error && <div className="alert alert-error">⚠️ {error}</div>}
+
+          {/* Acciones */}
+          <div className="planner-actions">
+            <button
+              className="planner-btn-primary"
+              onClick={handleCreateGuide}
+              disabled={creating || !grade || !subject}>
+              {creating ? '⏳ Abriendo…'
+                : existingPlan ? '📋 Continuar guía →'
+                : '✏️ Crear guía →'}
+            </button>
+            {grade && subject && (
+              <button
+                className="planner-btn-ai"
+                onClick={async () => {
+                  const pending = await checkPendingCheckpoint('ai')
+                  if (pending) {
+                    setCheckpointData({ ...pending, pendingAction: 'ai' })
+                  } else {
+                    openGenerator()
+                  }
+                }}
+                disabled={creating}>
+                🤖 Generar con IA
+              </button>
+            )}
+          </div>
         </div>
       </div>
       {showGenerator && (
@@ -412,7 +499,7 @@ export default function PlannerPage({ teacher }) {
             // Create plan first
             const { data: existing } = await supabase
               .from('lesson_plans')
-              .select('id')
+              .select('id, week_count')
               .eq('teacher_id', teacher.id)
               .eq('grade', grade)
               .eq('subject', subject)
@@ -420,6 +507,12 @@ export default function PlannerPage({ teacher }) {
               .maybeSingle()
 
             let planId = existing?.id
+
+            if (planId && (existing.week_count || 1) !== weekCount) {
+              await supabase.from('lesson_plans')
+                .update({ week_count: weekCount, date_range: dateRange })
+                .eq('id', planId)
+            }
 
             if (!planId) {
               const { data: newPlan } = await supabase

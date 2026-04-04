@@ -144,7 +144,14 @@ export default function GuideEditorPage({ teacher }) {
       }
       // Restore AI-generated days if they existed before buildInitialContent
       if (savedDays) {
-        c.days = savedDays
+        // If plan expanded to 2 weeks but only has 1 week of days, fill in week 2
+        const wc = data.week_count || 1
+        if (wc === 2 && Object.keys(savedDays).length <= 5) {
+          const allDays = await buildDaysFromDB(data, c)
+          c.days = { ...allDays, ...savedDays }
+        } else {
+          c.days = savedDays
+        }
       } else if (!c.days || Object.keys(c.days).length === 0) {
         c.days = await buildDaysFromDB(data, c)
       }
@@ -432,7 +439,7 @@ export default function GuideEditorPage({ teacher }) {
     { key: 'objetivo', label: '1 · Logro',       dot: '#9BBB59' },
     { key: 'verse',    label: '2 · Versículo',   dot: '#C9A84C' },
     ...dayPanels.map(d => ({
-      key: d.key, label: d.label,
+      key: d.key, iso: d.iso, label: d.label,
       sub: `${MONTHS_ES[parseInt(d.iso.slice(5,7))-1]} ${parseInt(d.iso.slice(8,10))}`,
       dot: '#4BACC6',
       filled: d.filled, total: d.total,
@@ -653,25 +660,52 @@ export default function GuideEditorPage({ teacher }) {
 
         {/* Nav */}
         <nav className="ge-nav">
-          {panels.map(p => (
-            <button key={p.key}
-              className={`ge-nav-item ${activePanel === p.key ? 'active' : ''}`}
-              onClick={() => setActivePanel(p.key)}>
-              <span className="ge-nav-dot" style={{ background: p.dot }} />
-              <span className="ge-nav-label">
-                {p.label}
-                {p.sub && <span className="ge-nav-sub">{p.sub}</span>}
-                {p.total != null && (
-                  <span className="ge-nav-day-progress">
-                    <span className="ge-nav-day-bar">
-                      <span style={{ width: `${(p.filled / p.total) * 100}%` }} />
-                    </span>
-                    <span className="ge-nav-day-count">{p.filled}/{p.total}</span>
+          {(() => {
+            const week2Monday = plan?.week_count === 2 && plan?.monday_date
+              ? (() => { const d = new Date(plan.monday_date + 'T12:00:00'); d.setDate(d.getDate() + 7); return toISO(d) })()
+              : null
+            let week2Inserted = false
+            let week1Inserted = false
+            return panels.map(p => {
+              const items = []
+              if (week2Monday && p.iso && !week1Inserted) {
+                week1Inserted = true
+                items.push(
+                  <div key="week1-sep" style={{ padding: '4px 12px 2px', fontSize: '10px', fontWeight: 700, color: '#2E5598', textTransform: 'uppercase', letterSpacing: '.5px' }}>
+                    Semana 1
+                  </div>
+                )
+              }
+              if (week2Monday && p.iso && p.iso >= week2Monday && !week2Inserted) {
+                week2Inserted = true
+                items.push(
+                  <div key="week2-sep" style={{ padding: '4px 12px 2px', fontSize: '10px', fontWeight: 700, color: '#2E5598', textTransform: 'uppercase', letterSpacing: '.5px', borderTop: '1px solid #d0d9ef', marginTop: '4px' }}>
+                    Semana 2
+                  </div>
+                )
+              }
+              items.push(
+                <button key={p.key}
+                  className={`ge-nav-item ${activePanel === p.key ? 'active' : ''}`}
+                  onClick={() => setActivePanel(p.key)}>
+                  <span className="ge-nav-dot" style={{ background: p.dot }} />
+                  <span className="ge-nav-label">
+                    {p.label}
+                    {p.sub && <span className="ge-nav-sub">{p.sub}</span>}
+                    {p.total != null && (
+                      <span className="ge-nav-day-progress">
+                        <span className="ge-nav-day-bar">
+                          <span style={{ width: `${(p.filled / p.total) * 100}%` }} />
+                        </span>
+                        <span className="ge-nav-day-count">{p.filled}/{p.total}</span>
+                      </span>
+                    )}
                   </span>
-                )}
-              </span>
-            </button>
-          ))}
+                </button>
+              )
+              return items
+            })
+          })()}
         </nav>
 
         {/* Content */}

@@ -810,6 +810,253 @@ input:focus, select:focus, textarea:focus {
 .notif-type-badge    { padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 700; }
 .notif-meta > span:last-child { font-size: 11px; color: #888; }
 /* ================================================================
+   PLANNER PAGE — REDESIGN
+   ================================================================ */
+
+/* ── Header con gradiente ── */
+.planner-header {
+  background: linear-gradient(135deg, #1F3864 0%, #2E5598 100%);
+  padding: 16px 20px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  border-radius: 10px 10px 0 0;
+}
+.planner-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.planner-header-icon {
+  font-size: 26px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.planner-header-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: #fff;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.planner-header-sub {
+  font-size: 11px;
+  color: rgba(255,255,255,0.65);
+  margin-top: 2px;
+}
+
+/* ── Toggle duración (dentro del header) ── */
+.planner-duration-toggle {
+  display: flex;
+  background: rgba(255,255,255,0.15);
+  border-radius: 8px;
+  padding: 3px;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.planner-dur-btn {
+  padding: 6px 16px;
+  border-radius: 6px;
+  border: none;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+  background: transparent;
+  color: rgba(255,255,255,0.7);
+}
+.planner-dur-btn.active {
+  background: #fff;
+  color: #2E5598;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+}
+.planner-dur-btn:hover:not(.active) {
+  background: rgba(255,255,255,0.2);
+  color: #fff;
+}
+
+/* ── Body del card ── */
+.planner-body {
+  padding: 16px 20px 18px;
+}
+
+/* ── Logro vinculado ── */
+.planner-linked-target {
+  background: #f0f7e8;
+  border: 1.5px solid #9BBB59;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.plt-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+  padding-top: 1px;
+}
+.plt-content { flex: 1; min-width: 120px; }
+.plt-label {
+  font-size: 10px;
+  font-weight: 800;
+  color: #4a7a1a;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 3px;
+}
+.plt-text {
+  font-size: 12px;
+  color: #2a5a0a;
+  line-height: 1.45;
+}
+.plt-tax {
+  font-size: 10px;
+  font-weight: 700;
+  color: #4a7a1a;
+  background: #d4eeaa;
+  padding: 3px 9px;
+  border-radius: 10px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  align-self: flex-start;
+}
+
+/* ── Guía existente ── */
+.planner-existing-plan {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: #fffbea;
+  border: 1.5px solid #e8c84a;
+  border-left: 4px solid #C9A84C;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.pep-icon {
+  font-size: 22px;
+  flex-shrink: 0;
+  line-height: 1;
+  padding-top: 1px;
+}
+.pep-content { flex: 1; min-width: 140px; }
+.pep-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: #7a5500;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+.pep-badge {
+  font-size: 10px;
+  font-weight: 700;
+  background: #f0d070;
+  color: #7a5500;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+.pep-meta {
+  font-size: 11px;
+  color: #a07010;
+  margin-top: 2px;
+}
+.pep-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 7px;
+}
+.pep-progress-bar {
+  flex: 1;
+  max-width: 140px;
+  height: 6px;
+  background: #f0dea0;
+  border-radius: 99px;
+  overflow: hidden;
+}
+.pep-progress-fill {
+  height: 100%;
+  background: #C9A84C;
+  border-radius: 99px;
+  transition: width 0.4s ease;
+}
+.pep-progress-label {
+  font-size: 10px;
+  color: #a07010;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.pep-hint {
+  font-size: 10px;
+  font-weight: 700;
+  color: #a07010;
+  background: #f0d880;
+  padding: 4px 10px;
+  border-radius: 20px;
+  white-space: nowrap;
+  align-self: center;
+  flex-shrink: 0;
+}
+
+/* ── Área de acciones ── */
+.planner-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #eef2f8;
+}
+.planner-btn-primary {
+  flex: 1;
+  min-width: 160px;
+  padding: 12px 20px;
+  background: linear-gradient(135deg, #2E5598 0%, #4A7BC8 100%);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+  box-shadow: 0 2px 8px rgba(46,85,152,0.25);
+}
+.planner-btn-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #1F3864 0%, #2E5598 100%);
+  box-shadow: 0 4px 14px rgba(46,85,152,0.35);
+  transform: translateY(-1px);
+}
+.planner-btn-primary:disabled {
+  background: #b8cbe8;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+.planner-btn-ai {
+  padding: 12px 18px;
+  background: #f5f0ff;
+  color: #8064A2;
+  border: 1.5px solid #c4aee8;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.planner-btn-ai:hover:not(:disabled) {
+  background: #ede6ff;
+  border-color: #8064A2;
+}
+.planner-btn-ai:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ================================================================
    WEEK PICKER + MINI CALENDAR
    ================================================================ */
 
@@ -886,8 +1133,9 @@ input:focus, select:focus, textarea:focus {
 }
 .wc-day:last-child { border-right: none; }
 
-.wc-active  { background: #fff; }
-.wc-holiday { background: #fff5f5; }
+.wc-active   { background: #fff; }
+.wc-holiday  { background: #fff5f5; }
+.wc-no-class { background: #f7f7f7; }
 
 .wc-day-name {
   font-size: 10px; font-weight: 700;
@@ -918,6 +1166,15 @@ input:focus, select:focus, textarea:focus {
 .wc-tag-active  { background: #e8f5d6; color: #3a6b1a; }
 .wc-tag-holiday { background: #ffe0e0; color: #cc3333; }
 .wc-loading     { background: #eee; color: #aaa; }
+
+.wc-periods {
+  font-size: 9px;
+  font-weight: 700;
+  color: #4A7BC8;
+  margin-top: 2px;
+  text-align: center;
+  letter-spacing: 0.2px;
+}
 
 /* ── Summary row ── */
 .week-summary {

@@ -617,6 +617,289 @@
   line-height: 1.4;
 }
 
+/* ── Taxonomy sticky banner (right panel top) ──────────────────────────── */
+
+.lt-tax-banner {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #fff;
+  border-bottom: 1px solid #e4eaf4;
+  padding: 10px 0 12px;
+  margin-bottom: 16px;
+}
+.lt-tax-banner-label {
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #9BAAC8;
+  margin-bottom: 8px;
+}
+.lt-tax-banner-pills {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+.lt-tax-pill {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  border: 2px solid #e4eaf4;
+  background: #fafbff;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s;
+}
+.lt-tax-pill:hover { border-color: #b8c8e8; background: #f0f4ff; }
+.lt-tax-pill-emoji { font-size: 16px; flex-shrink: 0; }
+.lt-tax-pill-text  { display: flex; flex-direction: column; }
+.lt-tax-pill-name  { font-size: 11px; font-weight: 700; color: #333; line-height: 1.2; }
+.lt-tax-pill-desc  { font-size: 9px; color: #999; line-height: 1.2; }
+
+.lt-tax-pill.active[data-level="recognize"] { border-color: #1a6fa0; background: #e8f4fd; }
+.lt-tax-pill.active[data-level="apply"]     { border-color: #b8860b; background: #fef5e7; }
+.lt-tax-pill.active[data-level="produce"]   { border-color: #2d7a2d; background: #f0f7f0; }
+.lt-tax-pill.active .lt-tax-pill-name       { color: #111; }
+
+/* ── Indicators section ─────────────────────────────────────────────────── */
+
+/* ── Modelo B skill tabs ──────────────────────────────────────────────── */
+.lt-skill-tabs-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border: 1px solid #dde5f5;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.lt-skill-tabs-hdr {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  background: #f0f4fb;
+  border-bottom: 1px solid #dde5f5;
+}
+
+.lt-skill-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 4px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #6b7a99;
+  background: transparent;
+  border: none;
+  border-right: 1px solid #dde5f5;
+  cursor: pointer;
+  position: relative;
+  transition: background 0.15s, color 0.15s;
+}
+.lt-skill-tab:last-child { border-right: none; }
+.lt-skill-tab:hover { background: #e4ecfa; color: #1F3864; }
+.lt-skill-tab.active {
+  background: #fff;
+  color: #1F3864;
+  font-weight: 700;
+  box-shadow: inset 0 -2px 0 #2E5598;
+}
+.lt-skill-tab > span:first-child { font-size: 16px; line-height: 1; }
+
+.lt-skill-tab-dot {
+  position: absolute;
+  top: 5px;
+  right: 6px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #9BBB59;
+}
+
+.lt-skill-tab-body {
+  padding: 14px 14px 10px;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.lt-skill-taxonomy {
+  background: #f7f9ff;
+  border: 1px solid #dde5f5;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.lt-skill-taxonomy-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-bottom: 8px;
+}
+
+/* ── Modelo A indicators ──────────────────────────────────────────────── */
+.lt-ind-section { display: flex; flex-direction: column; gap: 0; }
+
+.lt-ind-section-hdr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.lt-ind-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #555;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.lt-ind-count {
+  background: #e8f4e8;
+  color: #2d7a2d;
+  font-size: 10px;
+  font-weight: 800;
+  border-radius: 8px;
+  padding: 1px 7px;
+}
+.lt-ind-ai-btn {
+  font-size: 12px;
+  padding: 5px 13px;
+  border-radius: 6px;
+  border: 1px solid #9BBB59;
+  background: #f6fff0;
+  color: #5a8a00;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background 0.15s;
+}
+.lt-ind-ai-btn:hover:not(:disabled) { background: #ecf7dc; }
+.lt-ind-ai-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.lt-ind-empty {
+  font-size: 12px;
+  color: #bbb;
+  font-style: italic;
+  padding: 14px;
+  text-align: center;
+  border: 1px dashed #e4eaf4;
+  border-radius: 8px;
+  line-height: 1.6;
+  margin-bottom: 8px;
+}
+
+/* ── Accordion ──────────────────────────────────────────────────────────── */
+
+.lt-ind-acc {
+  border: 1.5px solid #e4eaf4;
+  border-radius: 8px;
+  margin-bottom: 6px;
+  overflow: hidden;
+  transition: border-color 0.15s;
+}
+.lt-ind-acc.modelo-b { border-color: #d6c9f0; }
+.lt-ind-acc.modelo-a { border-color: #d5e8b8; }
+.lt-ind-acc.open.modelo-b { border-color: #8064A2; }
+.lt-ind-acc.open.modelo-a { border-color: #9BBB59; }
+
+.lt-ind-acc-hdr {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #fafbff;
+  border: none;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.lt-ind-acc.modelo-b .lt-ind-acc-hdr { background: #faf8ff; }
+.lt-ind-acc.modelo-a .lt-ind-acc-hdr { background: #f8fff2; }
+.lt-ind-acc-hdr:hover { filter: brightness(0.97); }
+
+.lt-ind-acc-arrow {
+  font-size: 13px;
+  color: #aaa;
+  flex-shrink: 0;
+  transition: transform 0.2s;
+}
+.lt-ind-acc.open .lt-ind-acc-arrow { color: #555; }
+
+.lt-ind-acc-title {
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.lt-ind-acc.modelo-b .lt-ind-acc-title { color: #8064A2; }
+.lt-ind-acc.modelo-a .lt-ind-acc-title { color: #5a8a1a; }
+
+.lt-ind-acc-preview {
+  font-size: 11px;
+  color: #888;
+  font-style: italic;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lt-ind-acc-del {
+  margin-left: auto;
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: #ccc;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 2px 5px;
+  border-radius: 4px;
+  line-height: 1;
+  transition: all 0.15s;
+}
+.lt-ind-acc-del:hover { background: #ffe0e0; color: #c44; }
+
+/* Animated body */
+.lt-ind-acc-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.25s ease;
+}
+.lt-ind-acc.open .lt-ind-acc-body {
+  grid-template-rows: 1fr;
+}
+.lt-ind-acc-inner {
+  overflow: hidden;
+  padding: 0 12px;
+  transition: padding 0.25s ease;
+}
+.lt-ind-acc.open .lt-ind-acc-inner {
+  padding: 12px 14px 14px;
+}
+
+.lt-ind-add-btn {
+  font-size: 12px;
+  color: #9BBB59;
+  border: 1px solid #9BBB59;
+  background: none;
+  border-radius: 6px;
+  padding: 6px 14px;
+  cursor: pointer;
+  margin-top: 4px;
+  transition: background 0.15s;
+  align-self: flex-start;
+}
+.lt-ind-add-btn:hover { background: #f0f9e0; }
+
 /* ── Responsive ────────────────────────────────────────────────────────── */
 
 @media (max-width: 640px) {

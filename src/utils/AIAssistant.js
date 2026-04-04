@@ -122,6 +122,18 @@ async function callClaude({ type, system, message, planId, maxTokens }) {
   return data.text || ''
 }
 
+// ── JSON array extractor — handles markdown fences and surrounding text ────────
+function extractJSONArray(text) {
+  if (!text) return null
+  // Try direct parse first
+  try { const p = JSON.parse(text); if (Array.isArray(p)) return p } catch {}
+  // Extract first [...] block from the response
+  const match = text.match(/\[[\s\S]*\]/)
+  if (!match) return null
+  try { const p = JSON.parse(match[0]); if (Array.isArray(p)) return p } catch {}
+  return null
+}
+
 // ── Verse formatter ───────────────────────────────────────────────────────────
 function fmtVerse(verse) {
   if (!verse?.text) return null
@@ -458,7 +470,7 @@ Usa inglés en los datos del bloque (colegio bilingüe). Si no hay un bloque cla
 - Período: ${safePeriod}
 - Unidad/Tema: ${safeUnit || 'No especificado'}
 - Objetivo del docente: ${safeObjective}
-- Días de clase esta semana: ${daysStr}
+- Días de clase ${activeDays.length > 5 ? 'estas dos semanas' : 'esta semana'}: ${daysStr}
 ${learningTarget ? `
 🎯 OBJETIVO DE DESEMPEÑO VINCULADO:
 - Desempeño observable: ${safeLTDesc}
@@ -624,8 +636,7 @@ Materia: ${safeSubject} | Grado: ${safeGrade}
 Nivel taxonómico: ${TAXONOMY_MAP[taxonomy] || taxonomy}`
 
     const raw = await callClaude({ type: 'generate_indicadores', system, message, maxTokens: 2000 })
-    let parsed
-    try { parsed = JSON.parse(raw) } catch { parsed = null }
+    const parsed = extractJSONArray(raw)
     if (!Array.isArray(parsed) || parsed.length !== 4) throw new Error('La IA no devolvió los 4 indicadores Modelo B.')
     return parsed
   }
@@ -660,8 +671,7 @@ Asignatura: ${safeSubject}
 Grado: ${safeGrade}${tematicasBlock}`
 
   const raw = await callClaude({ type: 'generate_indicadores', system, message, maxTokens: 1500 })
-  let parsed
-  try { parsed = JSON.parse(raw) } catch { parsed = null }
+  const parsed = extractJSONArray(raw)
   if (!Array.isArray(parsed) || !parsed.length) throw new Error('La IA no devolvió indicadores válidos.')
   return parsed
 }

@@ -315,7 +315,7 @@ export const AIGeneratorModal = memo(function AIGeneratorModal({ grade, subject,
           {!preview && (
             <>
               <div style={{ background: '#f0f4ff', border: '1px solid #c5d5f0', borderRadius: '8px', padding: '12px 14px', fontSize: '12px', color: '#2E5598', marginBottom: '16px' }}>
-                💡 Claude generará una propuesta completa para los {activeDays.length} días de clase de esta semana.
+                💡 Claude generará una propuesta completa para los {activeDays.length} días de clase {activeDays.length > 5 ? 'de estas dos semanas' : 'de esta semana'}.
                 Tú editas, ajustas y decides qué usar.
               </div>
 
