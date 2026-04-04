@@ -346,7 +346,7 @@ CBF es una **escuela cristiana confesional**. Los tres principios son el norte d
 | `lesson_plans` | One row per guide. `content` JSONB holds all plan data. `grade` = combined label. Links to `target_id`, `news_project_id`. `week_count int` (1 or 2) — 2-week guides store both weeks in the same row. |
 | `learning_targets` | **Logros del trimestre** (meta macro). `description` = el Logro (Modelo A only — empty for Modelo B). `taxonomy` enum: `recognize | apply | produce` (Modelo A global; Modelo B stores per-indicator taxonomy inside each object). `indicadores jsonb` = array of strings (Modelo A) or objects `{habilidad, taxonomy, texto_en, principio_biblico: {titulo, referencia, cita}, es_titulo, es_descripcion, es_grupo}` (Modelo B). `tematica_names jsonb` = parallel array with Temática names (Modelo A) or skill names (Modelo B). `news_model text` ('standard'\|'language', default 'standard'). |
 | `school_monthly_principles` | Principios rectores por mes. `school_id, year, month, month_verse, month_verse_ref, indicator_principle`. UNIQUE(school_id, year, month) |
-| `news_projects` | NEWS (project-based learning) projects. Links to `rubric_templates` via `rubric_template_id`. Links to `learning_targets` via `target_id` (UUID). Field `target_indicador` (text) stores the selected indicator from `learning_targets.indicadores[]`. `news_model text` ('standard'\|'language'). Modelo B: `competencias jsonb`, `operadores_intelectuales jsonb`, `habilidades jsonb`. |
+| `news_projects` | NEWS (project-based learning) projects. Links to `rubric_templates` via `rubric_template_id`. Links to `learning_targets` via `target_id` (UUID). Field `target_indicador` (text) stores the selected indicator from `learning_targets.indicadores[]`. `news_model text` ('standard'\|'language'). Modelo B: `competencias jsonb`, `operadores_intelectuales jsonb`, `habilidades jsonb`, `actividades_evaluativas jsonb` (array de `{nombre, descripcion, porcentaje}`). Para Modelo B, los 4 proyectos (uno por habilidad) se crean automáticamente al crear el Logro — ver flujo abajo. |
 | `school_calendar` | Holiday/event data. `is_school_day: false` = holiday. `level` (elementary|middle|high|NULL=todos). `affects_planning boolean`. `created_by uuid` |
 | `checkpoints` | Records whether a teacher evaluated a learning target at end of week |
 | `weekly_agendas` | Agenda semanal por grado/sección. `grade`, `section`, `week_start date`, `devotional`, `notes`, `content jsonb` (entries[{subject,teacher_name,days:{date:text}}]), `status` (draft/ready/sent) |
@@ -542,6 +542,31 @@ OPERADORES INTELECTUALES (Deducir / Generalizar / Sintetizar / Retener / Evaluar
 - ✍️ **Writing** — verde `#9BBB59`
 
 Cada pestaña tiene: selector taxonómico propio + campo EN (indicador en inglés) + principio bíblico (título, referencia, cita) + ES embebida (título, descripción, grupo). **No hay generación por IA** — los docentes llenan los indicadores que ya tienen definidos. La traducción al español fue eliminada (`texto_es` no se captura en la UI, aunque el campo persiste en DB por compatibilidad).
+
+**Auto-creación de proyectos NEWS al crear Logro Modelo B:**
+Al presionar "Crear Logro" para una materia Modelo B (`handleSave` en `LearningTargetsPage.jsx`), el sistema:
+1. Inserta el `learning_targets` row y obtiene su `id`
+2. Auto-inserta 4 `news_projects` rows — uno por habilidad (Speaking / Listening / Reading / Writing)
+3. Cada proyecto pre-cargado con: `es_titulo` (o nombre de habilidad), `es_descripcion`, `es_grupo` → `conditions`, principio bíblico (`biblical_principle` / `biblical_reflection`), `skill` (lowercase), `target_id`, `habilidades`, `news_model: 'language'`, `status: 'draft'`
+4. `due_date` queda null — el docente la completa al abrir el proyecto en NEWS. `NewsProjectCard` maneja null gracefully (muestra "Sin fecha").
+
+**Flujo docente Modelo B:**
+- Crear Logro → 4 proyectos NEWS nacen automáticamente vinculados
+- Abrir NEWS → ver los 4 proyectos organizados por habilidad
+- Editar cada proyecto → completar: textbook reference, **actividades evaluativas**, rúbrica
+
+**`NewsProjectEditor` — step "Actividades" (Modelo B únicamente):**
+- Aparece entre Textbook y Rúbrica en el nav sidebar
+- UI: formulario para agregar actividades `{nombre, descripcion, porcentaje}` + lista con eliminar
+- Indicador de total % con validación (verde = 100%, rojo = excede 100%, amarillo = incompleto)
+- Estado en `form.actividades_evaluativas[]`, persistido en `news_projects.actividades_evaluativas` (JSONB)
+- `NewsProjectCard` muestra chip "📋 N actividades" cuando el proyecto tiene actividades
+
+**Migración SQL requerida:**
+```sql
+ALTER TABLE news_projects
+ADD COLUMN IF NOT EXISTS actividades_evaluativas jsonb DEFAULT '[]'::jsonb;
+```
 
 ### Rúbrica CBF (especificación obligatoria)
 **Siempre 8 criterios × 5 niveles** (Superior/Alto/Básico/Bajo/Muy Bajo):
