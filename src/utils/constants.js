@@ -34,11 +34,12 @@ export const DAYS = [
 ]
 
 // ── Academic Periods ──────────────────────────────────────────────────────────
+const _year = new Date().getFullYear()
 export const ACADEMIC_PERIODS = [
-  { value: '1', label: '1.er Período 2026', short: 'P1' },
-  { value: '2', label: '2.° Período 2026',  short: 'P2' },
-  { value: '3', label: '3.er Período 2026', short: 'P3' },
-  { value: '4', label: '4.° Período 2026',  short: 'P4' },
+  { value: '1', label: `1.er Período ${_year}`, short: 'P1' },
+  { value: '2', label: `2.° Período ${_year}`,  short: 'P2' },
+  { value: '3', label: `3.er Período ${_year}`, short: 'P3' },
+  { value: '4', label: `4.° Período ${_year}`,  short: 'P4' },
 ]
 
 // ── Modelo B — Materias en inglés (estructura pedagógica diferente) ───────────

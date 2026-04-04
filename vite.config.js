@@ -5,6 +5,6 @@ export default defineConfig({
   plugins: [react()],
   base: '/cbf-planner/',
   build: {
-    minify: false,
+    sourcemap: false,
   },
 })

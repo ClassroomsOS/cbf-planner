@@ -147,7 +147,7 @@ function DashboardInner({ session, teacher, setTeacher }) {
   function closeSidebar() { setSidebarOpen(false) }
 
   const ini = teacher.initials ||
-    teacher.full_name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+    (teacher.full_name || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?'
 
   return (
     <div className="app">
