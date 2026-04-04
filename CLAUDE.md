@@ -335,12 +335,12 @@ CBF es una **escuela cristiana confesional**. Los tres principios son el norte d
 |---|---|
 | `teachers` | User profiles. `status`, `role`, `school_id`, `default_class/subject/period` |
 | `schools` | Multi-tenant root. `features` JSONB, `year_verse`, `logo_url` |
-| `teacher_assignments` | Admin-controlled class assignments. `grade` (base only, e.g. `"10.°"`), `section`, `subject`, `schedule` JSONB (keys: `mon/tue/wed/thu/fri`, values: period arrays) |
+| `teacher_assignments` | Admin-controlled class assignments. `grade` (base only, e.g. `"10.°"`), `section`, `subject`, `schedule` JSONB (keys: `mon/tue/wed/thu/fri`, values: period arrays), `classroom text` (salón físico) |
 | `lesson_plans` | One row per guide. `content` JSONB holds all plan data. `grade` = combined label. Links to `target_id`, `news_project_id` |
 | `learning_targets` | **Logros del trimestre** (meta macro). `description` = el Logro. `taxonomy` enum: `recognize | apply | produce`. `indicadores jsonb` = array de strings (uno por Temática). `tematica_names jsonb` = array paralelo con el nombre de cada Temática. `trimestre smallint` (1/2/3, nullable). `news_model text` ('standard'\|'language', default 'standard'). |
 | `school_monthly_principles` | Principios rectores por mes. `school_id, year, month, month_verse, month_verse_ref, indicator_principle`. UNIQUE(school_id, year, month) |
 | `news_projects` | NEWS (project-based learning) projects. Links to `rubric_templates` via `rubric_template_id`. Links to `learning_targets` via `target_id` (UUID). Field `target_indicador` (text) stores the selected indicator from `learning_targets.indicadores[]`. `news_model text` ('standard'\|'language'). Modelo B: `competencias jsonb`, `operadores_intelectuales jsonb`, `habilidades jsonb`. |
-| `school_calendar` | Holiday/event data. `is_school_day: false` = holiday |
+| `school_calendar` | Holiday/event data. `is_school_day: false` = holiday. `level` (elementary|middle|high|NULL=todos). `affects_planning boolean`. `created_by uuid` |
 | `checkpoints` | Records whether a teacher evaluated a learning target at end of week |
 | `notifications` / `messages` | In-app communication. Polled every 60s in `DashboardPage` |
 | `error_log` / `activity_log` | Observability. Written by `src/utils/logger.js` |
@@ -596,16 +596,20 @@ Implementación de la estructura Modelo A + Modelo B según el Marco Teórico.
 - `DashboardPage` — sidebar y rutas para director (📋 Vista de mi Grado) y psicopedagoga (Calendario)
 - Todos los `role === 'admin'` hardcodeados migrados a `canManage()` en 6 archivos
 
-### Sprint 3 — Calendario institucional
-- Mejorar `school_calendar`: agregar `level`, `affects_planning`, `event_type`, `created_by`
-- Eventos por nivel (Elementary / Middle / High)
-- Notificación en cascada a docentes cuando un evento afecta sus guías
-- Flujo de reprogramación asistido por AI
+### ✅ Sprint 3 COMPLETADO — Calendario institucional
+- `school_calendar`: nuevos campos `level` (elementary|middle|high|NULL=todos), `affects_planning boolean`, `created_by uuid`
+- `CalendarPage`: selector de nivel, badge de nivel/"⚠️ Afecta guías", filtro por nivel en toolbar
+- Notificación en cascada: cuando `affects_planning=true` → crea anuncio automático en `announcements` dirigido a `target_role: 'teacher'`
+- `PlannerPage` + `GuideEditorPage`: queries filtran por `teacher.level` (`.or('level.is.null,level.eq.X')`)
+- `canViewSchedule()` agregado a `roles.js`
+- **Pendiente:** Flujo de reprogramación asistido por AI (pospuesto)
 
-### Sprint 4 — Constructor de horarios
-- Tabla `schedule_blocks` con validación de solapamiento
-- Vista de grilla por grado/sección y por profesor
-- Campo `classroom` para detectar conflictos de espacio
+### ✅ Sprint 4 COMPLETADO — Constructor de horarios
+- `teacher_assignments.classroom text` — salón físico donde se dicta la clase
+- `SchedulePage.jsx` — nueva página `/schedule`, dos vistas: "Por Grado/Sección" y "Por Docente". Grilla 7 períodos × 5 días. Panel de conflictos de salón al fondo. Acceso: admin/superadmin/director/psicopedagoga
+- `AdminTeachersPage`: input de salón por tarjeta de asignación + campo en form de nueva asignación
+- Detección de conflictos mejorada: mismo salón + mismo período = **bloqueo** (error, no advertencia)
+- `canViewSchedule()` en `roles.js`, ruta `/schedule` en `DashboardPage`
 
 ### Sprint 5 — Agenda semanal automática
 - Cada jueves: consolidar guías de todos los docentes de un grado/sección
