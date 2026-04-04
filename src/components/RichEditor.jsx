@@ -97,6 +97,9 @@ export default function RichEditor({ value, onChange, placeholder, minHeight = 1
     const url  = window.prompt('URL del enlace:', prev)
     if (url === null) return
     if (url === '') { editor.chain().focus().unsetLink().run(); return }
+    // Block dangerous protocols
+    const proto = url.trim().toLowerCase()
+    if (proto.startsWith('javascript:') || proto.startsWith('vbscript:') || proto.startsWith('data:')) return
     editor.chain().focus().setLink({ href: url }).run()
   }
 
