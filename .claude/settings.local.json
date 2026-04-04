@@ -22,7 +22,8 @@
       "Bash(./.claude/auto-commit.sh \"feat\\(agenda\\): Sprint 5 — Agenda Semanal Automática con auto-import desde guías y export PDF\")",
       "Bash(./.claude/auto-commit.sh \"docs: update CLAUDE.md — Sprint 5 completado\")",
       "Bash(npm list:*)",
-      "Bash(./.claude/auto-commit.sh \"feat\\(ai\\): Sprint 6 — token logging, límites por docente, import .docx, malla curricular\")"
+      "Bash(./.claude/auto-commit.sh \"feat\\(ai\\): Sprint 6 — token logging, límites por docente, import .docx, malla curricular\")",
+      "Bash(./.claude/auto-commit.sh \"docs: update CLAUDE.md — Sprint 6 completado\")"
     ]
   }
 }

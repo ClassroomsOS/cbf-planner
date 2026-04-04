@@ -140,6 +140,9 @@ Client-side entry point is `src/utils/AIAssistant.js`, which exposes:
 | `suggestSmartBlock()` | Suggest one SmartBlock for a section based on context + taxonomy | 1200 |
 | `generateRubric()` | Generate complete 5-level rubric (**exactly 8 criteria**) for NEWS project | 4000 |
 | `generateIndicadores()` | Generate indicators per Temática (Modelo A) or per habilidad (Modelo B) | 1500/2000 |
+| `importGuideFromDocx()` | Parse .docx text (via mammoth) into CBF lesson_plan content JSON | 8000 |
+
+`setAIContext({ schoolId, teacherId, monthlyLimit })` — must be called on login (DashboardPage). Enables usage logging to `ai_usage` table and monthly token limit enforcement. Pricing: input $3/MTok, output $15/MTok.
 
 `generateGuideStructure` auto-retries with a more concise prompt when the response is truncated (JSON parse failure). It also asks Claude to include an optional `smartBlock` field in `activity` and `skill` sections (max 2 per day).
 
@@ -333,7 +336,7 @@ CBF es una **escuela cristiana confesional**. Los tres principios son el norte d
 
 | Table | Purpose |
 |---|---|
-| `teachers` | User profiles. `status`, `role`, `school_id`, `default_class/subject/period` |
+| `teachers` | User profiles. `status`, `role`, `school_id`, `default_class/subject/period`, `ai_monthly_limit int` (0=ilimitado) |
 | `schools` | Multi-tenant root. `features` JSONB, `year_verse`, `logo_url` |
 | `teacher_assignments` | Admin-controlled class assignments. `grade` (base only, e.g. `"10.°"`), `section`, `subject`, `schedule` JSONB (keys: `mon/tue/wed/thu/fri`, values: period arrays), `classroom text` (salón físico) |
 | `lesson_plans` | One row per guide. `content` JSONB holds all plan data. `grade` = combined label. Links to `target_id`, `news_project_id` |
@@ -622,10 +625,16 @@ Implementación de la estructura Modelo A + Modelo B según el Marco Teórico.
 - `canManageAgendas()` en `roles.js` (admin/superadmin/director)
 - **Pendiente en Supabase:** ejecutar `supabase/migrations/20260403_sprint5_agendas.sql`
 
-### Sprint 6 — AI avanzado
-- Consumo de tokens por docente con límites configurables por coordinador
-- Importar guías .docx existentes (AI parsea y mapea al sistema)
-- Malla curricular integrada: tracking de cobertura por período
+### ✅ Sprint 6 COMPLETADO — AI Avanzado
+- **Token logging real**: `callClaude()` ahora inserta en `ai_usage` después de cada llamada (fire & forget). Edge Function ya devolvía `usage: { input_tokens, output_tokens }` — solo faltaba capturarlo en el cliente.
+- **`setAIContext({ schoolId, teacherId, monthlyLimit })`** — llamado desde `DashboardPage.useEffect` al iniciar sesión. Habilita logging y enforcement de límites.
+- **Límite mensual por docente**: `teachers.ai_monthly_limit int DEFAULT 0` (0=ilimitado). Si límite > 0, `callClaude()` consulta `ai_usage` del mes actual antes de llamar y lanza error si supera el límite.
+- **`importGuideFromDocx()`** en AIAssistant.js — recibe texto extraído de .docx, devuelve content JSON CBF. `GuideEditorPage` lo expone en "⋯ Más opciones" → "📂 Importar desde .docx". Usa `mammoth` (lazy import).
+- **`CurriculumPage.jsx`** — ruta `/curriculum`. Malla curricular: tabla por docente → grado → materia × períodos (P1-P4). Cada celda muestra count de guías con dots de estado. Solo admin/superadmin/director.
+- **`AdminTeachersPage`**: campo `ai_monthly_limit` en `RoleAndLevelEditor` (≈ estimación de generaciones completas).
+- **Dependencia nueva**: `mammoth@1.12.0` — lazy loaded, solo se descarga cuando el usuario importa un .docx (chunk separado de 851KB).
+- **Precios**: input $3/MTok, output $15/MTok — constantes en `AIAssistant.js`.
+- **Pendiente en Supabase:** ejecutar `supabase/migrations/20260403_sprint6_ai_avanzado.sql`
 
 ### Sprint 7 — Responsive / PWA
 - Mobile-first para NewsPage, GuideEditor y Agenda
