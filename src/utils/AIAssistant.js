@@ -612,7 +612,7 @@ export async function generateIndicadores({
   // ── MODELO B ──────────────────────────────────────────────────────────────
   if (isModeloB) {
     const system = `Eres un experto en diseño curricular bilingüe (colombiano).
-Diseñas indicadores de logro para materias en inglés (Modelo B: Language Arts, Social Studies, Science).
+Diseñas indicadores de logro para materias en inglés (Modelo B: Language Arts, Social Studies, Science, Lingua Skill).
 Cada indicador corresponde a una habilidad: Speaking, Listening, Reading, Writing.
 ${biblicalBlock(principles,
   'Cada indicador del Modelo B tiene su propio principio bíblico — un versículo específico que conecta esa habilidad con la fe. No uses el mismo versículo para las 4 habilidades.'

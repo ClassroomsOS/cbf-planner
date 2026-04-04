@@ -34,6 +34,12 @@ EVALUACIÓN (la rúbrica mide si el alumno alcanzó el Indicador de Logro)
 4. **La IA genera guías con ese indicador como norte. El docente lo ve como label read-only — no puede cambiarlo ni escribir uno diferente.**
 5. **`news_projects.target_id` es el vínculo más importante de toda la base de datos.** Une el Indicador de Logro con todo el trabajo semanal.
 
+### Reglas operativas (NO negociables):
+
+- **Toda actividad evaluativa DEBE tener fecha.** Sin fecha no hay estructura. El sistema no debe permitir guardar actividades sin `fecha`. Si el docente la quiere cambiar después, puede — pero no puede crearla sin ella.
+- **Modelo B = Language Arts, Social Studies, Science, Lingua Skill.** Estas 4 materias siempre usan la estructura de habilidades (Speaking / Listening / Reading / Writing). Definido en `MODELO_B_SUBJECTS` en `constants.js`.
+- **Por ahora solo se trabaja Modelo B.** El Modelo A (materias en español) está en el código pero no es prioridad activa.
+
 ### Lookup del indicador activo (implementado en `GuideEditorPage.jsx`):
 - **Prioridad 1** — Modelo B: buscar `news_projects` cuya `actividades_evaluativas[].fecha` caiga en los días de la guía → indicador por `skill`
 - **Prioridad 2** — Modelo A + fallback B: buscar el `news_projects` con `due_date` más próxima en el futuro desde el primer día de la guía → indicador por `target_indicador`
