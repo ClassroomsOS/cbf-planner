@@ -473,6 +473,10 @@ const criteria = ${criteriaJSON};
 const TOTAL_MAX = ${totalMax};
 const scores = {};
 
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
 const tbody = document.getElementById('rubric-body');
 const lvClasses = ['lv5','lv4','lv3','lv2','lv1'];
 const lvScores  = [5, 4, 3, 2, 1];
@@ -482,7 +486,7 @@ criteria.forEach((c, ci) => {
   const tr = document.createElement('tr');
   const tdC = document.createElement('td');
   tdC.className = 'td-criteria';
-  tdC.innerHTML = '<div class="crit-name">' + c.name + '</div><div class="crit-desc">' + c.desc + '</div>';
+  tdC.innerHTML = '<div class="crit-name">' + esc(c.name) + '</div><div class="crit-desc">' + esc(c.desc) + '</div>';
   tr.appendChild(tdC);
 
   lvScores.forEach((lv, li) => {
@@ -494,7 +498,7 @@ criteria.forEach((c, ci) => {
     cell.dataset.score = lv;
     cell.innerHTML =
       '<div class="cell-score">' + lv + '</div>' +
-      '<div class="cell-text">' + (c.levels[li] || '') + '</div>';
+      '<div class="cell-text">' + esc(c.levels[li]) + '</div>';
     cell.addEventListener('click', () => selectScore(c.id, lv, ci));
     td.appendChild(cell);
     tr.appendChild(td);
@@ -502,7 +506,7 @@ criteria.forEach((c, ci) => {
 
   const tdS = document.createElement('td');
   tdS.className = 'td-score-col';
-  tdS.innerHTML = '<div class="row-score" id="rs-' + c.id + '">—</div>';
+  tdS.innerHTML = '<div class="row-score" id="rs-' + esc(c.id) + '">—</div>';
   tr.appendChild(tdS);
   tbody.appendChild(tr);
 });
@@ -513,9 +517,9 @@ criteria.forEach(c => {
   const row = document.createElement('div');
   row.className = 'breakdown-row';
   row.innerHTML =
-    '<div class="breakdown-name">' + c.name + '</div>' +
-    '<div class="breakdown-bar-bg"><div class="breakdown-bar-fill" id="bb-' + c.id + '"></div></div>' +
-    '<div class="breakdown-val" id="bv-' + c.id + '">—</div>';
+    '<div class="breakdown-name">' + esc(c.name) + '</div>' +
+    '<div class="breakdown-bar-bg"><div class="breakdown-bar-fill" id="bb-' + esc(c.id) + '"></div></div>' +
+    '<div class="breakdown-val" id="bv-' + esc(c.id) + '">—</div>';
   breakdownEl.appendChild(row);
 });
 
