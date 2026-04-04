@@ -60,6 +60,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
     competencias: [],
     operadores_intelectuales: [],
     habilidades: [],
+    actividades_evaluativas: [],
   })
 
   const [hoveredOp,   setHoveredOp]   = useState(null)
@@ -71,6 +72,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
   const [principlesExpanded, setPrinciplesExpanded] = useState(false)
   const [tagInput, setTagInput] = useState({ grammar: '', vocabulary: '', units: '' })
   const [showTargetSelector, setShowTargetSelector] = useState(false)
+  const [newActividad, setNewActividad] = useState({ nombre: '', descripcion: '', porcentaje: '' })
 
   // ── Load teacher assignments for smart dropdowns ──
   const [assignments, setAssignments] = useState([])
@@ -178,6 +180,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
         competencias: project.competencias || [],
         operadores_intelectuales: project.operadores_intelectuales || [],
         habilidades: project.habilidades || [],
+        actividades_evaluativas: project.actividades_evaluativas || [],
       })
     }
   }, [project])
@@ -217,6 +220,23 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
     const current = [...(form.textbook_reference[field] || [])]
     current.splice(index, 1)
     updateTextbook(field, current)
+  }
+
+  const addActividad = () => {
+    if (!newActividad.nombre.trim()) return
+    updateForm('actividades_evaluativas', [
+      ...form.actividades_evaluativas,
+      {
+        nombre:     newActividad.nombre.trim(),
+        descripcion: newActividad.descripcion.trim(),
+        porcentaje:  Number(newActividad.porcentaje) || 0,
+      }
+    ])
+    setNewActividad({ nombre: '', descripcion: '', porcentaje: '' })
+  }
+
+  const removeActividad = (idx) => {
+    updateForm('actividades_evaluativas', form.actividades_evaluativas.filter((_, i) => i !== idx))
   }
 
   const loadTemplate = (templateId) => {
@@ -318,6 +338,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
       competencias: form.competencias,
       operadores_intelectuales: form.operadores_intelectuales,
       habilidades: form.habilidades,
+      actividades_evaluativas: form.actividades_evaluativas,
     }
     const result = await onSave(payload)
     setSaving(false)
@@ -357,6 +378,11 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
         key: 'textbook', icon: '📘', label: 'Textbook',
         isDone: !!(form.textbook_reference?.book)
       },
+      ...(form.news_model === 'language' ? [{
+        key: 'actividades', icon: '📋', label: 'Actividades',
+        isDone: form.actividades_evaluativas.length > 0,
+        badge: form.actividades_evaluativas.length > 0 ? form.actividades_evaluativas.length : null
+      }] : []),
       {
         key: 'rubric', icon: '📊', label: 'Rúbrica',
         isDone: form.rubric.length > 0,
@@ -366,7 +392,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
     return base
   }, [form.subject, form.grade, form.section, form.target_id, form.news_model,
       form.habilidades.length, form.title, form.description, form.due_date,
-      form.textbook_reference?.book, form.rubric.length])
+      form.textbook_reference?.book, form.actividades_evaluativas.length, form.rubric.length])
 
   return (
     <>
@@ -966,6 +992,105 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
                   <TagField label="Unidades" tags={form.textbook_reference.units || []} value={tagInput.units} onChange={v => setTagInput(p => ({ ...p, units: v }))} onAdd={() => addTag('units')} onRemove={(i) => removeTag('units', i)} placeholder="1" />
                   <TagField label="Gramática" tags={form.textbook_reference.grammar || []} value={tagInput.grammar} onChange={v => setTagInput(p => ({ ...p, grammar: v }))} onAdd={() => addTag('grammar')} onRemove={(i) => removeTag('grammar', i)} placeholder="past simple" />
                   <TagField label="Vocabulario" tags={form.textbook_reference.vocabulary || []} value={tagInput.vocabulary} onChange={v => setTagInput(p => ({ ...p, vocabulary: v }))} onAdd={() => addTag('vocabulary')} onRemove={(i) => removeTag('vocabulary', i)} placeholder="music" />
+
+                  <button onClick={() => setActiveStep(form.news_model === 'language' ? 'actividades' : 'rubric')} style={styles.btnNext}>
+                    Siguiente: {form.news_model === 'language' ? 'Actividades →' : 'Rúbrica →'}
+                  </button>
+                </div>
+              )}
+
+              {/* ── STEP: Actividades Evaluativas (Modelo B only) ── */}
+              {activeStep === 'actividades' && form.news_model === 'language' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <div>
+                    <h3 style={styles.stepTitle}>Actividades Evaluativas</h3>
+                    <p style={styles.stepDesc}>Registra las actividades que se evaluarán para esta habilidad (Dictados, Quiz, Cambridge One, Plan Lector, PET Prep, etc.) con su peso porcentual.</p>
+                  </div>
+
+                  {/* Add activity row */}
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap', background: '#f9f9fb', borderRadius: 10, padding: '12px 14px', border: '1px solid #e8e8f0' }}>
+                    <div style={{ ...styles.field, flex: 2, minWidth: 140 }}>
+                      <label style={styles.label}>Actividad</label>
+                      <input
+                        value={newActividad.nombre}
+                        onChange={e => setNewActividad(p => ({ ...p, nombre: e.target.value }))}
+                        onKeyDown={e => e.key === 'Enter' && addActividad()}
+                        placeholder="Dictado / Quiz / Cambridge One…"
+                        style={styles.input}
+                      />
+                    </div>
+                    <div style={{ ...styles.field, flex: 3, minWidth: 160 }}>
+                      <label style={styles.label}>Descripción (opcional)</label>
+                      <input
+                        value={newActividad.descripcion}
+                        onChange={e => setNewActividad(p => ({ ...p, descripcion: e.target.value }))}
+                        onKeyDown={e => e.key === 'Enter' && addActividad()}
+                        placeholder="Unit 3 vocabulary, 20 words…"
+                        style={styles.input}
+                      />
+                    </div>
+                    <div style={{ ...styles.field, width: 90 }}>
+                      <label style={styles.label}>% Peso</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={newActividad.porcentaje}
+                        onChange={e => setNewActividad(p => ({ ...p, porcentaje: e.target.value }))}
+                        onKeyDown={e => e.key === 'Enter' && addActividad()}
+                        placeholder="20"
+                        style={{ ...styles.input, textAlign: 'center' }}
+                      />
+                    </div>
+                    <button
+                      onClick={addActividad}
+                      disabled={!newActividad.nombre.trim()}
+                      style={{ padding: '9px 18px', borderRadius: 8, border: 'none', background: newActividad.nombre.trim() ? 'linear-gradient(135deg, #1A6B3A 0%, #2D8A50 100%)' : '#e0e0e0', color: newActividad.nombre.trim() ? 'white' : '#aaa', fontSize: 13, fontWeight: 700, cursor: newActividad.nombre.trim() ? 'pointer' : 'not-allowed', flexShrink: 0, alignSelf: 'flex-end', marginBottom: 1 }}
+                    >
+                      + Agregar
+                    </button>
+                  </div>
+
+                  {/* Activities list */}
+                  {form.actividades_evaluativas.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '24px 16px', color: '#aaa', background: '#fafafa', borderRadius: 8, border: '1px dashed #ddd' }}>
+                      <p style={{ fontSize: 13 }}>Sin actividades aún. Agrega las actividades evaluativas del período.</p>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {form.actividades_evaluativas.map((act, idx) => (
+                        <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'white', borderRadius: 8, border: '1px solid #e8e8f0', padding: '10px 14px' }}>
+                          <div style={{ flex: 1 }}>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: '#1a1a2e' }}>{act.nombre}</span>
+                            {act.descripcion && (
+                              <span style={{ fontSize: 12, color: '#777', marginLeft: 8 }}>{act.descripcion}</span>
+                            )}
+                          </div>
+                          {act.porcentaje > 0 && (
+                            <span style={{ fontSize: 12, fontWeight: 800, color: '#1A6B3A', background: '#f0fff5', border: '1px solid #b8e8c8', borderRadius: 20, padding: '2px 10px', flexShrink: 0 }}>
+                              {act.porcentaje}%
+                            </span>
+                          )}
+                          <button
+                            onClick={() => removeActividad(idx)}
+                            style={{ background: 'none', border: 'none', color: '#CC1F27', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: '0 4px', flexShrink: 0 }}
+                            title="Eliminar"
+                          >×</button>
+                        </div>
+                      ))}
+                      {/* Total */}
+                      {form.actividades_evaluativas.some(a => a.porcentaje > 0) && (() => {
+                        const total = form.actividades_evaluativas.reduce((s, a) => s + (Number(a.porcentaje) || 0), 0)
+                        return (
+                          <div style={{ display: 'flex', justifyContent: 'flex-end', paddingRight: 4 }}>
+                            <span style={{ fontSize: 12, fontWeight: 800, color: total === 100 ? '#1A6B3A' : total > 100 ? '#CC1F27' : '#B8860B' }}>
+                              Total: {total}% {total === 100 ? '✓' : total > 100 ? '— excede 100%' : '— incompleto'}
+                            </span>
+                          </div>
+                        )
+                      })()}
+                    </div>
+                  )}
 
                   <button onClick={() => setActiveStep('rubric')} style={styles.btnNext}>
                     Siguiente: Rúbrica →

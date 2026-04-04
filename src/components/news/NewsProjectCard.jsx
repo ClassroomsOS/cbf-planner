@@ -2,11 +2,12 @@ import { NEWS_PROJECT_STATUS as STATUS_CONFIG, NEWS_STATUS_FLOW as STATUS_FLOW, 
 
 export default function NewsProjectCard({ project, onEdit, onDelete, onStatusChange }) {
   const status = STATUS_CONFIG[project.status] || STATUS_CONFIG.draft
-  const dueDate = new Date(project.due_date + 'T12:00:00')
+  const dueDate = project.due_date ? new Date(project.due_date + 'T12:00:00') : null
   const today = new Date()
-  const daysUntilDue = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24))
-  const isOverdue = daysUntilDue < 0 && project.status !== 'completed'
+  const daysUntilDue = dueDate ? Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24)) : null
+  const isOverdue = dueDate && daysUntilDue < 0 && project.status !== 'completed'
   const criteriaCount = Array.isArray(project.rubric) ? project.rubric.length : 0
+  const actividadesCount = Array.isArray(project.actividades_evaluativas) ? project.actividades_evaluativas.length : 0
   const nextStatus = STATUS_FLOW[project.status]
 
   const formatDate = (dateStr) => {
@@ -69,20 +70,33 @@ export default function NewsProjectCard({ project, onEdit, onDelete, onStatusCha
         {/* Info chips */}
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
           {/* Due date */}
-          <span style={{
-            ...chipStyle,
-            color: isOverdue ? '#CC1F27' : '#555',
-            background: isOverdue ? 'rgba(204,31,39,0.08)' : '#f5f5f5'
-          }}>
-            📅 {formatDate(project.due_date)}
-            {project.status !== 'completed' && (
-              <span style={{ marginLeft: 4, fontWeight: 800 }}>
-                {isOverdue ? `(${Math.abs(daysUntilDue)}d atrás)` :
-                 daysUntilDue === 0 ? '(hoy)' :
-                 `(${daysUntilDue}d)`}
-              </span>
-            )}
-          </span>
+          {dueDate ? (
+            <span style={{
+              ...chipStyle,
+              color: isOverdue ? '#CC1F27' : '#555',
+              background: isOverdue ? 'rgba(204,31,39,0.08)' : '#f5f5f5'
+            }}>
+              📅 {formatDate(project.due_date)}
+              {project.status !== 'completed' && (
+                <span style={{ marginLeft: 4, fontWeight: 800 }}>
+                  {isOverdue ? `(${Math.abs(daysUntilDue)}d atrás)` :
+                   daysUntilDue === 0 ? '(hoy)' :
+                   `(${daysUntilDue}d)`}
+                </span>
+              )}
+            </span>
+          ) : (
+            <span style={{ ...chipStyle, color: '#999', fontStyle: 'italic' }}>
+              📅 Sin fecha
+            </span>
+          )}
+
+          {/* Actividades evaluativas count */}
+          {actividadesCount > 0 && (
+            <span style={chipStyle}>
+              📋 {actividadesCount} actividad{actividadesCount !== 1 ? 'es' : ''}
+            </span>
+          )}
 
           {/* Criteria count */}
           {criteriaCount > 0 && (

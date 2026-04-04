@@ -23,7 +23,9 @@
       "Bash(./.claude/auto-commit.sh \"docs: update CLAUDE.md — Sprint 5 completado\")",
       "Bash(npm list:*)",
       "Bash(./.claude/auto-commit.sh \"feat\\(ai\\): Sprint 6 — token logging, límites por docente, import .docx, malla curricular\")",
-      "Bash(./.claude/auto-commit.sh \"docs: update CLAUDE.md — Sprint 6 completado\")"
+      "Bash(./.claude/auto-commit.sh \"docs: update CLAUDE.md — Sprint 6 completado\")",
+      "Bash(python -m json.tool)",
+      "Bash(./.claude/auto-commit.sh \"feat\\(news,logros\\): auto-crear 4 proyectos NEWS al crear Logro Modelo B + actividades evaluativas\")"
     ]
   }
 }

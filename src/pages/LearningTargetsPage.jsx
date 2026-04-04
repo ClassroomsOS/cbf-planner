@@ -240,6 +240,8 @@ export default function LearningTargetsPage({ teacher }) {
     if (!form.description.trim()) return
     setSaving(true)
 
+    const isModeloB = MODELO_B_SUBJECTS.includes(form.subject)
+
     const payload = {
       school_id:        teacher.school_id,
       teacher_id:       teacher.id,
@@ -253,7 +255,7 @@ export default function LearningTargetsPage({ teacher }) {
       indicadores:      form.indicadores.filter(Boolean),
       trimestre:        form.trimestre ?? null,
       tematica_names:   form.tematica_names,
-      news_model:       MODELO_B_SUBJECTS.includes(form.subject) ? 'language' : 'standard',
+      news_model:       isModeloB ? 'language' : 'standard',
     }
 
     if (editingId) {
@@ -262,9 +264,42 @@ export default function LearningTargetsPage({ teacher }) {
         .update(payload)
         .eq('id', editingId)
     } else {
-      await supabase
+      const { data: newTarget } = await supabase
         .from('learning_targets')
         .insert(payload)
+        .select('id')
+        .single()
+
+      // Auto-create 4 linked NEWS projects for Modelo B
+      if (isModeloB && newTarget?.id) {
+        const HICONS = { Speaking: '🎤', Listening: '🎧', Reading: '📖', Writing: '✍️' }
+        const newsProjects = HABILIDADES_B.map((habilidad, idx) => {
+          const ind = form.indicadores.find(i => i?.habilidad === habilidad) || {}
+          return {
+            school_id:               teacher.school_id,
+            teacher_id:              teacher.id,
+            subject:                 form.subject,
+            grade:                   form.grade,
+            section:                 form.group_name || '',
+            period:                  form.period,
+            title:                   ind.es_titulo || `${HICONS[habilidad]} ${habilidad}`,
+            description:             ind.es_descripcion || ind.texto_en || `Proyecto de ${habilidad}`,
+            conditions:              ind.es_grupo || null,
+            skill:                   habilidad.toLowerCase(),
+            habilidades:             [habilidad],
+            news_model:              'language',
+            target_id:               newTarget.id,
+            status:                  'draft',
+            sequence:                idx + 1,
+            biblical_principle:      ind.principio_biblico?.titulo || '',
+            biblical_reflection:     ind.principio_biblico?.cita || '',
+            rubric:                  [],
+            actividades_evaluativas: [],
+          }
+        })
+        await supabase.from('news_projects').insert(newsProjects)
+        showToast('Logro creado. 4 proyectos NEWS generados automáticamente.', 'success')
+      }
     }
 
     closeForm()

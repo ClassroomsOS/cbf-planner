@@ -56,9 +56,11 @@ export default function useNewsProjects(teacher, filters = {}) {
         .single()
 
       if (error) throw error
-      setProjects(prev => [...prev, data].sort((a, b) => 
-        new Date(a.due_date) - new Date(b.due_date)
-      ))
+      setProjects(prev => [...prev, data].sort((a, b) => {
+        if (!a.due_date) return 1
+        if (!b.due_date) return -1
+        return new Date(a.due_date) - new Date(b.due_date)
+      }))
       return { data, error: null }
     } catch (err) {
       console.error('Error creating NEWS project:', err)
