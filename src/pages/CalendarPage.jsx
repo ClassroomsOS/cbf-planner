@@ -21,6 +21,56 @@ function toISO(dateStr) {
   return dateStr
 }
 
+// ── Colombia national holidays (Ley Emiliani) ──────────────────────────────
+function getEasterDate(year) {
+  const a = year % 19, b = Math.floor(year / 100), c = year % 100
+  const d = Math.floor(b / 4), e = b % 4
+  const f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3)
+  const h = (19 * a + b - d - g + 15) % 30
+  const i = Math.floor(c / 4), k = c % 4
+  const l = (32 + 2 * e + 2 * i - h - k) % 7
+  const m = Math.floor((a + 11 * h + 22 * l) / 451)
+  const month = Math.floor((h + l - 7 * m + 114) / 31)
+  const day   = ((h + l - 7 * m + 114) % 31) + 1
+  return new Date(year, month - 1, day)
+}
+
+function nextMonday(date) {
+  const d = new Date(date)
+  const day = d.getDay()
+  if (day === 1) return d
+  d.setDate(d.getDate() + (day === 0 ? 1 : 8 - day))
+  return d
+}
+
+function colombiaHolidays(year) {
+  const easter = getEasterDate(year)
+  const addDays = (d, n) => { const r = new Date(d); r.setDate(r.getDate() + n); return r }
+  const iso  = d => d.toISOString().slice(0, 10)
+  const pad  = n => String(n).padStart(2, '0')
+  const fixed = (m, d) => `${year}-${pad(m)}-${pad(d)}`
+  return [
+    { date: fixed(1, 1),                                        name: 'Año Nuevo' },
+    { date: iso(nextMonday(new Date(year, 0, 6))),               name: 'Reyes Magos' },
+    { date: iso(nextMonday(new Date(year, 2, 19))),              name: 'San José' },
+    { date: iso(addDays(easter, -3)),                            name: 'Jueves Santo' },
+    { date: iso(addDays(easter, -2)),                            name: 'Viernes Santo' },
+    { date: fixed(5, 1),                                         name: 'Día del Trabajo' },
+    { date: iso(nextMonday(addDays(easter, 39))),                 name: 'Ascensión del Señor' },
+    { date: iso(nextMonday(addDays(easter, 59))),                 name: 'Corpus Christi' },
+    { date: iso(nextMonday(addDays(easter, 67))),                 name: 'Sagrado Corazón de Jesús' },
+    { date: iso(nextMonday(new Date(year, 5, 29))),              name: 'San Pedro y San Pablo' },
+    { date: fixed(7, 20),                                        name: 'Día de la Independencia' },
+    { date: fixed(8, 7),                                         name: 'Batalla de Boyacá' },
+    { date: iso(nextMonday(new Date(year, 7, 15))),              name: 'Asunción de la Virgen' },
+    { date: iso(nextMonday(new Date(year, 9, 12))),              name: 'Día de la Raza' },
+    { date: iso(nextMonday(new Date(year, 10, 1))),              name: 'Todos los Santos' },
+    { date: iso(nextMonday(new Date(year, 10, 11))),             name: 'Independencia de Cartagena' },
+    { date: fixed(12, 8),                                        name: 'Inmaculada Concepción' },
+    { date: fixed(12, 25),                                       name: 'Navidad' },
+  ]
+}
+
 function formatDateES(isoDate) {
   const [y, m, d] = isoDate.split('-').map(Number)
   return `${d} de ${MONTHS_ES[m - 1]} de ${y}`
@@ -53,6 +103,9 @@ export default function CalendarPage({ teacher }) {
   const [filterType,  setFilterType]  = useState('all')
   const [filterMonth, setFilterMonth] = useState('all')
   const [filterLevel, setFilterLevel] = useState('all')
+  const [holidayYear,    setHolidayYear]    = useState(new Date().getFullYear())
+  const [holidayPreview, setHolidayPreview] = useState(null) // null=hidden, array=to import
+  const [loadingHolidays, setLoadingHolidays] = useState(false)
 
   useEffect(() => { fetchEntries() }, [])
 
@@ -121,6 +174,33 @@ export default function CalendarPage({ teacher }) {
     fetchEntries()
   }
 
+  function prepareHolidayImport() {
+    const all = colombiaHolidays(holidayYear)
+    const existing = new Set(entries.map(e => e.date))
+    setHolidayPreview(all.filter(h => !existing.has(h.date)))
+  }
+
+  async function confirmHolidayImport() {
+    if (!holidayPreview?.length) { setHolidayPreview(null); return }
+    setLoadingHolidays(true)
+    const rows = holidayPreview.map(h => ({
+      school_id:        teacher.school_id,
+      date:             h.date,
+      type:             'holiday_national',
+      name:             h.name,
+      is_school_day:    false,
+      level:            null,
+      affects_planning: false,
+      created_by:       teacher.id,
+    }))
+    const { error } = await supabase.from('school_calendar').insert(rows)
+    setLoadingHolidays(false)
+    if (error) { showToast('Error al importar festivos', 'error'); return }
+    showToast(`✓ ${holidayPreview.length} festivos nacionales de ${holidayYear} agregados`, 'success')
+    setHolidayPreview(null)
+    fetchEntries()
+  }
+
   // Filters
   const filtered = entries.filter(e => {
     const monthMatch = filterMonth === 'all' || e.date.slice(5, 7) === filterMonth
@@ -177,6 +257,81 @@ export default function CalendarPage({ teacher }) {
             + Agregar día especial
           </button>
         </div>
+
+        {/* ── Colombia holidays import ── */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+          background: '#fff8f0', border: '1px solid #f59e0b40',
+          borderRadius: 10, padding: '10px 16px', marginBottom: 14,
+        }}>
+          <span style={{ fontSize: 20 }}>🇨🇴</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: '#92400e' }}>
+            Festivos nacionales Colombia
+          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
+            <button
+              onClick={() => setHolidayYear(y => y - 1)}
+              style={{ border: '1px solid #d97706', borderRadius: 5, background: 'transparent', color: '#92400e', padding: '3px 8px', cursor: 'pointer', fontWeight: 700 }}>
+              ‹
+            </button>
+            <span style={{ fontSize: 13, fontWeight: 800, color: '#92400e', minWidth: 42, textAlign: 'center' }}>{holidayYear}</span>
+            <button
+              onClick={() => setHolidayYear(y => y + 1)}
+              style={{ border: '1px solid #d97706', borderRadius: 5, background: 'transparent', color: '#92400e', padding: '3px 8px', cursor: 'pointer', fontWeight: 700 }}>
+              ›
+            </button>
+            <button
+              onClick={prepareHolidayImport}
+              style={{ padding: '5px 14px', borderRadius: 7, border: 'none', background: '#d97706', color: 'white', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+              Cargar festivos
+            </button>
+          </div>
+        </div>
+
+        {/* Preview panel */}
+        {holidayPreview !== null && (
+          <div style={{
+            background: '#fffbeb', border: '1px solid #f59e0b',
+            borderRadius: 10, padding: '14px 16px', marginBottom: 14,
+          }}>
+            {holidayPreview.length === 0 ? (
+              <div style={{ fontSize: 13, color: '#92400e', fontWeight: 600 }}>
+                ✓ Todos los festivos nacionales de {holidayYear} ya están en el calendario.
+              </div>
+            ) : (
+              <>
+                <div style={{ fontSize: 13, fontWeight: 800, color: '#92400e', marginBottom: 10 }}>
+                  Se agregarán {holidayPreview.length} festivos de {holidayYear}:
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+                  {holidayPreview.map(h => (
+                    <span key={h.date} style={{
+                      fontSize: 11, background: '#fff0d0', border: '1px solid #f59e0b',
+                      borderRadius: 5, padding: '2px 9px', color: '#92400e', fontWeight: 600,
+                    }}>
+                      🇨🇴 {h.name} · {new Date(h.date + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })}
+                    </span>
+                  ))}
+                </div>
+              </>
+            )}
+            <div style={{ display: 'flex', gap: 8 }}>
+              {holidayPreview.length > 0 && (
+                <button
+                  onClick={confirmHolidayImport}
+                  disabled={loadingHolidays}
+                  style={{ padding: '6px 18px', borderRadius: 7, border: 'none', background: '#d97706', color: 'white', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                  {loadingHolidays ? '⏳ Importando…' : `✓ Confirmar importación`}
+                </button>
+              )}
+              <button
+                onClick={() => setHolidayPreview(null)}
+                style={{ padding: '6px 14px', borderRadius: 7, border: '1px solid #d97706', background: 'transparent', color: '#92400e', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                Cancelar
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* ── Add form ── */}
         {showForm && (
