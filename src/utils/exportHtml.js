@@ -331,42 +331,29 @@ export function buildHtml(content) {
   </tr>
 </table>
 
-<!-- Logro -->
+<!-- Indicadores de Logro -->
 ${(() => {
-  const indicadores = o.indicadores?.filter(Boolean).length
-    ? o.indicadores.filter(Boolean)
-    : o.indicador ? [o.indicador] : []
-  if (!o.general && !indicadores.length) return ''
-  const indHtml = indicadores.length
-    ? `<ol style="margin:0;padding-left:18px;font-size:12px;line-height:1.8">${indicadores.map(ind => `<li>${ind}</li>`).join('')}</ol>`
-    : '<div style="font-size:12px;line-height:1.6">—</div>'
+  const rawInds = o.indicadores?.length ? o.indicadores : o.indicador ? [o.indicador] : []
+  const indicadores = rawInds.map(ind => typeof ind === 'object' ? (ind.texto_es || ind.texto_en || ind.habilidad || '') : (ind || '')).filter(Boolean)
+  if (!indicadores.length) return ''
+  const indHtml = `<ol style="margin:0;padding-left:18px;font-size:12px;line-height:1.8">${indicadores.map(ind => `<li>${esc(ind)}</li>`).join('')}</ol>`
   const principioRow = o.principio ? `
   <tr>
-    <td colspan="2" style="padding:8px 14px;background:#f0f5f0;border-top:1px solid #ddd;
-                           font-size:11px;color:#555;font-style:italic;border-left:3px solid #9BBB59">
+    <td style="padding:8px 14px;background:#f0f5f0;border-top:1px solid #ddd;
+               font-size:11px;color:#555;font-style:italic;border-left:3px solid #9BBB59">
       <strong style="font-style:normal;color:#9BBB59">Principio:</strong> ${esc(o.principio)}
     </td>
   </tr>` : ''
   return `
 <table style="width:100%;border:2px solid #2E5598;border-collapse:collapse;margin-bottom:12px">
   <tr>
-    <td colspan="2" style="background:#9BBB59;color:#fff;font-weight:700;font-size:12px;
-                           padding:7px 14px;text-transform:uppercase">
-      🎯 Logro de Aprendizaje
+    <td style="background:#9BBB59;color:#fff;font-weight:700;font-size:12px;
+               padding:7px 14px;text-transform:uppercase">
+      🎯 Indicadores de Logro
     </td>
   </tr>
   <tr>
-    <td style="width:50%;padding:10px 14px;vertical-align:top;
-               border-top:1px solid #ddd;border-right:1px solid #ddd">
-      <div style="font-size:10px;font-weight:700;color:#9BBB59;text-transform:uppercase;margin-bottom:5px">
-        Logro
-      </div>
-      <div style="font-size:12px;line-height:1.6">${o.general || '—'}</div>
-    </td>
-    <td style="width:50%;padding:10px 14px;vertical-align:top;border-top:1px solid #ddd">
-      <div style="font-size:10px;font-weight:700;color:#9BBB59;text-transform:uppercase;margin-bottom:5px">
-        Indicadores de Logro
-      </div>
+    <td style="padding:10px 14px;vertical-align:top;border-top:1px solid #ddd">
       ${indHtml}
     </td>
   </tr>

@@ -725,44 +725,34 @@ export async function exportGuideDocx(content, filename) {
   children.push(infoTable2, emptyPara())
 
   // ── TABLE 2b: Logro ──
-  const _indicadores = o.indicadores?.filter(Boolean).length
-    ? o.indicadores.filter(Boolean)
-    : o.indicador ? [o.indicador] : []
-  if (o.general || _indicadores.length) {
-    const halfW = Math.floor(PW / 2)
-    const indParas = _indicadores.length
-      ? _indicadores.flatMap((ind, idx) => [
-          mkP([
-            mkR(`${idx + 1}.  `, { bold: true, size: 18, color: '9BBB59' }),
-            mkR(ind, { size: 18 }),
-          ]),
-        ])
-      : [mkP(mkR('—', { size: 18 }))]
+  const rawInds = o.indicadores?.length ? o.indicadores : o.indicador ? [o.indicador] : []
+  const _indicadores = rawInds.map(ind => typeof ind === 'object' ? (ind.texto_es || ind.texto_en || ind.habilidad || '') : (ind || '')).filter(Boolean)
+  if (_indicadores.length) {
+    const indParas = _indicadores.flatMap((ind, idx) => [
+      mkP([
+        mkR(`${idx + 1}.  `, { bold: true, size: 18, color: '9BBB59' }),
+        mkR(ind, { size: 18 }),
+      ]),
+    ])
     const objTable = new Table({
       width:        { size: PW, type: WidthType.DXA },
-      columnWidths: [halfW, PW - halfW],
+      columnWidths: [PW],
       rows: [
         new TableRow({ children: [
-          mkCell([mkP(mkR('🎯  INDICADOR DE LOGRO', { bold: true, size: 20, color: 'FFFFFF' }), AlignmentType.CENTER)],
-            PW, { fill: '9BBB59', borders: allB(bBlue), span: 2 }),
+          mkCell([mkP(mkR('🎯  INDICADORES DE LOGRO', { bold: true, size: 20, color: 'FFFFFF' }), AlignmentType.CENTER)],
+            PW, { fill: '9BBB59', borders: allB(bBlue) }),
         ]}),
         new TableRow({ children: [
           mkCell([
-            mkP(mkR('Indicador de Logro', { bold: true, size: 16, color: '9BBB59' })),
-            emptyPara(),
-            ...htmlToParas(o.general, 18),
-          ], halfW, { borders: allB(bGray), va: VerticalAlign.TOP, margins: { top: 100, bottom: 100, left: 140, right: 100 } }),
-          mkCell([
-            mkP(mkR('Indicadores de Logro', { bold: true, size: 16, color: '9BBB59' })),
             emptyPara(),
             ...indParas,
-          ], PW - halfW, { borders: allB(bGray), va: VerticalAlign.TOP, margins: { top: 100, bottom: 100, left: 140, right: 120 } }),
+          ], PW, { borders: allB(bGray), va: VerticalAlign.TOP, margins: { top: 100, bottom: 100, left: 140, right: 120 } }),
         ]}),
         ...(o.principio ? [new TableRow({ children: [
           mkCell([mkP([
             mkR('Principio: ', { bold: true, size: 16, color: '9BBB59' }),
             mkR(o.principio, { italic: true, size: 16, color: '444444' }),
-          ])], PW, { fill: 'F2F7F0', borders: allB(bGray), span: 2, margins: { top: 80, bottom: 80, left: 140, right: 120 } }),
+          ])], PW, { fill: 'F2F7F0', borders: allB(bGray), margins: { top: 80, bottom: 80, left: 140, right: 120 } }),
         ]})] : []),
       ],
     })

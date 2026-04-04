@@ -918,49 +918,27 @@ export default function GuideEditorPage({ teacher }) {
                   })}
                 </div>
               )}
-              {richField('Indicador de Logro (va al documento exportado)',
-                content.objetivo.general, ['objetivo','general'],
-                'Al finalizar la semana, el estudiante estará en capacidad de…', 100)}
               <div className="ge-field">
                 <label>Indicadores de Logro</label>
-                {(content.objetivo.indicadores || ['']).map((ind, idx) => (
-                  <div key={idx} style={{ display: 'flex', gap: '8px', marginBottom: '8px', alignItems: 'flex-start' }}>
-                    <span style={{ minWidth: '18px', paddingTop: '8px', color: '#9BBB59', fontWeight: 700, fontSize: '13px' }}>{idx + 1}.</span>
-                    <textarea
-                      value={getIndText(ind)}
-                      onChange={e => {
-                        const arr = [...(content.objetivo.indicadores || [''])]
-                        arr[idx] = e.target.value
-                        setContentField(['objetivo', 'indicadores'], arr)
-                      }}
-                      placeholder="El estudiante demuestra el indicador cuando…"
-                      rows={2}
-                      className="ge-input"
-                      style={{ flex: 1, resize: 'vertical' }}
-                    />
-                    {content.objetivo.indicadores?.length > 1 && (
-                      <button
-                        onClick={() => {
-                          const arr = [...content.objetivo.indicadores]
-                          arr.splice(idx, 1)
-                          setContentField(['objetivo', 'indicadores'], arr)
-                        }}
-                        style={{ background: 'none', border: 'none', color: '#bbb', cursor: 'pointer', fontSize: '16px', padding: '6px 2px', lineHeight: 1 }}
-                        title="Eliminar indicador"
-                      >✕</button>
-                    )}
+                {(content.objetivo.indicadores || []).filter(i => getIndText(i)).length > 0 ? (
+                  <ol style={{ margin: '4px 0 8px', paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {content.objetivo.indicadores.filter(i => getIndText(i)).map((ind, idx) => (
+                      <li key={idx} style={{ fontSize: '13px', color: '#333', lineHeight: '1.5', padding: '6px 10px', background: '#f6fff0', borderRadius: '6px', border: '1px solid #d4edda' }}>
+                        {getIndText(ind)}
+                      </li>
+                    ))}
+                  </ol>
+                ) : (
+                  <div style={{ fontSize: '12px', color: '#aaa', fontStyle: 'italic', padding: '8px 0' }}>
+                    Vincula un indicador de logro arriba para ver los criterios aquí.
                   </div>
-                ))}
-                <button
-                  onClick={() => {
-                    const arr = [...(content.objetivo.indicadores || [''])]
-                    arr.push('')
-                    setContentField(['objetivo', 'indicadores'], arr)
-                  }}
-                  style={{ fontSize: '12px', color: '#9BBB59', border: '1px solid #9BBB59', background: 'none', borderRadius: '6px', padding: '4px 12px', cursor: 'pointer', marginTop: '2px' }}
-                >
-                  + Agregar indicador
-                </button>
+                )}
+                <div style={{ fontSize: '11px', color: '#999', marginTop: '4px' }}>
+                  Para editar los indicadores ve a{' '}
+                  <a href="#" onClick={e => { e.preventDefault(); navigate('/targets') }} style={{ color: '#2E5598' }}>
+                    Indicadores de Logro →
+                  </a>
+                </div>
               </div>
               {inputField('Principio del indicador institucional',
                 content.objetivo.principio, ['objetivo','principio'])}
