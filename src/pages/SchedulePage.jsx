@@ -346,7 +346,14 @@ function ScheduleGrid({ cellMap, view, slots }) {
                       verticalAlign: 'top',
                       minWidth: '90px',
                     }}>
-                      {entries.map(({ a, t, color }, i) => (
+                      {entries.length === 0 && view === 'teacher' ? (
+                        <div style={{
+                          fontSize: '9px', color: '#bbb', fontStyle: 'italic',
+                          padding: '2px 4px',
+                        }}>
+                          Admin Hours
+                        </div>
+                      ) : entries.map(({ a, t, color }, i) => (
                         <CellBlock key={i} a={a} t={t} color={color} view={view} conflict={hasConflict} />
                       ))}
                     </td>
