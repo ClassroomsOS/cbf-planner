@@ -2,9 +2,11 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { LESSON_PLAN_STATUS as STATUS_CONFIG, LESSON_PLAN_STATUS_ORDER as STATUS_ORDER } from '../utils/constants'
+import { useToast } from '../context/ToastContext'
 
 export default function MyPlansPage({ teacher }) {
   const navigate = useNavigate()
+  const { showToast } = useToast()
   const [plans,         setPlans]         = useState([])
   const [loading,       setLoading]       = useState(true)
   const [filterGrade,   setFilterGrade]   = useState('all')
@@ -32,7 +34,8 @@ export default function MyPlansPage({ teacher }) {
     e.stopPropagation()
     const idx    = STATUS_ORDER.indexOf(plan.status || 'draft')
     const nextSt = STATUS_ORDER[(idx + 1) % STATUS_ORDER.length]
-    await supabase.from('lesson_plans').update({ status: nextSt }).eq('id', plan.id)
+    const { error } = await supabase.from('lesson_plans').update({ status: nextSt }).eq('id', plan.id)
+    if (error) { showToast('Error al cambiar el estado', 'error'); return }
     setPlans(prev => prev.map(p => p.id === plan.id ? { ...p, status: nextSt } : p))
 
     // Notify admin when submitted
@@ -91,7 +94,7 @@ export default function MyPlansPage({ teacher }) {
       newContent.info.fechas  = fmtRange(nextMonday)
     }
 
-    const { data: newPlan } = await supabase
+    const { data: newPlan, error } = await supabase
       .from('lesson_plans')
       .insert({
         teacher_id:  teacher.id,
@@ -108,11 +111,13 @@ export default function MyPlansPage({ teacher }) {
       .select()
       .single()
     setDuplicating(null)
+    if (error) { showToast('Error al duplicar la guía', 'error'); return }
     if (newPlan) { await fetchPlans(); navigate(`/editor/${newPlan.id}`) }
   }
 
   async function confirmDeletePlan() {
-    await supabase.from('lesson_plans').delete().eq('id', confirmDelete)
+    const { error } = await supabase.from('lesson_plans').delete().eq('id', confirmDelete)
+    if (error) { showToast('Error al eliminar la guía', 'error'); return }
     setPlans(prev => prev.filter(p => p.id !== confirmDelete))
     setConfirmDelete(null)
   }

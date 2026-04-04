@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { canManage } from '../utils/roles'
+import { useToast } from '../context/ToastContext'
 
 const TYPE_CONFIG = {
   plan_submitted: { icon: '📬', label: 'Guía enviada',   color: '#F79646' },
@@ -18,6 +19,7 @@ const TARGET_LABELS = {
 export default function NotificationsPage({ teacher, onRead }) {
   const navigate   = useNavigate()
   const isAdmin    = canManage(teacher.role)
+  const { showToast } = useToast()
   const [tab,      setTab]      = useState(isAdmin ? 'announcements' : 'notifs')
   const [notifs,   setNotifs]   = useState([])
   const [announce, setAnnounce] = useState([])
@@ -68,13 +70,14 @@ export default function NotificationsPage({ teacher, onRead }) {
   async function sendAnnouncement() {
     if (!form.title.trim() || !form.body.trim()) return
     setSending(true)
-    await supabase.from('announcements').insert({
+    const { error } = await supabase.from('announcements').insert({
       school_id:   teacher.school_id,
       author_id:   teacher.id,
       title:       form.title.trim(),
       body:        form.body.trim(),
       target_role: form.target_role,
     })
+    if (error) { showToast('Error al publicar el anuncio', 'error'); setSending(false); return }
     setForm({ title: '', body: '', target_role: 'all' })
     setShowForm(false)
     await fetchAnnouncements()
@@ -83,7 +86,8 @@ export default function NotificationsPage({ teacher, onRead }) {
 
   async function deleteAnnouncement(id) {
     if (!confirm('¿Eliminar este anuncio?')) return
-    await supabase.from('announcements').delete().eq('id', id)
+    const { error } = await supabase.from('announcements').delete().eq('id', id)
+    if (error) { showToast('Error al eliminar el anuncio', 'error'); return }
     setAnnounce(prev => prev.filter(a => a.id !== id))
   }
 

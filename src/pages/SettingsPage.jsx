@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { useFeatures } from '../context/FeaturesContext'
+import { useToast } from '../context/ToastContext'
 
 const FEATURE_GROUPS = [
   {
@@ -88,6 +89,7 @@ const SLOT_COLORS = [
 export default function SettingsPage({ teacher }) {
   const navigate = useNavigate()
   const { features, loading, updateFeature } = useFeatures()
+  const { showToast } = useToast()
   const [saving, setSaving] = useState(null)
   const [saved,  setSaved]  = useState(null)
 
@@ -121,7 +123,7 @@ export default function SettingsPage({ teacher }) {
   async function handleAddSlot() {
     if (!slotForm.name.trim() || !slotForm.start_time || !slotForm.end_time) return
     setSlotSaving(true)
-    const { data } = await supabase.from('schedule_slots').insert({
+    const { data, error } = await supabase.from('schedule_slots').insert({
       school_id:  teacher.school_id,
       name:       slotForm.name.trim().toUpperCase(),
       start_time: slotForm.start_time,
@@ -129,6 +131,7 @@ export default function SettingsPage({ teacher }) {
       level:      slotForm.level || null,
       color:      slotForm.color,
     }).select().single()
+    if (error) { showToast('Error al agregar la franja', 'error'); setSlotSaving(false); return }
     if (data) setSlots(prev => [...prev, data].sort((a, b) => a.start_time.localeCompare(b.start_time)))
     setSlotForm({ name: '', start_time: '', end_time: '', level: '', color: '#F79646' })
     setSlotSaving(false)
@@ -136,7 +139,8 @@ export default function SettingsPage({ teacher }) {
 
   async function handleDeleteSlot(id) {
     if (!confirm('¿Eliminar esta franja?')) return
-    await supabase.from('schedule_slots').delete().eq('id', id)
+    const { error } = await supabase.from('schedule_slots').delete().eq('id', id)
+    if (error) { showToast('Error al eliminar la franja', 'error'); return }
     setSlots(prev => prev.filter(s => s.id !== id))
   }
 
@@ -156,7 +160,8 @@ export default function SettingsPage({ teacher }) {
 
   async function saveSchoolIdentity() {
     setSchoolSaving(true)
-    await supabase.from('schools').update(schoolForm).eq('id', teacher.school_id)
+    const { error } = await supabase.from('schools').update(schoolForm).eq('id', teacher.school_id)
+    if (error) { showToast('Error al guardar la identidad institucional', 'error'); setSchoolSaving(false); return }
     setSchool(prev => ({ ...prev, ...schoolForm }))
     setSchoolSaving(false)
     setSchoolSaved(true)
@@ -172,14 +177,18 @@ export default function SettingsPage({ teacher }) {
       .from('guide-images').upload(path, file, { upsert: true })
     if (!error) {
       const { data: urlData } = supabase.storage.from('guide-images').getPublicUrl(path)
-      await supabase.from('schools').update({ logo_url: urlData.publicUrl }).eq('id', teacher.school_id)
-      setSchool(prev => ({ ...prev, logo_url: urlData.publicUrl }))
+      const { error: dbErr } = await supabase.from('schools').update({ logo_url: urlData.publicUrl }).eq('id', teacher.school_id)
+      if (!dbErr) setSchool(prev => ({ ...prev, logo_url: urlData.publicUrl }))
+      else showToast('Error al guardar el logo', 'error')
+    } else {
+      showToast('Error al subir el logo', 'error')
     }
     setLogoUploading(false)
   }
 
   async function removeLogo() {
-    await supabase.from('schools').update({ logo_url: null }).eq('id', teacher.school_id)
+    const { error } = await supabase.from('schools').update({ logo_url: null }).eq('id', teacher.school_id)
+    if (error) { showToast('Error al quitar el logo', 'error'); return }
     setSchool(prev => ({ ...prev, logo_url: null }))
   }
 

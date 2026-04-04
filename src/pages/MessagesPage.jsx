@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react'
 import { useFeatures } from '../context/FeaturesContext'
 import { supabase } from '../supabase'
 import { canManage } from '../utils/roles'
+import { useToast } from '../context/ToastContext'
 
 export default function MessagesPage({ teacher }) {
   const { features } = useFeatures()
+  const { showToast } = useToast()
   if (features.messages === false) return (
     <div className="planner-wrap">
       <div className="card">
@@ -50,7 +52,7 @@ export default function MessagesPage({ teacher }) {
   async function sendMessage() {
     if (!form.to_id || !form.body.trim()) return
     setSending(true)
-    await supabase.from('messages').insert({
+    const { error } = await supabase.from('messages').insert({
       school_id: teacher.school_id,
       from_id:   teacher.id,
       to_id:     form.to_id,
@@ -58,6 +60,7 @@ export default function MessagesPage({ teacher }) {
       body:      form.body.trim(),
       read:      false,
     })
+    if (error) { showToast('Error al enviar el mensaje', 'error'); setSending(false); return }
     setForm({ to_id: '', subject: '', body: '' })
     setShowCompose(false)
     await fetchMessages()

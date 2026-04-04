@@ -1,6 +1,7 @@
 import { useState, useCallback, memo } from 'react'
 import { supabase } from '../supabase'
 import { useFocusTrap } from '../hooks/useFocusTrap'
+import { useToast } from '../context/ToastContext'
 
 // ── CheckpointModal ─────────────────────────────────────────────────────────
 // Appears before creating a new guide when the previous week had a
@@ -51,6 +52,7 @@ const TAXONOMY_LABELS = {
 }
 
 const CheckpointModal = memo(function CheckpointModal({ previousPlan, target, teacher, onComplete, onSkip, onClose }) {
+  const { showToast } = useToast()
   const [selected, setSelected] = useState(null)
   const [notes, setNotes]       = useState('')
   const [saving, setSaving]     = useState(false)
@@ -61,7 +63,7 @@ const CheckpointModal = memo(function CheckpointModal({ previousPlan, target, te
     if (!selected) return
     setSaving(true)
 
-    await supabase.from('checkpoints').upsert({
+    const { error } = await supabase.from('checkpoints').upsert({
       target_id:   target.id,
       plan_id:     previousPlan.id,
       teacher_id:  teacher.id,
@@ -76,8 +78,9 @@ const CheckpointModal = memo(function CheckpointModal({ previousPlan, target, te
     })
 
     setSaving(false)
+    if (error) { showToast('Error al guardar el checkpoint', 'error'); return }
     onComplete()
-  }, [selected, notes, target.id, previousPlan, teacher, onComplete])
+  }, [selected, notes, target.id, previousPlan, teacher, onComplete, showToast])
 
   return (
     <div

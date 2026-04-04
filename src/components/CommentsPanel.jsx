@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import { canManage, roleLabel } from '../utils/roles'
+import { useToast } from '../context/ToastContext'
 
 export default function CommentsPanel({ planId, teacher, onClose }) {
+  const { showToast } = useToast()
   const [comments, setComments] = useState([])
   const [newComment, setNewComment] = useState('')
   const [loading, setLoading] = useState(true)
@@ -24,21 +26,23 @@ export default function CommentsPanel({ planId, teacher, onClose }) {
   async function sendComment() {
     if (!newComment.trim()) return
     setSending(true)
-    await supabase.from('plan_comments').insert({
+    const { error } = await supabase.from('plan_comments').insert({
       plan_id:   planId,
       author_id: teacher.id,
       school_id: teacher.school_id,
       body:      newComment.trim(),
     })
+    if (error) { showToast('Error al enviar el comentario', 'error'); setSending(false); return }
     setNewComment('')
     await fetchComments()
     setSending(false)
   }
 
   async function toggleResolved(comment) {
-    await supabase.from('plan_comments')
+    const { error } = await supabase.from('plan_comments')
       .update({ resolved: !comment.resolved })
       .eq('id', comment.id)
+    if (error) { showToast('Error al actualizar el comentario', 'error'); return }
     await fetchComments()
   }
 

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../supabase'
 import { DAYS, GRADES, SECTIONS_LIST, ACADEMIC_PERIODS } from '../utils/constants'
+import { useToast } from '../context/ToastContext'
 
 // ── AgendaPage ────────────────────────────────────────────────
 // Agenda Semanal Automática — Sprint 5
@@ -62,6 +63,7 @@ function todayMonday() {
 
 // ── Main component ────────────────────────────────────────────
 export default function AgendaPage({ teacher }) {
+  const { showToast } = useToast()
   const [view,       setView]      = useState('list')   // 'list' | 'edit'
   const [agendas,    setAgendas]   = useState([])
   const [allPlans,   setAllPlans]  = useState([])       // lesson_plans for import
@@ -140,7 +142,8 @@ export default function AgendaPage({ teacher }) {
 
   async function handleDelete(id) {
     if (!confirm('¿Eliminar esta agenda?')) return
-    await supabase.from('weekly_agendas').delete().eq('id', id)
+    const { error } = await supabase.from('weekly_agendas').delete().eq('id', id)
+    if (error) { showToast('Error al eliminar la agenda', 'error'); return }
     setAgendas(prev => prev.filter(a => a.id !== id))
   }
 
@@ -241,6 +244,7 @@ export default function AgendaPage({ teacher }) {
 
 // ── AgendaEditor ──────────────────────────────────────────────
 function AgendaEditor({ agenda, teacher, allPlans, allTeachers, onSave, onCancel }) {
+  const { showToast } = useToast()
   const [form,      setForm]      = useState({ ...agenda })
   const [entries,   setEntries]   = useState(agenda.content?.entries || [])
   const [saving,    setSaving]    = useState(false)
@@ -330,12 +334,14 @@ function AgendaEditor({ agenda, teacher, allPlans, allTeachers, onSave, onCancel
       created_by: teacher.id,
       updated_at: new Date().toISOString(),
     }
+    let error
     if (form.id) {
-      await supabase.from('weekly_agendas').update(payload).eq('id', form.id)
+      ({ error } = await supabase.from('weekly_agendas').update(payload).eq('id', form.id))
     } else {
-      await supabase.from('weekly_agendas').insert(payload)
+      ({ error } = await supabase.from('weekly_agendas').insert(payload))
     }
     setSaving(false)
+    if (error) { showToast('Error al guardar la agenda', 'error'); return }
     onSave()
   }
 

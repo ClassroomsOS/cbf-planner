@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import { LEVEL_LABELS } from '../utils/roles'
+import { useToast } from '../context/ToastContext'
 
 const MONTHS_ES = [
   'Enero','Febrero','Marzo','Abril','Mayo','Junio',
@@ -42,6 +43,7 @@ const BLANK_FORM = {
 }
 
 export default function CalendarPage({ teacher }) {
+  const { showToast } = useToast()
   const [entries,    setEntries]    = useState([])
   const [loading,    setLoading]    = useState(true)
   const [showForm,   setShowForm]   = useState(false)
@@ -93,11 +95,10 @@ export default function CalendarPage({ teacher }) {
       await createCalendarAnnouncement(saved)
     }
     setSaving(false)
-    if (!error) {
-      setShowForm(false)
-      setForm(BLANK_FORM)
-      fetchEntries()
-    }
+    if (error) { showToast('Error al guardar el evento', 'error'); return }
+    setShowForm(false)
+    setForm(BLANK_FORM)
+    fetchEntries()
   }
 
   async function createCalendarAnnouncement(entry) {
@@ -114,7 +115,8 @@ export default function CalendarPage({ teacher }) {
   }
 
   async function handleDelete(id) {
-    await supabase.from('school_calendar').delete().eq('id', id)
+    const { error } = await supabase.from('school_calendar').delete().eq('id', id)
+    if (error) { showToast('Error al eliminar el evento', 'error'); return }
     setDeleteId(null)
     fetchEntries()
   }

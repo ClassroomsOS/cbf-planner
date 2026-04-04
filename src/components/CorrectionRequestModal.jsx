@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, memo } from 'react'
 import { supabase } from '../supabase'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import { canManage } from '../utils/roles'
+import { useToast } from '../context/ToastContext'
 
 const SECTION_LABELS = {
   subject: 'Subject to be Worked', motivation: 'Motivation',
@@ -15,6 +16,7 @@ const SECTION_COLORS = {
 }
 
 const CorrectionRequestModal = memo(function CorrectionRequestModal({ planId, teacher, onClose }) {
+  const { showToast } = useToast()
   const [requests, setRequests] = useState([])
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
@@ -54,7 +56,7 @@ const CorrectionRequestModal = memo(function CorrectionRequestModal({ planId, te
   const sendRequest = useCallback(async () => {
     if (!form.body.trim() || !form.day_iso) return
     setSending(true)
-    await supabase.from('correction_requests').insert({
+    const { error } = await supabase.from('correction_requests').insert({
       plan_id:     planId,
       author_id:   teacher.id,
       school_id:   teacher.school_id,
@@ -63,16 +65,18 @@ const CorrectionRequestModal = memo(function CorrectionRequestModal({ planId, te
       body:        form.body.trim(),
       status:      'pending',
     })
+    if (error) { showToast('Error al enviar la solicitud', 'error'); setSending(false); return }
     setForm(f => ({ ...f, body: '' }))
     setShowForm(false)
     await fetchRequests()
     setSending(false)
-  }, [form, planId, teacher.id, teacher.school_id, fetchRequests])
+  }, [form, planId, teacher.id, teacher.school_id, fetchRequests, showToast])
 
   const updateStatus = useCallback(async (id, status) => {
-    await supabase.from('correction_requests').update({ status }).eq('id', id)
+    const { error } = await supabase.from('correction_requests').update({ status }).eq('id', id)
+    if (error) { showToast('Error al actualizar el estado', 'error'); return }
     await fetchRequests()
-  }, [fetchRequests])
+  }, [fetchRequests, showToast])
 
   const formatDate = useCallback((ts) => {
     return new Date(ts).toLocaleDateString('es-CO', {

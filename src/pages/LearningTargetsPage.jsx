@@ -258,16 +258,18 @@ export default function LearningTargetsPage({ teacher }) {
     }
 
     if (editingId) {
-      await supabase
+      const { error } = await supabase
         .from('learning_targets')
         .update(payload)
         .eq('id', editingId)
+      if (error) { showToast('Error al actualizar el indicador', 'error'); setSaving(false); return }
     } else {
-      const { data: newTarget } = await supabase
+      const { data: newTarget, error } = await supabase
         .from('learning_targets')
         .insert(payload)
         .select('id')
         .single()
+      if (error) { showToast('Error al crear el indicador', 'error'); setSaving(false); return }
 
       // Auto-create 4 linked NEWS projects for Modelo B
       if (isModeloB && newTarget?.id) {
@@ -296,8 +298,9 @@ export default function LearningTargetsPage({ teacher }) {
             actividades_evaluativas: [],
           }
         })
-        await supabase.from('news_projects').insert(newsProjects)
-        showToast('Indicador de logro creado. 4 proyectos NEWS generados automáticamente.', 'success')
+        const { error: newsErr } = await supabase.from('news_projects').insert(newsProjects)
+        if (newsErr) showToast('Indicador creado, pero hubo un error al generar los proyectos NEWS', 'warning')
+        else showToast('Indicador de logro creado. 4 proyectos NEWS generados automáticamente.', 'success')
       }
     }
 
@@ -309,16 +312,18 @@ export default function LearningTargetsPage({ teacher }) {
   // ── Delete ──
   async function handleDelete(id) {
     if (!window.confirm('¿Eliminar este indicador de logro?')) return
-    await supabase.from('learning_targets').delete().eq('id', id)
+    const { error } = await supabase.from('learning_targets').delete().eq('id', id)
+    if (error) { showToast('Error al eliminar el indicador', 'error'); return }
     await loadData()
   }
 
   // ── Toggle active ──
   async function handleToggleActive(id, currentlyActive) {
-    await supabase
+    const { error } = await supabase
       .from('learning_targets')
       .update({ is_active: !currentlyActive })
       .eq('id', id)
+    if (error) { showToast('Error al cambiar el estado', 'error'); return }
     await loadData()
   }
 
