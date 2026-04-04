@@ -141,7 +141,7 @@ export default function GuideEditorPage({ teacher }) {
   // Core state (complex, keep as useState)
   const [plan,          setPlan]          = useState(null)
   const [content,       setContent]       = useState(null)
-  const [activePanel,   setActivePanel]   = useState('objetivo')
+  const [activePanel,   setActivePanel]   = useState('verse')
   const [openSections,  setOpenSections]  = useState({})
   const [saveStatus,    setSaveStatus]    = useState('saved')
   const [loading,       setLoading]       = useState(true)
@@ -606,8 +606,8 @@ export default function GuideEditorPage({ teacher }) {
     : []
 
   const panels = [
-    { key: 'objetivo', label: '1 · Indicador',    dot: '#9BBB59' },
-    { key: 'verse',    label: '2 · Versículo',   dot: '#C9A84C' },
+    { key: 'verse',    label: '1 · Versículo',    dot: '#C9A84C' },
+    { key: 'objetivo', label: '2 · Indicador',   dot: '#9BBB59' },
     ...dayPanels.map(d => ({
       key: d.key, iso: d.iso, label: d.label,
       sub: `${MONTHS_ES[parseInt(d.iso.slice(5,7))-1]} ${parseInt(d.iso.slice(8,10))}`,
@@ -916,7 +916,7 @@ export default function GuideEditorPage({ teacher }) {
           {/* ── Back to editing button (shown inside admin-only panels) ── */}
           {(activePanel === 'header' || activePanel === 'info') && (
             <div style={{ marginBottom: '12px' }}>
-              <button className="ge-context-back-btn" onClick={() => setActivePanel('objetivo')}>
+              <button className="ge-context-back-btn" onClick={() => setActivePanel('verse')}>
                 ← Volver al editor
               </button>
               {activePanel === 'header' && (
@@ -989,7 +989,7 @@ export default function GuideEditorPage({ teacher }) {
           {/* OBJETIVO */}
           {activePanel === 'objetivo' && (
             <div className="card">
-              <div className="card-title"><div className="badge">1</div> Indicador de Logro</div>
+              <div className="card-title"><div className="badge">2</div> Indicador de Logro</div>
               <LearningTargetSelector
                 planId={id}
                 subject={content.info.asignatura}
@@ -1070,7 +1070,7 @@ export default function GuideEditorPage({ teacher }) {
           {/* VERSÍCULO */}
           {activePanel === 'verse' && (
             <div className="card">
-              <div className="card-title"><div className="badge">2</div> Versículo del año — AÑO DE LA PUREZA</div>
+              <div className="card-title"><div className="badge">1</div> Versículo del año — AÑO DE LA PUREZA</div>
               <div className="verse-box">
                 {content.verse.text || school.year_verse}
                 <span className="verse-ref">— {content.verse.ref || school.year_verse_ref}</span>
