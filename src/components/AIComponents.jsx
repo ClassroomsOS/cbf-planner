@@ -104,14 +104,33 @@ export const AIAnalyzerModal = memo(function AIAnalyzerModal({ content, onClose,
   // Auto-analyze on open
   useEffect(() => { handleAnalyze() }, [handleAnalyze])
 
+  // Render inline markdown: **bold**, *italic*, and ## headers stripped
+  function renderMd(text) {
+    if (!text) return null
+    return text.split('\n').filter((l, i, arr) => {
+      // collapse consecutive blank lines into one
+      return l.trim() || (i > 0 && arr[i - 1].trim())
+    }).map((line, i) => {
+      if (!line.trim()) return <br key={i} />
+      // Strip leading #, -, * list markers for display, but keep numbered
+      const clean = line.replace(/^#{1,4}\s+/, '').replace(/^[-*]\s+/, '• ')
+      // Split on **bold** spans
+      const segments = clean.split(/\*\*(.*?)\*\*/g)
+      const nodes = segments.map((seg, j) =>
+        j % 2 === 1 ? <strong key={j}>{seg}</strong> : seg
+      )
+      return <p key={i} style={{ margin: '1px 0', lineHeight: 1.7 }}>{nodes}</p>
+    })
+  }
+
   // Format analysis with colored sections
   function formatAnalysis(text) {
     if (!text) return null
     const sections = [
-      { marker: '✅ Fortalezas',                  color: '#9BBB59', bg: '#f0fff4' },
-      { marker: '⚠️ Alertas',                     color: '#F79646', bg: '#fffbf0' },
-      { marker: '💡 Sugerencias',                 color: '#4BACC6', bg: '#f0faff' },
-      { marker: '📊 Balance de tiempos',          color: '#8064A2', bg: '#f8f4ff' },
+      { marker: '✅ Fortalezas',                       color: '#9BBB59', bg: '#f0fff4' },
+      { marker: '⚠️ Alertas',                          color: '#F79646', bg: '#fffbf0' },
+      { marker: '💡 Sugerencias',                      color: '#4BACC6', bg: '#f0faff' },
+      { marker: '📊 Balance de tiempos',               color: '#8064A2', bg: '#f8f4ff' },
       { marker: '🙏 Integración del principio bíblico', color: '#C9A84C', bg: '#fffbf0' },
     ]
 
@@ -124,8 +143,10 @@ export const AIAnalyzerModal = memo(function AIAnalyzerModal({ content, onClose,
     })
 
     return result.split('\n§SECTION§').map((block, i) => {
-      if (i === 0) return block ? (
-        <p key={i} style={{ fontSize: '13px', color: '#444', lineHeight: 1.7, marginBottom: '12px' }}>{block}</p>
+      if (i === 0) return block.trim() ? (
+        <div key={i} style={{ fontSize: '13px', color: '#444', marginBottom: '12px' }}>
+          {renderMd(block.trim())}
+        </div>
       ) : null
 
       const parts = block.split('§')
@@ -141,8 +162,8 @@ export const AIAnalyzerModal = memo(function AIAnalyzerModal({ content, onClose,
           marginBottom: '12px',
         }}>
           <div style={{ fontWeight: 700, fontSize: '13px', color, marginBottom: '8px' }}>{marker}</div>
-          <div style={{ fontSize: '12px', color: '#444', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
-            {body.trim()}
+          <div style={{ fontSize: '12px', color: '#444' }}>
+            {renderMd(body.trim())}
           </div>
         </div>
       )
