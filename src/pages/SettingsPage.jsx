@@ -73,6 +73,18 @@ const FEATURE_GROUPS = [
   },
 ]
 
+const LEVEL_LABELS_LOCAL = { elementary: 'Primaria', middle: 'Bachillerato Básico', high: 'Bachillerato Superior' }
+
+const SLOT_COLORS = [
+  { value: '#F79646', label: 'Naranja'  },
+  { value: '#4BACC6', label: 'Azul'     },
+  { value: '#9BBB59', label: 'Verde'    },
+  { value: '#C0504D', label: 'Rojo'     },
+  { value: '#8064A2', label: 'Morado'   },
+  { value: '#1F3864', label: 'Marino'   },
+  { value: '#C9A84C', label: 'Dorado'   },
+]
+
 export default function SettingsPage({ teacher }) {
   const navigate = useNavigate()
   const { features, loading, updateFeature } = useFeatures()
@@ -86,6 +98,47 @@ export default function SettingsPage({ teacher }) {
   const [schoolSaving,  setSchoolSaving]  = useState(false)
   const [schoolSaved,   setSchoolSaved]   = useState(false)
   const [logoUploading, setLogoUploading] = useState(false)
+
+  // ── Franjas del Horario ──
+  const [showSlots,   setShowSlots]   = useState(false)
+  const [slots,       setSlots]       = useState([])
+  const [slotsLoaded, setSlotsLoaded] = useState(false)
+  const [slotForm,    setSlotForm]    = useState({ name: '', start_time: '', end_time: '', level: '', color: '#F79646' })
+  const [slotSaving,  setSlotSaving]  = useState(false)
+
+  async function fetchSlots() {
+    const { data } = await supabase.from('schedule_slots')
+      .select('*').eq('school_id', teacher.school_id).order('start_time')
+    setSlots(data || [])
+    setSlotsLoaded(true)
+  }
+
+  function toggleSlots() {
+    setShowSlots(v => !v)
+    if (!slotsLoaded) fetchSlots()
+  }
+
+  async function handleAddSlot() {
+    if (!slotForm.name.trim() || !slotForm.start_time || !slotForm.end_time) return
+    setSlotSaving(true)
+    const { data } = await supabase.from('schedule_slots').insert({
+      school_id:  teacher.school_id,
+      name:       slotForm.name.trim().toUpperCase(),
+      start_time: slotForm.start_time,
+      end_time:   slotForm.end_time,
+      level:      slotForm.level || null,
+      color:      slotForm.color,
+    }).select().single()
+    if (data) setSlots(prev => [...prev, data].sort((a, b) => a.start_time.localeCompare(b.start_time)))
+    setSlotForm({ name: '', start_time: '', end_time: '', level: '', color: '#F79646' })
+    setSlotSaving(false)
+  }
+
+  async function handleDeleteSlot(id) {
+    if (!confirm('¿Eliminar esta franja?')) return
+    await supabase.from('schedule_slots').delete().eq('id', id)
+    setSlots(prev => prev.filter(s => s.id !== id))
+  }
 
   useEffect(() => {
     supabase.from('schools').select('*').eq('id', teacher.school_id).single()
@@ -243,6 +296,31 @@ export default function SettingsPage({ teacher }) {
               {showIdentity ? '▲' : '▼'}
             </span>
           </button>
+
+          <button
+            onClick={toggleSlots}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '10px',
+              background: showSlots ? '#fff8f0' : '#f0f4ff',
+              border: `1px solid ${showSlots ? '#F79646' : '#c0d0f0'}`,
+              borderRadius: '10px', padding: '12px 18px', cursor: 'pointer',
+              textAlign: 'left', flex: '1', minWidth: '180px',
+              transition: 'all .15s',
+            }}
+          >
+            <span style={{ fontSize: '24px' }}>🕐</span>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: '13px', color: '#1F3864' }}>
+                Franjas del Horario
+              </div>
+              <div style={{ fontSize: '11px', color: '#888', marginTop: '2px' }}>
+                Devocional, recesos, almuerzos por nivel
+              </div>
+            </div>
+            <span style={{ marginLeft: 'auto', fontSize: '12px', color: '#aaa' }}>
+              {showSlots ? '▲' : '▼'}
+            </span>
+          </button>
         </div>
 
         {/* ── Identidad institucional expandible ── */}
@@ -347,6 +425,124 @@ export default function SettingsPage({ teacher }) {
             </div>
             <div style={{ fontSize: '10px', color: '#bbb', marginTop: '8px' }}>
               Estos datos aparecen en el encabezado de todas las guías y proyectos NEWS exportados.
+            </div>
+          </div>
+        )}
+      </div>
+
+        {/* ── Franjas del Horario expandible ── */}
+        {showSlots && (
+          <div style={{ marginTop: '14px', borderTop: '1px solid #ffe0c0', paddingTop: '14px' }}>
+
+            {/* Existing slots */}
+            {slots.length === 0 && slotsLoaded && (
+              <div style={{ fontSize: '12px', color: '#aaa', marginBottom: '14px', fontStyle: 'italic' }}>
+                Sin franjas configuradas aún.
+              </div>
+            )}
+            {slots.map(s => (
+              <div key={s.id} style={{
+                display: 'flex', alignItems: 'center', gap: '10px',
+                padding: '8px 12px', borderRadius: '8px', marginBottom: '6px',
+                background: s.color + '15', border: `1.5px solid ${s.color}44`,
+              }}>
+                <span style={{
+                  width: '12px', height: '12px', borderRadius: '50%',
+                  background: s.color, flexShrink: 0, display: 'inline-block',
+                }} />
+                <div style={{ flex: 1 }}>
+                  <span style={{ fontWeight: 700, fontSize: '12px', color: '#1F3864' }}>{s.name}</span>
+                  <span style={{ fontSize: '11px', color: '#888', marginLeft: '8px' }}>
+                    {s.start_time.slice(0,5)} – {s.end_time.slice(0,5)}
+                  </span>
+                  {s.level && (
+                    <span style={{ fontSize: '10px', color: '#2E5598', marginLeft: '8px',
+                      background: '#eef2fb', padding: '1px 7px', borderRadius: '8px' }}>
+                      {LEVEL_LABELS_LOCAL[s.level]}
+                    </span>
+                  )}
+                  {!s.level && (
+                    <span style={{ fontSize: '10px', color: '#888', marginLeft: '8px',
+                      background: '#f5f5f5', padding: '1px 7px', borderRadius: '8px' }}>
+                      Todos los niveles
+                    </span>
+                  )}
+                </div>
+                <button onClick={() => handleDeleteSlot(s.id)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer',
+                    color: '#C0504D', fontSize: '14px', padding: '2px 6px' }}>
+                  🗑
+                </button>
+              </div>
+            ))}
+
+            {/* Add new slot form */}
+            <div style={{
+              background: '#f8faff', border: '1.5px solid #dde5f0',
+              borderRadius: '10px', padding: '14px', marginTop: '10px',
+            }}>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: '#2E5598',
+                textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: '10px' }}>
+                ➕ Agregar franja
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '10px', marginBottom: '10px' }}>
+                <div>
+                  <label style={{ fontSize: '11px', color: '#888', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Nombre</label>
+                  <input type="text" value={slotForm.name}
+                    placeholder="DEVOCIONAL"
+                    onChange={e => setSlotForm(p => ({ ...p, name: e.target.value }))}
+                    style={{ width: '100%', boxSizing: 'border-box', border: '1px solid #d0d8e8',
+                      borderRadius: '7px', padding: '7px 10px', fontSize: '12px' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '11px', color: '#888', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Inicio</label>
+                  <input type="time" value={slotForm.start_time}
+                    onChange={e => setSlotForm(p => ({ ...p, start_time: e.target.value }))}
+                    style={{ width: '100%', boxSizing: 'border-box', border: '1px solid #d0d8e8',
+                      borderRadius: '7px', padding: '7px 10px', fontSize: '12px' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '11px', color: '#888', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Fin</label>
+                  <input type="time" value={slotForm.end_time}
+                    onChange={e => setSlotForm(p => ({ ...p, end_time: e.target.value }))}
+                    style={{ width: '100%', boxSizing: 'border-box', border: '1px solid #d0d8e8',
+                      borderRadius: '7px', padding: '7px 10px', fontSize: '12px' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '11px', color: '#888', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Nivel</label>
+                  <select value={slotForm.level}
+                    onChange={e => setSlotForm(p => ({ ...p, level: e.target.value }))}
+                    style={{ width: '100%', border: '1px solid #d0d8e8',
+                      borderRadius: '7px', padding: '7px 10px', fontSize: '12px' }}>
+                    <option value="">Todos los niveles</option>
+                    {Object.entries(LEVEL_LABELS_LOCAL).map(([k, v]) => (
+                      <option key={k} value={k}>{v}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: '11px', color: '#888', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Color</label>
+                  <select value={slotForm.color}
+                    onChange={e => setSlotForm(p => ({ ...p, color: e.target.value }))}
+                    style={{ width: '100%', border: '1px solid #d0d8e8',
+                      borderRadius: '7px', padding: '7px 10px', fontSize: '12px' }}>
+                    {SLOT_COLORS.map(c => (
+                      <option key={c.value} value={c.value}>{c.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <button
+                onClick={handleAddSlot}
+                disabled={slotSaving || !slotForm.name.trim() || !slotForm.start_time || !slotForm.end_time}
+                style={{
+                  background: slotSaving ? '#ccc' : '#2E5598', color: '#fff',
+                  border: 'none', borderRadius: '8px', padding: '8px 20px',
+                  fontSize: '13px', fontWeight: 600,
+                  cursor: slotSaving ? 'default' : 'pointer',
+                }}>
+                {slotSaving ? 'Guardando…' : '➕ Agregar franja'}
+              </button>
             </div>
           </div>
         )}

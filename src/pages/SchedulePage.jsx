@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../supabase'
 import { PERIODS, DAYS, GRADES, SECTIONS_LIST } from '../utils/constants'
+import { LEVEL_LABELS } from '../utils/roles'
 
 // ── SchedulePage ───────────────────────────────────────────────
 // Grilla de horarios institucional — dos vistas:
@@ -27,6 +28,7 @@ export default function SchedulePage({ teacher }) {
   const [view,          setView]          = useState('grade')    // 'grade' | 'teacher'
   const [assignments,   setAssignments]   = useState([])
   const [teachers,      setTeachers]      = useState([])
+  const [slots,         setSlots]         = useState([])
   const [loading,       setLoading]       = useState(true)
 
   // Grade view selectors
@@ -39,7 +41,7 @@ export default function SchedulePage({ teacher }) {
 
   async function fetchAll() {
     setLoading(true)
-    const [{ data: aData }, { data: tData }] = await Promise.all([
+    const [{ data: aData }, { data: tData }, { data: sData }] = await Promise.all([
       supabase.from('teacher_assignments')
         .select('id, teacher_id, grade, section, subject, schedule, classroom')
         .eq('school_id', teacher.school_id),
@@ -48,9 +50,14 @@ export default function SchedulePage({ teacher }) {
         .eq('school_id', teacher.school_id)
         .eq('status', 'approved')
         .order('full_name'),
+      supabase.from('schedule_slots')
+        .select('*')
+        .eq('school_id', teacher.school_id)
+        .order('start_time'),
     ])
     setAssignments(aData || [])
     setTeachers(tData || [])
+    setSlots(sData || [])
     setLoading(false)
   }
 
@@ -208,6 +215,7 @@ export default function SchedulePage({ teacher }) {
           <ScheduleGrid
             cellMap={activeCellMap}
             view={view}
+            slots={slots}
           />
         ) : (
           <div className="empty-state">
@@ -247,7 +255,19 @@ export default function SchedulePage({ teacher }) {
 }
 
 // ── ScheduleGrid ───────────────────────────────────────────────
-function ScheduleGrid({ cellMap, view }) {
+function parseTimeMin(timeStr) {
+  // Accepts "7:40", "07:40", "07:40:00"
+  const parts = timeStr.slice(0, 5).split(':').map(Number)
+  return parts[0] * 60 + (parts[1] || 0)
+}
+
+function ScheduleGrid({ cellMap, view, slots }) {
+  // Extract start time from period time string e.g. "6:45–7:40"
+  const rows = [
+    ...PERIODS.map(p => ({ type: 'period', data: p, sortMin: parseTimeMin(p.time.split('–')[0].trim()) })),
+    ...(slots || []).map(s => ({ type: 'slot', data: s, sortMin: parseTimeMin(s.start_time) })),
+  ].sort((a, b) => a.sortMin - b.sortMin)
+
   return (
     <div style={{ overflowX: 'auto' }}>
       <table style={{
@@ -263,35 +283,75 @@ function ScheduleGrid({ cellMap, view }) {
           </tr>
         </thead>
         <tbody>
-          {PERIODS.map((p, pi) => (
-            <tr key={p.id} style={{ background: pi % 2 === 0 ? '#fafafa' : '#fff' }}>
-              <td style={{
-                padding: '6px 8px', fontWeight: 700, textAlign: 'center',
-                borderRight: '2px solid #dde5f0', whiteSpace: 'nowrap',
-                fontSize: '11px', color: '#2E5598',
-              }}>
-                <div>{p.label}</div>
-                <div style={{ fontSize: '9px', fontWeight: 400, color: '#888' }}>{p.time}</div>
-              </td>
-              {DAYS.map(d => {
-                const entries = cellMap[`${d.key}-${p.id}`] || []
-                const hasConflict = entries.length > 1
-                return (
-                  <td key={d.key} style={{
-                    padding: '4px',
-                    border: '1px solid #e8e8e8',
-                    background: hasConflict ? '#fdf0f0' : 'transparent',
-                    verticalAlign: 'top',
-                    minWidth: '90px',
+          {rows.map((row, ri) => {
+            if (row.type === 'slot') {
+              const s = row.data
+              return (
+                <tr key={`slot-${s.id}`}>
+                  <td style={{
+                    padding: '5px 8px', fontWeight: 700, textAlign: 'center',
+                    borderRight: '2px solid #dde5f0', whiteSpace: 'nowrap',
+                    background: s.color + '18', fontSize: '10px', color: s.color,
                   }}>
-                    {entries.map(({ a, t, color }, i) => (
-                      <CellBlock key={i} a={a} t={t} color={color} view={view} conflict={hasConflict} />
-                    ))}
+                    <div>{s.start_time.slice(0,5)}</div>
+                    <div style={{ fontWeight: 400, color: '#aaa' }}>{s.end_time.slice(0,5)}</div>
                   </td>
-                )
-              })}
-            </tr>
-          ))}
+                  <td colSpan={5} style={{
+                    padding: '6px 14px',
+                    background: s.color + '15',
+                    borderLeft: `3px solid ${s.color}`,
+                    borderTop: '1px solid #e8e8e8',
+                    borderBottom: '1px solid #e8e8e8',
+                  }}>
+                    <span style={{ fontWeight: 700, color: s.color, fontSize: '11px', letterSpacing: '.4px' }}>
+                      {s.name}
+                    </span>
+                    {s.level ? (
+                      <span style={{ fontSize: '9px', color: '#888', marginLeft: '8px',
+                        background: '#f0f0f0', padding: '1px 6px', borderRadius: '8px' }}>
+                        {LEVEL_LABELS[s.level]}
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: '9px', color: '#aaa', marginLeft: '8px' }}>
+                        Todos los niveles
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              )
+            }
+
+            const p = row.data
+            return (
+              <tr key={p.id} style={{ background: ri % 2 === 0 ? '#fafafa' : '#fff' }}>
+                <td style={{
+                  padding: '6px 8px', fontWeight: 700, textAlign: 'center',
+                  borderRight: '2px solid #dde5f0', whiteSpace: 'nowrap',
+                  fontSize: '11px', color: '#2E5598',
+                }}>
+                  <div>{p.label}</div>
+                  <div style={{ fontSize: '9px', fontWeight: 400, color: '#888' }}>{p.time}</div>
+                </td>
+                {DAYS.map(d => {
+                  const entries = cellMap[`${d.key}-${p.id}`] || []
+                  const hasConflict = entries.length > 1
+                  return (
+                    <td key={d.key} style={{
+                      padding: '4px',
+                      border: '1px solid #e8e8e8',
+                      background: hasConflict ? '#fdf0f0' : 'transparent',
+                      verticalAlign: 'top',
+                      minWidth: '90px',
+                    }}>
+                      {entries.map(({ a, t, color }, i) => (
+                        <CellBlock key={i} a={a} t={t} color={color} view={view} conflict={hasConflict} />
+                      ))}
+                    </td>
+                  )
+                })}
+              </tr>
+            )
+          })}
         </tbody>
       </table>
     </div>
