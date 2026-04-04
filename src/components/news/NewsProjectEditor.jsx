@@ -3,6 +3,11 @@ import { supabase } from '../../supabase'
 import { useToast } from '../../context/ToastContext'
 import { useFocusTrap } from '../../hooks/useFocusTrap'
 import { generateRubric } from '../../utils/AIAssistant'
+import { MODELO_B_SUBJECTS } from '../../utils/constants'
+
+const MODELO_B_COMPETENCIAS = ['Sociolingüística', 'Lingüística', 'Pragmática']
+const MODELO_B_OPERADORES   = ['Deducir', 'Generalizar', 'Sintetizar', 'Retener', 'Evaluar']
+const MODELO_B_HABILIDADES  = ['Speaking', 'Listening', 'Reading', 'Writing']
 
 const SKILLS = [
   { value: '', label: '— Sin skill específico —' },
@@ -48,7 +53,11 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
     status: 'draft',
     sequence: 1,
     target_id: null,
-    target_indicador: ''
+    target_indicador: '',
+    news_model: 'standard',
+    competencias: [],
+    operadores_intelectuales: [],
+    habilidades: [],
   })
 
   const [saving, setSaving] = useState(false)
@@ -157,7 +166,11 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
         status: project.status || 'draft',
         sequence: project.sequence || 1,
         target_id: project.target_id || null,
-        target_indicador: project.target_indicador || ''
+        target_indicador: project.target_indicador || '',
+        news_model: project.news_model || (MODELO_B_SUBJECTS.includes(project.subject) ? 'language' : 'standard'),
+        competencias: project.competencias || [],
+        operadores_intelectuales: project.operadores_intelectuales || [],
+        habilidades: project.habilidades || [],
       })
     }
   }, [project])
@@ -303,7 +316,11 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
       status: form.status,
       sequence: form.sequence,
       target_id: form.target_id,
-      target_indicador: form.target_indicador.trim() || null
+      target_indicador: form.target_indicador.trim() || null,
+      news_model: form.news_model,
+      competencias: form.competencias,
+      operadores_intelectuales: form.operadores_intelectuales,
+      habilidades: form.habilidades,
     }
 
     const result = await onSave(payload)
@@ -514,7 +531,9 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
                   <select
                     value={form.subject}
                     onChange={e => {
-                      updateForm('subject', e.target.value)
+                      const subj = e.target.value
+                      updateForm('subject', subj)
+                      updateForm('news_model', MODELO_B_SUBJECTS.includes(subj) ? 'language' : 'standard')
                       updateForm('grade', '')
                       updateForm('section', '')
                     }}
@@ -826,6 +845,126 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
                   )
                 })()}
               </div>
+
+              {/* ── MODELO B — sección visible solo para Language Arts, Social Studies, Science ── */}
+              {form.news_model === 'language' && (
+                <div style={{
+                  background: 'linear-gradient(135deg, #EEF2FB 0%, #F5F8FF 100%)',
+                  borderRadius: 12, padding: '14px 16px',
+                  border: '1px solid #c5d5f0'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                    <span style={{ fontSize: 14 }}>🌐</span>
+                    <h4 style={{ fontSize: 11, fontWeight: 800, color: '#1A3A8F', margin: 0, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                      Modelo B — Lengua
+                    </h4>
+                    <span style={{ fontSize: 9, color: '#888', fontStyle: 'italic' }}>Auto-detectado por materia</span>
+                  </div>
+
+                  {/* Competencias */}
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: '#1A3A8F', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: 6 }}>
+                      Competencias
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {MODELO_B_COMPETENCIAS.map(c => {
+                        const selected = form.competencias.includes(c)
+                        return (
+                          <button
+                            key={c}
+                            type="button"
+                            onClick={() => {
+                              const next = selected
+                                ? form.competencias.filter(x => x !== c)
+                                : [...form.competencias, c]
+                              updateForm('competencias', next)
+                            }}
+                            style={{
+                              padding: '5px 12px', borderRadius: 20, fontSize: 11, cursor: 'pointer',
+                              border: selected ? '2px solid #1A3A8F' : '1px solid #c5d5f0',
+                              background: selected ? '#1A3A8F' : '#fff',
+                              color: selected ? '#fff' : '#1A3A8F',
+                              fontWeight: selected ? 700 : 400,
+                              transition: 'all 0.15s'
+                            }}
+                          >
+                            {c}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Operadores Intelectuales */}
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: '#1A3A8F', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: 6 }}>
+                      Operadores Intelectuales
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {MODELO_B_OPERADORES.map(o => {
+                        const selected = form.operadores_intelectuales.includes(o)
+                        return (
+                          <button
+                            key={o}
+                            type="button"
+                            onClick={() => {
+                              const next = selected
+                                ? form.operadores_intelectuales.filter(x => x !== o)
+                                : [...form.operadores_intelectuales, o]
+                              updateForm('operadores_intelectuales', next)
+                            }}
+                            style={{
+                              padding: '5px 12px', borderRadius: 20, fontSize: 11, cursor: 'pointer',
+                              border: selected ? '2px solid #4F81BD' : '1px solid #c5d5f0',
+                              background: selected ? '#4F81BD' : '#fff',
+                              color: selected ? '#fff' : '#4F81BD',
+                              fontWeight: selected ? 700 : 400,
+                              transition: 'all 0.15s'
+                            }}
+                          >
+                            {o}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Habilidades */}
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: '#1A3A8F', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: 6 }}>
+                      Habilidades de comunicación
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {MODELO_B_HABILIDADES.map(h => {
+                        const selected = form.habilidades.includes(h)
+                        const ICONS = { Speaking: '🎤', Listening: '🎧', Reading: '📖', Writing: '✍️' }
+                        return (
+                          <button
+                            key={h}
+                            type="button"
+                            onClick={() => {
+                              const next = selected
+                                ? form.habilidades.filter(x => x !== h)
+                                : [...form.habilidades, h]
+                              updateForm('habilidades', next)
+                            }}
+                            style={{
+                              padding: '5px 14px', borderRadius: 20, fontSize: 11, cursor: 'pointer',
+                              border: selected ? '2px solid #8064A2' : '1px solid #c5d5f0',
+                              background: selected ? '#8064A2' : '#fff',
+                              color: selected ? '#fff' : '#8064A2',
+                              fontWeight: selected ? 700 : 400,
+                              transition: 'all 0.15s'
+                            }}
+                          >
+                            {ICONS[h]} {h}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Title */}
               <div style={styles.field}>

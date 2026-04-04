@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { generateIndicadores } from '../utils/AIAssistant'
 import { useToast } from '../context/ToastContext'
-import { TAXONOMY_LEVELS, ACADEMIC_PERIODS } from '../utils/constants'
+import { TAXONOMY_LEVELS, ACADEMIC_PERIODS, MODELO_B_SUBJECTS } from '../utils/constants'
 import './LearningTargets.css'
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -41,6 +41,7 @@ export default function LearningTargetsPage({ teacher }) {
   const emptyForm = {
     subject: '', grade: '', group_name: '', period: 1,
     description: '', taxonomy: 'apply', prerequisite_ids: [], indicadores: [],
+    trimestre: null, tematica_names: [],
   }
   const [form, setForm] = useState(emptyForm)
 
@@ -165,6 +166,8 @@ export default function LearningTargetsPage({ teacher }) {
       taxonomy:         target.taxonomy,
       prerequisite_ids: target.prerequisite_ids || [],
       indicadores:      target.indicadores || [],
+      trimestre:        target.trimestre ?? null,
+      tematica_names:   target.tematica_names || [],
     })
     setEditingId(target.id)
     setAiIndError(null)
@@ -198,6 +201,9 @@ export default function LearningTargetsPage({ teacher }) {
       taxonomy:         form.taxonomy,
       prerequisite_ids: form.prerequisite_ids,
       indicadores:      form.indicadores.filter(Boolean),
+      trimestre:        form.trimestre ?? null,
+      tematica_names:   form.tematica_names,
+      news_model:       MODELO_B_SUBJECTS.includes(form.subject) ? 'language' : 'standard',
     }
 
     if (editingId) {
@@ -423,7 +429,16 @@ export default function LearningTargetsPage({ teacher }) {
 
                   {t.indicadores?.length > 0 && (
                     <ol style={{ margin: '6px 0 8px', paddingLeft: '20px', fontSize: '12px', color: '#555', lineHeight: 1.6 }}>
-                      {t.indicadores.map((ind, i) => <li key={i}>{ind}</li>)}
+                      {t.indicadores.map((ind, i) => (
+                        <li key={i}>
+                          {t.tematica_names?.[i] && (
+                            <span style={{ fontWeight: 600, color: '#2E5598', marginRight: 4 }}>
+                              {t.tematica_names[i]}:
+                            </span>
+                          )}
+                          {ind}
+                        </li>
+                      ))}
                     </ol>
                   )}
 
@@ -506,10 +521,10 @@ export default function LearningTargetsPage({ teacher }) {
                 </div>
               </div>
 
-              {/* Group + Period */}
-              <div className="ge-grid-2">
+              {/* Group + Period + Trimestre */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
                 <div className="ge-field">
-                  <label>Grupo <span style={{ color: '#999', fontWeight: 400 }}>(opcional — vacío = todos)</span></label>
+                  <label>Grupo <span style={{ color: '#999', fontWeight: 400 }}>(opcional)</span></label>
                   <select
                     value={form.group_name}
                     onChange={e => updateForm('group_name', e.target.value)}
@@ -527,6 +542,18 @@ export default function LearningTargetsPage({ teacher }) {
                     {PERIODS.map(p => (
                       <option key={p.value} value={p.value}>{p.label}</option>
                     ))}
+                  </select>
+                </div>
+                <div className="ge-field">
+                  <label>Trimestre <span style={{ color: '#999', fontWeight: 400 }}>(opcional)</span></label>
+                  <select
+                    value={form.trimestre ?? ''}
+                    onChange={e => updateForm('trimestre', e.target.value ? Number(e.target.value) : null)}
+                  >
+                    <option value="">— Sin asignar —</option>
+                    <option value={1}>1.er Trimestre</option>
+                    <option value={2}>2.° Trimestre</option>
+                    <option value={3}>3.er Trimestre</option>
                   </select>
                 </div>
               </div>
@@ -565,10 +592,27 @@ export default function LearningTargetsPage({ teacher }) {
                 </div>
               </div>
 
+              {/* Modelo B badge */}
+              {MODELO_B_SUBJECTS.includes(form.subject) && (
+                <div style={{
+                  padding: '8px 12px', borderRadius: 8, fontSize: 11,
+                  background: '#EEF2FB', border: '1px solid #c5d5f0', color: '#1A3A8F',
+                  display: 'flex', alignItems: 'center', gap: 8
+                }}>
+                  <strong>🌐 Modelo B — Lengua:</strong>
+                  Competencias / Habilidades / Operadores Intelectuales (se configuran en el proyecto NEWS).
+                  Los indicadores de este logro corresponden a cada habilidad (Speaking, Listening, Reading, Writing).
+                </div>
+              )}
+
               {/* Indicadores de Logro */}
               <div className="ge-field">
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <label style={{ margin: 0 }}>Indicadores de Logro</label>
+                  <label style={{ margin: 0 }}>
+                    {MODELO_B_SUBJECTS.includes(form.subject)
+                      ? 'Indicadores por Habilidad'
+                      : 'Temáticas e Indicadores'}
+                  </label>
                   <button
                     onClick={async () => {
                       if (!form.description.trim()) return
@@ -615,8 +659,41 @@ export default function LearningTargetsPage({ teacher }) {
                   </div>
                 )}
                 {form.indicadores.map((ind, idx) => (
-                  <div key={idx} style={{ display: 'flex', gap: '8px', marginBottom: '6px', alignItems: 'flex-start' }}>
-                    <span style={{ minWidth: '18px', paddingTop: '7px', color: '#9BBB59', fontWeight: 700, fontSize: '13px' }}>{idx + 1}.</span>
+                  <div key={idx} style={{ marginBottom: '10px', padding: '10px 12px', borderRadius: '8px', background: '#fafafa', border: '1px solid #eee' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                      <span style={{ color: '#9BBB59', fontWeight: 700, fontSize: '12px' }}>
+                        {MODELO_B_SUBJECTS.includes(form.subject)
+                          ? `Habilidad ${idx + 1}`
+                          : `Temática / Indicador ${idx + 1}`}
+                      </span>
+                      <button
+                        onClick={() => {
+                          const inds = [...form.indicadores]
+                          const tems = [...form.tematica_names]
+                          inds.splice(idx, 1)
+                          tems.splice(idx, 1)
+                          updateForm('indicadores', inds)
+                          updateForm('tematica_names', tems)
+                        }}
+                        style={{ background: 'none', border: 'none', color: '#bbb', cursor: 'pointer', fontSize: '14px', padding: '2px 4px' }}
+                        title="Eliminar"
+                        aria-label={`Eliminar indicador ${idx + 1}`}
+                      >✕</button>
+                    </div>
+                    {!MODELO_B_SUBJECTS.includes(form.subject) && (
+                      <input
+                        type="text"
+                        value={form.tematica_names[idx] || ''}
+                        onChange={e => {
+                          const tems = [...form.tematica_names]
+                          tems[idx] = e.target.value
+                          updateForm('tematica_names', tems)
+                        }}
+                        placeholder="Nombre de la Temática (ej: Texto instructivo: receta)"
+                        className="lt-textarea"
+                        style={{ marginBottom: '6px', padding: '6px 10px', fontStyle: 'italic', fontSize: '12px', color: '#555', width: '100%', boxSizing: 'border-box' }}
+                      />
+                    )}
                     <textarea
                       value={ind}
                       onChange={e => {
@@ -624,28 +701,23 @@ export default function LearningTargetsPage({ teacher }) {
                         arr[idx] = e.target.value
                         updateForm('indicadores', arr)
                       }}
-                      placeholder="El estudiante demuestra el logro cuando…"
+                      placeholder={MODELO_B_SUBJECTS.includes(form.subject)
+                        ? 'Speaking / Listening / Reading / Writing — El estudiante…'
+                        : 'El estudiante demuestra el logro cuando…'}
                       rows={2}
                       className="lt-textarea"
-                      style={{ flex: 1, resize: 'vertical' }}
+                      style={{ width: '100%', resize: 'vertical', boxSizing: 'border-box' }}
                     />
-                    <button
-                      onClick={() => {
-                        const arr = [...form.indicadores]
-                        arr.splice(idx, 1)
-                        updateForm('indicadores', arr)
-                      }}
-                      style={{ background: 'none', border: 'none', color: '#bbb', cursor: 'pointer', fontSize: '16px', padding: '6px 2px' }}
-                      title="Eliminar indicador"
-                      aria-label={`Eliminar indicador ${idx + 1}`}
-                    >✕</button>
                   </div>
                 ))}
                 <button
-                  onClick={() => updateForm('indicadores', [...form.indicadores, ''])}
+                  onClick={() => {
+                    updateForm('indicadores', [...form.indicadores, ''])
+                    updateForm('tematica_names', [...form.tematica_names, ''])
+                  }}
                   style={{ fontSize: '12px', color: '#9BBB59', border: '1px solid #9BBB59', background: 'none', borderRadius: '6px', padding: '4px 12px', cursor: 'pointer', marginTop: '2px' }}
                 >
-                  + Agregar indicador
+                  + Agregar {MODELO_B_SUBJECTS.includes(form.subject) ? 'habilidad' : 'temática / indicador'}
                 </button>
               </div>
 

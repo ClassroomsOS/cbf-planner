@@ -49,6 +49,7 @@ export const MODELO_B_SUBJECTS = ['Language Arts', 'Social Studies', 'Science']
 // ── Default Subject List ──────────────────────────────────────────────────────
 export const DEFAULT_SUBJECTS = [
   'Language Arts',
+  'Social Studies',
   'Science',
   'Cosmovisión Bíblica',
   'Biblical Worldview',
