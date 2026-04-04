@@ -390,6 +390,14 @@ Every table uses `school_id` to scope data. The `teacher` object (passed as prop
 
 **No modal should close on outside click.** All modal overlays must NOT have `onClick` on the overlay div. Use `createPortal(…, document.body)` for any modal rendered inside a component that lives inside a clickable parent (e.g. section headers with `onClick` for accordion). The SmartBlocks modal already uses this pattern.
 
+**Convención de color de headers de modales principales:**
+| Modal | Header color | Significado semántico |
+|---|---|---|
+| Logros de Desempeño (`lt-modal-header`) | Navy `#1F3864 → #2E5598` | Meta curricular formal, institucional |
+| Proyecto NEWS (`NewsProjectEditor`) | Verde `#1A6B3A → #2D8A50` | Proyecto vivencial, experiencia, crecimiento |
+
+Ambos headers usan texto blanco, badge de tipo (`lt-modal-type-tag` para Logros, span inline para NEWS) y botón cierre traslúcido. El sidebar nav de NEWS usa el mismo verde `#1A6B3A` para bordes activos, dots y hover.
+
 ### Deploy
 
 Push to `main` triggers GitHub Actions → `npm run build` → GitHub Pages. The build injects `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` from GitHub Secrets (the Edge Function URL is derived from `VITE_SUPABASE_URL` at runtime in `AIAssistant.js`).
@@ -532,6 +540,7 @@ OPERADORES INTELECTUALES (Deducir / Generalizar / Sintetizar / Retener / Evaluar
 | `Intercultural` agregada a `MODELO_B_COMPETENCIAS` (pilar Byram del syllabus oficial) | ✅ Sesión 2026-04-03 | — |
 | `NewsProjectEditor` — sidebar nav 7 pasos (reemplaza 3 tabs horizontales) | ✅ Sesión 2026-04-03 | — |
 | `exportRubricHtml.js` — HTML interactivo de evaluación de proyecto NEWS | ✅ Sesión 2026-04-03 | — |
+| Diferenciación visual modales: Logros (header navy `#1F3864`) vs NEWS (header verde `#1A6B3A`) | ✅ Sesión 2026-04-04 | — |
 
 ### Rúbrica CBF (especificación obligatoria)
 **Siempre 8 criterios × 5 niveles** (Superior/Alto/Básico/Bajo/Muy Bajo):
