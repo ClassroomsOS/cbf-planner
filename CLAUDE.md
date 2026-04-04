@@ -500,7 +500,7 @@ LOGRO (1 por trimestre/área)
 ```
 
 ### Modelo B — Lengua
-Materias en inglés: **Language Arts, Social Studies, Science**
+Materias en inglés: **Language Arts, Social Studies, Science, Lingua Skill**
 ```
 COMPETENCIAS (Sociolingüística / Lingüística / Pragmática)
 OPERADORES INTELECTUALES (Deducir / Generalizar / Sintetizar / Retener / Evaluar)
@@ -526,6 +526,8 @@ OPERADORES INTELECTUALES (Deducir / Generalizar / Sintetizar / Retener / Evaluar
 | Indicadores Modelo B como objetos `{habilidad, texto_en, texto_es, principio_biblico, es_embebida}` | ✅ Implementado Sprint 2 | — |
 | `generateRubric()` → exactamente 8 criterios (prompt + validación) | ✅ Implementado Sprint 1 | — |
 | `MODELO_B_SUBJECTS` en constants.js | ✅ Implementado Sprint 1 | — |
+| `Lingua Skill` agregado a `MODELO_B_SUBJECTS` | ✅ Sesión 2026-04-03 | — |
+| Marco pedagógico Modelo B — UX educativa en `NewsProjectEditor` | ✅ Sesión 2026-04-03 | — |
 
 ### Rúbrica CBF (especificación obligatoria)
 **Siempre 8 criterios × 5 niveles** (Superior/Alto/Básico/Bajo/Muy Bajo):
@@ -587,11 +589,11 @@ Implementación de la estructura Modelo A + Modelo B según el Marco Teórico.
 
 **UI implementada:**
 - `LearningTargetsPage`: Temáticas + Indicadores en pares; badge Modelo B; selector Trimestre
-- `NewsProjectEditor`: sección "Modelo B — Lengua" con toggles de Competencias, Operadores, Habilidades; auto-detecta `news_model` desde el subject
+- `NewsProjectEditor`: sección "Marco pedagógico — Lengua" visible solo cuando `news_model === 'language'`. Orden: **1 · Habilidades** (cards con ícono + traducción + contador dinámico "La IA generará X indicadores") → **2 · Operadores Intelectuales** (chips con hover: descripción aparece en panel debajo, 11px) → **3 · Competencias** (mismo patrón). Strip educativo siempre visible explica el impacto en la generación de indicadores. `hoveredOp` / `hoveredComp` son estados locales del componente.
 
 **IA + constantes:**
 - `generateRubric()`: exactamente 8 criterios × 5 niveles (prompt forzado + validación post-parse)
-- `MODELO_B_SUBJECTS = ['Language Arts', 'Social Studies', 'Science']` en constants.js
+- `MODELO_B_SUBJECTS = ['Language Arts', 'Social Studies', 'Science', 'Lingua Skill']` en constants.js
 
 **Sprint 2 completado:**
 - Indicadores Modelo B: objetos `{habilidad, texto_en, texto_es, principio_biblico, es_titulo, es_descripcion, es_grupo}`
