@@ -3,6 +3,43 @@
 > **"Nosotros Diseñamos. El docente enseña."**
 > El diseño del sistema no debe ser abrumador para el profesor. Nosotros somos quienes diseñamos para ellos, para que sea fácil y deseable aplicar.
 
+---
+
+## 🔒 LEY FUNDAMENTAL DEL SISTEMA — NO BORRAR JAMÁS
+
+> **Referencia completa:** `theoric mark/CBF_Analisis_Implementacion_Sistema.md` — consultar ante cualquier duda pedagógica.
+
+### El trimestre es una cadena de hitos, no semanas sueltas.
+
+```
+INDICADOR DE LOGRO (creado al inicio del período)
+      │
+      ▼
+PROYECTO NEWS (creado al inicio del período — INMUTABLE una vez publicado)
+      │  due_date = fecha de presentación del proyecto
+      │
+      ▼
+GUÍAS SEMANALES (todas las guías antes del due_date pertenecen a ese proyecto)
+      │  Cada guía construye una competencia que el alumno necesita para el proyecto
+      │
+      ▼
+EVALUACIÓN (la rúbrica mide si el alumno alcanzó el Indicador de Logro)
+```
+
+### Reglas que nunca cambian:
+
+1. **El NEWS se crea a principio del período. Una vez publicado, no se modifica.**
+2. **Cuando un indicador se enlaza a un proyecto NEWS, ese es el indicador-hito de todas las guías anteriores a la fecha de presentación.**
+3. **El indicador activo de una guía semanal = el `target_indicador` del NEWS cuyo `due_date` es el más próximo en el futuro desde la semana de esa guía.**
+4. **La IA genera guías con ese indicador como norte. El docente lo ve como label read-only — no puede cambiarlo ni escribir uno diferente.**
+5. **`news_projects.target_id` es el vínculo más importante de toda la base de datos.** Une el Indicador de Logro con todo el trabajo semanal.
+
+### Lookup del indicador activo (implementado en `GuideEditorPage.jsx`):
+- **Prioridad 1** — Modelo B: buscar `news_projects` cuya `actividades_evaluativas[].fecha` caiga en los días de la guía → indicador por `skill`
+- **Prioridad 2** — Modelo A + fallback B: buscar el `news_projects` con `due_date` más próxima en el futuro desde el primer día de la guía → indicador por `target_indicador`
+
+---
+
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## ⚠️ IMPORTANTE: Session Checklist
@@ -680,11 +717,6 @@ El modal de NEWS para materias estándar (Matemáticas, Química, Física, Cienc
 - Crear sección educativa en `NewsProjectEditor` para `news_model === 'standard'`
 - Explicar: Logro → Temáticas → Indicadores → cómo la IA los usa
 - Mostrar consecuencia dinámica similar al contador de Modelo B
-
-### 🟡 NEWS: Subir imágenes del textbook
-En la pestaña Textbook del NEWS, permitir subir fotos/scans del scope & sequence del libro.
-- Guardar en Supabase Storage (bucket `guide-images` ya existe)
-- La AI puede leerlas para contextualizar contenidos por unidad
 
 ### 🟡 Calendario: Flujo de reprogramación asistido por AI (pospuesto)
 Cuando un evento con `affects_planning=true` se crea, ofrecer al docente una sugerencia automática de cómo redistribuir las guías afectadas.

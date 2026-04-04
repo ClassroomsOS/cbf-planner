@@ -285,30 +285,60 @@ export default function GuideEditorPage({ teacher }) {
     if (!plan?.target_id) { setLinkedNewsProjects([]); return }
     supabase
       .from('news_projects')
-      .select('id, title, subject, status, skill, news_model, actividades_evaluativas, biblical_principle, biblical_reflection')
+      .select('id, title, subject, status, skill, news_model, actividades_evaluativas, biblical_principle, biblical_reflection, due_date, target_indicador')
       .eq('target_id', plan.target_id)
       .eq('school_id', teacher.school_id)
-      .limit(4)
+      .limit(10)
       .then(({ data }) => setLinkedNewsProjects(data || []))
   }, [plan?.target_id])
 
-  // ── Derive active NEWS project and indicator for this guide's date range ──
+  // ── Derive active NEWS project for this guide's date range ──
+  // Priority 1 (Modelo B): a NEWS activity fecha falls within the guide's days
+  // Priority 2 (Modelo A + B fallback): the NEWS whose due_date is the nearest
+  //   future date from the guide's first day — following the hito-chain logic:
+  //   every guide belongs to the segment that ends at the next upcoming proyecto.
   const activeNewsProject = useMemo(() => {
     if (!linkedNewsProjects.length || !content) return null
     const dayKeys = new Set(Object.keys(content.days || {}))
     if (!dayKeys.size) return null
-    return linkedNewsProjects.find(np =>
+    const sortedDays = [...dayKeys].sort()
+    const firstDay = sortedDays[0]
+
+    // Priority 1: activity date falls in guide's week (Modelo B standard path)
+    const byActivity = linkedNewsProjects.find(np =>
       (np.actividades_evaluativas || []).some(act => act.fecha && dayKeys.has(act.fecha))
-    ) || null
+    )
+    if (byActivity) return byActivity
+
+    // Priority 2: nearest upcoming due_date from the guide's first day
+    const withDueDate = linkedNewsProjects
+      .filter(np => np.due_date && np.due_date >= firstDay)
+      .sort((a, b) => a.due_date.localeCompare(b.due_date))
+    if (withDueDate.length) return withDueDate[0]
+
+    return null
   }, [linkedNewsProjects, content?.days])
 
-  // The specific indicator (object) that matches this week's NEWS skill
+  // ── Derive the specific indicator for this guide from the active NEWS project ──
+  // Modelo B: indicator object matched by skill (habilidad) from learning_targets.indicadores
+  // Modelo A: synthetic indicator object built from news_projects.target_indicador
   const activeIndicator = useMemo(() => {
-    if (!activeNewsProject?.skill || !linkedTarget?.indicadores) return null
-    return linkedTarget.indicadores.find(ind =>
-      typeof ind === 'object' &&
-      ind.habilidad?.toLowerCase() === activeNewsProject.skill.toLowerCase()
-    ) || null
+    if (!activeNewsProject) return null
+    if (linkedTarget?.news_model === 'language') {
+      // Modelo B — find the indicator object matching the project's skill
+      if (!activeNewsProject.skill || !linkedTarget?.indicadores) return null
+      return linkedTarget.indicadores.find(ind =>
+        typeof ind === 'object' &&
+        ind.habilidad?.toLowerCase() === activeNewsProject.skill.toLowerCase()
+      ) || null
+    } else {
+      // Modelo A — use target_indicador from the NEWS project as a synthetic indicator
+      if (!activeNewsProject.target_indicador) return null
+      return {
+        texto_en: activeNewsProject.target_indicador,
+        taxonomy: linkedTarget?.taxonomy || null,
+      }
+    }
   }, [activeNewsProject, linkedTarget])
 
   // Auto-populate principio from indicator's principio_biblico (once, only if empty)

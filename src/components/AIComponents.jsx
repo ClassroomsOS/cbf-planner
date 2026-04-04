@@ -391,7 +391,7 @@ export const AIGeneratorModal = memo(function AIGeneratorModal({ grade, subject,
                     <span style={{ fontSize: '18px' }}>{resolved ? (SKILL_ICONS[resolved.habilidad] || '🎯') : '🎯'}</span>
                     <div>
                       <div style={{ fontSize: '11px', fontWeight: 700, color: skillColor, marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                        {resolved ? `Indicador — ${resolved.habilidad}` : 'Indicador de logro vinculado'}
+                        {resolved?.habilidad ? `Indicador — ${resolved.habilidad}` : 'Indicador de logro vinculado'}
                       </div>
                       <div style={{ fontSize: '13px', color: '#1a5c1a', lineHeight: 1.5 }}>
                         {resolved ? (resolved.texto_en || resolved.habilidad) : fallbackDesc}
