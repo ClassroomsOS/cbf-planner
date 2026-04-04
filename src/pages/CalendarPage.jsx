@@ -142,16 +142,16 @@ export default function CalendarPage({ teacher }) {
       is_school_day:    form.is_school_day,
       level:            form.level || null,
       affects_planning: form.affects_planning,
-      created_by:       teacher.id,
     }).select().single()
     if (!error && form.affects_planning && saved) {
       await createCalendarAnnouncement(saved)
     }
     setSaving(false)
     if (error) {
+      console.error('school_calendar insert error:', error)
       const msg = error.code === '23505'
-        ? 'Ya existe una entrada para esa fecha. Elimínala primero.'
-        : (error.message || 'Error al guardar el evento')
+        ? 'Ya existe una entrada para esa fecha.'
+        : `Error ${error.code || ''}: ${error.message || 'desconocido'}`
       showToast(msg, 'error')
       return
     }
@@ -197,7 +197,6 @@ export default function CalendarPage({ teacher }) {
       is_school_day:    false,
       level:            null,
       affects_planning: false,
-      created_by:       teacher.id,
     }))
     const { error } = await supabase.from('school_calendar').insert(rows)
     setLoadingHolidays(false)
