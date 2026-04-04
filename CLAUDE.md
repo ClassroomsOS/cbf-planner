@@ -257,6 +257,7 @@ DOCX day tables use **3 columns** `[1760, 5605, 3435]` DXA. Header and unit rows
 |---|---|---|
 | `src/utils/exportHtml.js` | `exportHtml()`, `exportPdf()`, `buildHtml()` | Imports `blockPreviewHTML` + `BLOCK_TYPES` from SmartBlocks.jsx for block rendering |
 | `src/utils/exportDocx.js` | `exportGuideDocx()` | `buildSmartBlockDocx(block)` handles all 9 block types natively |
+| `src/utils/exportRubricHtml.js` | `exportRubricHtml(project, principles, school)` | Genera HTML interactivo autocontenido para evaluar proyectos NEWS en tiempo real. Clickear celda de rúbrica → calcula nota (escala 1.0–5.0 Boston Flex). Incluye: banner de verso, escala visual, panel de puntaje, tabla interactiva con JS embebido, panel de resultado con override y comentarios, botón imprimir. Abre en `window.open('', '_blank')`. |
 
 Both exports render: text content, images (with layout), videos (HTML only — iframes), and SmartBlocks. SmartBlocks appear after video content, each with a colored type-header strip.
 
@@ -529,6 +530,8 @@ OPERADORES INTELECTUALES (Deducir / Generalizar / Sintetizar / Retener / Evaluar
 | `Lingua Skill` agregado a `MODELO_B_SUBJECTS` | ✅ Sesión 2026-04-03 | — |
 | Marco pedagógico Modelo B — UX educativa en `NewsProjectEditor` | ✅ Sesión 2026-04-03 | — |
 | `Intercultural` agregada a `MODELO_B_COMPETENCIAS` (pilar Byram del syllabus oficial) | ✅ Sesión 2026-04-03 | — |
+| `NewsProjectEditor` — sidebar nav 7 pasos (reemplaza 3 tabs horizontales) | ✅ Sesión 2026-04-03 | — |
+| `exportRubricHtml.js` — HTML interactivo de evaluación de proyecto NEWS | ✅ Sesión 2026-04-03 | — |
 
 ### Rúbrica CBF (especificación obligatoria)
 **Siempre 8 criterios × 5 niveles** (Superior/Alto/Básico/Bajo/Muy Bajo):
@@ -591,6 +594,7 @@ Implementación de la estructura Modelo A + Modelo B según el Marco Teórico.
 **UI implementada:**
 - `LearningTargetsPage`: Temáticas + Indicadores en pares; badge Modelo B; selector Trimestre
 - `NewsProjectEditor`: sección "Marco pedagógico — Lengua" visible solo cuando `news_model === 'language'`. Orden: **1 · Habilidades** (cards con ícono + traducción + contador dinámico "La IA generará X indicadores") → **2 · Operadores Intelectuales** (chips con hover: descripción aparece en panel debajo, 11px) → **3 · Competencias** (mismo patrón). Strip educativo siempre visible explica el impacto en la generación de indicadores. `hoveredOp` / `hoveredComp` son estados locales del componente.
+- **Sesión 2026-04-03 (redesign):** Modal rediseñado con **sidebar de navegación izquierdo** (7 pasos, igual al patrón de `GuideEditorPage`). `activeTab` → `activeStep`. Pasos: `identify` · `logro` · `marco` (solo Modelo B) · `content` · `dates` · `textbook` · `rubric`. Cada paso muestra dot de completitud (verde=lleno, azul=activo, gris=vacío). Guard `useEffect`: si `news_model !== 'language'` y `activeStep === 'marco'` → reset a `'identify'`. El componente ahora recibe prop `school` (necesario para `exportRubricHtml`). Integración Bíblica: campos apilados verticalmente (Principio arriba, Reflexión abajo). `MODELO_B_COMPETENCIAS` extendido con `'Intercultural'` (4 competencias: Sociolingüística / Lingüística / Pragmática / Intercultural — respaldado por syllabus oficial BF, Michael Byram's ICC framework). Botón "📊 Abrir rúbrica interactiva" en paso Rúbrica → llama `exportRubricHtml(project, principles, school)`.
 
 **IA + constantes:**
 - `generateRubric()`: exactamente 8 criterios × 5 niveles (prompt forzado + validación post-parse)
