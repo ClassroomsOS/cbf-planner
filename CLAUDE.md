@@ -165,7 +165,7 @@ Plans are stored in `lesson_plans.content` as a nested JSONB object:
 content: {
   header: { school, dane, codigo, version, proceso, logo_url },
   info: { grado, asignatura, semana, periodo, fechas, docente },
-  objetivo: { general, indicador, principio },
+  objetivo: { general, indicadores[], principio },
   verse: { text, ref },
   days: {
     "YYYY-MM-DD": {
@@ -257,8 +257,8 @@ DOCX day tables use **3 columns** `[1760, 5605, 3435]` DXA. Header and unit rows
 
 | File | Function | Notes |
 |---|---|---|
-| `src/utils/exportHtml.js` | `exportHtml()`, `exportPdf()`, `buildHtml()` | Imports `blockPreviewHTML` + `BLOCK_TYPES` from SmartBlocks.jsx for block rendering |
-| `src/utils/exportDocx.js` | `exportGuideDocx()` | `buildSmartBlockDocx(block)` handles all 9 block types natively |
+| `src/utils/exportHtml.js` | `exportHtml()`, `exportPdf()`, `buildHtml()` | Imports `blockPreviewHTML` + `BLOCK_TYPES` from SmartBlocks.jsx for block rendering. Tabla indicadores: **full-width una columna** (se eliminó la columna "Logro" izquierda). Objetos Modelo B normalizados a texto plano. |
+| `src/utils/exportDocx.js` | `exportGuideDocx()` | `buildSmartBlockDocx(block)` handles all 9 block types natively. Tabla indicadores: **full-width una columna**, header `INDICADORES DE LOGRO`. Objetos Modelo B normalizados. Solo renderiza si hay indicadores (`_indicadores.length > 0`). |
 | `src/utils/exportRubricHtml.js` | `exportRubricHtml(project, principles, school)` | Genera HTML interactivo autocontenido para evaluar proyectos NEWS en tiempo real. Clickear celda de rúbrica → calcula nota (escala 1.0–5.0 Boston Flex). Incluye: banner de verso, escala visual, panel de puntaje, tabla interactiva con JS embebido, panel de resultado con override y comentarios, botón imprimir. Abre en `window.open('', '_blank')`. |
 
 Both exports render: text content, images (with layout), videos (HTML only — iframes), and SmartBlocks. SmartBlocks appear after video content, each with a colored type-header strip.
@@ -294,9 +294,17 @@ Font/size marks are applied only to selected text — they do NOT affect AI-inse
 - **Per-section preview toggle** — each section has its own `👁 Ver preview` button (state in `sectionPreviews` object, not a global flag).
 - **Word count** displayed below each RichEditor (`ge-word-count` class).
 
+#### Panel "1 · Indicador" (`activePanel === 'objetivo'`)
+- **`LearningTargetSelector`** muestra el indicador de logro vinculado (`lesson_plans.target_id`). Query incluye `indicadores, news_model, tematica_names` — el auto-fill usa los indicadores reales al vincular.
+- **Auto-populate en carga:** si la guía tiene `target_id` y `objetivo.indicadores` está vacío, `load()` hace un fetch del target y rellena `objetivo.indicadores` automáticamente (strings planos — los objetos Modelo B se normalizan vía `getIndText()`).
+- **Indicadores read-only:** se renderizan como lista verde estilizada, no textareas. La fuente de verdad es `learning_targets.indicadores` — se editan en `/targets`, no en el editor de guías.
+- **Chips NEWS:** `linkedNewsProjects` (estado cargado via useEffect en `plan.target_id`) muestra chips de los proyectos NEWS que comparten el mismo `target_id`. Link directo a `/news`.
+- **`getIndText(ind)`** — helper inlineado en `GuideEditorPage` (igual que en `LearningTargetsPage`) para normalizar string o objeto Modelo B a texto display.
+- Solo queda editable: `objetivo.principio` (Principio del Indicador Institucional).
+
 #### Left nav panel
-- **El nav abre directamente en `1 · Logro`** — los paneles Encabezado e Información fueron removidos del nav para docentes (son datos de contexto, no de trabajo diario).
-- El nav tiene 2 pasos fijos (`1 · Logro`, `2 · Versículo`) + días + `★ Resumen`.
+- **El nav abre directamente en `1 · Indicador`** — los paneles Encabezado e Información fueron removidos del nav para docentes (son datos de contexto, no de trabajo diario).
+- El nav tiene 2 pasos fijos (`1 · Indicador`, `2 · Versículo`) + días + `★ Resumen`.
 - Day items show a mini progress bar + `filled/total` count (e.g. `3/6`) indicating how many sections have content. Bar turns white when the day is active.
 - **Guías de 2 semanas:** When `plan.week_count === 2`, the nav renders "Semana 1" and "Semana 2" section separators between day items. Both weeks' days are stored in the same `lesson_plans` row. On load, if ≤5 days are saved, `buildDaysFromDB` fills in the missing week-2 days from the teacher's schedule.
 
@@ -501,6 +509,17 @@ const { execute, loading, data, error } = useAsync(
 ```
 
 **Returns:** `{ execute, loading, data, error, reset, isSuccess, isError, isIdle }`
+
+---
+
+## Vocabulario UI — Convención de Términos
+
+**"Logro"** fue eliminado del vocabulario visible. El término correcto en toda la UI es **"Indicador de Logro"** (singular) / **"Indicadores de Logro"** (plural). Lo medible y observable es el indicador — no el logro macro.
+
+- La tabla `learning_targets` sigue llamándose igual en DB, pero en UI = "Indicador de Logro"
+- El sidebar nav muestra "🎯 Indicadores de Logro" (antes "Logros")
+- El panel del editor muestra "1 · Indicador" (antes "1 · Logro")
+- Los indicadores en la guía son **read-only** — se editan en `/targets`, no en el editor
 
 ---
 
