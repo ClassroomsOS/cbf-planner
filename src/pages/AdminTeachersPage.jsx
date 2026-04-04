@@ -163,8 +163,8 @@ export default function AdminTeachersPage({ teacher: admin }) {
             const roleStyle = ROLE_STYLES[t.role] || ROLE_STYLES.teacher
             const isSelf   = t.id === admin.id
             return (
-              <div key={t.id} className="mp-card" onClick={() => !isSelf && openTeacher(t)}
-                style={{ cursor: isSelf ? 'default' : 'pointer' }}>
+              <div key={t.id} className="mp-card" onClick={() => openTeacher(t)}
+                style={{ cursor: 'pointer' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
                   <div style={{
                     width: '38px', height: '38px', borderRadius: '50%',
@@ -212,7 +212,7 @@ export default function AdminTeachersPage({ teacher: admin }) {
                     )}
                   </div>
                 </div>
-                {!isSelf && <span className="mp-arrow">→</span>}
+                <span className="mp-arrow">→</span>
               </div>
             )
           })}
@@ -225,6 +225,7 @@ export default function AdminTeachersPage({ teacher: admin }) {
           admin={admin}
           school={school}
           allAssignments={assignments}
+          isSelf={selected.id === admin.id}
           onClose={() => { setShowModal(false); setSelected(null) }}
           onSave={() => { setShowModal(false); setSelected(null); fetchAll() }}
         />
@@ -234,7 +235,7 @@ export default function AdminTeachersPage({ teacher: admin }) {
 }
 
 // ── Assignment Modal ──────────────────────────────────────────
-function AssignmentModal({ teacher, admin, school, allAssignments, onClose, onSave }) {
+function AssignmentModal({ teacher, admin, school, allAssignments, isSelf, onClose, onSave }) {
   const sections = school?.sections || []
 
   // This teacher's assignments
@@ -439,7 +440,12 @@ function AssignmentModal({ teacher, admin, school, allAssignments, onClose, onSa
           ))}
 
           {/* ── Rol y Nivel ── */}
-          <RoleAndLevelEditor teacher={teacher} admin={admin} />
+          {isSelf
+            ? <div style={{ background: '#f5f5f5', borderRadius: '8px', padding: '10px 14px', fontSize: '12px', color: '#888', marginBottom: '16px' }}>
+                ℹ️ No puedes cambiar tu propio rol. Pide a otro administrador que lo haga.
+              </div>
+            : <RoleAndLevelEditor teacher={teacher} admin={admin} />
+          }
 
           {/* Add new assignment */}
           <div style={{ background: '#f8faff', border: '1.5px solid #dde5f0', borderRadius: '10px', padding: '14px', marginBottom: '20px' }}>
