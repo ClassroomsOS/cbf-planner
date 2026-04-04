@@ -584,14 +584,17 @@ Implementación de la estructura Modelo A + Modelo B según el Marco Teórico.
 
 ---
 
-## Roadmap futuro (Sprints 2–7)
+## Roadmap futuro (Sprints 3–7)
 
-### Sprint 2 — Roles y estructura
-- **Superusuario** (`superadmin`): bypass total de RLS, solo asignable por otro superusuario
-- **Coordinador**: gestión académica completa por nivel (reemplaza rol `admin` actual)
-- **Director de grupo**: vista de su grado/sección, recibe agenda semanal consolidada
-- **Psicopedagoga**: crear eventos institucionales que impactan planificaciones
-- Migrar `teachers.role` a sistema multi-rol. Agregar campo `level` (elementary/middle/high)
+### ✅ Sprint 2 COMPLETADO — Roles y estructura
+- `teachers.role` CHECK expandido: `teacher | admin | superadmin | director | psicopedagoga`
+- `teachers.level` agregado: `elementary | middle | high`
+- RLS policy `"Managers can read school lesson plans"` — admin/superadmin/director leen todos los planes del colegio
+- `src/utils/roles.js` — helpers centralizados: `canManage`, `isSuperAdmin`, `isDirector`, `isPsicopedagoga`, `canAccessCalendar`, `canReadAllPlans`, `canChangeRole`, `roleLabel`, `ROLE_STYLES`, `LEVEL_LABELS`
+- `DirectorPage` — vista read-only de todos los planes del colegio con filtros por docente/grado/estado
+- `AdminTeachersPage` — `RoleAndLevelEditor` con guard `canChangeRole()` (admin no puede crear superadmin)
+- `DashboardPage` — sidebar y rutas para director (📋 Vista de mi Grado) y psicopedagoga (Calendario)
+- Todos los `role === 'admin'` hardcodeados migrados a `canManage()` en 6 archivos
 
 ### Sprint 3 — Calendario institucional
 - Mejorar `school_calendar`: agregar `level`, `affects_planning`, `event_type`, `created_by`
