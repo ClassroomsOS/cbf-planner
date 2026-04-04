@@ -3,6 +3,8 @@ import { supabase } from '../supabase'
 import { useToast } from '../context/ToastContext'
 import { imageUploadSchema } from '../utils/validationSchemas'
 
+const MAX_IMAGES = 6
+
 const ImageUploader = memo(function ImageUploader({ planId, dayIso, sectionKey, pathPrefix, images = [], onChange, maxImages, showLink = true }) {
   const { showToast } = useToast()
   const [uploading, setUploading] = useState(false)
