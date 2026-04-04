@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, memo } from 'react'
 import { suggestSectionActivity, analyzeGuide, generateGuideStructure } from '../utils/AIAssistant'
 import { useToast } from '../context/ToastContext'
 import { useFocusTrap } from '../hooks/useFocusTrap'
+import { MODELO_B_SUBJECTS } from '../utils/constants'
 
 // ══════════════════════════════════════════════════════════════
 // PUNTO 1 — AISuggestButton (inline en cada sección)
@@ -199,7 +200,7 @@ const SKILL_ICONS  = { Speaking: '🎤', Listening: '🎧', Reading: '📖', Wri
 export const AIGeneratorModal = memo(function AIGeneratorModal({ grade, subject, period, activeDays, currentContent, onApply, onClose, learningTarget, activeIndicator, principles }) {
   const { showToast } = useToast()
 
-  const isModeloB = learningTarget?.news_model === 'language'
+  const isModeloB = learningTarget?.news_model === 'language' || MODELO_B_SUBJECTS.includes(subject)
   const [selectedSkill,   setSelectedSkill]   = useState(activeIndicator?.habilidad || null)
   const [unit,            setUnit]            = useState('')
   const [loading,   setLoading]   = useState(false)

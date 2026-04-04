@@ -324,7 +324,9 @@ export default function GuideEditorPage({ teacher }) {
   // Modelo A: synthetic indicator object built from news_projects.target_indicador
   const activeIndicator = useMemo(() => {
     if (!activeNewsProject) return null
-    if (linkedTarget?.news_model === 'language') {
+    const subject = content?.info?.asignatura || ''
+    const isModeloB = linkedTarget?.news_model === 'language' || MODELO_B_SUBJECTS.includes(subject)
+    if (isModeloB) {
       // Modelo B — find the indicator object matching the project's skill
       if (!activeNewsProject.skill || !linkedTarget?.indicadores) return null
       return linkedTarget.indicadores.find(ind =>
