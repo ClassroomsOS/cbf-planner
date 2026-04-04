@@ -16,9 +16,11 @@ import PrinciplesPage      from './PrinciplesPage'
 import DirectorPage        from './DirectorPage'
 import SchedulePage        from './SchedulePage'
 import AgendaPage          from './AgendaPage'
+import CurriculumPage      from './CurriculumPage'
 import ProfileModal        from '../components/ProfileModal'
 import { FeaturesProvider, useFeatures } from '../context/FeaturesContext'
 import { canManage, canAccessCalendar, isDirector, canReadAllPlans, canViewSchedule, canManageAgendas } from '../utils/roles'
+import { setAIContext } from '../utils/AIAssistant'
 
 // ── Wrapper — provides context ────────────────────────────────
 export default function DashboardPage({ session, teacher, setTeacher }) {
@@ -40,6 +42,15 @@ function DashboardInner({ session, teacher, setTeacher }) {
   const hasScheduleView = canViewSchedule(teacher.role)   // admin + superadmin + director + psicopedagoga
   const hasAgendas = canManageAgendas(teacher.role)        // admin + superadmin + director
   const { features } = useFeatures()
+
+  // Set AI context once so callClaude() can log usage and enforce limits
+  useEffect(() => {
+    setAIContext({
+      schoolId:     teacher.school_id,
+      teacherId:    teacher.id,
+      monthlyLimit: teacher.ai_monthly_limit || 0,
+    })
+  }, [teacher.id])
 
   const [unread,         setUnread]         = useState(0)
   const [unreadMessages, setUnreadMessages] = useState(0)
@@ -266,6 +277,11 @@ function DashboardInner({ session, teacher, setTeacher }) {
                 📋 Agenda Semanal
                 <span className="sb-admin-badge">Admin</span>
               </NavLink>
+              <NavLink to="/curriculum" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
+                <span className="dot" style={{ background: '#4F81BD' }} />
+                📊 Malla Curricular
+                <span className="sb-admin-badge">Admin</span>
+              </NavLink>
               <NavLink to="/settings" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
                 <span className="dot" style={{ background: '#555' }} />
                 ⚙️ Panel de control
@@ -312,7 +328,8 @@ function DashboardInner({ session, teacher, setTeacher }) {
             <>
               <Route path="/calendar"      element={<CalendarPage      teacher={teacher} />} />
               <Route path="/schedule"      element={<SchedulePage      teacher={teacher} />} />
-              <Route path="/agenda"        element={<AgendaPage        teacher={teacher} />} />
+              <Route path="/agenda"      element={<AgendaPage      teacher={teacher} />} />
+              <Route path="/curriculum"  element={<CurriculumPage  teacher={teacher} />} />
               <Route path="/notifications" element={<NotificationsPage teacher={teacher} onRead={() => setUnread(0)} />} />
               <Route path="/teachers"      element={<AdminTeachersPage teacher={teacher} />} />
               <Route path="/settings"      element={<SettingsPage      teacher={teacher} />} />

@@ -19,6 +19,7 @@ import { SECTIONS, RICH_SECTIONS } from '../utils/constants'
 import { canManage } from '../utils/roles'
 import { toISO, formatDateEN, getDayName, MONTHS_EN, DAYS_EN, MONTHS_ES } from '../utils/dateUtils'
 import { useToggle } from '../hooks'
+import { importGuideFromDocx } from '../utils/AIAssistant'
 
 // ── localStorage draft helpers ──────────────────────────────────────────────
 const DRAFT_PREFIX = 'cbf_draft_'
@@ -119,8 +120,10 @@ export default function GuideEditorPage({ teacher }) {
   const [showCorrections, toggleCorrections, openCorrections, closeCorrections] = useToggle(false)
   const [showPreview,     togglePreview]                                        = useToggle(true)
 
-  const dirtyRef   = useRef(false)
-  const contentRef = useRef(null)
+  const dirtyRef      = useRef(false)
+  const contentRef    = useRef(null)
+  const docxInputRef  = useRef(null)
+  const [importingDocx, setImportingDocx] = useState(false)
 
   // ── Load ──
   useEffect(() => {
@@ -355,6 +358,55 @@ export default function GuideEditorPage({ teacher }) {
 
   useEffect(() => { return () => { if (dirtyRef.current) doSave() } }, [doSave])
 
+  // ── Import .docx handler ───────────────────────────────────
+  async function handleDocxImport(e) {
+    const file = e.target.files?.[0]
+    if (!docxInputRef.current) return
+    docxInputRef.current.value = ''
+    if (!file) return
+    if (!confirm('⚠️ Importar este documento reemplazará el contenido actual de la guía. ¿Continuar?')) return
+    setImportingDocx(true)
+    closeExport()
+    try {
+      const mammoth = await import('mammoth')
+      const arrayBuffer = await file.arrayBuffer()
+      const { value: docxText } = await mammoth.extractRawText({ arrayBuffer })
+      const parsed = await importGuideFromDocx({
+        docxText,
+        grade:      contentRef.current?.info?.grado,
+        subject:    contentRef.current?.info?.asignatura,
+        principles: monthPrinciples,
+      })
+      // Merge: preserve header/info, replace days/objetivo/verse/summary from AI
+      const merged = {
+        ...contentRef.current,
+        objetivo: parsed.objetivo || contentRef.current.objetivo,
+        verse:    parsed.verse    || contentRef.current.verse,
+        days:     parsed.days     || contentRef.current.days,
+        summary:  parsed.summary  || contentRef.current.summary,
+      }
+      // Re-map days from named keys (lunes/martes) to date keys if needed
+      if (parsed.days && Object.keys(parsed.days).some(k => k === 'lunes' || k === 'martes')) {
+        const dateKeys = Object.keys(contentRef.current?.days || {})
+        const dayNames = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes']
+        const remapped = {}
+        dateKeys.forEach((dateKey, i) => {
+          const namedKey = dayNames[i]
+          if (parsed.days[namedKey]) remapped[dateKey] = { ...contentRef.current.days[dateKey], sections: parsed.days[namedKey].sections }
+        })
+        if (Object.keys(remapped).length > 0) merged.days = { ...contentRef.current.days, ...remapped }
+      }
+      contentRef.current = merged
+      setContent({ ...merged })
+      dirtyRef.current = true
+      showToast('✅ Documento importado correctamente. Revisa y ajusta el contenido.', 'success')
+    } catch (err) {
+      showToast('Error al importar: ' + err.message, 'error')
+    } finally {
+      setImportingDocx(false)
+    }
+  }
+
   useEffect(() => {
     function onKey(e) {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); doSave() }
@@ -581,9 +633,19 @@ export default function GuideEditorPage({ teacher }) {
                     🤖 Generar guía con IA
                   </button>
                 )}
+                <hr style={{ margin: '4px 0', border: 'none', borderTop: '1px solid #e0e6f0' }} />
+                <div style={{ padding: '4px 12px 6px', fontSize: '10px', fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '.5px' }}>
+                  Importar
+                </div>
+                <button onClick={() => { docxInputRef.current?.click() }} disabled={importingDocx}>
+                  {importingDocx ? '⏳ Importando…' : '📂 Importar desde .docx'}
+                </button>
               </div>
             )}
           </div>
+          {/* Hidden file input for .docx import */}
+          <input ref={docxInputRef} type="file" accept=".docx"
+            style={{ display: 'none' }} onChange={handleDocxImport} />
         </div>
       </div>
 

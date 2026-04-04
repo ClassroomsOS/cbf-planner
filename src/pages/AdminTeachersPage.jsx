@@ -575,9 +575,10 @@ function AssignmentModal({ teacher, admin, school, allAssignments, onClose, onSa
 // Inline section inside AssignmentModal for changing role and level.
 function RoleAndLevelEditor({ teacher, admin }) {
   const { showToast } = useToast()
-  const [role,    setRole]    = useState(teacher.role || 'teacher')
-  const [level,   setLevel]   = useState(teacher.level || '')
-  const [saving,  setSaving]  = useState(false)
+  const [role,       setRole]       = useState(teacher.role || 'teacher')
+  const [level,      setLevel]      = useState(teacher.level || '')
+  const [aiLimit,    setAiLimit]    = useState(String(teacher.ai_monthly_limit || 0))
+  const [saving,     setSaving]     = useState(false)
 
   const ALL_ROLES = [
     { value: 'teacher',       label: '👩‍🏫 Docente' },
@@ -595,17 +596,19 @@ function RoleAndLevelEditor({ teacher, admin }) {
     setSaving(true)
     const { error } = await supabase
       .from('teachers')
-      .update({ role, level: level || null })
+      .update({ role, level: level || null, ai_monthly_limit: parseInt(aiLimit) || 0 })
       .eq('id', teacher.id)
     setSaving(false)
     if (error) {
-      showToast('Error al guardar rol: ' + error.message, 'error')
+      showToast('Error al guardar: ' + error.message, 'error')
     } else {
-      showToast(`Rol actualizado: ${role}`, 'success')
+      showToast(`Guardado: rol ${role}, límite IA ${parseInt(aiLimit) || 0} tok/mes`, 'success')
     }
   }
 
-  const unchanged = role === (teacher.role || 'teacher') && level === (teacher.level || '')
+  const unchanged = role === (teacher.role || 'teacher')
+    && level === (teacher.level || '')
+    && parseInt(aiLimit) === (teacher.ai_monthly_limit || 0)
 
   return (
     <div style={{ background: '#faf9ff', border: '1.5px solid #d6c9f0', borderRadius: '10px', padding: '14px', marginBottom: '16px' }}>
@@ -634,6 +637,18 @@ function RoleAndLevelEditor({ teacher, admin }) {
           </select>
         </div>
       </div>
+      <div className="ge-field" style={{ marginBottom: 10 }}>
+        <label>⚡ Límite mensual de IA <span style={{ color: '#999', fontWeight: 400 }}>(tokens · 0 = ilimitado)</span></label>
+        <input type="number" min="0" step="10000" value={aiLimit}
+          onChange={e => setAiLimit(e.target.value)}
+          placeholder="0 = ilimitado"
+          style={{ maxWidth: '180px' }} />
+        {parseInt(aiLimit) > 0 && (
+          <span style={{ fontSize: '11px', color: '#8064A2', marginLeft: '8px' }}>
+            ≈ {Math.floor(parseInt(aiLimit) / 2000)} generaciones completas
+          </span>
+        )}
+      </div>
       {!unchanged && (
         <button
           onClick={handleSave}
@@ -641,7 +656,7 @@ function RoleAndLevelEditor({ teacher, admin }) {
           className="btn-primary btn-save"
           style={{ fontSize: '12px', padding: '6px 16px' }}
         >
-          {saving ? '⏳ Guardando…' : '💾 Guardar rol y nivel'}
+          {saving ? '⏳ Guardando…' : '💾 Guardar rol, nivel y límite IA'}
         </button>
       )}
     </div>

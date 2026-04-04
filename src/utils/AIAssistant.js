@@ -5,6 +5,22 @@
 import { supabase } from '../supabase'
 import { sanitizeAIInput } from './validationSchemas'
 
+// ── AI context (set once at login) ───────────────────────────────────────────
+// schoolId + teacherId needed for usage logging and limit enforcement.
+let _aiSchoolId   = null
+let _aiTeacherId  = null
+let _aiMonthLimit = 0   // 0 = unlimited
+
+export function setAIContext({ schoolId, teacherId, monthlyLimit = 0 }) {
+  _aiSchoolId   = schoolId
+  _aiTeacherId  = teacherId
+  _aiMonthLimit = monthlyLimit || 0
+}
+
+// Pricing: claude-sonnet-4 (approximate, $/token)
+const COST_INPUT  = 3  / 1_000_000   // $3 per million input tokens
+const COST_OUTPUT = 15 / 1_000_000   // $15 per million output tokens
+
 // ── Normalize SmartBlock data returned by AI ─────────────────────────────────
 // Fixes common structural variations so stored blocks always use canonical keys.
 function normalizeSmartBlock(block) {
@@ -45,6 +61,23 @@ async function callClaude({ type, system, message, planId, maxTokens }) {
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) throw new Error('No hay sesión activa.')
 
+  // ── Check monthly token limit ─────────────────────────────
+  if (_aiMonthLimit > 0 && _aiTeacherId) {
+    const now   = new Date()
+    const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+    const end   = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString()
+    const { data: rows } = await supabase
+      .from('ai_usage')
+      .select('input_tokens, output_tokens')
+      .eq('teacher_id', _aiTeacherId)
+      .gte('created_at', start)
+      .lt('created_at', end)
+    const used = (rows || []).reduce((s, r) => s + (r.input_tokens || 0) + (r.output_tokens || 0), 0)
+    if (used >= _aiMonthLimit) {
+      throw new Error(`Límite mensual de IA alcanzado (${_aiMonthLimit.toLocaleString()} tokens). Habla con el coordinador.`)
+    }
+  }
+
   const response = await fetch(
     `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/claude-proxy`,
     {
@@ -71,6 +104,21 @@ async function callClaude({ type, system, message, planId, maxTokens }) {
     throw new Error(`Error del servidor de IA: ${text.slice(0, 120)}`)
   }
   if (data.error) throw new Error(data.error)
+
+  // ── Log usage to ai_usage (fire & forget) ────────────────
+  if (data.usage && _aiSchoolId && _aiTeacherId) {
+    const inp = data.usage.input_tokens  || 0
+    const out = data.usage.output_tokens || 0
+    supabase.from('ai_usage').insert({
+      school_id:     _aiSchoolId,
+      teacher_id:    _aiTeacherId,
+      type:          type || 'unknown',
+      input_tokens:  inp,
+      output_tokens: out,
+      cost_usd:      parseFloat((inp * COST_INPUT + out * COST_OUTPUT).toFixed(6)),
+    }).then(() => {})
+  }
+
   return data.text || ''
 }
 
@@ -615,5 +663,75 @@ Grado: ${safeGrade}${tematicasBlock}`
   let parsed
   try { parsed = JSON.parse(raw) } catch { parsed = null }
   if (!Array.isArray(parsed) || !parsed.length) throw new Error('La IA no devolvió indicadores válidos.')
+  return parsed
+}
+
+// ── Importar guía desde .docx ─────────────────────────────────────────────────
+// Recibe el texto extraído de un .docx (via mammoth) y devuelve un content JSON
+// listo para insertar en lesson_plans.content.
+// maxTokens 8000 — el docx puede ser largo pero la respuesta es JSON estructurado.
+export async function importGuideFromDocx({ docxText, grade, subject, principles }) {
+  const safeText    = sanitizeAIInput(docxText || '').slice(0, 8000) // trim very long docs
+  const safeGrade   = sanitizeAIInput(grade   || '')
+  const safeSubject = sanitizeAIInput(subject || '')
+
+  const system = `Eres un experto en el sistema pedagógico CBF (Boston Flex).
+Tu tarea es parsear una guía de aprendizaje existente (texto extraído de un .docx)
+y devolver un objeto JSON con la estructura interna del sistema CBF.
+
+ESTRUCTURA REQUERIDA (devuelve SOLO JSON válido, sin markdown, sin texto extra):
+{
+  "info": {
+    "grado": "string",
+    "asignatura": "string",
+    "semana": "string",
+    "periodo": "string",
+    "fechas": "string",
+    "docente": "string"
+  },
+  "objetivo": {
+    "general": "string (logro/objetivo de la guía)",
+    "indicador": "string",
+    "principio": "string"
+  },
+  "verse": { "text": "string", "ref": "string" },
+  "days": {
+    "lunes": {
+      "active": true,
+      "sections": {
+        "subject":    { "content": "texto HTML simple" },
+        "motivation": { "content": "texto HTML simple" },
+        "activity":   { "content": "texto HTML simple" },
+        "skill":      { "content": "texto HTML simple" },
+        "closing":    { "content": "texto HTML simple" },
+        "assignment": { "content": "texto HTML simple" }
+      }
+    }
+  },
+  "summary": { "done": "", "next": "" }
+}
+
+REGLAS:
+- days usa nombres en español: "lunes", "martes", "miercoles", "jueves", "viernes"
+- Si el documento no tiene separación por días, pon todo en "lunes"
+- Mapea lo que encuentres a las 6 secciones CBF (subject/motivation/activity/skill/closing/assignment)
+- Si no hay información para una sección, deja content vacío ""
+- El content de cada sección puede ser HTML simple: <p>, <ul>, <li>, <strong>
+- NO inventes información que no esté en el documento
+${biblicalBlock(principles, '')}`
+
+  const message = `Parsea esta guía de aprendizaje al formato JSON CBF:
+
+DATOS DE CONTEXTO:
+- Grado esperado: ${safeGrade || 'detectar del documento'}
+- Materia esperada: ${safeSubject || 'detectar del documento'}
+
+TEXTO DEL DOCUMENTO:
+${safeText}`
+
+  const raw = await callClaude({ type: 'import_docx', system, message, maxTokens: 8000 })
+  let parsed
+  try { parsed = JSON.parse(raw) } catch { parsed = null }
+  if (!parsed || typeof parsed !== 'object') throw new Error('No se pudo parsear el documento. Verifica que sea una guía de aprendizaje CBF.')
   return parsed
 }
