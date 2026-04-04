@@ -521,7 +521,10 @@ export default function LearningTargetsPage({ teacher }) {
         <div className="lt-modal-overlay">
           <div className="lt-modal" onClick={e => e.stopPropagation()}>
             <div className="lt-modal-header">
-              <h3>{editingId ? '✏️ Editar logro del trimestre' : '🎯 Nuevo logro del trimestre'}</h3>
+              <div>
+                <span className="lt-modal-type-tag">🎯 Logro de Desempeño</span>
+                <h3>{editingId ? 'Editar logro del trimestre' : 'Nuevo logro del trimestre'}</h3>
+              </div>
               <button className="lt-modal-close" onClick={closeForm} aria-label="Cerrar formulario de logro">✕</button>
             </div>
 

@@ -372,18 +372,18 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
     <>
       <style>{`
         input:focus, textarea:focus, select:focus {
-          border-color: #1A3A8F !important;
-          box-shadow: 0 0 0 3px rgba(26, 58, 143, 0.1) !important;
+          border-color: #1A6B3A !important;
+          box-shadow: 0 0 0 3px rgba(26, 107, 58, 0.12) !important;
         }
         .news-btn-primary:not(:disabled):hover {
           transform: scale(1.02);
-          box-shadow: 0 4px 12px rgba(26, 58, 143, 0.2);
+          box-shadow: 0 4px 12px rgba(26, 107, 58, 0.2);
         }
         .news-btn-primary:not(:disabled):active { transform: scale(0.98); }
         .news-close-btn:hover { background: #eee !important; transform: scale(1.05); }
         .news-nav-item:hover:not(.news-nav-active) {
-          background: rgba(26,58,143,0.05) !important;
-          color: #1A3A8F !important;
+          background: rgba(26,107,58,0.06) !important;
+          color: #1A6B3A !important;
         }
         *:focus { outline: none; }
         button, input, textarea, select {
@@ -424,10 +424,13 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
           {/* ── Header ── */}
           <div style={styles.header}>
             <div>
-              <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: '#1a1a2e' }}>
-                {isEditing ? '✏️ Editar Proyecto NEWS' : '📋 Nuevo Proyecto NEWS'}
+              <span style={{ display: 'inline-block', fontSize: 9, fontWeight: 900, letterSpacing: '1px', textTransform: 'uppercase', color: '#A8E6C0', background: 'rgba(168,230,192,0.15)', border: '1px solid rgba(168,230,192,0.35)', borderRadius: 4, padding: '2px 8px', marginBottom: 6 }}>
+                📋 Proyecto NEWS
+              </span>
+              <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: '#FFFFFF' }}>
+                {isEditing ? 'Editar Proyecto NEWS' : 'Nuevo Proyecto NEWS'}
               </h2>
-              <p style={{ margin: '4px 0 0', fontSize: 11, color: '#888' }}>
+              <p style={{ margin: '4px 0 0', fontSize: 11, color: 'rgba(255,255,255,0.72)' }}>
                 {form.subject && form.grade ? `${form.subject} · ${form.grade}${form.section ? ` ${form.section}` : ''}` : 'Define el proyecto, la rúbrica y el contenido del textbook'}
               </p>
             </div>
@@ -489,17 +492,17 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
                     }}
                   >
                     <span style={{ fontSize: 15, flexShrink: 0 }}>{step.icon}</span>
-                    <span style={{ flex: 1, fontSize: 11, fontWeight: isActive ? 700 : 500, textAlign: 'left', lineHeight: 1.3, color: isActive ? '#1A3A8F' : '#555' }}>
+                    <span style={{ flex: 1, fontSize: 11, fontWeight: isActive ? 700 : 500, textAlign: 'left', lineHeight: 1.3, color: isActive ? '#1A6B3A' : '#555' }}>
                       {step.label}
                       {step.badge && (
-                        <span style={{ marginLeft: 6, background: '#1A3A8F', color: '#fff', fontSize: 9, fontWeight: 800, borderRadius: 8, padding: '1px 5px' }}>
+                        <span style={{ marginLeft: 6, background: '#1A6B3A', color: '#fff', fontSize: 9, fontWeight: 800, borderRadius: 8, padding: '1px 5px' }}>
                           {step.badge}
                         </span>
                       )}
                     </span>
                     <span style={{
                       width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
-                      background: step.isDone ? '#9BBB59' : isActive ? '#1A3A8F' : '#E0E0E0',
+                      background: step.isDone ? '#9BBB59' : isActive ? '#1A6B3A' : '#E0E0E0',
                       transition: 'background 0.2s',
                     }} />
                   </button>
@@ -1121,14 +1124,18 @@ const styles = {
     overflow: 'hidden'
   },
   header: {
-    padding: '16px 20px', borderBottom: '1px solid #eee',
+    padding: '16px 20px',
+    background: 'linear-gradient(135deg, #1A6B3A 0%, #2D8A50 100%)',
+    borderBottom: 'none',
     display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
-    flexShrink: 0
+    flexShrink: 0,
+    borderRadius: '16px 16px 0 0',
   },
   closeBtn: {
-    border: 'none', background: '#f5f5f5', borderRadius: 8,
+    border: 'none', background: 'rgba(255,255,255,0.15)', borderRadius: 8,
     width: 30, height: 30, fontSize: 14, cursor: 'pointer',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888'
+    display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.9)',
+    flexShrink: 0, marginTop: 2,
   },
   sidebar: {
     width: 152, borderRight: '1px solid #eee',
@@ -1143,7 +1150,7 @@ const styles = {
     textAlign: 'left', color: '#666'
   },
   navItemActive: {
-    background: '#fff', borderLeftColor: '#1A3A8F',
+    background: '#fff', borderLeftColor: '#1A6B3A',
     boxShadow: 'inset 0 0 0 0 transparent'
   },
   content: {
@@ -1156,8 +1163,8 @@ const styles = {
     fontSize: 12, color: '#888', margin: 0, lineHeight: 1.5
   },
   btnNext: {
-    alignSelf: 'flex-end', padding: '8px 16px', border: '1px solid #c5d5f0',
-    borderRadius: 8, background: '#fff', color: '#1A3A8F',
+    alignSelf: 'flex-end', padding: '8px 16px', border: '1px solid #b0d8bc',
+    borderRadius: 8, background: '#fff', color: '#1A6B3A',
     fontSize: 12, fontWeight: 700, cursor: 'pointer',
     marginTop: 4
   },
@@ -1192,6 +1199,6 @@ const styles = {
   },
   btnSave: {
     padding: '8px 24px', border: 'none', borderRadius: 8,
-    background: '#1A3A8F', color: 'white', fontSize: 13, fontWeight: 700, cursor: 'pointer'
+    background: '#1A6B3A', color: 'white', fontSize: 13, fontWeight: 700, cursor: 'pointer'
   }
 }
