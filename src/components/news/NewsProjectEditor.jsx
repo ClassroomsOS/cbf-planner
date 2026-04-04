@@ -1024,13 +1024,13 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
                     )}
                   </div>
 
-                  <button onClick={() => setActiveStep(form.news_model === 'language' ? 'actividades' : 'rubric')} style={styles.btnNext}>
-                    Siguiente: {form.news_model === 'language' ? 'Actividades →' : 'Rúbrica →'}
+                  <button onClick={() => setActiveStep('actividades')} style={styles.btnNext}>
+                    Siguiente: Actividades →
                   </button>
                 </div>
               )}
 
-              {/* ── STEP: Actividades Evaluativas (Modelo B only) ── */}
+              {/* ── STEP: Actividades Evaluativas ── */}
               {activeStep === 'actividades' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                   <div>

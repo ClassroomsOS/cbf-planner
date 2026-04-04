@@ -372,7 +372,15 @@ ${(() => {
   if (tb?.grammar?.length) rows.push(`<div style="margin-bottom:4px"><strong>Gramática:</strong> ${tb.grammar.map(esc).join(', ')}</div>`)
   if (tb?.vocabulary?.length) rows.push(`<div style="margin-bottom:4px"><strong>Vocabulario:</strong> ${tb.vocabulary.map(esc).join(', ')}</div>`)
   if (np.biblical_principle) rows.push(`<div style="margin-bottom:4px"><strong>Principio bíblico:</strong> ${esc(np.biblical_principle)}</div>`)
-  if (np.biblical_reflection) rows.push(`<div style="font-style:italic;color:#555">${esc(np.biblical_reflection)}</div>`)
+  if (np.biblical_reflection) rows.push(`<div style="font-style:italic;color:#555;margin-bottom:6px">${esc(np.biblical_reflection)}</div>`)
+  const acts = (np.actividades_evaluativas || []).filter(a => a.nombre).sort((a, b) => (a.fecha || '').localeCompare(b.fecha || ''))
+  if (acts.length) {
+    const actRows = acts.map(a => {
+      const dateStr = a.fecha ? new Date(a.fecha + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'short' }) : 'sin fecha'
+      return `<span style="display:inline-flex;align-items:center;gap:5px;background:#f0f8f4;border:1px solid #b0d8be;border-radius:5px;padding:2px 8px;margin:2px;font-size:11px"><strong style="color:#1A6B3A">${esc(dateStr)}</strong>${esc(a.nombre)}${a.porcentaje > 0 ? ` <em style="color:#666">${a.porcentaje}%</em>` : ''}</span>`
+    }).join('')
+    rows.push(`<div style="margin-top:4px"><strong>Actividades evaluativas:</strong><div style="margin-top:4px">${actRows}</div></div>`)
+  }
   if (!rows.length) return ''
   return `
 <table style="width:100%;border:2px solid #1A6B3A;border-collapse:collapse;margin-bottom:12px">
