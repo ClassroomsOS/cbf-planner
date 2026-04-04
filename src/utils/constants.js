@@ -41,6 +41,11 @@ export const ACADEMIC_PERIODS = [
   { value: '4', label: '4.° Período 2026',  short: 'P4' },
 ]
 
+// ── Modelo B — Materias en inglés (estructura pedagógica diferente) ───────────
+// Language Arts, Social Studies y Science usan competencias/habilidades/operadores
+// en lugar de Logro + Temáticas del Modelo A. Úsalo para mostrar UI diferente.
+export const MODELO_B_SUBJECTS = ['Language Arts', 'Social Studies', 'Science']
+
 // ── Default Subject List ──────────────────────────────────────────────────────
 export const DEFAULT_SUBJECTS = [
   'Language Arts',
@@ -146,7 +151,7 @@ export const MAX_AI_TOKENS = {
   suggest: 2000,
   analyze: 4000,
   generate: 16000,
-  rubric: 2500,
+  rubric: 4000,
   smartBlock: 1200,
   indicadores: 700,
 }

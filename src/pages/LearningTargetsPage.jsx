@@ -218,7 +218,7 @@ export default function LearningTargetsPage({ teacher }) {
 
   // ── Delete ──
   async function handleDelete(id) {
-    if (!window.confirm('¿Eliminar este logro de desempeño?')) return
+    if (!window.confirm('¿Eliminar este logro del trimestre?')) return
     await supabase.from('learning_targets').delete().eq('id', id)
     await loadData()
   }
@@ -294,7 +294,7 @@ export default function LearningTargetsPage({ teacher }) {
         </div>
         <div className="ge-save-area">
           <button className="btn-primary" onClick={openNewForm}>
-            + Nuevo logro
+            + Nuevo logro del trimestre
           </button>
         </div>
       </div>
@@ -356,17 +356,17 @@ export default function LearningTargetsPage({ teacher }) {
             <div className="lt-empty-icon">🎯</div>
             <h3>
               {targets.length === 0
-                ? 'Aún no tienes logros de desempeño'
+                ? 'Aún no tienes logros del trimestre'
                 : 'Sin resultados para estos filtros'}
             </h3>
             <p>
               {targets.length === 0
-                ? 'Los logros son el corazón de la planeación diferenciada. Define qué debería poder hacer el estudiante — no qué tema "cubre" la semana.'
+                ? 'El logro del trimestre es la meta macro: verbo cognitivo + contenido + condición + dimensión valorativa. Define qué puede hacer el estudiante, no qué tema "cubre" la semana.'
                 : 'Prueba ajustando los filtros o crea un nuevo logro.'}
             </p>
             {targets.length === 0 && (
               <button className="btn-primary" onClick={openNewForm} style={{ marginTop: '12px' }}>
-                + Crear mi primer logro
+                + Crear mi primer logro del trimestre
               </button>
             )}
           </div>
@@ -476,7 +476,7 @@ export default function LearningTargetsPage({ teacher }) {
         <div className="lt-modal-overlay">
           <div className="lt-modal" onClick={e => e.stopPropagation()}>
             <div className="lt-modal-header">
-              <h3>{editingId ? '✏️ Editar logro' : '🎯 Nuevo logro de desempeño'}</h3>
+              <h3>{editingId ? '✏️ Editar logro del trimestre' : '🎯 Nuevo logro del trimestre'}</h3>
               <button className="lt-modal-close" onClick={closeForm} aria-label="Cerrar formulario de logro">✕</button>
             </div>
 
@@ -533,7 +533,7 @@ export default function LearningTargetsPage({ teacher }) {
 
               {/* Description */}
               <div className="ge-field">
-                <label>Desempeño observable</label>
+                <label>Logro del Trimestre</label>
                 <textarea
                   value={form.description}
                   onChange={e => updateForm('description', e.target.value)}
@@ -542,13 +542,14 @@ export default function LearningTargetsPage({ teacher }) {
                   className="lt-textarea"
                 />
                 <span className="lt-field-hint">
+                  Anatomía: <strong>verbo cognitivo</strong> + contenido específico + condición de desempeño + dimensión valorativa.<br />
                   Describe lo que el estudiante debería poder <strong>hacer</strong>, no el tema que "cubre."
                 </span>
               </div>
 
               {/* Taxonomy level */}
               <div className="ge-field">
-                <label>Nivel de desempeño</label>
+                <label>Nivel taxonómico del logro</label>
                 <div className="lt-taxonomy-selector">
                   {TAXONOMY_LEVELS.map(t => (
                     <button

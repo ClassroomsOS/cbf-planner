@@ -471,20 +471,28 @@ export async function generateRubric({
   projectTitle, projectDescription, subject, grade, skill, indicadores, principles
 }) {
   const system = `Eres un experto en evaluación educativa para colegios bilingües colombianos.
-Diseñas rúbricas analíticas completas para proyectos de aprendizaje basado en proyectos (NEWS).
+Diseñas rúbricas analíticas para proyectos NEWS. La rúbrica CBF tiene EXACTAMENTE 8 criterios × 5 niveles.
+
+COMPOSICIÓN OBLIGATORIA (8 criterios exactos, en este orden):
+1. Cognitivo 1 — Comprensión conceptual del tema central del proyecto
+2. Cognitivo 2 — Aplicación y uso del conocimiento en el producto final
+3. Cognitivo 3 — Análisis, argumentación o pensamiento crítico evidenciado
+4. Comunicativo 1 — Claridad, precisión y coherencia en la expresión oral o escrita
+5. Comunicativo 2 — Organización, estructura y presentación del trabajo
+6. Actitudinal — Responsabilidad, participación activa y trabajo colaborativo
+7. Bíblico/Valorativo — Integración del principio bíblico o versículo en el trabajo/reflexión
+8. Técnico específico — Dominio del skill o habilidad técnica central de ESTE proyecto (p.ej. Speaking fluency, cálculo, interpretación de datos)
+
 Cada criterio debe:
-- Evaluar una dimensión específica y observable del desempeño del estudiante
-- Tener 5 niveles claramente diferenciados: del no logro (1) al logro pleno (5)
-- El nivel 5 representa el cumplimiento total del indicador de logro — eso ES el 100%
-- Los niveles 4, 3, 2 y 1 son gradaciones descendentes de ese mismo estándar
-- Estar redactados en inglés (colegio bilingüe), en tercera persona, usando verbos de acción
-- Ser concisos (1-2 oraciones por nivel)
+- Tener 5 niveles: Superior (5) / Alto (4) / Básico (3) / Bajo (2) / Muy Bajo (1)
+- El nivel 5 = cumplimiento pleno del indicador (eso es el 100%)
+- Descriptores observables, en inglés, tercera persona, verbos de acción, 1-2 oraciones por nivel
 ${biblicalBlock(principles,
-  'Si el proyecto tiene un principio del indicador bíblico, incluye UN criterio que evalúe la dimensión formativa espiritual — cómo el estudiante integró ese principio en su trabajo o reflexión. Este criterio es tan evaluable como los académicos.'
+  'El criterio 7 (Bíblico/Valorativo) DEBE conectar directamente con el principio del indicador o versículo recibido. Es tan evaluable como los criterios académicos.'
 )}
 Responde ÚNICAMENTE con JSON válido. Sin markdown, sin texto adicional.
-Estructura: [{"name":"string","desc":"string","levels":["nivel5","nivel4","nivel3","nivel2","nivel1"]},...]
-Genera entre 3 y 5 criterios según la complejidad del proyecto.`
+Estructura exacta: [{"name":"string","desc":"string","levels":["nivel5","nivel4","nivel3","nivel2","nivel1"]},...]
+GENERA EXACTAMENTE 8 OBJETOS en el array.`
 
   // Sanitize user inputs
   const safeTitle = sanitizeAIInput(projectTitle || 'Proyecto sin título')
@@ -497,22 +505,23 @@ Genera entre 3 y 5 criterios según la complejidad del proyecto.`
     .map(ind => sanitizeAIInput(ind))
     .join('\n- ')
 
-  const message = `Genera una rúbrica completa para este proyecto NEWS:
+  const message = `Genera la rúbrica CBF (exactamente 8 criterios) para este proyecto NEWS:
 
 Título: ${safeTitle}
 Descripción: ${safeDesc}
 Materia: ${safeSubject} | Grado: ${safeGrade}${safeSkill ? ` | Skill: ${safeSkill}` : ''}
-${safeIndStr ? `\nIndicadores de logro (esto es el 100% — nivel 5):\n- ${safeIndStr}` : ''}
+${safeIndStr ? `\nIndicadores de logro (esto es el nivel 5 — el 100%):\n- ${safeIndStr}` : ''}
 
-El nivel 5 de cada criterio debe reflejar directamente el logro de los indicadores anteriores.
-Genera criterios que cubran las dimensiones más importantes de este proyecto específico.`
+Recuerda: el criterio 8 (Técnico específico) debe evaluar la habilidad central de ESTE proyecto${safeSkill ? ` (${safeSkill})` : ''}.
+Genera EXACTAMENTE 8 criterios en el orden indicado.`
 
-  const raw = await callClaude({ type: 'generate_rubric', system, message, maxTokens: 2500 })
+  const raw = await callClaude({ type: 'generate_rubric', system, message, maxTokens: 4000 })
   const match = raw.match(/\[[\s\S]*\]/)
   if (!match) throw new Error('La IA no devolvió una rúbrica válida.')
   let parsed
   try { parsed = JSON.parse(match[0].trim()) } catch { throw new Error('No se pudo leer la rúbrica generada.') }
   if (!Array.isArray(parsed) || !parsed.length) throw new Error('La rúbrica generada está vacía.')
+  if (parsed.length !== 8) throw new Error(`La rúbrica debe tener 8 criterios. La IA generó ${parsed.length}.`)
   // Ensure each criterion has exactly 5 levels
   return parsed.map(c => ({
     name:   c.name   || '',
