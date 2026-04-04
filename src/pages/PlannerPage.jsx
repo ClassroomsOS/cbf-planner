@@ -131,9 +131,9 @@ export default function PlannerPage({ teacher }) {
   const weekNumber  = getSchoolWeek(monday)
   const dateRange   = formatRange(allWeekDays)
 
-  // Derive active indicator from the nearest NEWS project after the selected week
-  const plannerActiveIndicator = useMemo(() => {
-    if (!plannerNewsProjects.length || !activeTarget) return null
+  // Derive active NEWS project and indicator for the selected week
+  const plannerActiveNewsProject = useMemo(() => {
+    if (!plannerNewsProjects.length) return null
     const firstDay = toISO(allWeekDays[0])
     const dayKeys  = new Set(allWeekDays.map(toISO))
 
@@ -141,23 +141,26 @@ export default function PlannerPage({ teacher }) {
     const byActivity = plannerNewsProjects.find(np =>
       (np.actividades_evaluativas || []).some(act => act.fecha && dayKeys.has(act.fecha))
     )
-    if (byActivity) {
-      const ind = (activeTarget.indicadores || []).find(
-        i => typeof i === 'object' && i.habilidad?.toLowerCase() === byActivity.skill?.toLowerCase()
-      )
-      return ind || null
-    }
+    if (byActivity) return byActivity
 
     // Priority 2: nearest due_date >= firstDay
     const np = plannerNewsProjects
       .filter(p => p.due_date && p.due_date >= firstDay)
       .sort((a, b) => a.due_date.localeCompare(b.due_date))[0]
-    if (!np) return null
+    if (np) return np
 
+    // Priority 3: any linked project (teacher hasn't set dates yet)
+    const withSkill = plannerNewsProjects.filter(p => p.skill)
+    return withSkill[0] || plannerNewsProjects[0] || null
+  }, [plannerNewsProjects, monday, weekCount])
+
+  const plannerActiveIndicator = useMemo(() => {
+    if (!plannerActiveNewsProject || !activeTarget) return null
     return (activeTarget.indicadores || []).find(
-      i => typeof i === 'object' && i.habilidad?.toLowerCase() === np.skill?.toLowerCase()
+      i => typeof i === 'object' &&
+           i.habilidad?.toLowerCase() === plannerActiveNewsProject.skill?.toLowerCase()
     ) || null
-  }, [plannerNewsProjects, activeTarget, monday, weekCount])
+  }, [plannerActiveNewsProject, activeTarget])
 
   // Fetch existing plan for current grade/subject/week selection
   useEffect(() => {
@@ -297,16 +300,17 @@ export default function PlannerPage({ teacher }) {
     const { data: newPlan, error: insertError } = await supabase
       .from('lesson_plans')
       .insert({
-        teacher_id:  teacher.id,
-        school_id:   teacher.school_id,
+        teacher_id:       teacher.id,
+        school_id:        teacher.school_id,
         grade, subject, section, period,
-        week_number: weekNumber,
-        week_count:  weekCount,
-        monday_date: toISO(monday),
-        date_range:  dateRange,
-        status:      'draft',
-        content:     {},
-        target_id:   activeTarget?.id || null,
+        week_number:      weekNumber,
+        week_count:       weekCount,
+        monday_date:      toISO(monday),
+        date_range:       dateRange,
+        status:           'draft',
+        content:          {},
+        target_id:        activeTarget?.id || null,
+        news_project_id:  plannerActiveNewsProject?.id || null,
       })
       .select()
       .single()
@@ -629,16 +633,17 @@ export default function PlannerPage({ teacher }) {
               const { data: newPlan } = await supabase
                 .from('lesson_plans')
                 .insert({
-                  teacher_id: teacher.id,
-                  school_id:  teacher.school_id,
+                  teacher_id:       teacher.id,
+                  school_id:        teacher.school_id,
                   grade, subject, section, period,
-                  week_number: weekNumber,
-                  week_count:  weekCount,
-                  monday_date: toISO(monday),
-                  date_range:  dateRange,
-                  status:      'draft',
-                  content:     {},
-                  target_id:   activeTarget?.id || null,
+                  week_number:      weekNumber,
+                  week_count:       weekCount,
+                  monday_date:      toISO(monday),
+                  date_range:       dateRange,
+                  status:           'draft',
+                  content:          {},
+                  target_id:        activeTarget?.id || null,
+                  news_project_id:  plannerActiveNewsProject?.id || null,
                 })
                 .select().single()
               planId = newPlan?.id

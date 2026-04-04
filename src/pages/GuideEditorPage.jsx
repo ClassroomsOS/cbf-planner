@@ -293,16 +293,24 @@ export default function GuideEditorPage({ teacher }) {
   }, [plan?.target_id])
 
   // ── Derive active NEWS project for this guide's date range ──
+  // Priority 0: plan.news_project_id — set at guide creation, direct pointer
   // Priority 1: a NEWS activity fecha falls within the guide's days
   // Priority 2: nearest due_date AFTER the guide's first day — the next hito
   //   this guide is building toward. A guide never looks at a NEWS whose
   //   due_date is before the guide's own date.
+  // Priority 3: any linked project without due_date (teacher hasn't scheduled yet)
   const activeNewsProject = useMemo(() => {
     if (!linkedNewsProjects.length || !content) return null
     const dayKeys = new Set(Object.keys(content.days || {}))
     if (!dayKeys.size) return null
     const sortedDays = [...dayKeys].sort()
     const firstDay = sortedDays[0]
+
+    // Priority 0: direct pointer saved at guide creation
+    if (plan?.news_project_id) {
+      const direct = linkedNewsProjects.find(np => np.id === plan.news_project_id)
+      if (direct) return direct
+    }
 
     // Priority 1: activity date falls in guide's week
     const byActivity = linkedNewsProjects.find(np =>
@@ -316,8 +324,12 @@ export default function GuideEditorPage({ teacher }) {
       .sort((a, b) => a.due_date.localeCompare(b.due_date))
     if (future.length) return future[0]
 
+    // Priority 3: projects without due_date (teacher hasn't set dates yet)
+    const noDueDate = linkedNewsProjects.filter(np => np.skill && !np.due_date)
+    if (noDueDate.length) return noDueDate[0]
+
     return null
-  }, [linkedNewsProjects, content?.days])
+  }, [linkedNewsProjects, content?.days, plan?.news_project_id])
 
   // ── Derive the specific indicator for this guide from the active NEWS project ──
   // Modelo B: indicator object matched by skill (habilidad) from learning_targets.indicadores
