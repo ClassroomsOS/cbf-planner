@@ -25,7 +25,15 @@
       "Bash(./.claude/auto-commit.sh \"feat\\(ai\\): Sprint 6 — token logging, límites por docente, import .docx, malla curricular\")",
       "Bash(./.claude/auto-commit.sh \"docs: update CLAUDE.md — Sprint 6 completado\")",
       "Bash(python -m json.tool)",
-      "Bash(./.claude/auto-commit.sh \"feat\\(news,logros\\): auto-crear 4 proyectos NEWS al crear Logro Modelo B + actividades evaluativas\")"
+      "Bash(./.claude/auto-commit.sh \"feat\\(news,logros\\): auto-crear 4 proyectos NEWS al crear Logro Modelo B + actividades evaluativas\")",
+      "Bash(wc -l src/**/*.jsx src/**/*.js src/**/**/*.jsx src/**/**/*.js)",
+      "Bash(cat .github/workflows/*.yml)",
+      "Bash(ls src/*.css)",
+      "Bash(python:*)",
+      "Bash(python3 -c \"import reportlab; print\\('ok'\\)\")",
+      "Bash(py -c \"import reportlab; print\\('ok'\\)\")",
+      "Bash(npx --yes md-to-pdf --version)",
+      "Bash(grep -v \"{ data, error }\\\\|const { error\\\\|\\\\.then\\\\|catch\")"
     ]
   }
 }
