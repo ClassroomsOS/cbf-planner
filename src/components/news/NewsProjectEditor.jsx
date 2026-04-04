@@ -74,6 +74,22 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
   const [tagInput, setTagInput] = useState({ grammar: '', vocabulary: '', units: '' })
   const [showTargetSelector, setShowTargetSelector] = useState(false)
   const [newActividad, setNewActividad] = useState({ nombre: '', descripcion: '', porcentaje: '', fecha: '' })
+  const [holidays, setHolidays] = useState({}) // { 'YYYY-MM-DD': { name } }
+
+  // ── Load school calendar holidays ──
+  useEffect(() => {
+    if (!teacher?.school_id) return
+    supabase
+      .from('school_calendar')
+      .select('date, name')
+      .eq('school_id', teacher.school_id)
+      .eq('is_school_day', false)
+      .then(({ data }) => {
+        const map = {}
+        if (data) data.forEach(r => { map[r.date] = r })
+        setHolidays(map)
+      })
+  }, [teacher?.school_id])
 
   // ── Load teacher assignments for smart dropdowns ──
   const [assignments, setAssignments] = useState([])
@@ -1066,8 +1082,13 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
                         type="date"
                         value={newActividad.fecha}
                         onChange={e => setNewActividad(p => ({ ...p, fecha: e.target.value }))}
-                        style={styles.input}
+                        style={{ ...styles.input, borderColor: newActividad.fecha && holidays[newActividad.fecha] ? '#f59e0b' : undefined }}
                       />
+                      {newActividad.fecha && holidays[newActividad.fecha] && (
+                        <div style={{ fontSize: 10, color: '#92400e', background: '#fffbeb', border: '1px solid #f59e0b', borderRadius: 5, padding: '2px 7px', marginTop: 3 }}>
+                          ⚠️ {holidays[newActividad.fecha].name || 'Día no laborable'}
+                        </div>
+                      )}
                     </div>
                     <div style={{ ...styles.field, width: 80 }}>
                       <label style={styles.label}>% Peso</label>
@@ -1230,20 +1251,30 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
 
                             {/* Activities in this week */}
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                              {weekMap[mon].activities.map((act, ai) => (
-                                <div key={ai} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'white', borderRadius: 8, border: `1px solid ${actColor}33`, padding: '8px 12px' }}>
-                                  <span style={{ fontSize: 11, fontWeight: 700, color: actColor, background: actColor + '18', borderRadius: 5, padding: '1px 7px', flexShrink: 0 }}>
-                                    {fmtDay(act.fecha)}
-                                  </span>
-                                  <div style={{ flex: 1, fontSize: 13, fontWeight: 600, color: '#1a1a2e' }}>
-                                    {act.nombre}
-                                    {act.descripcion && <span style={{ fontWeight: 400, color: '#777', marginLeft: 6 }}>{act.descripcion}</span>}
+                              {weekMap[mon].activities.map((act, ai) => {
+                                const isHoliday = holidays[act.fecha]
+                                return (
+                                  <div key={ai} style={{ display: 'flex', alignItems: 'center', gap: 8, background: isHoliday ? '#fffbeb' : 'white', borderRadius: 8, border: isHoliday ? '1px solid #f59e0b' : `1px solid ${actColor}33`, padding: '8px 12px' }}>
+                                    <div style={{ flexShrink: 0 }}>
+                                      <span style={{ fontSize: 11, fontWeight: 700, color: isHoliday ? '#92400e' : actColor, background: (isHoliday ? '#f59e0b' : actColor) + '18', borderRadius: 5, padding: '1px 7px', display: 'block' }}>
+                                        {fmtDay(act.fecha)}
+                                      </span>
+                                      {isHoliday && (
+                                        <span style={{ fontSize: 9, color: '#92400e', fontWeight: 700, display: 'block', marginTop: 2 }}>
+                                          ⚠️ {isHoliday.name || 'No laborable'}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div style={{ flex: 1, fontSize: 13, fontWeight: 600, color: '#1a1a2e' }}>
+                                      {act.nombre}
+                                      {act.descripcion && <span style={{ fontWeight: 400, color: '#777', marginLeft: 6 }}>{act.descripcion}</span>}
+                                    </div>
+                                    {act.porcentaje > 0 && (
+                                      <span style={{ fontSize: 11, fontWeight: 800, color: actColor, flexShrink: 0 }}>{act.porcentaje}%</span>
+                                    )}
                                   </div>
-                                  {act.porcentaje > 0 && (
-                                    <span style={{ fontSize: 11, fontWeight: 800, color: actColor, flexShrink: 0 }}>{act.porcentaje}%</span>
-                                  )}
-                                </div>
-                              ))}
+                                )
+                              })}
                               {/* Due date milestone */}
                               {weekMap[mon].hasDue && (
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fff5f5', borderRadius: 8, border: '2px solid #CC1F27', padding: '8px 12px' }}>

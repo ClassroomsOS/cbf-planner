@@ -94,27 +94,31 @@ Local dev requires `.env.local`: `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY`
 
 | Problema | Archivos | Estado |
 |---|---|---|
-| 23 escrituras Supabase sin error handling | CommentsPanel, MyPlansPage, NotificationsPage, SettingsPage, AgendaPage, MessagesPage | Pendiente Fase 1 |
 | GuideEditorPage muy grande (1521 lns) | `GuideEditorPage.jsx` | Pendiente Fase 3 |
-| NewsProjectEditor muy grande (1516 lns) | `NewsProjectEditor.jsx` | Pendiente Fase 3 |
-| useUIStore.js sin usar | `src/stores/useUIStore.js` | Eliminar cuando se pueda |
+| NewsProjectEditor muy grande (1516 lns) | `src/components/news/NewsProjectEditor.jsx` | Pendiente Fase 3 |
 | Hooks sin adoptar (useForm, useAsync, etc.) | `src/hooks/` | Adoptar o eliminar |
-| Zero tests | todo el proyecto | Pendiente Fase 2 |
 | CSS monolítico (2643 lns) | `src/styles/index.css` | Pendiente Fase 3 |
 
-### Fixes aplicados en auditoría (2026-04-04)
+### Fixes y features (2026-04-04 — sesión post-auditoría)
 
 - `c0cffd4` — minify activado, año dinámico en períodos, null-safe full_name
 - `0cc8583` — error handling + pantalla de reintento en loadTeacher
 - `f71f76f` — XSS fix en exportRubricHtml (función esc())
 - `237375e` — bloqueo de javascript:/vbscript:/data: en RichEditor links
 - `aa6d953` — compressImage con reject y timeout (15s)
+- Fase 1 ✅ — error handling en 23 escrituras Supabase (CommentsPanel, MyPlansPage, NotificationsPage, SettingsPage, AgendaPage, MessagesPage, CalendarPage, LearningTargetsPage, CheckpointModal, CorrectionRequestModal)
+- Fase 1 ✅ — supabase.js → `import.meta.env` con fallback hardcoded para seguridad en producción
+- Fase 1 ✅ — eliminado `useUIStore.js` (código muerto)
+- Fase 1 ✅ — CORS Edge Function → whitelist dinámica: `classroomsos.github.io`, `localhost:5173`, `localhost:4173`
+- Fase 2 ✅ — Vitest + 71 tests (dateUtils, roles, constants, validationSchemas) + CI bloqueante en deploy workflow
+- `f4ddc70` — `PlannerPeriodTimeline`: timeline horizontal por semanas, visualización diferenciada por tipo de actividad (Exam/Quiz/Presentation/Entrega/rutinas). `detectActivityType()` con campo `tier`.
+- `school_calendar` integrado en `NewsProjectEditor`: warning automático al asignar fecha en día no laborable. Línea de Tiempo marca festivos con badge.
 
 ### Roadmap de fases
 
 - **Fase 0** ✅ Completada — fixes urgentes de seguridad y estabilidad
-- **Fase 1** 🔄 Pendiente — error handling en 23 escrituras, CORS Edge Function, supabase.js → env vars
-- **Fase 2** ⬜ Pendiente — testing (Vitest), CI con lint y tests
+- **Fase 1** ✅ Completada — error handling en escrituras, CORS, env vars, código muerto
+- **Fase 2** ✅ Completada — testing (Vitest 71 tests), CI bloqueante
 - **Fase 3** ⬜ Pendiente — refactoring de archivos grandes, TeacherContext, CSS modular, a11y
 - **Fase 4** ⬜ Visión — TypeScript gradual, offline support
 
