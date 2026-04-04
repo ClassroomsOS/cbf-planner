@@ -193,14 +193,20 @@ export const AIAnalyzerModal = memo(function AIAnalyzerModal({ content, onClose,
 // ══════════════════════════════════════════════════════════════
 // PUNTO 3 — AIGeneratorModal (generar guía desde objetivo)
 // ══════════════════════════════════════════════════════════════
+const SKILL_COLORS = { Speaking: '#8064A2', Listening: '#4BACC6', Reading: '#F79646', Writing: '#9BBB59' }
+const SKILL_ICONS  = { Speaking: '🎤', Listening: '🎧', Reading: '📖', Writing: '✍️' }
+
 export const AIGeneratorModal = memo(function AIGeneratorModal({ grade, subject, period, activeDays, currentContent, onApply, onClose, learningTarget, activeIndicator, principles }) {
   const { showToast } = useToast()
-  // For Modelo B: use the active indicator's English text. For Modelo A: use the target description.
+
+  const isModeloB = learningTarget?.news_model === 'language'
+  // For Modelo B with known active indicator: pre-fill. Modelo A: use description. Otherwise empty.
   const initialObjective = activeIndicator
     ? (activeIndicator.texto_en || activeIndicator.habilidad || '')
     : (learningTarget?.description || '')
-  const [objective, setObjective] = useState(initialObjective)
-  const [unit,      setUnit]      = useState('')
+  const [objective,       setObjective]       = useState(initialObjective)
+  const [selectedSkill,   setSelectedSkill]   = useState(activeIndicator?.habilidad || null)
+  const [unit,            setUnit]            = useState('')
   const [loading,   setLoading]   = useState(false)
   const [preview,   setPreview]   = useState(null)
   const [error,     setError]     = useState(null)
@@ -323,41 +329,79 @@ export const AIGeneratorModal = memo(function AIGeneratorModal({ grade, subject,
                 Tú editas, ajustas y decides qué usar.
               </div>
 
-              {(learningTarget || activeIndicator) && (
-                <div style={{
-                  background: '#f0f7f0', border: '1px solid #b5d6b5', borderRadius: '8px',
-                  padding: '12px 14px', marginBottom: '16px',
-                  display: 'flex', alignItems: 'flex-start', gap: '10px',
-                }}>
-                  <span style={{ fontSize: '18px' }}>🎯</span>
-                  <div>
-                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#2d7a2d', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                      {activeIndicator ? `Indicador — ${activeIndicator.habilidad}` : 'Indicador de logro vinculado'}
-                    </div>
-                    <div style={{ fontSize: '13px', color: '#1a5c1a', lineHeight: 1.5 }}>
-                      {activeIndicator
-                        ? (activeIndicator.texto_en || activeIndicator.habilidad)
-                        : learningTarget?.description}
-                    </div>
-                    <div style={{ fontSize: '11px', color: '#888', marginTop: '4px' }}>
-                      {activeIndicator
-                        ? (() => {
-                            const tax = activeIndicator.taxonomy
-                            const taxLabel = tax === 'recognize' ? '👁️ Reconocer' : tax === 'apply' ? '🛠️ Aplicar' : '✨ Producir'
-                            return `Nivel: ${taxLabel} — El AI generará contenido alineado a este indicador.`
-                          })()
-                        : `Nivel: ${learningTarget?.taxonomy === 'recognize' ? '👁️ Reconocer' : learningTarget?.taxonomy === 'apply' ? '🛠️ Aplicar' : '✨ Producir'} — El AI generará contenido alineado a este desempeño.`
-                      }
-                    </div>
+              {/* Modelo B sin indicador auto-detectado: selector de skill */}
+              {isModeloB && !activeIndicator && (
+                <div style={{ marginBottom: '16px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 700, color: '#555', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    ¿Qué habilidad trabaja esta guía?
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    {['Speaking', 'Listening', 'Reading', 'Writing'].map(skill => {
+                      const ind = (learningTarget?.indicadores || []).find(
+                        i => typeof i === 'object' && i.habilidad?.toLowerCase() === skill.toLowerCase()
+                      )
+                      const isActive = selectedSkill === skill
+                      return (
+                        <button
+                          key={skill}
+                          onClick={() => {
+                            setSelectedSkill(skill)
+                            if (ind) setObjective(ind.texto_en || ind.habilidad || '')
+                          }}
+                          style={{
+                            padding: '8px 16px', borderRadius: '20px', border: `2px solid ${SKILL_COLORS[skill]}`,
+                            background: isActive ? SKILL_COLORS[skill] : '#fff',
+                            color: isActive ? '#fff' : SKILL_COLORS[skill],
+                            fontWeight: 700, fontSize: '13px', cursor: 'pointer',
+                          }}
+                        >
+                          {SKILL_ICONS[skill]} {skill}
+                        </button>
+                      )
+                    })}
                   </div>
                 </div>
               )}
+
+              {/* Indicador resuelto (auto-detectado o seleccionado manualmente) */}
+              {(() => {
+                const resolved = activeIndicator || (selectedSkill
+                  ? (learningTarget?.indicadores || []).find(i => typeof i === 'object' && i.habilidad?.toLowerCase() === selectedSkill.toLowerCase())
+                  : null)
+                const fallbackDesc = !isModeloB && learningTarget?.description
+                if (!resolved && !fallbackDesc) return null
+                const tax = resolved?.taxonomy || learningTarget?.taxonomy
+                const taxLabel = tax === 'recognize' ? '👁️ Reconocer' : tax === 'apply' ? '🛠️ Aplicar' : '✨ Producir'
+                const skillColor = resolved ? (SKILL_COLORS[resolved.habilidad] || '#2d7a2d') : '#2d7a2d'
+                return (
+                  <div style={{
+                    background: '#f0f7f0', border: `1px solid ${skillColor}40`, borderRadius: '8px',
+                    padding: '12px 14px', marginBottom: '16px',
+                    display: 'flex', alignItems: 'flex-start', gap: '10px',
+                  }}>
+                    <span style={{ fontSize: '18px' }}>{resolved ? (SKILL_ICONS[resolved.habilidad] || '🎯') : '🎯'}</span>
+                    <div>
+                      <div style={{ fontSize: '11px', fontWeight: 700, color: skillColor, marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        {resolved ? `Indicador — ${resolved.habilidad}` : 'Indicador de logro vinculado'}
+                      </div>
+                      <div style={{ fontSize: '13px', color: '#1a5c1a', lineHeight: 1.5 }}>
+                        {resolved ? (resolved.texto_en || resolved.habilidad) : fallbackDesc}
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#888', marginTop: '4px' }}>
+                        Nivel: {taxLabel} — El AI generará contenido alineado a este indicador.
+                      </div>
+                    </div>
+                  </div>
+                )
+              })()}
 
               <div className="ge-field">
                 <label>🎯 ¿Qué quieres que los estudiantes logren esta semana?</label>
                 <textarea rows={3}
                   value={objective}
-                  placeholder="Ej: Al finalizar la semana, el estudiante podrá usar 'used to' y 'would' para describir hábitos pasados, distinguiendo cuándo usar cada uno."
+                  placeholder={isModeloB && !selectedSkill && !activeIndicator
+                    ? 'Selecciona la habilidad arriba para auto-rellenar este campo…'
+                    : "Ej: Al finalizar la semana, el estudiante podrá usar 'used to' y 'would' para describir hábitos pasados, distinguiendo cuándo usar cada uno."}
                   onChange={e => setObjective(e.target.value)}
                   style={{ fontSize: '13px' }} />
               </div>
