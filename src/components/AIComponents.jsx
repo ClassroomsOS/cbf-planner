@@ -323,10 +323,21 @@ export const AIGeneratorModal = memo(function AIGeneratorModal({ grade, subject,
         <div className="sb-modal-body">
           {!preview && (
             <>
-              <div style={{ background: '#f0f4ff', border: '1px solid #c5d5f0', borderRadius: '8px', padding: '12px 14px', fontSize: '12px', color: '#2E5598', marginBottom: '16px' }}>
-                💡 Claude generará una propuesta completa para los {activeDays.length} días de clase {activeDays.length > 5 ? 'de estas dos semanas' : 'de esta semana'}.
-                Tú editas, ajustas y decides qué usar.
-              </div>
+              {/* Sin learningTarget: bloqueado con instrucción */}
+              {!learningTarget ? (
+                <div style={{ background: '#fff8e1', border: '1px solid #f5c842', borderRadius: '8px', padding: '14px 16px', fontSize: '13px', color: '#7a5c00', lineHeight: 1.6 }}>
+                  <div style={{ fontWeight: 700, marginBottom: '6px' }}>⚠️ No hay un Indicador de Logro vinculado</div>
+                  La IA necesita el indicador para generar contenido alineado. Ve al panel <strong>1 · Indicador</strong> (barra izquierda) y vincula el indicador antes de generar.
+                </div>
+              ) : (
+                <div style={{ background: '#f0f4ff', border: '1px solid #c5d5f0', borderRadius: '8px', padding: '12px 14px', fontSize: '12px', color: '#2E5598', marginBottom: '16px' }}>
+                  💡 Claude generará una propuesta completa para los {activeDays.length} días de clase {activeDays.length > 5 ? 'de estas dos semanas' : 'de esta semana'}.
+                  Tú editas, ajustas y decides qué usar.
+                </div>
+              )}
+
+              {/* Resto del formulario solo si hay indicador vinculado */}
+              {learningTarget && <>
 
               {/* Modelo B sin indicador auto-detectado: selector de skill */}
               {isModeloB && !activeIndicator && (
@@ -444,6 +455,7 @@ export const AIGeneratorModal = memo(function AIGeneratorModal({ grade, subject,
                   </div>
                 </div>
               )}
+              </>}
             </>
           )}
 
