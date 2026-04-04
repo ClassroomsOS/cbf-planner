@@ -61,6 +61,8 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
     habilidades: [],
   })
 
+  const [hoveredOp,   setHoveredOp]   = useState(null)
+  const [hoveredComp, setHoveredComp] = useState(null)
   const [saving, setSaving] = useState(false)
   const [generatingRubric, setGeneratingRubric] = useState(false)
   const [rubricGenerationStep, setRubricGenerationStep] = useState(0)
@@ -957,11 +959,13 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
                         { key: 'Evaluar',     desc: 'Juzgar, opinar y justificar con el idioma' },
                       ].map(({ key, desc }) => {
                         const selected = form.operadores_intelectuales.includes(key)
+                        const hovered  = hoveredOp === key
                         return (
                           <button
                             key={key}
                             type="button"
-                            title={desc}
+                            onMouseEnter={() => setHoveredOp(key)}
+                            onMouseLeave={() => setHoveredOp(null)}
                             onClick={() => {
                               const next = selected
                                 ? form.operadores_intelectuales.filter(x => x !== key)
@@ -970,11 +974,13 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
                             }}
                             style={{
                               padding: '5px 13px', borderRadius: 20, fontSize: 11, cursor: 'pointer',
-                              border: selected ? '2px solid #4F81BD' : '1px solid #c5d5f0',
-                              background: selected ? '#4F81BD' : '#fff',
+                              border: selected ? '2px solid #4F81BD' : hovered ? '1.5px solid #4F81BD' : '1px solid #c5d5f0',
+                              background: selected ? '#4F81BD' : hovered ? '#eef4fc' : '#fff',
                               color: selected ? '#fff' : '#4F81BD',
                               fontWeight: selected ? 700 : 400,
                               transition: 'all 0.15s',
+                              transform: hovered && !selected ? 'translateY(-1px)' : 'none',
+                              boxShadow: hovered && !selected ? '0 2px 8px rgba(79,129,189,0.2)' : 'none',
                             }}
                           >
                             {key}
@@ -982,8 +988,28 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
                         )
                       })}
                     </div>
-                    <div style={{ fontSize: 9, color: '#999', marginTop: 5, fontStyle: 'italic' }}>
-                      Pasa el cursor sobre cada opción para ver su descripción.
+                    {/* Descripción dinámica al hacer hover */}
+                    <div style={{
+                      marginTop: 8, minHeight: 28, fontSize: 11, lineHeight: 1.5,
+                      padding: '5px 10px', borderRadius: 6,
+                      background: hoveredOp ? '#e8f0fa' : '#f5f7fa',
+                      color: hoveredOp ? '#2a4a80' : '#aaa',
+                      border: `1px solid ${hoveredOp ? '#b8cef0' : '#e8e8e8'}`,
+                      transition: 'all 0.2s',
+                    }}>
+                      {hoveredOp
+                        ? (() => {
+                            const DESCS = {
+                              Deducir:     'Llegar a conclusiones a partir de pistas del texto',
+                              Generalizar: 'Aplicar una regla o concepto a nuevos contextos',
+                              Sintetizar:  'Resumir y conectar las ideas principales',
+                              Retener:     'Memorizar y recordar información clave',
+                              Evaluar:     'Juzgar, opinar y justificar con el idioma',
+                            }
+                            return <><strong>{hoveredOp}:</strong> {DESCS[hoveredOp]}</>
+                          })()
+                        : <em>Pasa el cursor sobre una opción para ver qué significa</em>
+                      }
                     </div>
                   </div>
 
@@ -1004,11 +1030,13 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
                         { key: 'Pragmática',       desc: 'Comunicar con propósito real en situaciones concretas' },
                       ].map(({ key, desc }) => {
                         const selected = form.competencias.includes(key)
+                        const hovered  = hoveredComp === key
                         return (
                           <button
                             key={key}
                             type="button"
-                            title={desc}
+                            onMouseEnter={() => setHoveredComp(key)}
+                            onMouseLeave={() => setHoveredComp(null)}
                             onClick={() => {
                               const next = selected
                                 ? form.competencias.filter(x => x !== key)
@@ -1017,11 +1045,13 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
                             }}
                             style={{
                               padding: '5px 13px', borderRadius: 20, fontSize: 11, cursor: 'pointer',
-                              border: selected ? '2px solid #1A3A8F' : '1px solid #c5d5f0',
-                              background: selected ? '#1A3A8F' : '#fff',
+                              border: selected ? '2px solid #1A3A8F' : hovered ? '1.5px solid #1A3A8F' : '1px solid #c5d5f0',
+                              background: selected ? '#1A3A8F' : hovered ? '#eaeefc' : '#fff',
                               color: selected ? '#fff' : '#1A3A8F',
                               fontWeight: selected ? 700 : 400,
                               transition: 'all 0.15s',
+                              transform: hovered && !selected ? 'translateY(-1px)' : 'none',
+                              boxShadow: hovered && !selected ? '0 2px 8px rgba(26,58,143,0.2)' : 'none',
                             }}
                           >
                             {key}
@@ -1029,8 +1059,26 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
                         )
                       })}
                     </div>
-                    <div style={{ fontSize: 9, color: '#999', marginTop: 5, fontStyle: 'italic' }}>
-                      Pasa el cursor sobre cada opción para ver su descripción.
+                    {/* Descripción dinámica al hacer hover */}
+                    <div style={{
+                      marginTop: 8, minHeight: 28, fontSize: 11, lineHeight: 1.5,
+                      padding: '5px 10px', borderRadius: 6,
+                      background: hoveredComp ? '#e8ecf8' : '#f5f7fa',
+                      color: hoveredComp ? '#1A3A8F' : '#aaa',
+                      border: `1px solid ${hoveredComp ? '#b0bef0' : '#e8e8e8'}`,
+                      transition: 'all 0.2s',
+                    }}>
+                      {hoveredComp
+                        ? (() => {
+                            const DESCS = {
+                              'Sociolingüística': 'Usar el idioma según el contexto social — formal, informal, cultural',
+                              'Lingüística':      'Dominar gramática, vocabulario y estructura del idioma',
+                              'Pragmática':       'Comunicar con propósito real en situaciones concretas',
+                            }
+                            return <><strong>{hoveredComp}:</strong> {DESCS[hoveredComp]}</>
+                          })()
+                        : <em>Pasa el cursor sobre una opción para ver qué significa</em>
+                      }
                     </div>
                   </div>
                 </div>
