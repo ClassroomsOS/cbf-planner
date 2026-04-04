@@ -7,4 +7,8 @@ export default defineConfig({
   build: {
     sourcemap: false,
   },
+  test: {
+    environment: 'node',
+    include: ['src/**/*.test.js'],
+  },
 })
