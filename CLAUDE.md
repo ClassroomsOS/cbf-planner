@@ -528,6 +528,7 @@ OPERADORES INTELECTUALES (Deducir / Generalizar / Sintetizar / Retener / Evaluar
 | `MODELO_B_SUBJECTS` en constants.js | ✅ Implementado Sprint 1 | — |
 | `Lingua Skill` agregado a `MODELO_B_SUBJECTS` | ✅ Sesión 2026-04-03 | — |
 | Marco pedagógico Modelo B — UX educativa en `NewsProjectEditor` | ✅ Sesión 2026-04-03 | — |
+| `Intercultural` agregada a `MODELO_B_COMPETENCIAS` (pilar Byram del syllabus oficial) | ✅ Sesión 2026-04-03 | — |
 
 ### Rúbrica CBF (especificación obligatoria)
 **Siempre 8 criterios × 5 niveles** (Superior/Alto/Básico/Bajo/Muy Bajo):
