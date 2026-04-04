@@ -200,11 +200,6 @@ export const AIGeneratorModal = memo(function AIGeneratorModal({ grade, subject,
   const { showToast } = useToast()
 
   const isModeloB = learningTarget?.news_model === 'language'
-  // For Modelo B with known active indicator: pre-fill. Modelo A: use description. Otherwise empty.
-  const initialObjective = activeIndicator
-    ? (activeIndicator.texto_en || activeIndicator.habilidad || '')
-    : (learningTarget?.description || '')
-  const [objective,       setObjective]       = useState(initialObjective)
   const [selectedSkill,   setSelectedSkill]   = useState(activeIndicator?.habilidad || null)
   const [unit,            setUnit]            = useState('')
   const [loading,   setLoading]   = useState(false)
@@ -253,6 +248,13 @@ export const AIGeneratorModal = memo(function AIGeneratorModal({ grade, subject,
   }
 
   const handleGenerate = useCallback(async () => {
+    // Derive objective from the source of truth — never from editable user input
+    const resolvedInd = activeIndicator || (selectedSkill
+      ? (learningTarget?.indicadores || []).find(i => typeof i === 'object' && i.habilidad?.toLowerCase() === selectedSkill.toLowerCase())
+      : null)
+    const objective = resolvedInd
+      ? (resolvedInd.texto_en || resolvedInd.habilidad || '')
+      : (learningTarget?.description || '')
     if (!objective.trim()) return
     setLoading(true); setError(null); setPreview(null)
     try {
@@ -266,7 +268,7 @@ export const AIGeneratorModal = memo(function AIGeneratorModal({ grade, subject,
       showToast(errorMsg, 'error')
     }
     setLoading(false)
-  }, [grade, subject, period, objective, unit, activeDays, learningTarget, principles, showToast])
+  }, [grade, subject, period, unit, activeDays, activeIndicator, selectedSkill, learningTarget, principles, showToast])
 
   const handleApply = useCallback(() => {
     if (!preview) return
@@ -343,7 +345,6 @@ export const AIGeneratorModal = memo(function AIGeneratorModal({ grade, subject,
                           key={skill}
                           onClick={() => {
                             setSelectedSkill(skill)
-                            if (ind) setObjective(ind.texto_en || ind.habilidad || '')
                           }}
                           style={{
                             padding: '8px 16px', borderRadius: '20px', border: `2px solid ${SKILL_COLORS[skill]}`,
@@ -393,17 +394,6 @@ export const AIGeneratorModal = memo(function AIGeneratorModal({ grade, subject,
               })()}
 
               <div className="ge-field">
-                <label>🎯 ¿Qué quieres que los estudiantes logren esta semana?</label>
-                <textarea rows={3}
-                  value={objective}
-                  placeholder={isModeloB && !selectedSkill && !activeIndicator
-                    ? 'Selecciona la habilidad arriba para auto-rellenar este campo…'
-                    : "Ej: Al finalizar la semana, el estudiante podrá usar 'used to' y 'would' para describir hábitos pasados, distinguiendo cuándo usar cada uno."}
-                  onChange={e => setObjective(e.target.value)}
-                  style={{ fontSize: '13px' }} />
-              </div>
-
-              <div className="ge-field">
                 <label>📖 Unidad / Tema / Libro (opcional)</label>
                 <input type="text"
                   value={unit}
@@ -431,7 +421,7 @@ export const AIGeneratorModal = memo(function AIGeneratorModal({ grade, subject,
               {error && <div className="alert alert-error">{error}</div>}
 
               <button className="btn-primary btn-save"
-                disabled={!objective.trim() || loading}
+                disabled={loading || (isModeloB && !activeIndicator && !selectedSkill) || (!isModeloB && !learningTarget?.description?.trim())}
                 onClick={handleGenerate}
                 style={{ width: '100%', padding: '12px', fontSize: '14px' }}>
                 {loading ? '✨ Generando guía completa…' : '✨ Generar guía completa'}
