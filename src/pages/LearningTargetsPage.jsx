@@ -237,10 +237,9 @@ export default function LearningTargetsPage({ teacher }) {
 
   // ── Save ──
   async function handleSave() {
-    if (!form.description.trim()) return
-    setSaving(true)
-
     const isModeloB = MODELO_B_SUBJECTS.includes(form.subject)
+    if (!isModeloB && !form.description.trim()) return
+    setSaving(true)
 
     const payload = {
       school_id:        teacher.school_id,
