@@ -342,6 +342,7 @@ CBF es una **escuela cristiana confesional**. Los tres principios son el norte d
 | `news_projects` | NEWS (project-based learning) projects. Links to `rubric_templates` via `rubric_template_id`. Links to `learning_targets` via `target_id` (UUID). Field `target_indicador` (text) stores the selected indicator from `learning_targets.indicadores[]`. `news_model text` ('standard'\|'language'). Modelo B: `competencias jsonb`, `operadores_intelectuales jsonb`, `habilidades jsonb`. |
 | `school_calendar` | Holiday/event data. `is_school_day: false` = holiday. `level` (elementary|middle|high|NULL=todos). `affects_planning boolean`. `created_by uuid` |
 | `checkpoints` | Records whether a teacher evaluated a learning target at end of week |
+| `weekly_agendas` | Agenda semanal por grado/sección. `grade`, `section`, `week_start date`, `devotional`, `notes`, `content jsonb` (entries[{subject,teacher_name,days:{date:text}}]), `status` (draft/ready/sent) |
 | `notifications` / `messages` | In-app communication. Polled every 60s in `DashboardPage` |
 | `error_log` / `activity_log` | Observability. Written by `src/utils/logger.js` |
 
@@ -611,10 +612,15 @@ Implementación de la estructura Modelo A + Modelo B según el Marco Teórico.
 - Detección de conflictos mejorada: mismo salón + mismo período = **bloqueo** (error, no advertencia)
 - `canViewSchedule()` en `roles.js`, ruta `/schedule` en `DashboardPage`
 
-### Sprint 5 — Agenda semanal automática
-- Cada jueves: consolidar guías de todos los docentes de un grado/sección
-- El director de grupo recibe agenda lista para enviar a padres
-- Tabla `weekly_agendas` con campo `devotional` y `notes`
+### ✅ Sprint 5 COMPLETADO — Agenda semanal automática
+- Tabla `weekly_agendas`: `grade`, `section`, `week_start date`, `period`, `devotional`, `notes`, `content jsonb` (entries[]), `status` (draft/ready/sent), `created_by`
+- RLS: todos los docentes del colegio leen; solo admin/superadmin/director escriben
+- `AgendaPage.jsx` — ruta `/agenda`. Vista lista con filtros por grado/sección + editor inline
+- Editor: selector de semana (snap a lunes), devoción, tabla por materias × días, notas para padres
+- **Auto-import ⚡**: busca `lesson_plans` del grado/semana y extrae la sección `assignment` (HTML → texto plano) por día
+- **Export PDF**: genera HTML limpio y abre `window.print()` — tabla por materia × día lista para imprimir
+- `canManageAgendas()` en `roles.js` (admin/superadmin/director)
+- **Pendiente en Supabase:** ejecutar `supabase/migrations/20260403_sprint5_agendas.sql`
 
 ### Sprint 6 — AI avanzado
 - Consumo de tokens por docente con límites configurables por coordinador

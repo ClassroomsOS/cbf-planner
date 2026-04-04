@@ -19,7 +19,8 @@
       "Bash(./.claude/auto-commit.sh \"feat\\(calendar\\): Sprint 3 — nivel por evento, afecta_planificación y notificación en cascada\")",
       "Bash(./.claude/auto-commit.sh \"feat\\(schedule\\): Sprint 4 — grilla de horarios, campo classroom y detección de conflictos de salón\")",
       "Bash(./.claude/auto-commit.sh \"docs: update CLAUDE.md — Sprints 3 y 4 completados\")",
-      "Bash(./.claude/auto-commit.sh \"feat\\(agenda\\): Sprint 5 — Agenda Semanal Automática con auto-import desde guías y export PDF\")"
+      "Bash(./.claude/auto-commit.sh \"feat\\(agenda\\): Sprint 5 — Agenda Semanal Automática con auto-import desde guías y export PDF\")",
+      "Bash(./.claude/auto-commit.sh \"docs: update CLAUDE.md — Sprint 5 completado\")"
     ]
   }
 }
