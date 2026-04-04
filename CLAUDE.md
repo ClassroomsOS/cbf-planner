@@ -138,8 +138,8 @@ Client-side entry point is `src/utils/AIAssistant.js`, which exposes:
 | `analyzeGuide()` | Pedagogical analysis of a complete guide | 4000 |
 | `generateGuideStructure()` | Generate full week structure as JSON (includes SmartBlocks) | 16000 |
 | `suggestSmartBlock()` | Suggest one SmartBlock for a section based on context + taxonomy | 1200 |
-| `generateRubric()` | Generate complete 5-level rubric (3-5 criteria) for NEWS project | 2500 |
-| `generateIndicadores()` | Generate 3 learning indicators for a learning target | 1500 |
+| `generateRubric()` | Generate complete 5-level rubric (**exactly 8 criteria**) for NEWS project | 2500 |
+| `generateIndicadores()` | Generate indicators per Temática for a learning target | 1500 |
 
 `generateGuideStructure` auto-retries with a more concise prompt when the response is truncated (JSON parse failure). It also asks Claude to include an optional `smartBlock` field in `activity` and `skill` sections (max 2 per day).
 
@@ -287,7 +287,21 @@ Font/size marks are applied only to selected text — they do NOT affect AI-inse
 - **Word count** displayed below each RichEditor (`ge-word-count` class).
 
 #### Left nav panel
+- **El nav abre directamente en `1 · Logro`** — los paneles Encabezado e Información fueron removidos del nav para docentes (son datos de contexto, no de trabajo diario).
+- El nav tiene 2 pasos fijos (`1 · Logro`, `2 · Versículo`) + días + `★ Resumen`.
 - Day items show a mini progress bar + `filled/total` count (e.g. `3/6`) indicating how many sections have content. Bar turns white when the day is active.
+
+#### Context Banner (`.ge-context-banner`)
+- Banner read-only siempre visible en la parte superior del área de contenido.
+- Muestra: logo institucional, nombre del colegio, grado · asignatura · semana · fechas, docente.
+- Solo admins ven botones `⚙ Encabezado` y `✏ Información` para editar esos datos.
+- El logo siempre se carga fresco desde `schools.logo_url` al abrir la guía (línea ~155 de GuideEditorPage). No depende del content JSONB guardado.
+
+#### Datos institucionales (Encabezado e Información)
+- **Fuente de verdad: `schools` table** — `name`, `dane`, `resolution`, `plan_code`, `plan_version`, `logo_url`.
+- **Gestión:** `SettingsPage` → sección "Identidad institucional" (expandible). Solo admin.
+- **Logo:** Supabase Storage bucket `guide-images`, path `logos/{school_id}/{timestamp}.ext`. Se gestiona **únicamente** desde Panel de control. El editor de guías ya no permite subir logo.
+- Los paneles Encabezado/Información del editor siguen accesibles para admin via el context banner, pero solo para correcciones puntuales.
 
 #### Save status
 - Displayed as a pill with color-coded background: green (saved), yellow (unsaved), blue (saving with pulse animation), red (error).
@@ -321,13 +335,26 @@ CBF es una **escuela cristiana confesional**. Los tres principios son el norte d
 | `schools` | Multi-tenant root. `features` JSONB, `year_verse`, `logo_url` |
 | `teacher_assignments` | Admin-controlled class assignments. `grade` (base only, e.g. `"10.°"`), `section`, `subject`, `schedule` JSONB (keys: `mon/tue/wed/thu/fri`, values: period arrays) |
 | `lesson_plans` | One row per guide. `content` JSONB holds all plan data. `grade` = combined label. Links to `target_id`, `news_project_id` |
-| `learning_targets` | Desempeños observables. `taxonomy` enum: `recognize | apply | produce`. Matched to plans by `school_id + subject + grade`. Columna `indicadores jsonb` (array de strings) |
+| `learning_targets` | **Logros del trimestre** (meta macro). `description` = el Logro. `taxonomy` enum: `recognize | apply | produce`. `indicadores jsonb` = array de strings (uno por Temática). **Pendiente Fase 2:** agregar `trimestre smallint`, `tematica_names jsonb` (array paralelo a `indicadores[]`), `news_model text` ('standard'\|'language'). |
 | `school_monthly_principles` | Principios rectores por mes. `school_id, year, month, month_verse, month_verse_ref, indicator_principle`. UNIQUE(school_id, year, month) |
-| `news_projects` | NEWS (project-based learning) projects. Links to `rubric_templates` via `rubric_template_id`. Links to `learning_targets` via `target_id` (UUID). Field `target_indicador` (text) stores the selected indicator from `learning_targets.indicadores[]` |
+| `news_projects` | NEWS (project-based learning) projects. Links to `rubric_templates` via `rubric_template_id`. Links to `learning_targets` via `target_id` (UUID). Field `target_indicador` (text) stores the selected indicator from `learning_targets.indicadores[]`. **Pendiente Fase 2:** `news_model text`, `competencias jsonb`, `operadores_intelectuales jsonb`, `habilidades jsonb` (campos del Modelo B — Lengua). |
 | `school_calendar` | Holiday/event data. `is_school_day: false` = holiday |
 | `checkpoints` | Records whether a teacher evaluated a learning target at end of week |
 | `notifications` / `messages` | In-app communication. Polled every 60s in `DashboardPage` |
 | `error_log` / `activity_log` | Observability. Written by `src/utils/logger.js` |
+
+### Panel de Control (`src/pages/SettingsPage.jsx`)
+
+Ruta `/settings`. Solo accesible para admin. Contiene:
+
+1. **Gestión del colegio** — card con acceso rápido a:
+   - `👥 Docentes y materias` → navega a `/teachers` (AdminTeachersPage)
+   - `🏫 Identidad institucional` → panel expandible con:
+     - Upload/cambio/quitar del logo (→ `schools.logo_url` + Supabase Storage)
+     - Campos editables: nombre, DANE, resolución, código del documento, versión
+     - Guarda directo en `schools` table. Aplica a TODAS las guías y NEWS.
+
+2. **Feature flags** — toggles por grupo (Comunicación, IA, Editor). Lee y escribe `schools.features` JSONB via `FeaturesContext`.
 
 ### Logging
 
@@ -442,6 +469,71 @@ const { execute, loading, data, error } = useAsync(
 
 ---
 
+## Marco Pedagógico: Dos Modelos de NEWS
+
+**Referencia completa:** `theoric mark/CBF_Marco_Teorico_Sistema_Educativo.md`
+**Análisis de implementación:** `theoric mark/CBF_Analisis_Implementacion_Sistema.md`
+
+El sistema CBF opera con **dos modelos estructuralmente distintos**:
+
+### Modelo A — Estándar
+Materias en español: Español, Matemáticas, Cosmovisión Bíblica, etc.
+```
+LOGRO (1 por trimestre/área)
+  ├── TEMÁTICA 1 → INDICADOR 1 → Actividades Evaluativas
+  ├── TEMÁTICA 2 → INDICADOR 2 → Actividades Evaluativas
+  └── EXPERIENCIA SIGNIFICATIVA (1 sola, al final, integradora)
+        └── RÚBRICA (8 criterios × 5 niveles)
+```
+
+### Modelo B — Lengua
+Materias en inglés: **Language Arts, Social Studies, Science**
+```
+COMPETENCIAS (Sociolingüística / Lingüística / Pragmática)
+OPERADORES INTELECTUALES (Deducir / Generalizar / Sintetizar / Retener / Evaluar)
+  ├── INDICADOR 1 — Speaking
+  │     ├── PRINCIPIO BÍBLICO PROPIO (versículo específico del indicador)
+  │     ├── ENUNCIADO: inglés + traducción al español
+  │     ├── ES EMBEBIDA (proyecto + tamaño de grupo + criterios)
+  │     └── ACTIVIDADES ESTÁNDAR (Dictados, Quiz, Cambridge One, Plan Lector, PET Prep)
+  ├── INDICADOR 2 — Listening / 3 — Reading / 4 — Writing (misma estructura)
+  └── RÚBRICA FINAL (organizada por habilidad)
+```
+
+### Estado actual vs. pendiente
+
+| Elemento | Estado | Fase |
+|----------|--------|------|
+| `learning_targets.description` = Logro | ✅ Correcto | — |
+| `learning_targets.indicadores[]` = Indicadores por Temática | ✅ Existe (string[]) | — |
+| `learning_targets.tematica_names[]` = Nombres de Temáticas | ❌ Falta | Fase 2 |
+| `learning_targets.trimestre` | ❌ Falta | Fase 2 |
+| `news_projects.news_model` ('standard'\|'language') | ❌ Falta | Fase 2 |
+| `news_projects.competencias/operadores/habilidades` (Modelo B) | ❌ Falta | Fase 2 |
+| Indicadores Modelo B como objetos `{habilidad, texto_en, texto_es, principio_biblico, es_embebida}` | ❌ Falta | Fase 2 |
+| `generateRubric()` → exactamente 8 criterios | ❌ Pendiente fix | Inmediato |
+| `MODELO_B_SUBJECTS` en constants.js | ❌ Pendiente | Inmediato |
+
+### Rúbrica CBF (especificación obligatoria)
+**Siempre 8 criterios × 5 niveles** (Superior/Alto/Básico/Bajo/Muy Bajo):
+- 3 Cognitivos (comprensión, aplicación, análisis)
+- 2 Comunicativos (claridad, organización/presentación)
+- 1 Actitudinal (responsabilidad, participación)
+- 1 Bíblico/Valorativo (conexión con versículo/principio)
+- 1 Técnico específico de la ES
+
+Escalas: Boston Flex → 1.0–5.0 | Boston International → 0–100
+
+### Taxonomía (mapping)
+`taxonomy` field (3 niveles, para SmartBlocks — NO cambiar):
+- `recognize` ≈ Bloom: Recordar / Comprender
+- `apply` ≈ Bloom: Aplicar / Analizar
+- `produce` ≈ Bloom: Evaluar / Crear
+
+Los prompts de IA para Logros e Indicadores deben usar los 6 verbos de Bloom completos.
+
+---
+
 ## Roadmap — Pendiente
 
 ### 🔴 Capa 2 — Tracking de completitud (REQUIERE INFRAESTRUCTURA)
@@ -464,6 +556,33 @@ Si el colegio usa Moodle u otra plataforma LMS que soporte SCORM/xAPI, exportar 
 En la pestaña Textbook del NEWS, permitir subir fotos/scans del scope & sequence del libro.
 - Guardar en Supabase Storage (bucket `guide-images` ya existe)
 - La AI puede leerlas para contextualizar contenidos por unidad
+
+---
+
+### 🔴 Modelo Pedagógico — Fase 2 (REQUIERE MIGRACIÓN DB)
+Implementar la estructura completa de Modelo A y Modelo B según el Marco Teórico.
+
+**Migraciones DB requeridas:**
+```sql
+ALTER TABLE learning_targets ADD COLUMN trimestre smallint CHECK (trimestre IN (1,2,3));
+ALTER TABLE learning_targets ADD COLUMN tematica_names jsonb DEFAULT '[]';
+ALTER TABLE learning_targets ADD COLUMN news_model text DEFAULT 'standard';
+ALTER TABLE news_projects ADD COLUMN news_model text DEFAULT 'standard';
+ALTER TABLE news_projects ADD COLUMN competencias jsonb DEFAULT '[]';
+ALTER TABLE news_projects ADD COLUMN operadores_intelectuales jsonb DEFAULT '[]';
+ALTER TABLE news_projects ADD COLUMN habilidades jsonb DEFAULT '[]';
+```
+
+**UI requerida:**
+- `LearningTargetsPage`: mostrar Temáticas + Indicadores en paralelo
+- `LearningTargetSelector`: filtrar por trimestre
+- `NewsProjectEditor`: UI diferente para Modelo A vs. Modelo B
+- Modelo B: formulario de competencias, operadores, indicadores por habilidad con principio bíblico propio y ES embebida
+
+**IA requerida:**
+- `generateRubric()`: exactamente 8 criterios (fix inmediato, antes de la migración)
+- `generateIndicadores()`: 1 por Temática con nombre, no 3 genéricos
+- `MODELO_B_SUBJECTS = ['Language Arts', 'Social Studies', 'Science']` en constants.js
 
 ---
 
