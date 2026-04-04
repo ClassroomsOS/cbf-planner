@@ -421,7 +421,7 @@ export const AIGeneratorModal = memo(function AIGeneratorModal({ grade, subject,
               {error && <div className="alert alert-error">{error}</div>}
 
               <button className="btn-primary btn-save"
-                disabled={loading || (isModeloB && !activeIndicator && !selectedSkill) || (!isModeloB && !learningTarget?.description?.trim())}
+                disabled={loading || (isModeloB && !activeIndicator && !selectedSkill)}
                 onClick={handleGenerate}
                 style={{ width: '100%', padding: '12px', fontSize: '14px' }}>
                 {loading ? '✨ Generando guía completa…' : '✨ Generar guía completa'}
