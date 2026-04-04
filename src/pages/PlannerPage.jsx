@@ -752,16 +752,18 @@ const SKILL_COLOR = {
 
 function detectActivityType(nombre) {
   const n = (nombre || '').toLowerCase()
-  if (n.includes('dict'))                         return { icon: '🎤', color: '#4BACC6',  label: 'Dictation'  }
-  if (n.includes('quiz') || n.includes('test'))   return { icon: '📝', color: '#C0504D',  label: 'Quiz'       }
-  if (n.includes('reading') || n.includes('lectura')) return { icon: '📖', color: '#F79646', label: 'Reading' }
-  if (n.includes('speaking') || n.includes('oral'))   return { icon: '🗣', color: '#8064A2', label: 'Speaking' }
-  if (n.includes('listening'))                    return { icon: '🎧', color: '#4BACC6',  label: 'Listening'  }
-  if (n.includes('writing') || n.includes('escrit')) return { icon: '✍️', color: '#9BBB59', label: 'Writing'  }
-  if (n.includes('vocab'))                        return { icon: '🔤', color: '#9BBB59',  label: 'Vocab'      }
-  if (n.includes('exit') || n.includes('ticket')) return { icon: '🚪', color: '#C55A11',  label: 'Exit Ticket'}
-  if (n.includes('workshop'))                     return { icon: '🔧', color: '#F79646',  label: 'Workshop'   }
-  return                                                 { icon: '📋', color: '#1A3A8F',  label: 'Actividad'  }
+  if (n.includes('dict'))                                    return { icon: '🎤', color: '#4BACC6', label: 'Dictation',    tier: 'routine'    }
+  if (n.includes('exam'))                                    return { icon: '📋', color: '#B91C1C', label: 'Exam',         tier: 'high-stakes' }
+  if (n.includes('quiz') || n.includes('test'))              return { icon: '📝', color: '#C0504D', label: 'Quiz',         tier: 'assessment'  }
+  if (n.includes('present') || n.includes('expo'))           return { icon: '🎙', color: '#7C3AED', label: 'Presentation', tier: 'assessment'  }
+  if (n.includes('reading') || n.includes('lectura'))        return { icon: '📖', color: '#F79646', label: 'Reading',      tier: 'routine'     }
+  if (n.includes('speaking') || n.includes('oral'))          return { icon: '🗣', color: '#8064A2', label: 'Speaking',     tier: 'assessment'  }
+  if (n.includes('listening'))                               return { icon: '🎧', color: '#4BACC6', label: 'Listening',    tier: 'routine'     }
+  if (n.includes('writing') || n.includes('escrit'))         return { icon: '✍️', color: '#9BBB59', label: 'Writing',      tier: 'routine'     }
+  if (n.includes('vocab'))                                   return { icon: '🔤', color: '#9BBB59', label: 'Vocab',        tier: 'routine'     }
+  if (n.includes('exit') || n.includes('ticket'))            return { icon: '🚪', color: '#C55A11', label: 'Exit Ticket',  tier: 'routine'     }
+  if (n.includes('workshop'))                                return { icon: '🔧', color: '#F79646', label: 'Workshop',     tier: 'routine'     }
+  return                                                            { icon: '📌', color: '#1A3A8F', label: 'Actividad',    tier: 'routine'     }
 }
 
 function isoMonday(dateStr) {
@@ -786,12 +788,12 @@ function PlannerPeriodTimeline({ projects, currentMonday, weekCount }) {
     projects.forEach(p => {
       ;(p.actividades_evaluativas || []).forEach(act => {
         if (!act.fecha) return
-        const { icon, color, label } = detectActivityType(act.nombre)
+        const { icon, color, label, tier } = detectActivityType(act.nombre)
         events.push({
           date: act.fecha, kind: 'activity',
           nombre: act.nombre, descripcion: act.descripcion,
           porcentaje: act.porcentaje, skill: p.skill,
-          projectTitle: p.title, icon, color, label,
+          projectTitle: p.title, icon, color, label, tier,
         })
       })
       if (p.due_date) {
@@ -848,18 +850,22 @@ function PlannerPeriodTimeline({ projects, currentMonday, weekCount }) {
       </div>
 
       {/* Legend */}
-      <div style={{ display: 'flex', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
         {[
-          { icon: '🏁', color: '#CC1F27', label: 'Entrega NEWS' },
-          { icon: '🎤', color: '#4BACC6', label: 'Dictation' },
-          { icon: '📝', color: '#C0504D', label: 'Quiz / Test' },
-          { icon: '📖', color: '#F79646', label: 'Reading' },
-          { icon: '🗣', color: '#8064A2', label: 'Speaking' },
-          { icon: '✍️', color: '#9BBB59', label: 'Writing' },
+          { icon: '🏁', color: '#1A6B3A', label: 'Entrega', bg: '#e8f5e9', border: '#1A6B3A' },
+          { icon: '📋', color: '#B91C1C', label: 'Exam',    bg: '#fef2f2', border: '#B91C1C' },
+          { icon: '📝', color: '#C0504D', label: 'Quiz',    bg: '#fff0f0', border: '#C0504D' },
+          { icon: '🎙', color: '#7C3AED', label: 'Presentation', bg: '#f5f3ff', border: '#7C3AED' },
+          { icon: '🎤', color: '#4BACC6', label: 'Dictation', bg: null, border: null },
+          { icon: '📖', color: '#F79646', label: 'Reading',   bg: null, border: null },
+          { icon: '✍️', color: '#9BBB59', label: 'Writing',   bg: null, border: null },
         ].map(it => (
           <span key={it.label} style={{
             fontSize: 10, color: it.color, fontWeight: 700,
-            display: 'flex', alignItems: 'center', gap: 3
+            display: 'flex', alignItems: 'center', gap: 3,
+            background: it.bg || 'transparent',
+            border: it.border ? `1px solid ${it.border}40` : 'none',
+            borderRadius: 5, padding: it.bg ? '2px 7px' : '0',
           }}>
             <span>{it.icon}</span>{it.label}
           </span>
@@ -916,69 +922,134 @@ function PlannerPeriodTimeline({ projects, currentMonday, weekCount }) {
 
               {/* Events */}
               <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 7 }}>
-                {weekEvents.map((ev, i) => (
-                  <div key={i} style={{
-                    display: 'flex', alignItems: 'flex-start', gap: 10,
-                    paddingLeft: 10,
-                    borderLeft: `3px solid ${ev.color}`,
-                  }}>
-                    {/* Icon */}
-                    <span style={{ fontSize: 15, lineHeight: 1, marginTop: 1 }}>{ev.icon}</span>
+                {weekEvents.map((ev, i) => {
+                  const isProject      = ev.kind === 'project'
+                  const isHighStakes   = ev.tier === 'high-stakes'
+                  const isAssessment   = ev.tier === 'assessment'
+                  const dateStr = new Date(ev.date + 'T12:00:00').toLocaleDateString('es-CO', {
+                    weekday: 'short', day: 'numeric', month: 'short'
+                  })
 
-                    {/* Content */}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                        <span style={{
-                          fontSize: 12, fontWeight: 700,
-                          color: ev.kind === 'project' ? ev.color : '#1a1a2e',
-                        }}>
+                  // ── Entrega NEWS — card prominente con fondo de color ──
+                  if (isProject) return (
+                    <div key={i} style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      background: ev.color + '14',
+                      border: `1.5px solid ${ev.color}50`,
+                      borderRadius: 8, padding: '8px 12px',
+                    }}>
+                      <span style={{ fontSize: 18 }}>🏁</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12, fontWeight: 800, color: ev.color, lineHeight: 1.3 }}>
                           {ev.nombre}
-                        </span>
-                        {ev.kind === 'project' && (
-                          <span style={{
-                            fontSize: 9, fontWeight: 800, color: ev.color,
-                            background: ev.color + '15', border: `1px solid ${ev.color}40`,
-                            padding: '1px 6px', borderRadius: 4, textTransform: 'uppercase',
-                          }}>Entrega</span>
-                        )}
-                        {ev.skill && ev.kind !== 'project' && (
-                          <span style={{
-                            fontSize: 9, fontWeight: 700,
-                            color: SKILL_COLOR[ev.skill] || '#1A3A8F',
-                            background: (SKILL_COLOR[ev.skill] || '#1A3A8F') + '18',
-                            padding: '1px 6px', borderRadius: 4,
-                          }}>{ev.skill}</span>
+                        </div>
+                        {ev.skill && (
+                          <div style={{ fontSize: 10, color: ev.color + 'cc', fontWeight: 600, marginTop: 1 }}>
+                            {ev.skill}
+                          </div>
                         )}
                       </div>
-                      {ev.descripcion && ev.kind !== 'project' && (
-                        <div style={{ fontSize: 10, color: '#999', marginTop: 2, lineHeight: 1.4 }}>
-                          {ev.descripcion}
-                        </div>
-                      )}
+                      <div style={{ flexShrink: 0, textAlign: 'right' }}>
+                        <div style={{
+                          fontSize: 9, fontWeight: 900, textTransform: 'uppercase',
+                          color: '#fff', background: ev.color,
+                          padding: '2px 8px', borderRadius: 5, marginBottom: 3,
+                        }}>ENTREGA</div>
+                        <div style={{ fontSize: 10, color: ev.color, fontWeight: 700 }}>{dateStr}</div>
+                      </div>
                     </div>
+                  )
 
-                    {/* Right meta */}
-                    <div style={{
-                      flexShrink: 0, textAlign: 'right',
-                      display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2,
+                  // ── Exam — card con fondo rojo claro, borde izquierdo grueso ──
+                  if (isHighStakes) return (
+                    <div key={i} style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      background: '#fef2f2',
+                      border: `1px solid ${ev.color}30`,
+                      borderLeft: `5px solid ${ev.color}`,
+                      borderRadius: 8, padding: '7px 12px',
                     }}>
-                      <span style={{
-                        fontSize: 10, color: '#999', fontWeight: 600, whiteSpace: 'nowrap',
-                      }}>
-                        {new Date(ev.date + 'T12:00:00').toLocaleDateString('es-CO', {
-                          weekday: 'short', day: 'numeric', month: 'short'
-                        })}
-                      </span>
-                      {ev.porcentaje > 0 && (
-                        <span style={{
-                          fontSize: 10, fontWeight: 800,
-                          color: ev.color, background: ev.color + '18',
-                          padding: '1px 6px', borderRadius: 4,
-                        }}>{ev.porcentaje}%</span>
-                      )}
+                      <span style={{ fontSize: 16 }}>{ev.icon}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: 12, fontWeight: 800, color: ev.color }}>{ev.nombre}</span>
+                          <span style={{
+                            fontSize: 9, fontWeight: 900, color: '#fff',
+                            background: ev.color, padding: '1px 6px', borderRadius: 4,
+                            textTransform: 'uppercase',
+                          }}>{ev.label}</span>
+                        </div>
+                        {ev.descripcion && <div style={{ fontSize: 10, color: '#b91c1c99', marginTop: 2 }}>{ev.descripcion}</div>}
+                      </div>
+                      <div style={{ flexShrink: 0, textAlign: 'right', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <span style={{ fontSize: 10, color: ev.color, fontWeight: 700, whiteSpace: 'nowrap' }}>{dateStr}</span>
+                        {ev.porcentaje > 0 && (
+                          <span style={{ fontSize: 10, fontWeight: 800, color: ev.color, background: ev.color + '18', padding: '1px 6px', borderRadius: 4 }}>{ev.porcentaje}%</span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  )
+
+                  // ── Quiz / Presentation — card con fondo suave y borde izquierdo ──
+                  if (isAssessment) return (
+                    <div key={i} style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      background: ev.color + '0e',
+                      borderLeft: `4px solid ${ev.color}`,
+                      borderRadius: '0 7px 7px 0', padding: '6px 12px',
+                    }}>
+                      <span style={{ fontSize: 15 }}>{ev.icon}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: '#1a1a2e' }}>{ev.nombre}</span>
+                          <span style={{
+                            fontSize: 9, fontWeight: 800, color: ev.color,
+                            background: ev.color + '20', border: `1px solid ${ev.color}40`,
+                            padding: '1px 6px', borderRadius: 4,
+                          }}>{ev.label}</span>
+                          {ev.skill && <span style={{ fontSize: 9, color: SKILL_COLOR[ev.skill] || '#888', fontWeight: 700 }}>{ev.skill}</span>}
+                        </div>
+                        {ev.descripcion && <div style={{ fontSize: 10, color: '#999', marginTop: 2 }}>{ev.descripcion}</div>}
+                      </div>
+                      <div style={{ flexShrink: 0, textAlign: 'right', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <span style={{ fontSize: 10, color: '#999', fontWeight: 600, whiteSpace: 'nowrap' }}>{dateStr}</span>
+                        {ev.porcentaje > 0 && (
+                          <span style={{ fontSize: 10, fontWeight: 800, color: ev.color, background: ev.color + '18', padding: '1px 6px', borderRadius: 4 }}>{ev.porcentaje}%</span>
+                        )}
+                      </div>
+                    </div>
+                  )
+
+                  // ── Actividad rutinaria (Dictation, Reading, Writing…) — borde fino ──
+                  return (
+                    <div key={i} style={{
+                      display: 'flex', alignItems: 'flex-start', gap: 10,
+                      paddingLeft: 10, borderLeft: `3px solid ${ev.color}`,
+                    }}>
+                      <span style={{ fontSize: 14, lineHeight: 1, marginTop: 1 }}>{ev.icon}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: '#1a1a2e' }}>{ev.nombre}</span>
+                          {ev.skill && (
+                            <span style={{
+                              fontSize: 9, fontWeight: 700,
+                              color: SKILL_COLOR[ev.skill] || '#1A3A8F',
+                              background: (SKILL_COLOR[ev.skill] || '#1A3A8F') + '18',
+                              padding: '1px 6px', borderRadius: 4,
+                            }}>{ev.skill}</span>
+                          )}
+                        </div>
+                        {ev.descripcion && <div style={{ fontSize: 10, color: '#999', marginTop: 2 }}>{ev.descripcion}</div>}
+                      </div>
+                      <div style={{ flexShrink: 0, textAlign: 'right', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <span style={{ fontSize: 10, color: '#999', fontWeight: 600, whiteSpace: 'nowrap' }}>{dateStr}</span>
+                        {ev.porcentaje > 0 && (
+                          <span style={{ fontSize: 10, fontWeight: 800, color: ev.color, background: ev.color + '18', padding: '1px 6px', borderRadius: 4 }}>{ev.porcentaje}%</span>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             </div>
           )
