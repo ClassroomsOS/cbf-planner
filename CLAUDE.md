@@ -138,7 +138,7 @@ Client-side entry point is `src/utils/AIAssistant.js`, which exposes:
 | `analyzeGuide()` | Pedagogical analysis of a complete guide | 4000 |
 | `generateGuideStructure()` | Generate full week structure as JSON (includes SmartBlocks) | 16000 |
 | `suggestSmartBlock()` | Suggest one SmartBlock for a section based on context + taxonomy | 1200 |
-| `generateRubric()` | Generate complete 5-level rubric (**exactly 8 criteria**) for NEWS project | 2500 |
+| `generateRubric()` | Generate complete 5-level rubric (**exactly 8 criteria**) for NEWS project | 4000 |
 | `generateIndicadores()` | Generate indicators per Temática for a learning target | 1500 |
 
 `generateGuideStructure` auto-retries with a more concise prompt when the response is truncated (JSON parse failure). It also asks Claude to include an optional `smartBlock` field in `activity` and `skill` sections (max 2 per day).
@@ -335,9 +335,9 @@ CBF es una **escuela cristiana confesional**. Los tres principios son el norte d
 | `schools` | Multi-tenant root. `features` JSONB, `year_verse`, `logo_url` |
 | `teacher_assignments` | Admin-controlled class assignments. `grade` (base only, e.g. `"10.°"`), `section`, `subject`, `schedule` JSONB (keys: `mon/tue/wed/thu/fri`, values: period arrays) |
 | `lesson_plans` | One row per guide. `content` JSONB holds all plan data. `grade` = combined label. Links to `target_id`, `news_project_id` |
-| `learning_targets` | **Logros del trimestre** (meta macro). `description` = el Logro. `taxonomy` enum: `recognize | apply | produce`. `indicadores jsonb` = array de strings (uno por Temática). **Pendiente Fase 2:** agregar `trimestre smallint`, `tematica_names jsonb` (array paralelo a `indicadores[]`), `news_model text` ('standard'\|'language'). |
+| `learning_targets` | **Logros del trimestre** (meta macro). `description` = el Logro. `taxonomy` enum: `recognize | apply | produce`. `indicadores jsonb` = array de strings (uno por Temática). `tematica_names jsonb` = array paralelo con el nombre de cada Temática. `trimestre smallint` (1/2/3, nullable). `news_model text` ('standard'\|'language', default 'standard'). |
 | `school_monthly_principles` | Principios rectores por mes. `school_id, year, month, month_verse, month_verse_ref, indicator_principle`. UNIQUE(school_id, year, month) |
-| `news_projects` | NEWS (project-based learning) projects. Links to `rubric_templates` via `rubric_template_id`. Links to `learning_targets` via `target_id` (UUID). Field `target_indicador` (text) stores the selected indicator from `learning_targets.indicadores[]`. **Pendiente Fase 2:** `news_model text`, `competencias jsonb`, `operadores_intelectuales jsonb`, `habilidades jsonb` (campos del Modelo B — Lengua). |
+| `news_projects` | NEWS (project-based learning) projects. Links to `rubric_templates` via `rubric_template_id`. Links to `learning_targets` via `target_id` (UUID). Field `target_indicador` (text) stores the selected indicator from `learning_targets.indicadores[]`. `news_model text` ('standard'\|'language'). Modelo B: `competencias jsonb`, `operadores_intelectuales jsonb`, `habilidades jsonb`. |
 | `school_calendar` | Holiday/event data. `is_school_day: false` = holiday |
 | `checkpoints` | Records whether a teacher evaluated a learning target at end of week |
 | `notifications` / `messages` | In-app communication. Polled every 60s in `DashboardPage` |
@@ -506,13 +506,13 @@ OPERADORES INTELECTUALES (Deducir / Generalizar / Sintetizar / Retener / Evaluar
 |----------|--------|------|
 | `learning_targets.description` = Logro | ✅ Correcto | — |
 | `learning_targets.indicadores[]` = Indicadores por Temática | ✅ Existe (string[]) | — |
-| `learning_targets.tematica_names[]` = Nombres de Temáticas | ❌ Falta | Fase 2 |
-| `learning_targets.trimestre` | ❌ Falta | Fase 2 |
-| `news_projects.news_model` ('standard'\|'language') | ❌ Falta | Fase 2 |
-| `news_projects.competencias/operadores/habilidades` (Modelo B) | ❌ Falta | Fase 2 |
-| Indicadores Modelo B como objetos `{habilidad, texto_en, texto_es, principio_biblico, es_embebida}` | ❌ Falta | Fase 2 |
-| `generateRubric()` → exactamente 8 criterios | ❌ Pendiente fix | Inmediato |
-| `MODELO_B_SUBJECTS` en constants.js | ❌ Pendiente | Inmediato |
+| `learning_targets.tematica_names[]` = Nombres de Temáticas | ✅ Implementado Sprint 1 | — |
+| `learning_targets.trimestre` | ✅ Implementado Sprint 1 | — |
+| `news_projects.news_model` ('standard'\|'language') | ✅ Implementado Sprint 1 | — |
+| `news_projects.competencias/operadores/habilidades` (Modelo B) | ✅ Implementado Sprint 1 | — |
+| Indicadores Modelo B como objetos `{habilidad, texto_en, texto_es, principio_biblico, es_embebida}` | ❌ Falta | Sprint 2 |
+| `generateRubric()` → exactamente 8 criterios (prompt + validación) | ✅ Implementado Sprint 1 | — |
+| `MODELO_B_SUBJECTS` en constants.js | ✅ Implementado Sprint 1 | — |
 
 ### Rúbrica CBF (especificación obligatoria)
 **Siempre 8 criterios × 5 niveles** (Superior/Alto/Básico/Bajo/Muy Bajo):
@@ -559,30 +559,25 @@ En la pestaña Textbook del NEWS, permitir subir fotos/scans del scope & sequenc
 
 ---
 
-### 🔴 Modelo Pedagógico — Fase 2 (REQUIERE MIGRACIÓN DB)
-Implementar la estructura completa de Modelo A y Modelo B según el Marco Teórico.
+### ✅ Modelo Pedagógico — Sprint 1 (COMPLETADO)
+Implementación de la estructura Modelo A + Modelo B según el Marco Teórico.
 
-**Migraciones DB requeridas:**
-```sql
-ALTER TABLE learning_targets ADD COLUMN trimestre smallint CHECK (trimestre IN (1,2,3));
-ALTER TABLE learning_targets ADD COLUMN tematica_names jsonb DEFAULT '[]';
-ALTER TABLE learning_targets ADD COLUMN news_model text DEFAULT 'standard';
-ALTER TABLE news_projects ADD COLUMN news_model text DEFAULT 'standard';
-ALTER TABLE news_projects ADD COLUMN competencias jsonb DEFAULT '[]';
-ALTER TABLE news_projects ADD COLUMN operadores_intelectuales jsonb DEFAULT '[]';
-ALTER TABLE news_projects ADD COLUMN habilidades jsonb DEFAULT '[]';
-```
+**Migraciones aplicadas** (`supabase/migrations/20260403_fase2_modelo_b.sql`):
+- `learning_targets`: `trimestre smallint`, `tematica_names jsonb[]`, `news_model text`
+- `news_projects`: `news_model text`, `competencias jsonb[]`, `operadores_intelectuales jsonb[]`, `habilidades jsonb[]`
 
-**UI requerida:**
-- `LearningTargetsPage`: mostrar Temáticas + Indicadores en paralelo
-- `LearningTargetSelector`: filtrar por trimestre
-- `NewsProjectEditor`: UI diferente para Modelo A vs. Modelo B
-- Modelo B: formulario de competencias, operadores, indicadores por habilidad con principio bíblico propio y ES embebida
+**UI implementada:**
+- `LearningTargetsPage`: Temáticas + Indicadores en pares; badge Modelo B; selector Trimestre
+- `NewsProjectEditor`: sección "Modelo B — Lengua" con toggles de Competencias, Operadores, Habilidades; auto-detecta `news_model` desde el subject
 
-**IA requerida:**
-- `generateRubric()`: exactamente 8 criterios (fix inmediato, antes de la migración)
-- `generateIndicadores()`: 1 por Temática con nombre, no 3 genéricos
+**IA + constantes:**
+- `generateRubric()`: exactamente 8 criterios × 5 niveles (prompt forzado + validación post-parse)
 - `MODELO_B_SUBJECTS = ['Language Arts', 'Social Studies', 'Science']` en constants.js
+
+**Pendiente Sprint 2:**
+- Indicadores Modelo B como objetos `{habilidad, texto_en, texto_es, principio_biblico, es_embebida}`
+- `generateIndicadores()`: 1 por Temática con nombre, no 3 genéricos
+- `LearningTargetSelector`: filtrar por trimestre
 
 ---
 
