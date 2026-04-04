@@ -411,15 +411,6 @@ export default function PlannerPage({ teacher }) {
             </div>
           )}
 
-          {/* Timeline completo del período */}
-          {plannerNewsProjects.length > 0 && (
-            <PlannerPeriodTimeline
-              projects={plannerNewsProjects}
-              currentMonday={monday}
-              weekCount={weekCount}
-            />
-          )}
-
           {/* Hitos NEWS esta semana */}
           {weeklyNewsHitos.length > 0 && (
             <div className="planner-news-hitos">
@@ -604,6 +595,16 @@ export default function PlannerPage({ teacher }) {
           </div>
         </div>
       </div>
+
+      {/* Timeline completo del período — debajo del card principal para no desplazar el calendario */}
+      {plannerNewsProjects.length > 0 && (
+        <PlannerPeriodTimeline
+          projects={plannerNewsProjects}
+          currentMonday={monday}
+          weekCount={weekCount}
+        />
+      )}
+
       {showGenerator && (
         <AIGeneratorModal
           grade={grade}
