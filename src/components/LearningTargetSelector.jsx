@@ -22,6 +22,7 @@ const TAXONOMY_EMOJI = { recognize: '👁️', apply: '🛠️', produce: '✨' 
 export default function LearningTargetSelector({
   planId, subject, grade, period, schoolId, teacherId,
   currentTargetId, onChange,
+  trimestre,  // optional — if provided, highlights targets of that trimestre
 }) {
   const navigate = useNavigate()
   const [targets,  setTargets]  = useState([])
@@ -38,7 +39,7 @@ export default function LearningTargetSelector({
     // then filter client-side for flexible grade/group matching
     const { data } = await supabase
       .from('learning_targets')
-      .select('id, description, taxonomy, grade, group_name, prerequisite_ids')
+      .select('id, description, taxonomy, grade, group_name, prerequisite_ids, trimestre, tematica_names')
       .eq('school_id', schoolId)
       .eq('subject', subject)
       .eq('is_active', true)
@@ -47,16 +48,23 @@ export default function LearningTargetSelector({
     // Flexible match: guide grade might be "7.° Blue" while target has
     // grade="7.°" and group_name="Blue" separately
     const filtered = (data || []).filter(t => {
-      // Exact grade match (e.g. both are "7.°")
       if (t.grade === grade) return true
-      // Guide grade contains target grade (e.g. guide="7.° Blue", target.grade="7.°")
       if (grade.startsWith(t.grade)) {
-        // If target has a group_name, check it's in the guide grade too
         if (t.group_name) return grade.includes(t.group_name)
         return true
       }
       return false
     })
+
+    // Sort: trimestre match first, then rest
+    if (trimestre) {
+      filtered.sort((a, b) => {
+        const aMatch = a.trimestre === trimestre ? -1 : 0
+        const bMatch = b.trimestre === trimestre ? -1 : 0
+        return aMatch - bMatch
+      })
+    }
+
     setTargets(filtered)
     setLoading(false)
   }
@@ -178,7 +186,8 @@ export default function LearningTargetSelector({
           maxHeight: '240px', overflowY: 'auto', paddingRight: '4px',
         }}>
           {targets.map(t => {
-            const isSelected = t.id === currentTargetId
+            const isSelected   = t.id === currentTargetId
+            const isSameTrim   = trimestre && t.trimestre === trimestre
             return (
               <button
                 key={t.id}
@@ -186,25 +195,39 @@ export default function LearningTargetSelector({
                 style={{
                   display: 'flex', alignItems: 'flex-start', gap: '8px',
                   padding: '8px 12px', borderRadius: '8px', textAlign: 'left',
-                  border: isSelected ? '2px solid #2E5598' : '1px solid #dde3f0',
-                  background: isSelected ? '#eef2fa' : '#fff',
+                  border: isSelected ? '2px solid #2E5598' : isSameTrim ? '1px solid #9BBB59' : '1px solid #dde3f0',
+                  background: isSelected ? '#eef2fa' : isSameTrim ? '#f6fff0' : '#fff',
                   cursor: 'pointer', transition: 'all 0.15s',
                 }}
               >
                 <span style={{ fontSize: '16px', marginTop: '1px' }}>
                   {TAXONOMY_EMOJI[t.taxonomy] || '🛠️'}
                 </span>
-                <span style={{ fontSize: '13px', color: '#333', lineHeight: '1.4' }}>
-                  {t.description}
-                  {t.group_name && (
-                    <span style={{
-                      fontSize: '11px', color: '#888', marginLeft: '6px',
-                      background: '#f0f0f0', padding: '1px 6px', borderRadius: '4px',
-                    }}>
-                      {t.group_name}
-                    </span>
-                  )}
-                </span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: '13px', color: '#333', lineHeight: '1.4' }}>
+                    {t.description}
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '4px' }}>
+                    {t.group_name && (
+                      <span style={{
+                        fontSize: '10px', color: '#888',
+                        background: '#f0f0f0', padding: '1px 6px', borderRadius: '4px',
+                      }}>
+                        {t.group_name}
+                      </span>
+                    )}
+                    {t.trimestre && (
+                      <span style={{
+                        fontSize: '10px', fontWeight: 600,
+                        color: isSameTrim ? '#1A5C1A' : '#888',
+                        background: isSameTrim ? '#d4edda' : '#f0f0f0',
+                        padding: '1px 6px', borderRadius: '4px',
+                      }}>
+                        T{t.trimestre}
+                      </span>
+                    )}
+                  </div>
+                </div>
               </button>
             )
           })}

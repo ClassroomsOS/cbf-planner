@@ -6,6 +6,31 @@ import { useToast } from '../context/ToastContext'
 import { TAXONOMY_LEVELS, ACADEMIC_PERIODS, MODELO_B_SUBJECTS } from '../utils/constants'
 import './LearningTargets.css'
 
+// ── Helpers ──────────────────────────────────────────────────────────────────
+// Extracts display text from an indicator — can be a plain string (Modelo A)
+// or a Modelo B object {habilidad, texto_en, texto_es, ...}
+export function getIndText(ind) {
+  if (!ind) return ''
+  if (typeof ind === 'string') return ind
+  return ind.texto_es || ind.texto_en || ''
+}
+
+// Normalizes an existing indicator to a Modelo B object shape.
+// Used when switching a target to Modelo B — plain strings map to texto_es.
+function toModeloBObj(ind, habilidad = '') {
+  if (typeof ind === 'object' && ind !== null && ind.habilidad) return ind
+  return {
+    habilidad,
+    texto_en: '',
+    texto_es: typeof ind === 'string' ? ind : '',
+    principio_biblico: { titulo: '', referencia: '', cita: '' },
+    es_titulo: '', es_descripcion: '', es_grupo: '',
+  }
+}
+
+const HABILIDADES_B = ['Speaking', 'Listening', 'Reading', 'Writing']
+const HABILIDAD_ICONS = { Speaking: '🎤', Listening: '🎧', Reading: '📖', Writing: '✍️' }
+
 // ── Constants ────────────────────────────────────────────────────────────────
 // Map ACADEMIC_PERIODS to legacy format for this component
 const PERIODS = ACADEMIC_PERIODS.map((p, i) => ({
@@ -436,7 +461,12 @@ export default function LearningTargetsPage({ teacher }) {
                               {t.tematica_names[i]}:
                             </span>
                           )}
-                          {ind}
+                          {typeof ind === 'object' && ind?.habilidad && (
+                            <span style={{ fontWeight: 600, color: '#8064A2', marginRight: 4 }}>
+                              {HABILIDAD_ICONS[ind.habilidad]} {ind.habilidad}:
+                            </span>
+                          )}
+                          {getIndText(ind)}
                         </li>
                       ))}
                     </ol>
@@ -619,11 +649,14 @@ export default function LearningTargetsPage({ teacher }) {
                       setGeneratingInd(true)
                       setAiIndError(null)
                       try {
+                        const isB = MODELO_B_SUBJECTS.includes(form.subject)
                         const result = await generateIndicadores({
-                          description: form.description,
-                          taxonomy:    form.taxonomy,
-                          subject:     form.subject,
-                          grade:       form.grade,
+                          description:   form.description,
+                          taxonomy:      form.taxonomy,
+                          subject:       form.subject,
+                          grade:         form.grade,
+                          tematicaNames: form.tematica_names,
+                          isModeloB:     isB,
                           principles: {
                             yearVerse:          { text: school.year_verse || '', ref: school.year_verse_ref || '' },
                             monthVerse:         { text: monthPrinciple?.month_verse || '', ref: monthPrinciple?.month_verse_ref || '' },
@@ -631,6 +664,10 @@ export default function LearningTargetsPage({ teacher }) {
                           },
                         })
                         updateForm('indicadores', result)
+                        // For Modelo B, sync tematica_names from returned objects
+                        if (isB && Array.isArray(result) && result[0]?.habilidad) {
+                          updateForm('tematica_names', result.map(r => r.habilidad || ''))
+                        }
                       } catch (e) {
                         const errorMsg = e.message || 'Error al generar indicadores'
                         setAiIndError(errorMsg)
@@ -658,61 +695,192 @@ export default function LearningTargetsPage({ teacher }) {
                     Escribe el logro y el nivel taxonómico, luego haz clic en "✨ Generar con IA" o agrega indicadores manualmente.
                   </div>
                 )}
-                {form.indicadores.map((ind, idx) => (
-                  <div key={idx} style={{ marginBottom: '10px', padding: '10px 12px', borderRadius: '8px', background: '#fafafa', border: '1px solid #eee' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-                      <span style={{ color: '#9BBB59', fontWeight: 700, fontSize: '12px' }}>
-                        {MODELO_B_SUBJECTS.includes(form.subject)
-                          ? `Habilidad ${idx + 1}`
-                          : `Temática / Indicador ${idx + 1}`}
-                      </span>
-                      <button
-                        onClick={() => {
-                          const inds = [...form.indicadores]
-                          const tems = [...form.tematica_names]
-                          inds.splice(idx, 1)
-                          tems.splice(idx, 1)
-                          updateForm('indicadores', inds)
-                          updateForm('tematica_names', tems)
-                        }}
-                        style={{ background: 'none', border: 'none', color: '#bbb', cursor: 'pointer', fontSize: '14px', padding: '2px 4px' }}
-                        title="Eliminar"
-                        aria-label={`Eliminar indicador ${idx + 1}`}
-                      >✕</button>
+                {form.indicadores.map((ind, idx) => {
+                  const isB = MODELO_B_SUBJECTS.includes(form.subject)
+                  const obj = isB ? (typeof ind === 'object' && ind?.habilidad ? ind : toModeloBObj(ind, HABILIDADES_B[idx] || '')) : null
+                  const updateObjField = (field, value) => {
+                    const arr = [...form.indicadores]
+                    arr[idx] = { ...obj, [field]: value }
+                    updateForm('indicadores', arr)
+                  }
+                  const updatePrinciple = (field, value) => {
+                    const arr = [...form.indicadores]
+                    arr[idx] = { ...obj, principio_biblico: { ...obj.principio_biblico, [field]: value } }
+                    updateForm('indicadores', arr)
+                  }
+
+                  return (
+                    <div key={idx} style={{ marginBottom: '10px', padding: '12px', borderRadius: '8px', background: isB ? '#faf8ff' : '#fafafa', border: isB ? '1px solid #d6c9f0' : '1px solid #eee' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                        <span style={{ color: isB ? '#8064A2' : '#9BBB59', fontWeight: 700, fontSize: '12px' }}>
+                          {isB
+                            ? `${HABILIDAD_ICONS[obj.habilidad] || '📌'} ${obj.habilidad || `Habilidad ${idx + 1}`}`
+                            : `Temática / Indicador ${idx + 1}`}
+                        </span>
+                        <button
+                          onClick={() => {
+                            const inds = [...form.indicadores]
+                            const tems = [...form.tematica_names]
+                            inds.splice(idx, 1)
+                            tems.splice(idx, 1)
+                            updateForm('indicadores', inds)
+                            updateForm('tematica_names', tems)
+                          }}
+                          style={{ background: 'none', border: 'none', color: '#bbb', cursor: 'pointer', fontSize: '14px', padding: '2px 4px' }}
+                          title="Eliminar"
+                          aria-label={`Eliminar indicador ${idx + 1}`}
+                        >✕</button>
+                      </div>
+
+                      {/* ── Modelo A: Temática + Indicador string ── */}
+                      {!isB && (
+                        <>
+                          <input
+                            type="text"
+                            value={form.tematica_names[idx] || ''}
+                            onChange={e => {
+                              const tems = [...form.tematica_names]
+                              tems[idx] = e.target.value
+                              updateForm('tematica_names', tems)
+                            }}
+                            placeholder="Nombre de la Temática (ej: Texto instructivo: receta)"
+                            className="lt-textarea"
+                            style={{ marginBottom: '6px', padding: '6px 10px', fontStyle: 'italic', fontSize: '12px', color: '#555', width: '100%', boxSizing: 'border-box' }}
+                          />
+                          <textarea
+                            value={typeof ind === 'string' ? ind : getIndText(ind)}
+                            onChange={e => {
+                              const arr = [...form.indicadores]
+                              arr[idx] = e.target.value
+                              updateForm('indicadores', arr)
+                            }}
+                            placeholder="El estudiante demuestra el logro cuando…"
+                            rows={2}
+                            className="lt-textarea"
+                            style={{ width: '100%', resize: 'vertical', boxSizing: 'border-box' }}
+                          />
+                        </>
+                      )}
+
+                      {/* ── Modelo B: objeto estructurado ── */}
+                      {isB && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          {/* Habilidad selector */}
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            {HABILIDADES_B.map(h => (
+                              <button
+                                key={h}
+                                type="button"
+                                onClick={() => updateObjField('habilidad', h)}
+                                style={{
+                                  padding: '3px 10px', borderRadius: 12, fontSize: 11, cursor: 'pointer',
+                                  border: obj.habilidad === h ? '2px solid #8064A2' : '1px solid #d6c9f0',
+                                  background: obj.habilidad === h ? '#8064A2' : '#fff',
+                                  color: obj.habilidad === h ? '#fff' : '#8064A2',
+                                  fontWeight: obj.habilidad === h ? 700 : 400,
+                                }}
+                              >
+                                {HABILIDAD_ICONS[h]} {h}
+                              </button>
+                            ))}
+                          </div>
+                          {/* texto_en */}
+                          <div>
+                            <div style={{ fontSize: 10, color: '#888', marginBottom: 3 }}>EN — Enunciado en inglés</div>
+                            <textarea
+                              value={obj.texto_en}
+                              onChange={e => updateObjField('texto_en', e.target.value)}
+                              placeholder="The student presents information clearly..."
+                              rows={2}
+                              className="lt-textarea"
+                              style={{ width: '100%', resize: 'vertical', boxSizing: 'border-box', fontSize: 12 }}
+                            />
+                          </div>
+                          {/* texto_es */}
+                          <div>
+                            <div style={{ fontSize: 10, color: '#888', marginBottom: 3 }}>ES — Traducción al español</div>
+                            <textarea
+                              value={obj.texto_es}
+                              onChange={e => updateObjField('texto_es', e.target.value)}
+                              placeholder="El estudiante presenta información claramente..."
+                              rows={2}
+                              className="lt-textarea"
+                              style={{ width: '100%', resize: 'vertical', boxSizing: 'border-box', fontSize: 12 }}
+                            />
+                          </div>
+                          {/* Principio bíblico */}
+                          <div style={{ padding: '8px 10px', borderRadius: 6, background: '#EEF2FB', border: '1px solid #c5d5f0' }}>
+                            <div style={{ fontSize: 10, fontWeight: 700, color: '#1A3A8F', marginBottom: 6 }}>✝️ PRINCIPIO BÍBLICO DEL INDICADOR</div>
+                            <input
+                              type="text"
+                              value={obj.principio_biblico?.titulo || ''}
+                              onChange={e => updatePrinciple('titulo', e.target.value)}
+                              placeholder="Título temático (ej: God's plan: A dream worth waiting for!)"
+                              className="lt-textarea"
+                              style={{ marginBottom: 5, padding: '5px 8px', fontSize: 11, width: '100%', boxSizing: 'border-box' }}
+                            />
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 6 }}>
+                              <input
+                                type="text"
+                                value={obj.principio_biblico?.referencia || ''}
+                                onChange={e => updatePrinciple('referencia', e.target.value)}
+                                placeholder="Génesis 50:20 (NIV)"
+                                className="lt-textarea"
+                                style={{ padding: '5px 8px', fontSize: 11, width: '100%', boxSizing: 'border-box' }}
+                              />
+                              <input
+                                type="text"
+                                value={obj.principio_biblico?.cita || ''}
+                                onChange={e => updatePrinciple('cita', e.target.value)}
+                                placeholder="You intended to harm me, but God intended it for good..."
+                                className="lt-textarea"
+                                style={{ padding: '5px 8px', fontSize: 11, width: '100%', boxSizing: 'border-box' }}
+                              />
+                            </div>
+                          </div>
+                          {/* ES Embebida */}
+                          <div style={{ padding: '8px 10px', borderRadius: 6, background: '#FFF9E6', border: '1px solid #F5C300' }}>
+                            <div style={{ fontSize: 10, fontWeight: 700, color: '#8B6914', marginBottom: 6 }}>📋 EXPERIENCIA SIGNIFICATIVA EMBEBIDA</div>
+                            <input
+                              type="text"
+                              value={obj.es_titulo || ''}
+                              onChange={e => updateObjField('es_titulo', e.target.value)}
+                              placeholder="Título del proyecto ES (ej: How do my dreams line up with God's plan?)"
+                              className="lt-textarea"
+                              style={{ marginBottom: 5, padding: '5px 8px', fontSize: 11, width: '100%', boxSizing: 'border-box' }}
+                            />
+                            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 6 }}>
+                              <input
+                                type="text"
+                                value={obj.es_descripcion || ''}
+                                onChange={e => updateObjField('es_descripcion', e.target.value)}
+                                placeholder="Descripción (ej: Vision Board — hablar de sueños...)"
+                                className="lt-textarea"
+                                style={{ padding: '5px 8px', fontSize: 11, width: '100%', boxSizing: 'border-box' }}
+                              />
+                              <input
+                                type="text"
+                                value={obj.es_grupo || ''}
+                                onChange={e => updateObjField('es_grupo', e.target.value)}
+                                placeholder="Grupo (ej: 2 estudiantes)"
+                                className="lt-textarea"
+                                style={{ padding: '5px 8px', fontSize: 11, width: '100%', boxSizing: 'border-box' }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                    {!MODELO_B_SUBJECTS.includes(form.subject) && (
-                      <input
-                        type="text"
-                        value={form.tematica_names[idx] || ''}
-                        onChange={e => {
-                          const tems = [...form.tematica_names]
-                          tems[idx] = e.target.value
-                          updateForm('tematica_names', tems)
-                        }}
-                        placeholder="Nombre de la Temática (ej: Texto instructivo: receta)"
-                        className="lt-textarea"
-                        style={{ marginBottom: '6px', padding: '6px 10px', fontStyle: 'italic', fontSize: '12px', color: '#555', width: '100%', boxSizing: 'border-box' }}
-                      />
-                    )}
-                    <textarea
-                      value={ind}
-                      onChange={e => {
-                        const arr = [...form.indicadores]
-                        arr[idx] = e.target.value
-                        updateForm('indicadores', arr)
-                      }}
-                      placeholder={MODELO_B_SUBJECTS.includes(form.subject)
-                        ? 'Speaking / Listening / Reading / Writing — El estudiante…'
-                        : 'El estudiante demuestra el logro cuando…'}
-                      rows={2}
-                      className="lt-textarea"
-                      style={{ width: '100%', resize: 'vertical', boxSizing: 'border-box' }}
-                    />
-                  </div>
-                ))}
+                  )
+                })}
                 <button
                   onClick={() => {
-                    updateForm('indicadores', [...form.indicadores, ''])
+                    const isB = MODELO_B_SUBJECTS.includes(form.subject)
+                    const nextHabilidad = HABILIDADES_B[form.indicadores.length] || ''
+                    const newInd = isB
+                      ? toModeloBObj('', nextHabilidad)
+                      : ''
+                    updateForm('indicadores', [...form.indicadores, newInd])
                     updateForm('tematica_names', [...form.tematica_names, ''])
                   }}
                   style={{ fontSize: '12px', color: '#9BBB59', border: '1px solid #9BBB59', background: 'none', borderRadius: '6px', padding: '4px 12px', cursor: 'pointer', marginTop: '2px' }}

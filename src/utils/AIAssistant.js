@@ -531,41 +531,87 @@ Genera EXACTAMENTE 8 criterios en el orden indicado.`
 }
 
 // ── Punto 5: Generar indicadores de logro ────────────────────────────────────
-export async function generateIndicadores({ description, taxonomy, subject, grade, principles }) {
+// Modos de operación:
+//   Modelo A + tematicaNames → 1 indicador string por Temática
+//   Modelo A sin tematicaNames → 3 indicadores string genéricos (backward compat)
+//   Modelo B (isModeloB=true) → 4 objetos {habilidad, texto_en, texto_es, principio_biblico}
+export async function generateIndicadores({
+  description, taxonomy, subject, grade, principles,
+  tematicaNames, isModeloB
+}) {
   const TAXONOMY_MAP = {
     recognize: 'Reconocer (identificar, recordar, nombrar, clasificar)',
     apply:     'Aplicar (usar, demostrar, resolver, ejecutar)',
     produce:   'Producir (crear, diseñar, componer, generar autónomamente)',
   }
 
+  const safeDescription = sanitizeAIInput(description || '')
+  const safeSubject     = sanitizeAIInput(subject || '')
+  const safeGrade       = sanitizeAIInput(grade || '')
+
+  // ── MODELO B ──────────────────────────────────────────────────────────────
+  if (isModeloB) {
+    const system = `Eres un experto en diseño curricular bilingüe (colombiano).
+Diseñas indicadores de logro para materias en inglés (Modelo B: Language Arts, Social Studies, Science).
+Cada indicador corresponde a una habilidad: Speaking, Listening, Reading, Writing.
+${biblicalBlock(principles,
+  'Cada indicador del Modelo B tiene su propio principio bíblico — un versículo específico que conecta esa habilidad con la fe. No uses el mismo versículo para las 4 habilidades.'
+)}
+Responde ÚNICAMENTE con un array JSON de exactamente 4 objetos. Sin texto adicional.
+Estructura de cada objeto:
+{
+  "habilidad": "Speaking|Listening|Reading|Writing",
+  "texto_en": "The student... (in English, observable, 1-2 lines)",
+  "texto_es": "El estudiante... (traducción al español)",
+  "principio_biblico": {
+    "titulo": "Thematic title for the biblical connection",
+    "referencia": "Book Chapter:Verse (NIV/NVI)",
+    "cita": "Exact verse text"
+  }
+}`
+
+    const message = `Genera indicadores Modelo B para:
+Logro: ${safeDescription}
+Materia: ${safeSubject} | Grado: ${safeGrade}
+Nivel taxonómico: ${TAXONOMY_MAP[taxonomy] || taxonomy}`
+
+    const raw = await callClaude({ type: 'generate_indicadores', system, message, maxTokens: 2000 })
+    let parsed
+    try { parsed = JSON.parse(raw) } catch { parsed = null }
+    if (!Array.isArray(parsed) || parsed.length !== 4) throw new Error('La IA no devolvió los 4 indicadores Modelo B.')
+    return parsed
+  }
+
+  // ── MODELO A — con Temáticas ───────────────────────────────────────────────
+  const hasTematicas = Array.isArray(tematicaNames) && tematicaNames.some(Boolean)
+  const n = hasTematicas ? tematicaNames.filter(Boolean).length : 3
+
   const system = `Eres un experto en diseño curricular para colegios bilingües colombianos.
 Generas indicadores de logro precisos y medibles para un logro de aprendizaje.
 Los indicadores deben:
 - Ser observables y verificables en el aula
 - Usar verbos de acción concretos acordes al nivel taxonómico
-- Ser específicos para el logro (no genéricos)
 - Estar redactados en tercera persona ("El estudiante...")
 - Ser concisos (máximo 2 líneas cada uno)
 ${biblicalBlock(principles,
-  'OBLIGATORIO: Uno de los 3 indicadores DEBE reflejar la dimensión formativa espiritual — cómo el logro académico se conecta con los principios rectores de la institución (especialmente el Principio del Indicador y el Versículo del Mes). No es una adición decorativa: es evidencia de que el aprendizaje fue integrado con la fe. Debe ser tan observable y medible como los otros dos.'
+  `OBLIGATORIO: Exactamente uno de los ${n} indicadores DEBE reflejar la dimensión formativa espiritual — cómo el logro académico se conecta con el Principio del Indicador y el Versículo del Mes. Debe ser tan observable y medible como los demás.`
 )}
-Responde ÚNICAMENTE con un array JSON de 3 strings. Sin texto adicional, sin markdown.
-Ejemplo: ["El estudiante identifica...", "El estudiante aplica...", "El estudiante conecta... con el principio de..."]`
+Responde ÚNICAMENTE con un array JSON de exactamente ${n} strings. Sin texto adicional, sin markdown.`
 
-  // Sanitize user inputs
-  const safeDescription = sanitizeAIInput(description || '')
-  const safeSubject = sanitizeAIInput(subject || '')
-  const safeGrade = sanitizeAIInput(grade || '')
+  const tematicasBlock = hasTematicas
+    ? `\nTemáticas (genera exactamente 1 indicador por Temática, en el mismo orden):\n${
+        tematicaNames.filter(Boolean).map((t, i) => `${i + 1}. ${sanitizeAIInput(t)}`).join('\n')
+      }`
+    : ''
 
-  const message = `Genera 3 indicadores de logro para:
+  const message = `Genera ${n} indicadores de logro para:
 
 Logro: ${safeDescription}
 Nivel taxonómico: ${TAXONOMY_MAP[taxonomy] || taxonomy}
 Asignatura: ${safeSubject}
-Grado: ${safeGrade}`
+Grado: ${safeGrade}${tematicasBlock}`
 
-  const raw = await callClaude({ type: 'generate_indicadores', system, message, maxTokens: 700 })
-
+  const raw = await callClaude({ type: 'generate_indicadores', system, message, maxTokens: 1500 })
   let parsed
   try { parsed = JSON.parse(raw) } catch { parsed = null }
   if (!Array.isArray(parsed) || !parsed.length) throw new Error('La IA no devolvió indicadores válidos.')

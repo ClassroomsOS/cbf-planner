@@ -4,6 +4,7 @@ import { useToast } from '../../context/ToastContext'
 import { useFocusTrap } from '../../hooks/useFocusTrap'
 import { generateRubric } from '../../utils/AIAssistant'
 import { MODELO_B_SUBJECTS } from '../../utils/constants'
+import { getIndText } from '../../pages/LearningTargetsPage'
 
 const MODELO_B_COMPETENCIAS = ['Sociolingüística', 'Lingüística', 'Pragmática']
 const MODELO_B_OPERADORES   = ['Deducir', 'Generalizar', 'Sintetizar', 'Retener', 'Evaluar']
@@ -789,51 +790,51 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, project, te
                         📌 Selecciona el indicador que este proyecto demuestra:
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 160, overflowY: 'auto', overflowX: 'hidden' }}>
-                        {indicadores.map((ind, idx) => (
-                          <button
-                            key={idx}
-                            onClick={() => updateForm('target_indicador', ind)}
-                            style={{
-                              padding: '8px', borderRadius: 5, textAlign: 'left',
-                              border: form.target_indicador === ind ? '2px solid #9BBB59' : '1px solid #ddd',
-                              background: form.target_indicador === ind ? '#fff' : '#fafafa',
-                              cursor: 'pointer', transition: 'all 0.15s',
-                              display: 'flex', alignItems: 'flex-start', gap: 8,
-                              boxShadow: form.target_indicador === ind ? '0 2px 4px rgba(155,187,89,0.2)' : 'none'
-                            }}
-                          >
-                            <div style={{
-                              width: 15, height: 15, borderRadius: '50%',
-                              border: form.target_indicador === ind ? '2px solid #9BBB59' : '2px solid #ddd',
-                              background: form.target_indicador === ind ? '#9BBB59' : '#fff',
-                              flexShrink: 0, marginTop: 0,
-                              display: 'flex', alignItems: 'center', justifyContent: 'center'
-                            }}>
-                              {form.target_indicador === ind && (
-                                <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff' }} />
-                              )}
-                            </div>
-                            <div style={{ flex: 1, minWidth: 0 }}>
+                        {indicadores.map((ind, idx) => {
+                          const indText  = getIndText(ind)
+                          const indKey   = typeof ind === 'string' ? ind : JSON.stringify(ind)
+                          const isObj    = typeof ind === 'object' && ind !== null
+                          const habilidad = isObj ? ind.habilidad : null
+                          const HICONS   = { Speaking: '🎤', Listening: '🎧', Reading: '📖', Writing: '✍️' }
+                          const isSelected = form.target_indicador === indText
+                          return (
+                            <button
+                              key={idx}
+                              onClick={() => updateForm('target_indicador', indText)}
+                              style={{
+                                padding: '8px', borderRadius: 5, textAlign: 'left',
+                                border: isSelected ? '2px solid #9BBB59' : '1px solid #ddd',
+                                background: isSelected ? '#fff' : '#fafafa',
+                                cursor: 'pointer', transition: 'all 0.15s',
+                                display: 'flex', alignItems: 'flex-start', gap: 8,
+                                boxShadow: isSelected ? '0 2px 4px rgba(155,187,89,0.2)' : 'none'
+                              }}
+                            >
                               <div style={{
-                                fontSize: 9, fontWeight: 700, color: '#5a8a00',
-                                marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.2px'
+                                width: 15, height: 15, borderRadius: '50%',
+                                border: isSelected ? '2px solid #9BBB59' : '2px solid #ddd',
+                                background: isSelected ? '#9BBB59' : '#fff',
+                                flexShrink: 0, marginTop: 0,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center'
                               }}>
-                                Indicador {idx + 1}
+                                {isSelected && <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff' }} />}
                               </div>
-                              <div style={{
-                                fontSize: 11,
-                                color: '#1a1a2e',
-                                lineHeight: 1.3,
-                                display: '-webkit-box',
-                                WebkitLineClamp: 2,
-                                WebkitBoxOrient: 'vertical',
-                                overflow: 'hidden'
-                              }}>
-                                {ind}
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: 9, fontWeight: 700, color: '#5a8a00', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.2px' }}>
+                                  {habilidad ? `${HICONS[habilidad] || ''} ${habilidad}` : `Indicador ${idx + 1}`}
+                                </div>
+                                <div style={{ fontSize: 11, color: '#1a1a2e', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                                  {indText}
+                                </div>
+                                {isObj && ind.texto_en && (
+                                  <div style={{ fontSize: 10, color: '#888', marginTop: 2, fontStyle: 'italic', lineHeight: 1.3 }}>
+                                    {ind.texto_en.length > 80 ? ind.texto_en.slice(0, 80) + '…' : ind.texto_en}
+                                  </div>
+                                )}
                               </div>
-                            </div>
-                          </button>
-                        ))}
+                            </button>
+                          )
+                        })}
                       </div>
                       <div style={{
                         fontSize: 9, color: '#666', marginTop: 8, fontStyle: 'italic',
