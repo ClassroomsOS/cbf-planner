@@ -72,7 +72,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
   const [principlesExpanded, setPrinciplesExpanded] = useState(false)
   const [tagInput, setTagInput] = useState({ grammar: '', vocabulary: '', units: '' })
   const [showTargetSelector, setShowTargetSelector] = useState(false)
-  const [newActividad, setNewActividad] = useState({ nombre: '', descripcion: '', porcentaje: '' })
+  const [newActividad, setNewActividad] = useState({ nombre: '', descripcion: '', porcentaje: '', fecha: '' })
 
   // ── Load teacher assignments for smart dropdowns ──
   const [assignments, setAssignments] = useState([])
@@ -227,12 +227,13 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
     updateForm('actividades_evaluativas', [
       ...form.actividades_evaluativas,
       {
-        nombre:     newActividad.nombre.trim(),
+        nombre:      newActividad.nombre.trim(),
         descripcion: newActividad.descripcion.trim(),
         porcentaje:  Number(newActividad.porcentaje) || 0,
+        fecha:       newActividad.fecha || null,
       }
     ])
-    setNewActividad({ nombre: '', descripcion: '', porcentaje: '' })
+    setNewActividad({ nombre: '', descripcion: '', porcentaje: '', fecha: '' })
   }
 
   const removeActividad = (idx) => {
@@ -378,11 +379,15 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
         key: 'textbook', icon: '📘', label: 'Textbook',
         isDone: !!(form.textbook_reference?.book)
       },
-      ...(form.news_model === 'language' ? [{
+      {
         key: 'actividades', icon: '📋', label: 'Actividades',
         isDone: form.actividades_evaluativas.length > 0,
         badge: form.actividades_evaluativas.length > 0 ? form.actividades_evaluativas.length : null
-      }] : []),
+      },
+      {
+        key: 'timeline', icon: '📅', label: 'Línea de Tiempo',
+        isDone: form.actividades_evaluativas.some(a => a.fecha) || !!form.due_date,
+      },
       {
         key: 'rubric', icon: '📊', label: 'Rúbrica',
         isDone: form.rubric.length > 0,
@@ -1000,36 +1005,45 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
               )}
 
               {/* ── STEP: Actividades Evaluativas (Modelo B only) ── */}
-              {activeStep === 'actividades' && form.news_model === 'language' && (
+              {activeStep === 'actividades' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                   <div>
                     <h3 style={styles.stepTitle}>Actividades Evaluativas</h3>
-                    <p style={styles.stepDesc}>Registra las actividades que se evaluarán para esta habilidad (Dictados, Quiz, Cambridge One, Plan Lector, PET Prep, etc.) con su peso porcentual.</p>
+                    <p style={styles.stepDesc}>Registra las actividades que se evaluarán en el período (Dictados, Quiz, Proyectos, etc.) con su fecha y peso porcentual. La fecha fija el hito en la línea de tiempo.</p>
                   </div>
 
                   {/* Add activity row */}
                   <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap', background: '#f9f9fb', borderRadius: 10, padding: '12px 14px', border: '1px solid #e8e8f0' }}>
-                    <div style={{ ...styles.field, flex: 2, minWidth: 140 }}>
+                    <div style={{ ...styles.field, flex: 2, minWidth: 130 }}>
                       <label style={styles.label}>Actividad</label>
                       <input
                         value={newActividad.nombre}
                         onChange={e => setNewActividad(p => ({ ...p, nombre: e.target.value }))}
                         onKeyDown={e => e.key === 'Enter' && addActividad()}
-                        placeholder="Dictado / Quiz / Cambridge One…"
+                        placeholder="Dictado / Quiz / Proyecto…"
                         style={styles.input}
                       />
                     </div>
-                    <div style={{ ...styles.field, flex: 3, minWidth: 160 }}>
+                    <div style={{ ...styles.field, flex: 2, minWidth: 130 }}>
                       <label style={styles.label}>Descripción (opcional)</label>
                       <input
                         value={newActividad.descripcion}
                         onChange={e => setNewActividad(p => ({ ...p, descripcion: e.target.value }))}
                         onKeyDown={e => e.key === 'Enter' && addActividad()}
-                        placeholder="Unit 3 vocabulary, 20 words…"
+                        placeholder="Unit 3 vocabulary…"
                         style={styles.input}
                       />
                     </div>
-                    <div style={{ ...styles.field, width: 90 }}>
+                    <div style={{ ...styles.field, width: 130 }}>
+                      <label style={styles.label}>📅 Fecha</label>
+                      <input
+                        type="date"
+                        value={newActividad.fecha}
+                        onChange={e => setNewActividad(p => ({ ...p, fecha: e.target.value }))}
+                        style={styles.input}
+                      />
+                    </div>
+                    <div style={{ ...styles.field, width: 80 }}>
                       <label style={styles.label}>% Peso</label>
                       <input
                         type="number"
@@ -1051,15 +1065,31 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
                     </button>
                   </div>
 
-                  {/* Activities list */}
+                  {/* Activities list — sorted by date */}
                   {form.actividades_evaluativas.length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '24px 16px', color: '#aaa', background: '#fafafa', borderRadius: 8, border: '1px dashed #ddd' }}>
                       <p style={{ fontSize: 13 }}>Sin actividades aún. Agrega las actividades evaluativas del período.</p>
                     </div>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      {form.actividades_evaluativas.map((act, idx) => (
-                        <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'white', borderRadius: 8, border: '1px solid #e8e8f0', padding: '10px 14px' }}>
+                      {[...form.actividades_evaluativas]
+                        .map((act, idx) => ({ ...act, _idx: idx }))
+                        .sort((a, b) => {
+                          if (!a.fecha && !b.fecha) return 0
+                          if (!a.fecha) return 1
+                          if (!b.fecha) return -1
+                          return a.fecha.localeCompare(b.fecha)
+                        })
+                        .map((act) => (
+                        <div key={act._idx} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'white', borderRadius: 8, border: '1px solid #e8e8f0', padding: '10px 14px' }}>
+                          {act.fecha && (
+                            <span style={{ fontSize: 11, fontWeight: 700, color: '#2E5598', background: '#eef3ff', border: '1px solid #c5d5f0', borderRadius: 6, padding: '2px 8px', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
+                              {new Date(act.fecha + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })}
+                            </span>
+                          )}
+                          {!act.fecha && (
+                            <span style={{ fontSize: 11, color: '#bbb', background: '#f5f5f5', borderRadius: 6, padding: '2px 8px', flexShrink: 0, fontStyle: 'italic' }}>sin fecha</span>
+                          )}
                           <div style={{ flex: 1 }}>
                             <span style={{ fontSize: 13, fontWeight: 700, color: '#1a1a2e' }}>{act.nombre}</span>
                             {act.descripcion && (
@@ -1072,7 +1102,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
                             </span>
                           )}
                           <button
-                            onClick={() => removeActividad(idx)}
+                            onClick={() => removeActividad(act._idx)}
                             style={{ background: 'none', border: 'none', color: '#CC1F27', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: '0 4px', flexShrink: 0 }}
                             title="Eliminar"
                           >×</button>
@@ -1092,11 +1122,142 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
                     </div>
                   )}
 
-                  <button onClick={() => setActiveStep('rubric')} style={styles.btnNext}>
-                    Siguiente: Rúbrica →
+                  <button onClick={() => setActiveStep('timeline')} style={styles.btnNext}>
+                    Siguiente: Línea de Tiempo →
                   </button>
                 </div>
               )}
+
+              {/* ── STEP: Línea de Tiempo ── */}
+              {activeStep === 'timeline' && (() => {
+                const SKILL_COLOR = { Speaking: '#8064A2', Listening: '#4BACC6', Reading: '#F79646', Writing: '#9BBB59' }
+                const actColor = SKILL_COLOR[form.skill] || '#1A6B3A'
+
+                const withDate = [...form.actividades_evaluativas]
+                  .filter(a => a.fecha)
+                  .sort((a, b) => a.fecha.localeCompare(b.fecha))
+                const withoutDate = form.actividades_evaluativas.filter(a => !a.fecha)
+
+                // Group by ISO week (Monday)
+                function getMonday(dateStr) {
+                  const d = new Date(dateStr + 'T12:00:00')
+                  const day = d.getDay()
+                  d.setDate(d.getDate() - (day === 0 ? 6 : day - 1))
+                  return d.toISOString().slice(0, 10)
+                }
+                function fmtWeek(mondayStr) {
+                  const mon = new Date(mondayStr + 'T12:00:00')
+                  const fri = new Date(mon); fri.setDate(fri.getDate() + 4)
+                  const MES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
+                  return mon.getMonth() === fri.getMonth()
+                    ? `${mon.getDate()} – ${fri.getDate()} ${MES[fri.getMonth()]} ${fri.getFullYear()}`
+                    : `${mon.getDate()} ${MES[mon.getMonth()]} – ${fri.getDate()} ${MES[fri.getMonth()]} ${fri.getFullYear()}`
+                }
+                function fmtDay(dateStr) {
+                  return new Date(dateStr + 'T12:00:00').toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric', month: 'short' })
+                }
+
+                // Build week groups — merge due_date as a milestone
+                const weekMap = {}
+                withDate.forEach(act => {
+                  const mon = getMonday(act.fecha)
+                  if (!weekMap[mon]) weekMap[mon] = { activities: [], hasDue: false }
+                  weekMap[mon].activities.push(act)
+                })
+                if (form.due_date) {
+                  const mon = getMonday(form.due_date)
+                  if (!weekMap[mon]) weekMap[mon] = { activities: [], hasDue: false }
+                  weekMap[mon].hasDue = true
+                }
+                const weekKeys = Object.keys(weekMap).sort()
+
+                const noActivities = withDate.length === 0 && !form.due_date
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    <div>
+                      <h3 style={styles.stepTitle}>Línea de Tiempo</h3>
+                      <p style={styles.stepDesc}>Distribución automática de actividades e hitos a lo largo del período. Las fechas se toman de cada actividad evaluativa.</p>
+                    </div>
+
+                    {noActivities ? (
+                      <div style={{ textAlign: 'center', padding: '32px 16px', color: '#aaa', background: '#fafafa', borderRadius: 10, border: '1px dashed #ddd' }}>
+                        <div style={{ fontSize: 32, marginBottom: 8 }}>📅</div>
+                        <p style={{ fontSize: 13 }}>Agrega fechas a las actividades evaluativas para ver la línea de tiempo.</p>
+                        <button onClick={() => setActiveStep('actividades')} style={{ marginTop: 10, fontSize: 12, padding: '6px 16px', borderRadius: 7, border: '1px solid #1A6B3A', background: 'transparent', color: '#1A6B3A', cursor: 'pointer', fontWeight: 600 }}>
+                          ← Ir a Actividades
+                        </button>
+                      </div>
+                    ) : (
+                      <div style={{ position: 'relative', paddingLeft: 28 }}>
+                        {/* Vertical line */}
+                        <div style={{ position: 'absolute', left: 10, top: 8, bottom: 8, width: 2, background: '#e0e0e0', borderRadius: 2 }} />
+
+                        {weekKeys.map((mon, wi) => (
+                          <div key={mon} style={{ marginBottom: 20, position: 'relative' }}>
+                            {/* Week dot */}
+                            <div style={{ position: 'absolute', left: -22, top: 3, width: 12, height: 12, borderRadius: '50%', background: weekMap[mon].hasDue ? '#CC1F27' : actColor, border: '2px solid white', boxShadow: '0 0 0 2px ' + (weekMap[mon].hasDue ? '#CC1F27' : actColor) }} />
+
+                            {/* Week label */}
+                            <div style={{ fontSize: 11, fontWeight: 800, color: '#555', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>
+                              Semana del {fmtWeek(mon)}
+                            </div>
+
+                            {/* Activities in this week */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                              {weekMap[mon].activities.map((act, ai) => (
+                                <div key={ai} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'white', borderRadius: 8, border: `1px solid ${actColor}33`, padding: '8px 12px' }}>
+                                  <span style={{ fontSize: 11, fontWeight: 700, color: actColor, background: actColor + '18', borderRadius: 5, padding: '1px 7px', flexShrink: 0 }}>
+                                    {fmtDay(act.fecha)}
+                                  </span>
+                                  <div style={{ flex: 1, fontSize: 13, fontWeight: 600, color: '#1a1a2e' }}>
+                                    {act.nombre}
+                                    {act.descripcion && <span style={{ fontWeight: 400, color: '#777', marginLeft: 6 }}>{act.descripcion}</span>}
+                                  </div>
+                                  {act.porcentaje > 0 && (
+                                    <span style={{ fontSize: 11, fontWeight: 800, color: actColor, flexShrink: 0 }}>{act.porcentaje}%</span>
+                                  )}
+                                </div>
+                              ))}
+                              {/* Due date milestone */}
+                              {weekMap[mon].hasDue && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fff5f5', borderRadius: 8, border: '2px solid #CC1F27', padding: '8px 12px' }}>
+                                  <span style={{ fontSize: 11, fontWeight: 700, color: '#CC1F27', background: '#fde8e8', borderRadius: 5, padding: '1px 7px', flexShrink: 0 }}>
+                                    {fmtDay(form.due_date)}
+                                  </span>
+                                  <div style={{ flex: 1, fontSize: 13, fontWeight: 700, color: '#CC1F27' }}>
+                                    🏁 Entrega del proyecto{form.title ? `: ${form.title}` : ''}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Activities without date */}
+                    {withoutDate.length > 0 && (
+                      <div style={{ background: '#fffbf0', borderRadius: 8, border: '1px dashed #f0c040', padding: '10px 14px' }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: '#8B6914', marginBottom: 6 }}>⚠️ Sin fecha programada ({withoutDate.length})</div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                          {withoutDate.map((act, i) => (
+                            <span key={i} style={{ fontSize: 12, background: 'white', border: '1px solid #f0c040', borderRadius: 20, padding: '2px 10px', color: '#555' }}>
+                              {act.nombre}
+                            </span>
+                          ))}
+                        </div>
+                        <button onClick={() => setActiveStep('actividades')} style={{ marginTop: 8, fontSize: 11, padding: '4px 12px', borderRadius: 6, border: '1px solid #c8a020', background: 'transparent', color: '#8B6914', cursor: 'pointer', fontWeight: 600 }}>
+                          ← Asignar fechas
+                        </button>
+                      </div>
+                    )}
+
+                    <button onClick={() => setActiveStep('rubric')} style={styles.btnNext}>
+                      Siguiente: Rúbrica →
+                    </button>
+                  </div>
+                )
+              })()}
 
               {/* ── STEP: Rúbrica ── */}
               {activeStep === 'rubric' && (
