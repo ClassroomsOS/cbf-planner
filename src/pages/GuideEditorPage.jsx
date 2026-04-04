@@ -285,7 +285,7 @@ export default function GuideEditorPage({ teacher }) {
     if (!plan?.target_id) { setLinkedNewsProjects([]); return }
     supabase
       .from('news_projects')
-      .select('id, title, subject, status, skill, news_model, actividades_evaluativas, biblical_principle, biblical_reflection, due_date, target_indicador')
+      .select('id, title, subject, status, skill, news_model, actividades_evaluativas, biblical_principle, biblical_reflection, due_date, target_indicador, conditions, textbook_reference, competencias, operadores_intelectuales, habilidades')
       .eq('target_id', plan.target_id)
       .eq('school_id', teacher.school_id)
       .limit(10)
@@ -356,17 +356,23 @@ export default function GuideEditorPage({ teacher }) {
   }, [activeNewsProject, linkedTarget])
 
   // Auto-populate principio from indicator's principio_biblico (once, only if empty)
+  // Fallback: use biblical_principle from the active NEWS project
   const principioInitRef = useRef(false)
   useEffect(() => {
     if (principioInitRef.current) return
-    if (!activeIndicator?.principio_biblico || !content) return
+    if (!content) return
     if (content.objetivo?.principio) return // already has a value — don't overwrite
-    const pb = activeIndicator.principio_biblico
-    const text = pb.cita || pb.titulo || ''
+    let text = ''
+    if (activeIndicator?.principio_biblico) {
+      const pb = activeIndicator.principio_biblico
+      text = pb.cita || pb.titulo || ''
+    } else if (activeNewsProject?.biblical_principle) {
+      text = activeNewsProject.biblical_principle
+    }
     if (!text) return
     principioInitRef.current = true
     setContentField(['objetivo', 'principio'], text)
-  }, [activeIndicator, content?.objetivo?.principio])
+  }, [activeIndicator, activeNewsProject, content?.objetivo?.principio])
 
   async function buildDaysFromDB(data, c) {
     let weekMonday
@@ -774,7 +780,7 @@ export default function GuideEditorPage({ teacher }) {
           )}
           {/* Botón principal: Imprimir / PDF */}
           <button className="ge-print-btn"
-            onClick={() => { doSave(); exportPdf(contentRef.current) }}
+            onClick={() => { doSave(); exportPdf(contentRef.current, activeNewsProject) }}
             title="Guardar e imprimir como PDF">
             🖨️ <span className="ge-print-label">Imprimir / PDF</span>
           </button>
@@ -793,7 +799,7 @@ export default function GuideEditorPage({ teacher }) {
                 <button onClick={async () => { closeExport(); await doSave(); exportGuideDocx(contentRef.current) }}>
                   📄 Word (.docx) — para correcciones
                 </button>
-                <button onClick={() => { closeExport(); exportHtml(contentRef.current) }}>
+                <button onClick={() => { closeExport(); exportHtml(contentRef.current, activeNewsProject) }}>
                   🌐 HTML — archivo web
                 </button>
                 <hr style={{ margin: '4px 0', border: 'none', borderTop: '1px solid #e0e6f0' }} />
@@ -1150,6 +1156,7 @@ export default function GuideEditorPage({ teacher }) {
           onClose={closeGenerator}
           learningTarget={linkedTarget}
           activeIndicator={activeIndicator}
+          activeNewsProject={activeNewsProject}
           principles={principles}
         />
       )}

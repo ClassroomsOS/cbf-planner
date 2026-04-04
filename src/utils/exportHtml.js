@@ -181,7 +181,7 @@ function buildDayBlock(iso, day) {
 
 // ── Main builder ──────────────────────────────────────────────────────────────
 
-export function buildHtml(content) {
+export function buildHtml(content, newsProject) {
   const h = content.header   || {}
   const i = content.info     || {}
   const o = content.objetivo || {}
@@ -361,6 +361,35 @@ ${(() => {
 </table>`
 })()}
 
+${(() => {
+  if (!newsProject) return ''
+  const np = newsProject
+  const tb = np.textbook_reference
+  const rows = []
+  if (np.conditions) rows.push(`<div style="margin-bottom:6px"><strong>Condiciones de entrega:</strong> ${esc(np.conditions)}</div>`)
+  if (tb?.book) rows.push(`<div style="margin-bottom:4px"><strong>Libro:</strong> ${esc(tb.book)}</div>`)
+  if (tb?.units?.length) rows.push(`<div style="margin-bottom:4px"><strong>Unidades:</strong> ${tb.units.map(esc).join(', ')}</div>`)
+  if (tb?.grammar?.length) rows.push(`<div style="margin-bottom:4px"><strong>Gramática:</strong> ${tb.grammar.map(esc).join(', ')}</div>`)
+  if (tb?.vocabulary?.length) rows.push(`<div style="margin-bottom:4px"><strong>Vocabulario:</strong> ${tb.vocabulary.map(esc).join(', ')}</div>`)
+  if (np.biblical_principle) rows.push(`<div style="margin-bottom:4px"><strong>Principio bíblico:</strong> ${esc(np.biblical_principle)}</div>`)
+  if (np.biblical_reflection) rows.push(`<div style="font-style:italic;color:#555">${esc(np.biblical_reflection)}</div>`)
+  if (!rows.length) return ''
+  return `
+<table style="width:100%;border:2px solid #1A6B3A;border-collapse:collapse;margin-bottom:12px">
+  <tr>
+    <td style="background:#1A6B3A;color:#fff;font-weight:700;font-size:12px;
+               padding:7px 14px;text-transform:uppercase">
+      📋 Proyecto NEWS — ${esc(np.title || np.skill || '')}
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:10px 14px;font-size:12px;line-height:1.6">
+      ${rows.join('')}
+    </td>
+  </tr>
+</table>`
+})()}
+
 <!-- Versículo -->
 ${v.text ? `
 <div style="background:#FFF8E7;border-left:4px solid #C9A84C;padding:10px 16px;
@@ -403,9 +432,9 @@ ${s.done || s.next ? `
 
 // ── Export functions ──────────────────────────────────────────────────────────
 
-export function exportHtml(content) {
+export function exportHtml(content, newsProject) {
   const i    = content.info || {}
-  const html = buildHtml(content)
+  const html = buildHtml(content, newsProject)
   const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
   const url  = URL.createObjectURL(blob)
   const a    = document.createElement('a')
@@ -415,9 +444,9 @@ export function exportHtml(content) {
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
-export function exportPdf(content) {
+export function exportPdf(content, newsProject) {
   const i    = content.info || {}
-  const html = buildHtml(content)
+  const html = buildHtml(content, newsProject)
   const tip  = `<div id="pdf-tip" style="
     position:fixed;top:12px;right:12px;z-index:9999;
     background:#1F3864;color:#fff;padding:10px 16px;border-radius:8px;

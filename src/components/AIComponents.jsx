@@ -197,7 +197,7 @@ export const AIAnalyzerModal = memo(function AIAnalyzerModal({ content, onClose,
 const SKILL_COLORS = { Speaking: '#8064A2', Listening: '#4BACC6', Reading: '#F79646', Writing: '#9BBB59' }
 const SKILL_ICONS  = { Speaking: '🎤', Listening: '🎧', Reading: '📖', Writing: '✍️' }
 
-export const AIGeneratorModal = memo(function AIGeneratorModal({ grade, subject, period, activeDays, currentContent, onApply, onClose, learningTarget, activeIndicator, principles }) {
+export const AIGeneratorModal = memo(function AIGeneratorModal({ grade, subject, period, activeDays, currentContent, onApply, onClose, learningTarget, activeIndicator, activeNewsProject, principles }) {
   const { showToast } = useToast()
 
   const isModeloB = learningTarget?.news_model === 'language' || MODELO_B_SUBJECTS.includes(subject)
@@ -260,7 +260,7 @@ export const AIGeneratorModal = memo(function AIGeneratorModal({ grade, subject,
     setLoading(true); setError(null); setPreview(null)
     try {
       const result = await generateGuideStructure({
-        grade, subject, period, objective, unit, activeDays, learningTarget, principles
+        grade, subject, period, objective, unit, activeDays, learningTarget, activeNewsProject, principles
       })
       setPreview(result)
     } catch (e) {

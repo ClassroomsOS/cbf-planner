@@ -380,7 +380,7 @@ Dame un análisis pedagógico completo. En la sección 🙏 evalúa específicam
 
 // ── Punto 3: Generar estructura completa desde objetivo ───────────────────────
 export async function generateGuideStructure({
-  grade, subject, objective, unit, activeDays, period, planId, learningTarget, principles
+  grade, subject, objective, unit, activeDays, period, planId, learningTarget, activeNewsProject, principles
 }) {
   const TAXONOMY_DESC = { recognize: 'Reconocer (identificar, recordar, nombrar)', apply: 'Aplicar (usar, demostrar, resolver)', produce: 'Producir (crear, diseñar, componer)' }
   const v = fmtVerse(principles?.monthVerse) || fmtVerse(principles?.yearVerse)
@@ -463,6 +463,29 @@ Usa inglés en los datos del bloque (colegio bilingüe). Si no hay un bloque cla
   const safeObjective = sanitizeAIInput(objective || '')
   const safeLTDesc = learningTarget?.description ? sanitizeAIInput(learningTarget.description) : ''
 
+  // Build NEWS project context block
+  const np = activeNewsProject
+  const newsBlock = np ? (() => {
+    const lines = []
+    if (np.title)       lines.push(`- Proyecto NEWS: "${sanitizeAIInput(np.title)}"`)
+    if (np.description) lines.push(`- Descripción: ${sanitizeAIInput(np.description)}`)
+    if (np.conditions)  lines.push(`- Condiciones de entrega: ${sanitizeAIInput(np.conditions)}`)
+    if (np.due_date)    lines.push(`- Fecha de entrega: ${np.due_date}`)
+    const tb = np.textbook_reference
+    if (tb) {
+      if (tb.book)        lines.push(`- Libro de texto: ${sanitizeAIInput(tb.book)}`)
+      if (tb.units?.length) lines.push(`- Unidades: ${tb.units.map(u => sanitizeAIInput(u)).join(', ')}`)
+      if (tb.grammar?.length) lines.push(`- Gramática: ${tb.grammar.map(g => sanitizeAIInput(g)).join(', ')}`)
+      if (tb.vocabulary?.length) lines.push(`- Vocabulario: ${tb.vocabulary.map(v => sanitizeAIInput(v)).join(', ')}`)
+    }
+    if (np.competencias?.length) lines.push(`- Competencias: ${np.competencias.map(c => sanitizeAIInput(typeof c === 'string' ? c : c.nombre || '')).join(', ')}`)
+    if (np.operadores_intelectuales?.length) lines.push(`- Operadores intelectuales: ${np.operadores_intelectuales.map(o => sanitizeAIInput(typeof o === 'string' ? o : o.nombre || '')).join(', ')}`)
+    if (np.habilidades?.length) lines.push(`- Habilidades a desarrollar: ${np.habilidades.map(h => sanitizeAIInput(typeof h === 'string' ? h : h.nombre || '')).join(', ')}`)
+    if (np.biblical_principle) lines.push(`- Principio bíblico del proyecto: ${sanitizeAIInput(np.biblical_principle)}`)
+    if (np.biblical_reflection) lines.push(`- Reflexión bíblica requerida: ${sanitizeAIInput(np.biblical_reflection)}`)
+    return lines.length ? `\n📋 CONTEXTO DEL PROYECTO NEWS (usa esto para alinear todo el contenido):\n${lines.join('\n')}` : ''
+  })() : ''
+
   const message = `Genera una guía de aprendizaje completa con estos datos:
 
 - Grado: ${safeGrade}
@@ -477,6 +500,7 @@ ${learningTarget ? `
 - Nivel taxonómico: ${TAXONOMY_DESC[learningTarget.taxonomy] || learningTarget.taxonomy}
 - TODA la semana debe construir hacia este desempeño. El viernes (o último día), el estudiante
   debería estar en capacidad de demostrar este desempeño.` : ''}
+${newsBlock}
 
 Genera contenido específico, concreto y apropiado para el nivel.
 Las actividades deben progresar lógicamente durante la semana.
