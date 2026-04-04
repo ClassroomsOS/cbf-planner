@@ -244,18 +244,19 @@ function AssignmentModal({ teacher, admin, school, allAssignments, onClose, onSa
   )
 
   // Form for new assignment
-  const [newGrade,   setNewGrade]   = useState('')
-  const [newSection, setNewSection] = useState('')
-  const [newSubject, setNewSubject] = useState('')
+  const [newGrade,         setNewGrade]         = useState('')
+  const [newSection,       setNewSection]       = useState('')
+  const [newSubject,       setNewSubject]       = useState('')
   const [newCustomSubject, setNewCustomSubject] = useState('')
-  const [saving,     setSaving]     = useState(false)
-  const [errors,     setErrors]     = useState([])
-  const [warnings,   setWarnings]   = useState([])
+  const [newClassroom,     setNewClassroom]     = useState('')
+  const [saving,           setSaving]           = useState(false)
+  const [errors,           setErrors]           = useState([])
+  const [warnings,         setWarnings]         = useState([])
 
   const GRADE_LEVELS = ['1.°','2.°','3.°','4.°','5.°','6.°','7.°','8.°','9.°','10.°','11.°']
 
   // ── Conflict detection ────────────────────────────────────
-  function detectConflicts(grade, section, subject, schedule = {}) {
+  function detectConflicts(grade, section, subject, schedule = {}, classroom = '') {
     const errs = [], warns = []
 
     // 1. BLOQUEO: materia duplicada en mismo grado+sección
@@ -266,16 +267,15 @@ function AssignmentModal({ teacher, admin, school, allAssignments, onClose, onSa
       a.teacher_id !== teacher.id
     )
     if (duplicate) {
-      const owner = allAssignments.find(a => a.id === duplicate.id)
       errs.push(`❌ ${grade} ${section} · ${subject} ya está asignado a otro docente.`)
     }
 
-    // 2. ADVERTENCIA: conflicto de horario personal
     if (Object.keys(schedule).length > 0) {
+      // 2. ADVERTENCIA: conflicto de horario personal del docente
       myAssignments.forEach(existing => {
         if (existing.grade === grade && existing.section === section && existing.subject === subject) return
         DAYS.forEach(({ key }) => {
-          const newPeriods = schedule[key] || []
+          const newPeriods   = schedule[key] || []
           const existPeriods = existing.schedule?.[key] || []
           const clash = newPeriods.filter(p => existPeriods.includes(p))
           if (clash.length) {
@@ -284,12 +284,12 @@ function AssignmentModal({ teacher, admin, school, allAssignments, onClose, onSa
         })
       })
 
-      // 3. ADVERTENCIA: mismo salón mismo período (otro docente)
+      // 3. ADVERTENCIA: mismo grado+sección mismo período (otro docente)
       allAssignments.forEach(a => {
         if (a.teacher_id === teacher.id) return
         if (a.grade !== grade || a.section !== section) return
         DAYS.forEach(({ key }) => {
-          const newPeriods  = schedule[key] || []
+          const newPeriods   = schedule[key] || []
           const otherPeriods = a.schedule?.[key] || []
           const clash = newPeriods.filter(p => otherPeriods.includes(p))
           if (clash.length) {
@@ -297,6 +297,22 @@ function AssignmentModal({ teacher, admin, school, allAssignments, onClose, onSa
           }
         })
       })
+
+      // 4. BLOQUEO: mismo salón físico mismo período (cualquier grado/docente)
+      if (classroom) {
+        allAssignments.forEach(a => {
+          if (!a.classroom || a.classroom !== classroom) return
+          if (a.grade === grade && a.section === section && a.subject === subject) return
+          DAYS.forEach(({ key }) => {
+            const newPeriods   = schedule[key] || []
+            const otherPeriods = a.schedule?.[key] || []
+            const clash = newPeriods.filter(p => otherPeriods.includes(p))
+            if (clash.length) {
+              errs.push(`❌ Salón ${classroom}: conflicto con ${a.grade} ${a.section} · ${a.subject} el ${key.toUpperCase()} período ${clash.join('+')}`)
+            }
+          })
+        })
+      }
     }
 
     return { errs, warns }
@@ -312,6 +328,12 @@ function AssignmentModal({ teacher, admin, school, allAssignments, onClose, onSa
         : [...current, periodId].sort()
       return { ...a, schedule: { ...a.schedule, [dayKey]: next }, _dirty: true }
     }))
+  }
+
+  function updateClassroom(assignmentId, classroom) {
+    setMyAssignments(prev => prev.map(a =>
+      a.id !== assignmentId ? a : { ...a, classroom, _dirty: true }
+    ))
   }
 
   // ── Add new assignment ────────────────────────────────────
@@ -334,6 +356,7 @@ function AssignmentModal({ teacher, admin, school, allAssignments, onClose, onSa
         section:    newSection,
         subject,
         schedule:   {},
+        classroom:  newClassroom.trim() || null,
       })
       .select()
       .single()
@@ -341,7 +364,7 @@ function AssignmentModal({ teacher, admin, school, allAssignments, onClose, onSa
     setSaving(false)
     if (!error && data) {
       setMyAssignments(prev => [...prev, { ...data, _dirty: false }])
-      setNewGrade(''); setNewSection(''); setNewSubject(''); setNewCustomSubject('')
+      setNewGrade(''); setNewSection(''); setNewSubject(''); setNewCustomSubject(''); setNewClassroom('')
     }
   }
 
@@ -354,7 +377,7 @@ function AssignmentModal({ teacher, admin, school, allAssignments, onClose, onSa
     let allWarns = []
 
     for (const a of dirty) {
-      const { errs, warns } = detectConflicts(a.grade, a.section, a.subject, a.schedule)
+      const { errs, warns } = detectConflicts(a.grade, a.section, a.subject, a.schedule, a.classroom || '')
       if (errs.length) { setErrors(errs); setSaving(false); return }
       allWarns = [...allWarns, ...warns]
     }
@@ -364,7 +387,7 @@ function AssignmentModal({ teacher, admin, school, allAssignments, onClose, onSa
     // Save all dirty assignments
     await Promise.all(dirty.map(a =>
       supabase.from('teacher_assignments')
-        .update({ schedule: a.schedule, updated_at: new Date().toISOString() })
+        .update({ schedule: a.schedule, classroom: a.classroom || null, updated_at: new Date().toISOString() })
         .eq('id', a.id)
     ))
 
@@ -455,6 +478,12 @@ function AssignmentModal({ teacher, admin, school, allAssignments, onClose, onSa
                   onChange={e => setNewCustomSubject(e.target.value)} />
               </div>
             )}
+            <div className="ge-field" style={{ marginBottom: '8px' }}>
+              <label>Salón (opcional)</label>
+              <input type="text" value={newClassroom}
+                placeholder="Ej: 301, Lab Cómputo, Sala B"
+                onChange={e => setNewClassroom(e.target.value)} />
+            </div>
             <button className="btn-primary btn-save"
               disabled={!newGrade || !newSection || (!newSubject && !newCustomSubject.trim()) || saving}
               onClick={handleAdd}>
@@ -475,6 +504,18 @@ function AssignmentModal({ teacher, admin, school, allAssignments, onClose, onSa
                   {a._dirty && <span style={{ fontSize: '10px', color: '#F79646', fontWeight: 700 }}>● Cambios sin guardar</span>}
                   <button className="btn-icon-danger" style={{ marginLeft: 'auto' }}
                     onClick={() => handleRemove(a.id)} title="Eliminar asignación">🗑</button>
+                </div>
+                <div style={{ padding: '4px 8px 6px', borderBottom: '1px solid #eee' }}>
+                  <input
+                    type="text"
+                    value={a.classroom || ''}
+                    placeholder="🏠 Salón (opcional, ej: 301)"
+                    onChange={e => updateClassroom(a.id, e.target.value)}
+                    style={{
+                      fontSize: '11px', padding: '3px 8px', border: '1px solid #dde5f0',
+                      borderRadius: '6px', width: '100%', background: '#fafbff',
+                    }}
+                  />
                 </div>
 
                 {/* Schedule grid */}

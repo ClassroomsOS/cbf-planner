@@ -16,7 +16,8 @@
       "Bash(find \"/c/BOSTON FLEX/ClassroomOS/cbf-planner/src\" -type f \\\\\\( -name \"*.jsx\" -o -name \"*.js\" \\\\\\) -exec wc -l {} +)",
       "Bash(./supabase.exe db:*)",
       "Bash(npx supabase:*)",
-      "Bash(./.claude/auto-commit.sh \"feat\\(calendar\\): Sprint 3 — nivel por evento, afecta_planificación y notificación en cascada\")"
+      "Bash(./.claude/auto-commit.sh \"feat\\(calendar\\): Sprint 3 — nivel por evento, afecta_planificación y notificación en cascada\")",
+      "Bash(./.claude/auto-commit.sh \"feat\\(schedule\\): Sprint 4 — grilla de horarios, campo classroom y detección de conflictos de salón\")"
     ]
   }
 }
