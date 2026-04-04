@@ -346,6 +346,7 @@ CBF es una **escuela cristiana confesional**. Los tres principios son el norte d
 | `school_calendar` | Holiday/event data. `is_school_day: false` = holiday. `level` (elementary|middle|high|NULL=todos). `affects_planning boolean`. `created_by uuid` |
 | `checkpoints` | Records whether a teacher evaluated a learning target at end of week |
 | `weekly_agendas` | Agenda semanal por grado/sección. `grade`, `section`, `week_start date`, `devotional`, `notes`, `content jsonb` (entries[{subject,teacher_name,days:{date:text}}]), `status` (draft/ready/sent) |
+| `schedule_slots` | Franjas del horario institucional (DEVOCIONAL, BREAK, HOMEROOM, etc.). `school_id`, `name`, `start_time time`, `end_time time`, `level` (elementary\|middle\|high\|NULL=todos), `color text`. Gestionado desde SettingsPage por admin. |
 | `notifications` / `messages` | In-app communication. Polled every 60s in `DashboardPage` |
 | `error_log` / `activity_log` | Observability. Written by `src/utils/logger.js` |
 
@@ -359,6 +360,12 @@ Ruta `/settings`. Solo accesible para admin. Contiene:
      - Upload/cambio/quitar del logo (→ `schools.logo_url` + Supabase Storage)
      - Campos editables: nombre, DANE, resolución, código del documento, versión
      - Guarda directo en `schools` table. Aplica a TODAS las guías y NEWS.
+   - `🕐 Franjas del Horario` → panel expandible con:
+     - CRUD de franjas institucionales (DEVOCIONAL, BREAK, HOMEROOM, etc.)
+     - Campos: nombre, hora inicio, hora fin, nivel (elementary/middle/high/todos), color
+     - Guarda en tabla `schedule_slots`. Se renderizan en `SchedulePage` intercaladas con los períodos académicos según hora.
+     - `SchedulePage` usa `parseTimeMin()` para ordenar. Heurística PM: hora < 6 → sumar 12 (cubre 1:30 PM, 2:15 PM sin romper format 24h de la DB).
+     - Vista "Por Docente": celdas de período sin clase muestran **"Admin Hours"** en gris itálico.
 
 2. **Feature flags** — toggles por grupo (Comunicación, IA, Editor). Lee y escribe `schools.features` JSONB via `FeaturesContext`.
 
