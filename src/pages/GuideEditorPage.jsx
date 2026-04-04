@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import RichEditor from '../components/RichEditor'
@@ -285,12 +285,44 @@ export default function GuideEditorPage({ teacher }) {
     if (!plan?.target_id) { setLinkedNewsProjects([]); return }
     supabase
       .from('news_projects')
-      .select('id, title, subject, status, skill, news_model')
+      .select('id, title, subject, status, skill, news_model, actividades_evaluativas, biblical_principle, biblical_reflection')
       .eq('target_id', plan.target_id)
       .eq('school_id', teacher.school_id)
       .limit(4)
       .then(({ data }) => setLinkedNewsProjects(data || []))
   }, [plan?.target_id])
+
+  // ── Derive active NEWS project and indicator for this guide's date range ──
+  const activeNewsProject = useMemo(() => {
+    if (!linkedNewsProjects.length || !content) return null
+    const dayKeys = new Set(Object.keys(content.days || {}))
+    if (!dayKeys.size) return null
+    return linkedNewsProjects.find(np =>
+      (np.actividades_evaluativas || []).some(act => act.fecha && dayKeys.has(act.fecha))
+    ) || null
+  }, [linkedNewsProjects, content?.days])
+
+  // The specific indicator (object) that matches this week's NEWS skill
+  const activeIndicator = useMemo(() => {
+    if (!activeNewsProject?.skill || !linkedTarget?.indicadores) return null
+    return linkedTarget.indicadores.find(ind =>
+      typeof ind === 'object' &&
+      ind.habilidad?.toLowerCase() === activeNewsProject.skill.toLowerCase()
+    ) || null
+  }, [activeNewsProject, linkedTarget])
+
+  // Auto-populate principio from indicator's principio_biblico (once, only if empty)
+  const principioInitRef = useRef(false)
+  useEffect(() => {
+    if (principioInitRef.current) return
+    if (!activeIndicator?.principio_biblico || !content) return
+    if (content.objetivo?.principio) return // already has a value — don't overwrite
+    const pb = activeIndicator.principio_biblico
+    const text = pb.cita || pb.titulo || ''
+    if (!text) return
+    principioInitRef.current = true
+    setContentField(['objetivo', 'principio'], text)
+  }, [activeIndicator, content?.objetivo?.principio])
 
   async function buildDaysFromDB(data, c) {
     let weekMonday
@@ -944,45 +976,41 @@ export default function GuideEditorPage({ teacher }) {
                   ↑ Al vincular un logro, los campos de abajo se llenan automáticamente. Puedes editarlos para esta semana.
                 </div>
               )}
-              {linkedNewsProjects.length > 0 && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', margin: '0 0 12px' }}>
-                  <span style={{ fontSize: '11px', color: '#666', alignSelf: 'center' }}>📋 Proyecto(s) NEWS:</span>
-                  {linkedNewsProjects.map(np => {
-                    const STATUS_COLOR = { draft: '#e8a020', active: '#2E5598', completed: '#1A6B3A' }
-                    const label = np.title || (np.skill ? `${np.skill}` : np.subject)
-                    return (
-                      <a
-                        key={np.id}
-                        href="#"
-                        onClick={e => { e.preventDefault(); navigate('/news') }}
-                        style={{
-                          fontSize: '11px', fontWeight: 600, padding: '3px 10px', borderRadius: '12px',
-                          background: '#f0f7ff', border: `1px solid ${STATUS_COLOR[np.status] || '#c5d5f0'}`,
-                          color: STATUS_COLOR[np.status] || '#2E5598', textDecoration: 'none',
-                        }}
-                        title="Ver en NEWS"
-                      >
-                        {label}
-                      </a>
-                    )
-                  })}
+              {activeNewsProject && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', margin: '0 0 12px', alignItems: 'center' }}>
+                  <span style={{ fontSize: '11px', color: '#666' }}>📋 Proyecto NEWS activo esta semana:</span>
+                  <span style={{
+                    fontSize: '11px', fontWeight: 600, padding: '3px 10px', borderRadius: '12px',
+                    background: '#f0f7ff', border: '1px solid #c5d5f0', color: '#2E5598',
+                  }}>
+                    {activeNewsProject.title || activeNewsProject.skill || activeNewsProject.subject}
+                  </span>
                 </div>
               )}
               <div className="ge-field">
-                <label>Indicadores de Logro</label>
-                {(content.objetivo.indicadores || []).filter(i => getIndText(i)).length > 0 ? (
-                  <ol style={{ margin: '4px 0 8px', paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    {content.objetivo.indicadores.filter(i => getIndText(i)).map((ind, idx) => (
-                      <li key={idx} style={{ fontSize: '13px', color: '#333', lineHeight: '1.5', padding: '6px 10px', background: '#f6fff0', borderRadius: '6px', border: '1px solid #d4edda' }}>
-                        {getIndText(ind)}
-                      </li>
-                    ))}
-                  </ol>
-                ) : (
-                  <div style={{ fontSize: '12px', color: '#aaa', fontStyle: 'italic', padding: '8px 0' }}>
-                    Vincula un indicador de logro arriba para ver los criterios aquí.
-                  </div>
-                )}
+                <label>Indicador de Logro</label>
+                {(() => {
+                  // Show only the active indicator for this week; fall back to all if none found
+                  const displayInds = activeIndicator
+                    ? [activeIndicator]
+                    : (content.objetivo.indicadores || []).filter(i => getIndText(i)).map(i => i)
+                  const indTexts = activeIndicator
+                    ? [getIndText(activeIndicator)]
+                    : displayInds.map(i => getIndText(i)).filter(Boolean)
+                  return indTexts.length > 0 ? (
+                    <ol style={{ margin: '4px 0 8px', paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      {indTexts.map((txt, idx) => (
+                        <li key={idx} style={{ fontSize: '13px', color: '#333', lineHeight: '1.5', padding: '6px 10px', background: '#f6fff0', borderRadius: '6px', border: '1px solid #d4edda' }}>
+                          {txt}
+                        </li>
+                      ))}
+                    </ol>
+                  ) : (
+                    <div style={{ fontSize: '12px', color: '#aaa', fontStyle: 'italic', padding: '8px 0' }}>
+                      Vincula un indicador de logro arriba para ver los criterios aquí.
+                    </div>
+                  )
+                })()}
                 <div style={{ fontSize: '11px', color: '#999', marginTop: '4px' }}>
                   Para editar los indicadores ve a{' '}
                   <a href="#" onClick={e => { e.preventDefault(); navigate('/targets') }} style={{ color: '#2E5598' }}>
@@ -1075,6 +1103,7 @@ export default function GuideEditorPage({ teacher }) {
           onApply={handleApplyGenerated}
           onClose={closeGenerator}
           learningTarget={linkedTarget}
+          activeIndicator={activeIndicator}
           principles={principles}
         />
       )}

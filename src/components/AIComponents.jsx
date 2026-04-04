@@ -193,9 +193,13 @@ export const AIAnalyzerModal = memo(function AIAnalyzerModal({ content, onClose,
 // ══════════════════════════════════════════════════════════════
 // PUNTO 3 — AIGeneratorModal (generar guía desde objetivo)
 // ══════════════════════════════════════════════════════════════
-export const AIGeneratorModal = memo(function AIGeneratorModal({ grade, subject, period, activeDays, currentContent, onApply, onClose, learningTarget, principles }) {
+export const AIGeneratorModal = memo(function AIGeneratorModal({ grade, subject, period, activeDays, currentContent, onApply, onClose, learningTarget, activeIndicator, principles }) {
   const { showToast } = useToast()
-  const [objective, setObjective] = useState(learningTarget?.description || '')
+  // For Modelo B: use the active indicator's English text. For Modelo A: use the target description.
+  const initialObjective = activeIndicator
+    ? (activeIndicator.texto_en || activeIndicator.habilidad || '')
+    : (learningTarget?.description || '')
+  const [objective, setObjective] = useState(initialObjective)
   const [unit,      setUnit]      = useState('')
   const [loading,   setLoading]   = useState(false)
   const [preview,   setPreview]   = useState(null)
@@ -319,7 +323,7 @@ export const AIGeneratorModal = memo(function AIGeneratorModal({ grade, subject,
                 Tú editas, ajustas y decides qué usar.
               </div>
 
-              {learningTarget && (
+              {(learningTarget || activeIndicator) && (
                 <div style={{
                   background: '#f0f7f0', border: '1px solid #b5d6b5', borderRadius: '8px',
                   padding: '12px 14px', marginBottom: '16px',
@@ -328,14 +332,22 @@ export const AIGeneratorModal = memo(function AIGeneratorModal({ grade, subject,
                   <span style={{ fontSize: '18px' }}>🎯</span>
                   <div>
                     <div style={{ fontSize: '11px', fontWeight: 700, color: '#2d7a2d', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                      Logro de desempeño vinculado
+                      {activeIndicator ? `Indicador — ${activeIndicator.habilidad}` : 'Indicador de logro vinculado'}
                     </div>
                     <div style={{ fontSize: '13px', color: '#1a5c1a', lineHeight: 1.5 }}>
-                      {learningTarget.description}
+                      {activeIndicator
+                        ? (activeIndicator.texto_en || activeIndicator.habilidad)
+                        : learningTarget?.description}
                     </div>
                     <div style={{ fontSize: '11px', color: '#888', marginTop: '4px' }}>
-                      Nivel: {learningTarget.taxonomy === 'recognize' ? '👁️ Reconocer' : learningTarget.taxonomy === 'apply' ? '🛠️ Aplicar' : '✨ Producir'}
-                      — El AI generará contenido alineado a este desempeño.
+                      {activeIndicator
+                        ? (() => {
+                            const tax = activeIndicator.taxonomy
+                            const taxLabel = tax === 'recognize' ? '👁️ Reconocer' : tax === 'apply' ? '🛠️ Aplicar' : '✨ Producir'
+                            return `Nivel: ${taxLabel} — El AI generará contenido alineado a este indicador.`
+                          })()
+                        : `Nivel: ${learningTarget?.taxonomy === 'recognize' ? '👁️ Reconocer' : learningTarget?.taxonomy === 'apply' ? '🛠️ Aplicar' : '✨ Producir'} — El AI generará contenido alineado a este desempeño.`
+                      }
                     </div>
                   </div>
                 </div>
