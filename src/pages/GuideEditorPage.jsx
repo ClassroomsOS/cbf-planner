@@ -1072,11 +1072,13 @@ export default function GuideEditorPage({ teacher }) {
             <div className="card">
               <div className="card-title"><div className="badge">1</div> Versículo del año — AÑO DE LA PUREZA</div>
               <div className="verse-box">
-                {content.verse.text || school.year_verse}
-                <span className="verse-ref">— {content.verse.ref || school.year_verse_ref}</span>
+                {school.year_verse}
+                <span className="verse-ref">— {school.year_verse_ref}</span>
               </div>
-              {richField('Texto del versículo', content.verse.text, ['verse','text'], '', 80)}
-              {inputField('Referencia', content.verse.ref, ['verse','ref'], 'Génesis 1:27-28a (TLA)')}
+              <p style={{ fontSize: 12, color: '#888', marginTop: 10 }}>
+                El versículo del año es declarado por el Pastor y se gestiona desde{' '}
+                <strong>Principios Rectores</strong>.
+              </p>
             </div>
           )}
 
