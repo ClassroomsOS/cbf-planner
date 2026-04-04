@@ -12,6 +12,7 @@ import RejectedPage from './pages/RejectedPage'
 export default function App() {
   const [session, setSession] = useState(undefined) // undefined = loading
   const [teacher, setTeacher] = useState(null)
+  const [loadError, setLoadError] = useState(false)
 
   useEffect(() => {
     // Get initial session
@@ -31,11 +32,12 @@ export default function App() {
   }, [])
 
   async function loadTeacher(userId) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('teachers')
       .select('*, schools(*)')
       .eq('id', userId)
       .single()
+    if (error) { setLoadError(true); return }
     setTeacher(data)
   }
 
@@ -46,6 +48,25 @@ export default function App() {
         <div className="loading-logo">📋</div>
         <div className="loading-text">CBF Planner</div>
         <div className="loading-spinner" />
+      </div>
+    )
+  }
+
+  // Error loading teacher profile (network issue, RLS, etc.)
+  if (loadError) {
+    return (
+      <div className="loading-screen">
+        <div className="loading-logo">⚠️</div>
+        <div className="loading-text">No se pudo cargar tu perfil</div>
+        <p style={{ color: '#888', fontSize: 13, margin: '8px 0 20px' }}>
+          Verifica tu conexión a internet e intenta de nuevo.
+        </p>
+        <button
+          onClick={() => { setLoadError(false); loadTeacher(session?.user?.id) }}
+          style={{ padding: '10px 24px', background: '#1A3A8F', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer', fontSize: 14 }}
+        >
+          🔄 Reintentar
+        </button>
       </div>
     )
   }
