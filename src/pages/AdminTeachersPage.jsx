@@ -1176,17 +1176,30 @@ function DeleteTeacherZone({ teacher, onDeleted }) {
   }
 
   return (
-    <div style={{ marginTop: '24px', borderTop: '2px dashed #fcc', paddingTop: '16px' }}>
-      <button
+    <div style={{ marginTop: '24px' }}>
+      <div
         onClick={checkContent}
         style={{
-          background: 'none', border: 'none', cursor: 'pointer',
-          fontSize: '11px', fontWeight: 700, color: '#C0504D',
-          textTransform: 'uppercase', letterSpacing: '.5px',
-          display: 'flex', alignItems: 'center', gap: '6px', padding: 0,
+          background: expanded ? '#fff0f0' : '#fdf5f5',
+          border: '1.5px solid #f0c0c0', borderRadius: '10px',
+          padding: '12px 16px', cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         }}>
-        🗑 Zona de peligro — Eliminar docente {expanded ? '▲' : '▼'}
-      </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '16px' }}>🗑</span>
+          <div>
+            <div style={{ fontSize: '12px', fontWeight: 700, color: '#C0504D' }}>
+              Eliminar docente
+            </div>
+            <div style={{ fontSize: '11px', color: '#999' }}>
+              Solo si no tiene guías ni proyectos NEWS
+            </div>
+          </div>
+        </div>
+        <span style={{ fontSize: '12px', color: '#C0504D', fontWeight: 700 }}>
+          {expanded ? '▲' : '▼'}
+        </span>
+      </div>
 
       {expanded && (
         <div style={{
