@@ -17,20 +17,8 @@ _(ninguna actualmente)_
 
 ## 🟡 IMPORTANTES — Decisiones de diseño pendientes
 
-### Q5 — ¿El Rector ve toda la sección de administración del sidebar?
-**Contexto:** Confirmaste que Rector = Coordinador en gestión de docentes y asignación de roles.
-Actualmente el sidebar admin muestra: Docentes, Notificaciones, Calendario (Admin),
-Horario (Admin), Agenda (Admin), Malla Curricular, Panel de control.
+_(ninguna actualmente — todas resueltas)_
 
-**¿El Rector debe ver todo ese bloque igual que el Coordinador,
-o solo accede a `/teachers` y `/director` sin ver el Panel de control / feature flags?**
-
-Opciones:
-- A) Rector ve exactamente lo mismo que el Coordinador en el sidebar (salvo Panel Superadmin)
-- B) Rector ve: `/director` + `/teachers` + notificaciones, pero NO Panel de control ni feature flags
-- C) Otro: _______
-
-✅ Tu respuesta: _________________________________
 
 ---
 
@@ -44,10 +32,10 @@ Opciones:
 
 ---
 
-### ✅ Q1 — Mapa completo de perfiles y capacidades
-**Respuesta:** Rector y Coordinador comparten capacidades de gestión de docentes y asignación de roles. Cuando falta uno, el otro lo suple. En el futuro, toggles desde Superadmin definirán diferencias finas.
-**Tabla confirmada:** ver CLAUDE.md → Mapa de Roles.
-**Pendiente implementar:** `canManage` expandido para incluir `rector` (bloqueado por Q5).
+### ✅ Q1 + Q5 — Mapa completo de perfiles y capacidades / sidebar Rector
+**Respuesta:** Rector ve exactamente lo mismo que el Coordinador (salvo Panel Superadmin).
+`canManage`, `canEditOthersDocs`, `canChangeRole` incluyen rector.
+**Implementado:** commit `e29180b`
 
 ---
 
