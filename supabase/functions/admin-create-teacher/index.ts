@@ -38,19 +38,20 @@ Deno.serve(async (req) => {
       })
     }
 
-    // 1. Validate email domain against school's configured domain
+    // 1. Validate email domain if restriction is enabled for this school
     const { data: school } = await supabaseAdmin
       .from('schools')
       .select('features')
       .eq('id', school_id)
       .single()
 
+    const restrict      = school?.features?.restrict_email_domain !== false
     const allowedDomain: string = school?.features?.email_domain || 'redboston.edu.co'
-    const emailDomain = email.toLowerCase().trim().split('@')[1] || ''
+    const emailDomain   = email.toLowerCase().trim().split('@')[1] || ''
 
-    if (emailDomain !== allowedDomain) {
+    if (restrict && emailDomain !== allowedDomain) {
       return new Response(JSON.stringify({
-        error: `Solo se permiten correos @${allowedDomain}. El email ingresado usa @${emailDomain}.`,
+        error: `Solo se permiten correos @${allowedDomain}. Desactiva la restricción de dominio en Panel de Control → Seguridad para usar otros correos.`,
       }), {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })

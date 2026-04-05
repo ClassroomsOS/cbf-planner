@@ -72,6 +72,18 @@ const FEATURE_GROUPS = [
       },
     ],
   },
+  {
+    title: '🔒 Seguridad',
+    color: '#C0504D',
+    items: [
+      {
+        key: 'restrict_email_domain',
+        label: 'Restringir dominio de correo (@redboston.edu.co)',
+        desc: 'Solo permite crear o registrar docentes con correos @redboston.edu.co. Desactiva temporalmente para pruebas.',
+        warning: true,
+      },
+    ],
+  },
 ]
 
 const LEVEL_LABELS_LOCAL = { elementary: 'Primaria', middle: 'Bachillerato Básico', high: 'Bachillerato Superior' }

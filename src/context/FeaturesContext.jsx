@@ -12,8 +12,9 @@ const DEFAULT_FEATURES = {
   ai_generate:        true,
   ai_analyze:         true,
   ai_suggest:         true,
-  wysiwyg:            true,
-  admin_see_messages: false,
+  wysiwyg:                true,
+  admin_see_messages:     false,
+  restrict_email_domain:  true,
 }
 
 const FeaturesContext = createContext(DEFAULT_FEATURES)
