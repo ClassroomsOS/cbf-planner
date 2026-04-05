@@ -52,21 +52,12 @@ Use `logError(err, { page, action, entityId })` and `logActivity(action, entityT
 
 Push to `main` triggers GitHub Actions → `npm run build` → GitHub Pages. The build injects `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` from GitHub Secrets (the Edge Function URL is derived from `VITE_SUPABASE_URL` at runtime in `AIAssistant.js`).
 
-## Panel de Control (`src/pages/SettingsPage.jsx`)
+## Paneles de administración
 
-Ruta `/settings`. Solo accesible para admin. Contiene:
+> Detalle completo en [`roles.md`](roles.md).
 
-1. **Gestión del colegio** — card con acceso rápido a:
-   - `👥 Docentes y materias` → navega a `/teachers` (AdminTeachersPage)
-   - `🏫 Identidad institucional` → panel expandible con:
-     - Upload/cambio/quitar del logo (→ `schools.logo_url` + Supabase Storage)
-     - Campos editables: nombre, DANE, resolución, código del documento, versión
-     - Guarda directo en `schools` table. Aplica a TODAS las guías y NEWS.
-   - `🕐 Franjas del Horario` → panel expandible con:
-     - CRUD de franjas institucionales (DEVOCIONAL, BREAK, HOMEROOM, etc.)
-     - Campos: nombre, hora inicio, hora fin, nivel (elementary/middle/high/todos), color
-     - Guarda en tabla `schedule_slots`. Se renderizan en `SchedulePage` intercaladas con los períodos académicos según hora.
-     - `SchedulePage` usa `parseTimeMin()` para ordenar. Heurística PM: hora < 6 → sumar 12 (cubre 1:30 PM, 2:15 PM sin romper format 24h de la DB).
-     - Vista "Por Docente": celdas de período sin clase muestran **"Admin Hours"** en gris itálico.
-
-2. **Feature flags** — toggles por grupo (Comunicación, IA, Editor). Lee y escribe `schools.features` JSONB via `FeaturesContext`.
+- **`/settings` — SettingsPage** (Coordinador/Superadmin): franjas del horario (`schedule_slots`), feature flags, acceso a docentes
+  - `SchedulePage` usa `parseTimeMin()` para ordenar franjas. Heurística PM: hora < 6 → sumar 12.
+  - Vista "Por Docente": celdas sin clase muestran **"Admin Hours"** en gris itálico.
+- **`/superadmin` — SuperAdminPage** (solo Superadmin): nombre, DANE, resolución, logo, dominio email
+- **`/teachers` — AdminTeachersPage** (canManage): crear + editar + eliminar docentes, asignaciones, co-teacher
