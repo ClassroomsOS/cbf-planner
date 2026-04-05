@@ -10,6 +10,7 @@ import AIUsagePage         from './AIUsagePage'
 import GuideEditorPage     from './GuideEditorPage'
 import MessagesPage        from './MessagesPage'
 import SettingsPage        from './SettingsPage'
+import SuperAdminPage      from './SuperAdminPage'
 import LearningTargetsPage from './LearningTargetsPage'
 import NewsPage            from './NewsPage'
 import PrinciplesPage      from './PrinciplesPage'
@@ -19,7 +20,7 @@ import AgendaPage          from './AgendaPage'
 import CurriculumPage      from './CurriculumPage'
 import ProfileModal        from '../components/ProfileModal'
 import { FeaturesProvider, useFeatures } from '../context/FeaturesContext'
-import { canManage, canAccessCalendar, isRector, canReadAllPlans, canViewSchedule, canManageAgendas, isCoteacherActive } from '../utils/roles'
+import { canManage, canAccessCalendar, isRector, canReadAllPlans, canViewSchedule, canManageAgendas, isCoteacherActive, isSuperAdmin } from '../utils/roles'
 import { setAIContext } from '../utils/AIAssistant'
 
 // ── Wrapper — provides context ────────────────────────────────
@@ -36,7 +37,8 @@ function DashboardInner({ session, teacher, setTeacher }) {
   const [showProfile, setShowProfile] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const navigate = useNavigate()
-  const isAdmin   = canManage(teacher.role)        // admin + superadmin
+  const isAdmin      = canManage(teacher.role)        // admin + superadmin
+  const isSuperAdm   = isSuperAdmin(teacher.role)
   const hasCalendar = canAccessCalendar(teacher.role) // admin + superadmin + psicopedagoga
   const hasDirectorView = isRector(teacher.role)
   const hasScheduleView = canViewSchedule(teacher.role)   // admin + superadmin + rector + psicopedagoga
@@ -294,6 +296,13 @@ function DashboardInner({ session, teacher, setTeacher }) {
                 ⚙️ Panel de control
                 <span className="sb-admin-badge">Admin</span>
               </NavLink>
+              {isSuperAdm && (
+                <NavLink to="/superadmin" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
+                  <span className="dot" style={{ background: '#C0504D' }} />
+                  🔑 Panel Superadmin
+                  <span className="sb-admin-badge" style={{ background: '#C0504D' }}>Superadmin</span>
+                </NavLink>
+              )}
             </>
           )}
         </nav>
@@ -341,6 +350,9 @@ function DashboardInner({ session, teacher, setTeacher }) {
               <Route path="/teachers"      element={<AdminTeachersPage teacher={teacher} />} />
               <Route path="/settings"      element={<SettingsPage      teacher={teacher} />} />
               <Route path="/director"      element={<DirectorPage      teacher={teacher} />} />
+              {isSuperAdm && (
+                <Route path="/superadmin" element={<SuperAdminPage teacher={teacher} />} />
+              )}
             </>
           )}
         </Routes>
