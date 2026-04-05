@@ -22,7 +22,7 @@ export default function AdminTeachersPage({ teacher: admin }) {
     setLoading(true)
     const [{ data: tData }, { data: aData }, { data: sData }] = await Promise.all([
       supabase.from('teachers')
-        .select('id, full_name, initials, email, role, level, status, homeroom_grade, homeroom_section')
+        .select('id, full_name, initials, email, role, level, status, homeroom_grade, homeroom_section, coteacher_grade, coteacher_section, director_absent_until')
         .eq('school_id', admin.school_id)
         .order('full_name'),
       supabase.from('teacher_assignments')
@@ -237,6 +237,7 @@ export default function AdminTeachersPage({ teacher: admin }) {
           admin={admin}
           school={school}
           allAssignments={assignments}
+          allTeachers={teachers}
           isSelf={selected.id === admin.id}
           onClose={() => { setShowModal(false); setSelected(null) }}
           onSave={() => { setShowModal(false); setSelected(null); fetchAll() }}
@@ -437,7 +438,7 @@ function CreateTeacherModal({ admin, onClose, onCreated }) {
 }
 
 // ── Assignment Modal ──────────────────────────────────────────
-function AssignmentModal({ teacher, admin, school, allAssignments, isSelf, onClose, onSave }) {
+function AssignmentModal({ teacher, admin, school, allAssignments, allTeachers, isSelf, onClose, onSave }) {
   const sections = school?.sections || []
 
   // This teacher's assignments
@@ -652,6 +653,9 @@ function AssignmentModal({ teacher, admin, school, allAssignments, isSelf, onClo
           {/* ── Director de Grupo (homeroom) ── */}
           <HomeroomEditor teacher={teacher} sections={sections} />
 
+          {/* ── Co-teacher ── */}
+          <CoteacherEditor teacher={teacher} teachers={allTeachers} sections={sections} />
+
           {/* Add new assignment */}
           <div style={{ background: '#f8faff', border: '1.5px solid #dde5f0', borderRadius: '10px', padding: '14px', marginBottom: '20px' }}>
             <div style={{ fontSize: '11px', fontWeight: 700, color: '#2E5598', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: '10px' }}>
@@ -842,6 +846,128 @@ function HomeroomEditor({ teacher, sections }) {
       {unchanged && teacher.homeroom_grade && (
         <div style={{ fontSize: '11px', color: '#3a6b1a', fontWeight: 600 }}>
           ✅ Director actual: {teacher.homeroom_grade} {teacher.homeroom_section}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── CoteacherEditor ───────────────────────────────────────────────────────────
+// Assigns a teacher as co-teacher of a grade+section, and controls the
+// director_absent_until date that grants write access to the agenda.
+function CoteacherEditor({ teacher, teachers, sections }) {
+  const { showToast }   = useToast()
+  const GRADE_LEVELS    = ['1.°','2.°','3.°','4.°','5.°','6.°','7.°','8.°','9.°','10.°','11.°']
+  const [grade,         setGrade]         = useState(teacher.coteacher_grade         || '')
+  const [section,       setSection]       = useState(teacher.coteacher_section       || '')
+  const [absentUntil,   setAbsentUntil]   = useState(teacher.director_absent_until   || '')
+  const [saving,        setSaving]        = useState(false)
+
+  const isActive = absentUntil && new Date(absentUntil + 'T23:59:59') >= new Date()
+
+  // Find the homeroom director of this grade+section
+  const homeroomDirector = grade && section
+    ? (teachers || []).find(t => t.homeroom_grade === grade && t.homeroom_section === section && t.id !== teacher.id)
+    : null
+
+  const unchanged = grade         === (teacher.coteacher_grade         || '') &&
+                    section       === (teacher.coteacher_section       || '') &&
+                    absentUntil   === (teacher.director_absent_until   || '')
+
+  async function handleSave() {
+    if (grade && !section) { showToast('Selecciona también la sección', 'error'); return }
+    setSaving(true)
+    const { error } = await supabase.from('teachers').update({
+      coteacher_grade:       grade        || null,
+      coteacher_section:     section      || null,
+      director_absent_until: absentUntil  || null,
+    }).eq('id', teacher.id)
+    setSaving(false)
+    if (error) { showToast('Error al guardar: ' + error.message, 'error'); return }
+    teacher.coteacher_grade       = grade        || null
+    teacher.coteacher_section     = section      || null
+    teacher.director_absent_until = absentUntil  || null
+    showToast(grade ? `Co-teacher de ${grade} ${section} asignado` : 'Co-teacher removido', 'success')
+  }
+
+  return (
+    <div style={{
+      background: '#f0f4ff', border: '1.5px solid #bfcfff',
+      borderRadius: '10px', padding: '14px', marginBottom: '16px',
+    }}>
+      <div style={{ fontSize: '11px', fontWeight: 700, color: '#2E5598',
+        textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: '8px' }}>
+        🤝 Co-teacher de grupo
+      </div>
+      <div style={{ fontSize: '11px', color: '#555', marginBottom: '10px', lineHeight: 1.5 }}>
+        El docente puede ver la agenda del grupo siempre. Puede editarla solo si el director está ausente
+        y la fecha de ausencia está activa.
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+        <div className="ge-field">
+          <label>Grupo (grado)</label>
+          <select value={grade} onChange={e => { setGrade(e.target.value); setSection('') }}>
+            <option value="">— Sin co-dirección —</option>
+            {GRADE_LEVELS.map(g => <option key={g} value={g}>{g}</option>)}
+          </select>
+        </div>
+        <div className="ge-field">
+          <label>Sección</label>
+          <select value={section} onChange={e => setSection(e.target.value)} disabled={!grade}>
+            <option value="">— Sección —</option>
+            {sections.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {/* Director del grupo */}
+      {homeroomDirector && (
+        <div style={{
+          fontSize: '11px', color: '#3a6b1a', background: '#f0f7ee',
+          border: '1px solid #9BBB59', borderRadius: '6px', padding: '5px 10px',
+          marginBottom: '10px',
+        }}>
+          🏠 Director del grupo: <strong>{homeroomDirector.full_name}</strong>
+        </div>
+      )}
+
+      {/* Absence date — only visible if group is assigned */}
+      {grade && section && (
+        <div className="ge-field" style={{ marginBottom: '10px' }}>
+          <label>
+            Director ausente hasta
+            {isActive && (
+              <span style={{
+                marginLeft: 8, fontSize: '10px', fontWeight: 700,
+                color: '#C0504D', background: '#fdf0f0',
+                border: '1px solid #C0504D44', borderRadius: '4px', padding: '1px 6px',
+              }}>🔓 ACTIVO — puede editar</span>
+            )}
+          </label>
+          <input type="date" value={absentUntil}
+            onChange={e => setAbsentUntil(e.target.value)}
+            min={new Date().toISOString().slice(0, 10)} />
+          <span style={{ fontSize: '10px', color: '#aaa', marginTop: '2px', display: 'block' }}>
+            {absentUntil
+              ? isActive
+                ? `El co-teacher tiene acceso de edición hasta el ${new Date(absentUntil).toLocaleDateString('es-CO', { day: '2-digit', month: 'long' })}`
+                : 'La fecha de ausencia ya pasó — solo tiene acceso de lectura'
+              : 'Sin fecha activa — solo puede ver la agenda (sin editar)'}
+          </span>
+        </div>
+      )}
+
+      {!unchanged && (
+        <button className="btn-primary" style={{ fontSize: '12px' }}
+          onClick={handleSave} disabled={saving}>
+          {saving ? '⏳ Guardando…' : '💾 Guardar co-teacher'}
+        </button>
+      )}
+      {unchanged && teacher.coteacher_grade && (
+        <div style={{ fontSize: '11px', color: '#2E5598', fontWeight: 600 }}>
+          ✅ Co-teacher de: {teacher.coteacher_grade} {teacher.coteacher_section}
+          {isActive ? ' · 🔓 Ausencia activa' : ' · 🔒 Solo lectura'}
         </div>
       )}
     </div>

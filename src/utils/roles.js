@@ -4,13 +4,15 @@
 //
 // Roles:
 //   teacher       → standard teacher UX
-//   admin         → school management (teachers, notifications, calendar, settings)
+//   admin         → Coordinador Académico — manages teachers, agendas, all documents
 //   superadmin    → all admin powers + can assign any role
-//   rector        → principal/head of school — read-only view of all plans
+//   rector        → school principal — read-only + feedback on all documents
 //   psicopedagoga → access to calendar for institutional events
 //
 // NOTE: "Director de Grupo" is NOT a role — it is a teacher with a homeroom
 // assignment stored in teachers.homeroom_grade + teachers.homeroom_section.
+// NOTE: "Co-teacher" is NOT a role — it is a teacher with coteacher_grade +
+// coteacher_section + director_absent_until. Write access only when absence is active.
 
 export const ROLES = {
   TEACHER:       'teacher',
@@ -56,6 +58,21 @@ export const canViewSchedule = (role) =>
 /** Can create/edit weekly agendas for parents */
 export const canManageAgendas = (role) =>
   role === 'admin' || role === 'superadmin' || role === 'rector'
+
+/** Rector or coordinator — can leave feedback on guides, NEWS, and agendas */
+export const canGiveFeedback = (role) =>
+  role === 'rector' || role === 'admin' || role === 'superadmin'
+
+/** Coordinator — can edit documents belonging to other teachers */
+export const canEditOthersDocs = (role) =>
+  role === 'admin' || role === 'superadmin'
+
+/** Returns true if the teacher currently has active co-teacher access (absence window is open) */
+export const isCoteacherActive = (teacher) => {
+  if (!teacher?.coteacher_grade) return false
+  if (!teacher?.director_absent_until) return false
+  return new Date(teacher.director_absent_until + 'T23:59:59') >= new Date()
+}
 
 /** Can change another teacher's role (admin can promote to anything except superadmin) */
 export const canChangeRole = (actorRole, targetNewRole) => {

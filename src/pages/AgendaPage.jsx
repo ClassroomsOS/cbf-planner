@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { supabase } from '../supabase'
 import { DAYS, ACADEMIC_PERIODS } from '../utils/constants'
 import { useToast } from '../context/ToastContext'
+import { isCoteacherActive as checkCoteacherActive } from '../utils/roles'
 
 const MONTHS_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
   'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
@@ -303,12 +304,17 @@ export default function AgendaPage({ teacher }) {
 
   // Director de grupo: entra directo al editor de su sección
   const isHomeroomTeacher = !!teacher.homeroom_grade && !canManageAllAgendas(teacher.role)
+  // Co-teacher: puede ver siempre, editar solo cuando ausencia está activa
+  const isCoteacher       = !!teacher.coteacher_grade && !canManageAllAgendas(teacher.role) && !teacher.homeroom_grade
+  const coteacherCanEdit  = isCoteacher && checkCoteacherActive(teacher)
 
-  // When homeroom teacher navigates weeks in the editor, reload the correct agenda
+  // Shared week state for homeroom director and co-teacher navigation
   const [homeroomWeek, setHomeroomWeek] = useState(todayMonday)
 
   useEffect(() => {
-    if (!loading && isHomeroomTeacher) {
+    if (loading) return
+
+    if (isHomeroomTeacher) {
       const week     = homeroomWeek
       const existing = agendas.find(a =>
         a.grade === teacher.homeroom_grade &&
@@ -328,8 +334,35 @@ export default function AgendaPage({ teacher }) {
         })
       }
       if (view === 'list') setView('edit')
+    } else if (isCoteacher) {
+      const week     = homeroomWeek
+      const existing = agendas.find(a =>
+        a.grade === teacher.coteacher_grade &&
+        a.section === teacher.coteacher_section &&
+        a.week_start === week
+      )
+      if (coteacherCanEdit) {
+        // Active absence — full edit access
+        setEditing({
+          ...(existing || {}),
+          id:         existing?.id || null,
+          grade:      teacher.coteacher_grade,
+          section:    teacher.coteacher_section,
+          week_start: week,
+          period:     existing?.period     || null,
+          devotional: existing?.devotional || '',
+          notes:      existing?.notes      || '',
+          content:    { entries: [], ...(existing?.content || {}) },
+          status:     existing?.status     || 'draft',
+        })
+        if (view === 'list') setView('edit')
+      } else {
+        // No active absence — read-only viewer
+        setPreviewing({ grade: teacher.coteacher_grade, section: teacher.coteacher_section, week_start: week, agenda: existing || null })
+        if (view === 'list') setView('preview')
+      }
     }
-  }, [loading, isHomeroomTeacher, homeroomWeek])
+  }, [loading, isHomeroomTeacher, isCoteacher, coteacherCanEdit, homeroomWeek])
 
   if (loading) return (
     <div className="ge-loading"><div className="loading-spinner" /><p>Cargando agendas…</p></div>
@@ -368,10 +401,14 @@ export default function AgendaPage({ teacher }) {
         allPlans={allPlans}
         allTeachers={allTeachers}
         schoolAssignments={schoolAssignments}
-        isHomeroomTeacher={isHomeroomTeacher}
-        onWeekChange={isHomeroomTeacher ? (w) => setHomeroomWeek(w) : null}
-        onSave={async () => { await fetchAll(); if (!isHomeroomTeacher) setView('list') }}
-        onCancel={isHomeroomTeacher ? null : () => setView('list')}
+        isHomeroomTeacher={isHomeroomTeacher || isCoteacher}
+        onWeekChange={(isHomeroomTeacher || isCoteacher) ? (w) => setHomeroomWeek(w) : null}
+        onSave={async () => { await fetchAll(); if (!isHomeroomTeacher && !isCoteacher) setView('list') }}
+        onCancel={(isHomeroomTeacher || isCoteacher) ? null : () => setView('list')}
+        coteacherBanner={isCoteacher ? {
+          name: `Co-teacher · ${teacher.coteacher_grade} ${teacher.coteacher_section}`,
+          absentUntil: teacher.director_absent_until,
+        } : null}
       />
     )
   }
@@ -534,7 +571,7 @@ export default function AgendaPage({ teacher }) {
 }
 
 // ── AgendaEditor ──────────────────────────────────────────────────────────────
-function AgendaEditor({ agenda, teacher, allPlans, allTeachers, schoolAssignments, isHomeroomTeacher, onWeekChange, onSave, onCancel }) {
+function AgendaEditor({ agenda, teacher, allPlans, allTeachers, schoolAssignments, isHomeroomTeacher, onWeekChange, onSave, onCancel, coteacherBanner }) {
   const { showToast } = useToast()
   const [form,          setForm]          = useState({ ...agenda })
   const [entries,       setEntries]       = useState(agenda.content?.entries || [])
@@ -889,8 +926,30 @@ function AgendaEditor({ agenda, teacher, allPlans, allTeachers, schoolAssignment
           </div>
         </div>
 
+        {/* Co-teacher banner */}
+        {coteacherBanner && (
+          <div style={{
+            background: '#f0f4ff', border: '1px solid #bfcfff', borderRadius: '8px',
+            padding: '8px 14px', marginBottom: '10px', fontSize: '12px', color: '#2E5598',
+            display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap',
+          }}>
+            <span style={{ fontWeight: 700 }}>🤝 {coteacherBanner.name}</span>
+            <span style={{ color: '#aaa' }}>·</span>
+            <span>Editando por ausencia del director de grupo</span>
+            {coteacherBanner.absentUntil && (
+              <span style={{
+                marginLeft: 'auto', fontSize: '10px', fontWeight: 700,
+                background: '#C0504D18', color: '#C0504D',
+                border: '1px solid #C0504D40', borderRadius: '4px', padding: '1px 7px',
+              }}>
+                🔓 Ausente hasta {new Date(coteacherBanner.absentUntil).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })}
+              </span>
+            )}
+          </div>
+        )}
+
         {/* Homeroom banner */}
-        {isHomeroomTeacher && (
+        {isHomeroomTeacher && !coteacherBanner && (
           <div style={{
             background: '#f0f7ee', border: '1px solid #9BBB59', borderRadius: '8px',
             padding: '8px 14px', marginBottom: '14px', fontSize: '12px', color: '#3a6b1a',

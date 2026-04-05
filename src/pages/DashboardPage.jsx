@@ -19,7 +19,7 @@ import AgendaPage          from './AgendaPage'
 import CurriculumPage      from './CurriculumPage'
 import ProfileModal        from '../components/ProfileModal'
 import { FeaturesProvider, useFeatures } from '../context/FeaturesContext'
-import { canManage, canAccessCalendar, isRector, canReadAllPlans, canViewSchedule, canManageAgendas } from '../utils/roles'
+import { canManage, canAccessCalendar, isRector, canReadAllPlans, canViewSchedule, canManageAgendas, isCoteacherActive } from '../utils/roles'
 import { setAIContext } from '../utils/AIAssistant'
 
 // ── Wrapper — provides context ────────────────────────────────
@@ -40,8 +40,10 @@ function DashboardInner({ session, teacher, setTeacher }) {
   const hasCalendar = canAccessCalendar(teacher.role) // admin + superadmin + psicopedagoga
   const hasDirectorView = isRector(teacher.role)
   const hasScheduleView = canViewSchedule(teacher.role)   // admin + superadmin + rector + psicopedagoga
-  const hasAgendas      = canManageAgendas(teacher.role) || !!teacher.homeroom_grade  // incluye directores de grupo
-  const isHomeroomOnly  = !!teacher.homeroom_grade && !canManageAgendas(teacher.role) // solo director de grupo
+  const hasAgendas      = canManageAgendas(teacher.role) || !!teacher.homeroom_grade || !!teacher.coteacher_grade
+  const isHomeroomOnly  = !!teacher.homeroom_grade && !canManageAgendas(teacher.role) && !teacher.coteacher_grade
+  const isCoteacherOnly = !!teacher.coteacher_grade && !canManageAgendas(teacher.role) && !teacher.homeroom_grade
+  const coteacherActive = isCoteacherActive(teacher)
   const { features } = useFeatures()
 
   // Set AI context once so callClaude() can log usage and enforce limits
@@ -235,7 +237,9 @@ function DashboardInner({ session, teacher, setTeacher }) {
                 <span className="dot" style={{ background: '#9BBB59' }} />
                 {isHomeroomOnly
                   ? `🏠 Mi Grupo · ${teacher.homeroom_grade} ${teacher.homeroom_section}`
-                  : '📋 Agenda Semanal'}
+                  : isCoteacherOnly
+                    ? `🤝 Co-teacher · ${teacher.coteacher_grade} ${teacher.coteacher_section}${coteacherActive ? ' 🔓' : ''}`
+                    : '📋 Agenda Semanal'}
               </NavLink>
             </>
           )}
