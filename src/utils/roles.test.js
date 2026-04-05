@@ -11,8 +11,8 @@ describe('canManage', () => {
   it('returns false for teacher', () => {
     expect(canManage('teacher')).toBe(false)
   })
-  it('returns false for rector', () => {
-    expect(canManage('rector')).toBe(false)
+  it('returns true for rector', () => {
+    expect(canManage('rector')).toBe(true)
   })
   it('returns false for psicopedagoga', () => {
     expect(canManage('psicopedagoga')).toBe(false)
