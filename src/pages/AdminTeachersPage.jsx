@@ -566,7 +566,11 @@ function AssignmentModal({ teacher, admin, school, allAssignments, allTeachers, 
       .single()
 
     setSaving(false)
-    if (!error && data) {
+    if (error) {
+      showToast('Error al agregar: ' + error.message, 'error')
+      return
+    }
+    if (data) {
       setMyAssignments(prev => [...prev, { ...data, _dirty: false }])
       setNewGrade(''); setNewSection(''); setNewSubject(''); setNewCustomSubject(''); setNewClassroom('')
     }
