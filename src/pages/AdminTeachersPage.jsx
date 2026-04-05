@@ -22,7 +22,7 @@ export default function AdminTeachersPage({ teacher: admin }) {
     setLoading(true)
     const [{ data: tData }, { data: aData }, { data: sData }] = await Promise.all([
       supabase.from('teachers')
-        .select('id, full_name, initials, email, role, level, status')
+        .select('id, full_name, initials, email, role, level, status, homeroom_grade, homeroom_section')
         .eq('school_id', admin.school_id)
         .order('full_name'),
       supabase.from('teacher_assignments')
@@ -195,6 +195,11 @@ export default function AdminTeachersPage({ teacher: admin }) {
                       {t.level && (
                         <span style={{ fontSize: '10px', background: '#f5f5f5', color: '#666', padding: '1px 7px', borderRadius: '10px' }}>
                           {LEVEL_LABELS[t.level]}
+                        </span>
+                      )}
+                      {t.homeroom_grade && t.homeroom_section && (
+                        <span style={{ fontSize: '10px', background: '#e8f7e0', color: '#3a6b1a', padding: '1px 7px', borderRadius: '10px', fontWeight: 700 }}>
+                          🏠 {t.homeroom_grade} {t.homeroom_section}
                         </span>
                       )}
                     </div>
@@ -644,6 +649,9 @@ function AssignmentModal({ teacher, admin, school, allAssignments, isSelf, onClo
             : <RoleAndLevelEditor teacher={teacher} admin={admin} />
           }
 
+          {/* ── Director de Grupo (homeroom) ── */}
+          <HomeroomEditor teacher={teacher} sections={sections} />
+
           {/* Add new assignment */}
           <div style={{ background: '#f8faff', border: '1.5px solid #dde5f0', borderRadius: '10px', padding: '14px', marginBottom: '20px' }}>
             <div style={{ fontSize: '11px', fontWeight: 700, color: '#2E5598', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: '10px' }}>
@@ -770,6 +778,72 @@ function AssignmentModal({ teacher, admin, school, allAssignments, isSelf, onClo
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+// ── HomeroomEditor ────────────────────────────────────────────────────────────
+// Assigns (or clears) a teacher as homeroom director of a grade+section.
+function HomeroomEditor({ teacher, sections }) {
+  const { showToast }  = useToast()
+  const GRADE_LEVELS   = ['1.°','2.°','3.°','4.°','5.°','6.°','7.°','8.°','9.°','10.°','11.°']
+  const [grade,   setGrade]   = useState(teacher.homeroom_grade   || '')
+  const [section, setSection] = useState(teacher.homeroom_section || '')
+  const [saving,  setSaving]  = useState(false)
+
+  const unchanged = grade   === (teacher.homeroom_grade   || '') &&
+                    section === (teacher.homeroom_section || '')
+
+  async function handleSave() {
+    if (grade && !section) { showToast('Selecciona también la sección', 'error'); return }
+    setSaving(true)
+    const { error } = await supabase.from('teachers')
+      .update({ homeroom_grade: grade || null, homeroom_section: section || null })
+      .eq('id', teacher.id)
+    setSaving(false)
+    if (error) showToast('Error al guardar: ' + error.message, 'error')
+    else {
+      teacher.homeroom_grade   = grade   || null
+      teacher.homeroom_section = section || null
+      showToast(grade ? `Director de ${grade} ${section} asignado` : 'Dirección de grupo removida', 'success')
+    }
+  }
+
+  return (
+    <div style={{ background: '#f0f7ee', border: '1.5px solid #9BBB59', borderRadius: '10px', padding: '14px', marginBottom: '16px' }}>
+      <div style={{ fontSize: '11px', fontWeight: 700, color: '#3a6b1a', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: '10px' }}>
+        🏠 Director de Grupo
+      </div>
+      <div style={{ fontSize: '11px', color: '#555', marginBottom: '10px' }}>
+        El docente tendrá acceso directo a la agenda semanal de su grupo y podrá editarla y marcarla como lista.
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 10 }}>
+        <div className="ge-field">
+          <label>Grado</label>
+          <select value={grade} onChange={e => { setGrade(e.target.value); setSection('') }}>
+            <option value="">— Sin dirección —</option>
+            {GRADE_LEVELS.map(g => <option key={g} value={g}>{g}</option>)}
+          </select>
+        </div>
+        <div className="ge-field">
+          <label>Sección</label>
+          <select value={section} onChange={e => setSection(e.target.value)} disabled={!grade}>
+            <option value="">— Sección —</option>
+            {sections.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+      </div>
+      {!unchanged && (
+        <button className="btn-primary" style={{ fontSize: '12px' }}
+          onClick={handleSave} disabled={saving}>
+          {saving ? '⏳ Guardando…' : '💾 Guardar dirección de grupo'}
+        </button>
+      )}
+      {unchanged && teacher.homeroom_grade && (
+        <div style={{ fontSize: '11px', color: '#3a6b1a', fontWeight: 600 }}>
+          ✅ Director actual: {teacher.homeroom_grade} {teacher.homeroom_section}
+        </div>
+      )}
     </div>
   )
 }

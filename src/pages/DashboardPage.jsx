@@ -40,7 +40,8 @@ function DashboardInner({ session, teacher, setTeacher }) {
   const hasCalendar = canAccessCalendar(teacher.role) // admin + superadmin + psicopedagoga
   const hasDirectorView = isRector(teacher.role)
   const hasScheduleView = canViewSchedule(teacher.role)   // admin + superadmin + rector + psicopedagoga
-  const hasAgendas = canManageAgendas(teacher.role)        // admin + superadmin + rector
+  const hasAgendas      = canManageAgendas(teacher.role) || !!teacher.homeroom_grade  // incluye directores de grupo
+  const isHomeroomOnly  = !!teacher.homeroom_grade && !canManageAgendas(teacher.role) // solo director de grupo
   const { features } = useFeatures()
 
   // Set AI context once so callClaude() can log usage and enforce limits
@@ -232,7 +233,9 @@ function DashboardInner({ session, teacher, setTeacher }) {
               <div className="sb-nav-divider" />
               <NavLink to="/agenda" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
                 <span className="dot" style={{ background: '#9BBB59' }} />
-                📋 Agenda Semanal
+                {isHomeroomOnly
+                  ? `🏠 Mi Grupo · ${teacher.homeroom_grade} ${teacher.homeroom_section}`
+                  : '📋 Agenda Semanal'}
               </NavLink>
             </>
           )}

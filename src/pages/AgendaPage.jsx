@@ -65,6 +65,10 @@ function nextWeek(w) {
   return d.toISOString().slice(0, 10)
 }
 
+function canManageAllAgendas(role) {
+  return role === 'admin' || role === 'superadmin' || role === 'rector'
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 export default function AgendaPage({ teacher }) {
   const { showToast } = useToast()
@@ -289,6 +293,36 @@ export default function AgendaPage({ teacher }) {
     setAgendas(prev => prev.filter(a => a.id !== id))
   }
 
+  // Director de grupo: entra directo al editor de su sección
+  const isHomeroomTeacher = !!teacher.homeroom_grade && !canManageAllAgendas(teacher.role)
+
+  // When homeroom teacher navigates weeks in the editor, reload the correct agenda
+  const [homeroomWeek, setHomeroomWeek] = useState(todayMonday)
+
+  useEffect(() => {
+    if (!loading && isHomeroomTeacher) {
+      const week     = homeroomWeek
+      const existing = agendas.find(a =>
+        a.grade === teacher.homeroom_grade &&
+        a.section === teacher.homeroom_section &&
+        a.week_start === week
+      )
+      if (existing) {
+        setEditing({ ...existing, content: { entries: [], ...existing.content } })
+      } else {
+        setEditing({
+          id: null,
+          grade:      teacher.homeroom_grade,
+          section:    teacher.homeroom_section,
+          week_start: week,
+          period:     null, devotional: '', notes: '',
+          content:    { entries: [] }, status: 'draft',
+        })
+      }
+      if (view === 'list') setView('edit')
+    }
+  }, [loading, isHomeroomTeacher, homeroomWeek])
+
   if (loading) return (
     <div className="ge-loading"><div className="loading-spinner" /><p>Cargando agendas…</p></div>
   )
@@ -301,8 +335,10 @@ export default function AgendaPage({ teacher }) {
         allPlans={allPlans}
         allTeachers={allTeachers}
         schoolAssignments={schoolAssignments}
-        onSave={async () => { await fetchAll(); setView('list') }}
-        onCancel={() => setView('list')}
+        isHomeroomTeacher={isHomeroomTeacher}
+        onWeekChange={isHomeroomTeacher ? (w) => setHomeroomWeek(w) : null}
+        onSave={async () => { await fetchAll(); if (!isHomeroomTeacher) setView('list') }}
+        onCancel={isHomeroomTeacher ? null : () => setView('list')}
       />
     )
   }
@@ -451,7 +487,7 @@ export default function AgendaPage({ teacher }) {
 }
 
 // ── AgendaEditor ──────────────────────────────────────────────────────────────
-function AgendaEditor({ agenda, teacher, allPlans, allTeachers, schoolAssignments, onSave, onCancel }) {
+function AgendaEditor({ agenda, teacher, allPlans, allTeachers, schoolAssignments, isHomeroomTeacher, onWeekChange, onSave, onCancel }) {
   const { showToast } = useToast()
   const [form,          setForm]          = useState({ ...agenda })
   const [entries,       setEntries]       = useState(agenda.content?.entries || [])
@@ -779,9 +815,15 @@ function AgendaEditor({ agenda, teacher, allPlans, allTeachers, schoolAssignment
 
         {/* Header */}
         <div className="card-title">
-          <button className="btn-secondary" style={{ fontSize: '11px' }} onClick={onCancel}>← Volver</button>
-          <div className="badge" style={{ marginLeft: '8px' }}>📋</div>
-          {form.id ? 'Editar agenda' : 'Nueva agenda'}
+          {onCancel && (
+            <button className="btn-secondary" style={{ fontSize: '11px' }} onClick={onCancel}>← Volver</button>
+          )}
+          <div className="badge" style={{ marginLeft: onCancel ? '8px' : '0' }}>
+            {isHomeroomTeacher ? '🏠' : '📋'}
+          </div>
+          {isHomeroomTeacher
+            ? `Mi Grupo — ${form.grade} ${form.section}`
+            : form.id ? 'Editar agenda' : 'Nueva agenda'}
           <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', alignItems: 'center' }}>
             <select value={form.status} onChange={e => updateField('status', e.target.value)}
               style={{ fontSize: '11px', padding: '4px 8px' }}>
@@ -800,22 +842,58 @@ function AgendaEditor({ agenda, teacher, allPlans, allTeachers, schoolAssignment
           </div>
         </div>
 
+        {/* Homeroom banner */}
+        {isHomeroomTeacher && (
+          <div style={{
+            background: '#f0f7ee', border: '1px solid #9BBB59', borderRadius: '8px',
+            padding: '8px 14px', marginBottom: '14px', fontSize: '12px', color: '#3a6b1a',
+            display: 'flex', alignItems: 'center', gap: '8px',
+          }}>
+            <span style={{ fontWeight: 700 }}>🏠 Director de Grupo</span>
+            <span>·</span>
+            <span>{form.grade} {form.section} · Semana del {form.week_start ? formatWeekRange(form.week_start) : '—'}</span>
+          </div>
+        )}
+
+        {/* Week navigation for homeroom teachers */}
+        {isHomeroomTeacher && onWeekChange && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '8px',
+            marginBottom: '14px', background: '#f0f4ff',
+            padding: '8px 12px', borderRadius: '8px',
+          }}>
+            <button className="btn-secondary" style={{ fontSize: '12px', padding: '3px 10px', lineHeight: 1 }}
+              onClick={() => onWeekChange(prevWeek(form.week_start))}>‹</button>
+            <div style={{ fontWeight: 700, fontSize: '12px', color: '#1F3864', flex: 1, textAlign: 'center' }}>
+              Semana del {form.week_start ? formatWeekRange(form.week_start) : '—'}
+            </div>
+            <button className="btn-secondary" style={{ fontSize: '12px', padding: '3px 10px', lineHeight: 1 }}
+              onClick={() => onWeekChange(nextWeek(form.week_start))}>›</button>
+            <button className="btn-secondary" style={{ fontSize: '10px', padding: '2px 8px' }}
+              onClick={() => onWeekChange(todayMonday())}>Hoy</button>
+          </div>
+        )}
+
         {/* Identity fields */}
         <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '14px' }}>
-          <div className="form-field" style={{ flex: 1, minWidth: 120 }}>
-            <label>Grado</label>
-            <select value={form.grade} onChange={e => { updateField('grade', e.target.value); updateField('section', '') }}>
-              <option value="">— Grado —</option>
-              {availableGrades.map(g => <option key={g} value={g}>{g}</option>)}
-            </select>
-          </div>
-          <div className="form-field" style={{ flex: 1, minWidth: 100 }}>
-            <label>Sección</label>
-            <select value={form.section} onChange={e => updateField('section', e.target.value)} disabled={!form.grade}>
-              <option value="">— Sección —</option>
-              {availableSections.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
+          {!isHomeroomTeacher && (
+            <>
+              <div className="form-field" style={{ flex: 1, minWidth: 120 }}>
+                <label>Grado</label>
+                <select value={form.grade} onChange={e => { updateField('grade', e.target.value); updateField('section', '') }}>
+                  <option value="">— Grado —</option>
+                  {availableGrades.map(g => <option key={g} value={g}>{g}</option>)}
+                </select>
+              </div>
+              <div className="form-field" style={{ flex: 1, minWidth: 100 }}>
+                <label>Sección</label>
+                <select value={form.section} onChange={e => updateField('section', e.target.value)} disabled={!form.grade}>
+                  <option value="">— Sección —</option>
+                  {availableSections.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+            </>
+          )}
           <div className="form-field" style={{ flex: 1, minWidth: 120 }}>
             <label>Período</label>
             <select value={form.period || ''} onChange={e => updateField('period', e.target.value ? Number(e.target.value) : null)}>
@@ -823,16 +901,18 @@ function AgendaEditor({ agenda, teacher, allPlans, allTeachers, schoolAssignment
               {ACADEMIC_PERIODS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
             </select>
           </div>
-          <div className="form-field" style={{ flex: 2, minWidth: 160 }}>
-            <label>Semana (cualquier día)</label>
-            <input type="date" value={form.week_start}
-              onChange={e => updateField('week_start', toMonday(e.target.value))} />
-            {form.week_start && (
-              <span style={{ fontSize: '11px', color: '#2E5598', marginTop: '2px', display: 'block' }}>
-                Semana del {formatWeekRange(form.week_start)}
-              </span>
-            )}
-          </div>
+          {!isHomeroomTeacher && (
+            <div className="form-field" style={{ flex: 2, minWidth: 160 }}>
+              <label>Semana (cualquier día)</label>
+              <input type="date" value={form.week_start}
+                onChange={e => updateField('week_start', toMonday(e.target.value))} />
+              {form.week_start && (
+                <span style={{ fontSize: '11px', color: '#2E5598', marginTop: '2px', display: 'block' }}>
+                  Semana del {formatWeekRange(form.week_start)}
+                </span>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Context loading indicator */}
