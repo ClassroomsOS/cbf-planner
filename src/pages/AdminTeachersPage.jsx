@@ -768,24 +768,24 @@ function AssignmentModal({ teacher, admin, school, allAssignments, allTeachers, 
               </div>
             ))
           )}
-          {/* ── Zona de peligro ── */}
-          {!isSelf && <DeleteTeacherZone teacher={teacher} onDeleted={onSave} />}
-
         </div>
 
-        <div className="sb-modal-footer">
-          <button className="btn-secondary" onClick={onClose}>Cerrar</button>
-          <div style={{ flex: 1 }} />
-          {hasDirty && (
-            <button className="btn-primary btn-save" onClick={handleSaveSchedules} disabled={saving}>
-              {saving ? '⏳ Guardando…' : '💾 Guardar horarios'}
-            </button>
-          )}
-          {!hasDirty && myAssignments.length > 0 && (
-            <button className="btn-primary btn-save" onClick={onSave}>
-              ✅ Listo
-            </button>
-          )}
+        <div className="sb-modal-footer" style={{ flexDirection: 'column', gap: '10px', alignItems: 'stretch' }}>
+          {!isSelf && <DeleteTeacherZone teacher={teacher} onDeleted={onSave} />}
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button className="btn-secondary" onClick={onClose}>Cerrar</button>
+            <div style={{ flex: 1 }} />
+            {hasDirty && (
+              <button className="btn-primary btn-save" onClick={handleSaveSchedules} disabled={saving}>
+                {saving ? '⏳ Guardando…' : '💾 Guardar horarios'}
+              </button>
+            )}
+            {!hasDirty && myAssignments.length > 0 && (
+              <button className="btn-primary btn-save" onClick={onSave}>
+                ✅ Listo
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
