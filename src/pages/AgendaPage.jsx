@@ -275,7 +275,7 @@ function AgendaEditor({ agenda, teacher, allPlans, allTeachers, schoolAssignment
   }
 
   function addEntry() {
-    setEntries(prev => [...prev, { subject: '', teacher_name: '', days: {} }])
+    setEntries(prev => [...prev, { subject: '', teacher_name: '', schedule: {}, days: {} }])
   }
 
   function removeEntry(idx) {
@@ -353,6 +353,7 @@ function AgendaEditor({ agenda, teacher, allPlans, allTeachers, schoolAssignment
 
     // ── Build entries from teacher_assignments + lesson_plans ──
     if (!form.id || replaceEntries) {
+      const SCHED_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri']
       const gradeAssignments = schoolAssignments.filter(
         a => a.grade === form.grade && a.section === form.section
       )
@@ -368,17 +369,40 @@ function AgendaEditor({ agenda, teacher, allPlans, allTeachers, schoolAssignment
       })
 
       const built = gradeAssignments.map(asgn => {
-        const t   = teacherMap[asgn.teacher_id]
+        const t    = teacherMap[asgn.teacher_id]
         const plan = planMap[asgn.subject]
         const days = {}
-        weekDatesArr.forEach(date => {
+
+        weekDatesArr.forEach((date, idx) => {
           if (holidayMap[date]) return
-          const html = plan?.content?.days?.[date]?.sections?.assignment?.content
-          days[date] = htmlToText(html)
+          // Only populate days this subject actually meets
+          const schedKey = SCHED_KEYS[idx]
+          const hasClass = asgn.schedule?.[schedKey]?.length > 0
+          if (!hasClass) return
+
+          const dayData = plan?.content?.days?.[date]
+          const parts   = []
+
+          const unit       = dayData?.unit
+          const activity   = htmlToText(
+            dayData?.sections?.activity?.content ||
+            dayData?.sections?.skill?.content || ''
+          ).slice(0, 140)
+          const assignment = htmlToText(
+            dayData?.sections?.assignment?.content || ''
+          ).slice(0, 160)
+
+          if (unit)       parts.push(`📌 ${unit}`)
+          if (activity)   parts.push(`📝 ${activity}`)
+          if (assignment) parts.push(`📚 ${assignment}`)
+
+          days[date] = parts.join('\n') || ''
         })
+
         return {
           subject:      asgn.subject,
           teacher_name: t?.full_name?.split(' ').slice(0, 2).join(' ') || '',
+          schedule:     asgn.schedule || {},
           days,
         }
       })
@@ -449,10 +473,17 @@ function AgendaEditor({ agenda, teacher, allPlans, allTeachers, schoolAssignment
       </th>`
     }).join('')
 
+    const SCHED_KEYS_PDF = ['mon','tue','wed','thu','fri']
     const entryRows = entries.filter(e => e.subject).map(e => {
-      const dayCells = activeDates.map(d =>
-        `<td style="padding:6px 8px;border:1px solid #ddd;font-size:11px;vertical-align:top;min-width:90px">${e.days?.[d] || ''}</td>`
-      ).join('')
+      const dayCells = activeDates.map(d => {
+        const di       = weekDates.indexOf(d)
+        const schedKey = SCHED_KEYS_PDF[di]
+        const hasClass = e.schedule && Object.keys(e.schedule).length > 0
+          ? (e.schedule[schedKey]?.length > 0) : true
+        const cellContent = hasClass ? (e.days?.[d] || '').replace(/\n/g, '<br>') : ''
+        const cellBg = hasClass ? '' : 'background:#f5f5f5;'
+        return `<td style="padding:6px 8px;border:1px solid #ddd;font-size:11px;vertical-align:top;min-width:90px;${cellBg}">${hasClass ? cellContent : '<span style="color:#ccc">—</span>'}</td>`
+      }).join('')
       return `<tr>
         <td style="padding:6px 8px;border:1px solid #ddd;font-weight:700;font-size:11px;white-space:nowrap;color:#2E5598">${e.subject}</td>
         <td style="padding:6px 8px;border:1px solid #ddd;font-size:10px;color:#666;white-space:nowrap">${e.teacher_name || ''}</td>
@@ -748,21 +779,30 @@ function AgendaEditor({ agenda, teacher, allPlans, allTeachers, schoolAssignment
                         style={{ width: '100%', fontSize: '10px', padding: '3px 6px',
                           border: '1px solid #dde5f0', borderRadius: '4px' }} />
                     </td>
-                    {weekDates.map(d => {
+                    {weekDates.map((d, di) => {
                       const isHoliday = !!holidays[d]
+                      const schedKey  = ['mon','tue','wed','thu','fri'][di]
+                      const hasClass  = entry.schedule && Object.keys(entry.schedule).length > 0
+                        ? (entry.schedule[schedKey]?.length > 0)
+                        : true // manual entries show all days
+                      const inactive  = isHoliday || !hasClass
                       return (
-                        <td key={d} style={{ padding: '4px', verticalAlign: 'top',
-                          background: isHoliday ? '#f5f5f5' : 'transparent' }}>
-                          {isHoliday ? (
-                            <div style={{ fontSize: '10px', color: '#bbb', textAlign: 'center', padding: '8px 4px' }}>—</div>
+                        <td key={d} style={{
+                          padding: '4px', verticalAlign: 'top',
+                          background: inactive ? '#f5f5f5' : 'transparent',
+                        }}>
+                          {inactive ? (
+                            <div style={{ fontSize: '10px', color: '#ccc', textAlign: 'center', padding: '8px 4px' }}>
+                              {isHoliday ? '🚫' : '—'}
+                            </div>
                           ) : (
                             <textarea
                               value={entry.days?.[d] || ''}
-                              rows={2}
+                              rows={3}
                               onChange={e => updateEntryDay(idx, d, e.target.value)}
-                              style={{ width: '100%', fontSize: '10px', padding: '3px 5px',
+                              style={{ width: '100%', fontSize: '10px', padding: '4px 6px',
                                 border: '1px solid #dde5f0', borderRadius: '4px',
-                                resize: 'none', minWidth: '80px' }}
+                                resize: 'vertical', minWidth: '90px', lineHeight: 1.5 }}
                             />
                           )}
                         </td>
