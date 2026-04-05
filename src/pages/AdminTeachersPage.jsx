@@ -439,6 +439,7 @@ function CreateTeacherModal({ admin, onClose, onCreated }) {
 
 // ── Assignment Modal ──────────────────────────────────────────
 function AssignmentModal({ teacher, admin, school, allAssignments, allTeachers, isSelf, onClose, onSave }) {
+  const { showToast } = useToast()
   const sections = school?.sections || []
 
   // This teacher's assignments
