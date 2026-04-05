@@ -19,6 +19,13 @@ export default function LoginPage() {
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) setError(error.message)
     } else {
+      const allowedDomain = 'redboston.edu.co'
+      const emailDomain   = email.toLowerCase().split('@')[1] || ''
+      if (emailDomain !== allowedDomain) {
+        setError(`Solo se permiten correos institucionales @${allowedDomain}.`)
+        setLoading(false)
+        return
+      }
       const { error } = await supabase.auth.signUp({ email, password })
       if (error) setError(error.message)
       else setMessage('¡Revisa tu correo para confirmar el registro!')

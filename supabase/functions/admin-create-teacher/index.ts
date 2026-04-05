@@ -38,7 +38,25 @@ Deno.serve(async (req) => {
       })
     }
 
-    // 1. Create auth user (email pre-confirmed — no confirmation required)
+    // 1. Validate email domain against school's configured domain
+    const { data: school } = await supabaseAdmin
+      .from('schools')
+      .select('features')
+      .eq('id', school_id)
+      .single()
+
+    const allowedDomain: string = school?.features?.email_domain || 'redboston.edu.co'
+    const emailDomain = email.toLowerCase().trim().split('@')[1] || ''
+
+    if (emailDomain !== allowedDomain) {
+      return new Response(JSON.stringify({
+        error: `Solo se permiten correos @${allowedDomain}. El email ingresado usa @${emailDomain}.`,
+      }), {
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    // 2. Create auth user (email pre-confirmed — no confirmation required)
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email: email.toLowerCase().trim(),
       email_confirm: true,
