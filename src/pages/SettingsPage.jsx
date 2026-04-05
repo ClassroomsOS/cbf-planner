@@ -1,11 +1,14 @@
 // ── SettingsPage.jsx ──────────────────────────────────────────────────────────
-// Panel de control para que el admin active/desactive features del colegio.
+// Panel de control para el coordinador (admin) y superadministrador.
+// Identidad institucional (logo, datos) y Seguridad (dominio email) → SOLO superadmin.
+// Feature flags, docentes, franjas del horario → coordinador y superadmin.
 
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { useFeatures } from '../context/FeaturesContext'
 import { useToast } from '../context/ToastContext'
+import { isSuperAdmin } from '../utils/roles'
 
 const FEATURE_GROUPS = [
   {
@@ -104,6 +107,7 @@ export default function SettingsPage({ teacher }) {
   const { showToast } = useToast()
   const [saving, setSaving] = useState(null)
   const [saved,  setSaved]  = useState(null)
+  const isSA = isSuperAdmin(teacher.role)
 
   // ── Identidad institucional ──
   const [school,        setSchool]        = useState(null)
@@ -230,11 +234,26 @@ export default function SettingsPage({ teacher }) {
           background: 'linear-gradient(135deg, #1F3864 0%, #2E5598 100%)',
           color: '#fff', padding: '20px 24px',
         }}>
-          <div style={{ fontWeight: 700, fontSize: '18px', marginBottom: '4px' }}>
-            ⚙️ Panel de control
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
+            <span style={{ fontWeight: 700, fontSize: '18px' }}>⚙️ Panel de control</span>
+            {isSA ? (
+              <span style={{
+                fontSize: '11px', fontWeight: 800, background: '#C0504D',
+                color: '#fff', borderRadius: '6px', padding: '2px 9px',
+                letterSpacing: '.3px',
+              }}>🔑 Superadmin</span>
+            ) : (
+              <span style={{
+                fontSize: '11px', fontWeight: 700, background: 'rgba(255,255,255,0.2)',
+                color: '#fff', borderRadius: '6px', padding: '2px 9px',
+              }}>Coordinador</span>
+            )}
           </div>
           <div style={{ fontSize: '12px', opacity: .8 }}>
-            {teacher.schools?.name || 'CBF'} · Activa o desactiva funcionalidades del sistema
+            {teacher.schools?.name || 'CBF'}
+            {isSA
+              ? ' · Acceso completo al sistema'
+              : ' · Identidad institucional y seguridad solo para Superadmin'}
           </div>
           <div style={{
             marginTop: '12px', background: 'rgba(255,255,255,0.15)',
@@ -297,20 +316,20 @@ export default function SettingsPage({ teacher }) {
             onClick={() => setShowIdentity(v => !v)}
             style={{
               display: 'flex', alignItems: 'center', gap: '10px',
-              background: showIdentity ? '#fff8f0' : '#f0f4ff',
-              border: `1px solid ${showIdentity ? '#F79646' : '#c0d0f0'}`,
+              background: showIdentity ? (isSA ? '#fff8f0' : '#f9f9f9') : '#f0f4ff',
+              border: `1px solid ${showIdentity ? (isSA ? '#F79646' : '#ddd') : '#c0d0f0'}`,
               borderRadius: '10px', padding: '12px 18px', cursor: 'pointer',
               textAlign: 'left', flex: '1', minWidth: '180px',
               transition: 'all .15s',
             }}
           >
-            <span style={{ fontSize: '24px' }}>🏫</span>
+            <span style={{ fontSize: '24px' }}>{isSA ? '🏫' : '🔒'}</span>
             <div>
-              <div style={{ fontWeight: 700, fontSize: '13px', color: '#1F3864' }}>
+              <div style={{ fontWeight: 700, fontSize: '13px', color: isSA ? '#1F3864' : '#888' }}>
                 Identidad institucional
               </div>
-              <div style={{ fontSize: '11px', color: '#888', marginTop: '2px' }}>
-                Logo, encabezado de guías y NEWS
+              <div style={{ fontSize: '11px', color: '#aaa', marginTop: '2px' }}>
+                {isSA ? 'Logo, encabezado de guías y NEWS' : 'Solo Superadmin puede modificar'}
               </div>
             </div>
             <span style={{ marginLeft: 'auto', fontSize: '12px', color: '#aaa' }}>
@@ -347,9 +366,26 @@ export default function SettingsPage({ teacher }) {
         {/* ── Identidad institucional expandible ── */}
         {showIdentity && (
           <div style={{
-            marginTop: '14px', borderTop: '1px solid #ffe0c0',
+            marginTop: '14px', borderTop: `1px solid ${isSA ? '#ffe0c0' : '#eee'}`,
             paddingTop: '14px',
           }}>
+
+            {/* Lock banner for coordinator */}
+            {!isSA && (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: '10px',
+                background: '#f9f9f9', border: '1px solid #ddd', borderRadius: '8px',
+                padding: '10px 14px', marginBottom: '14px',
+                fontSize: '12px', color: '#888',
+              }}>
+                <span style={{ fontSize: '18px' }}>🔒</span>
+                <div>
+                  <div style={{ fontWeight: 700, color: '#555' }}>Solo lectura</div>
+                  <div>La identidad institucional solo puede ser modificada por el <strong>Superadministrador del sistema</strong>.</div>
+                </div>
+              </div>
+            )}
+
             {/* Logo */}
             <div style={{ marginBottom: '16px' }}>
               <div style={{ fontSize: '12px', fontWeight: 600, color: '#555', marginBottom: '8px' }}>
@@ -360,25 +396,27 @@ export default function SettingsPage({ teacher }) {
                   <img src={school.logo_url} alt="Logo"
                     style={{ height: '60px', width: 'auto', objectFit: 'contain',
                       borderRadius: '6px', border: '1px solid #eee', padding: '4px' }} />
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label style={{
-                      fontSize: '12px', color: '#2E5598', cursor: 'pointer',
-                      border: '1px solid #c0d0f0', borderRadius: '6px',
-                      padding: '5px 12px', background: '#f0f4ff', display: 'inline-block',
-                    }}>
-                      {logoUploading ? 'Subiendo…' : '↑ Cambiar logo'}
-                      <input type="file" accept="image/*" style={{ display: 'none' }}
-                        onChange={e => handleLogoUpload(e.target.files[0])} />
-                    </label>
-                    <button onClick={removeLogo}
-                      style={{ fontSize: '11px', color: '#c00', background: 'none',
-                        border: '1px solid #fcc', borderRadius: '6px',
-                        padding: '4px 10px', cursor: 'pointer' }}>
-                      ✕ Quitar logo
-                    </button>
-                  </div>
+                  {isSA && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <label style={{
+                        fontSize: '12px', color: '#2E5598', cursor: 'pointer',
+                        border: '1px solid #c0d0f0', borderRadius: '6px',
+                        padding: '5px 12px', background: '#f0f4ff', display: 'inline-block',
+                      }}>
+                        {logoUploading ? 'Subiendo…' : '↑ Cambiar logo'}
+                        <input type="file" accept="image/*" style={{ display: 'none' }}
+                          onChange={e => handleLogoUpload(e.target.files[0])} />
+                      </label>
+                      <button onClick={removeLogo}
+                        style={{ fontSize: '11px', color: '#c00', background: 'none',
+                          border: '1px solid #fcc', borderRadius: '6px',
+                          padding: '4px 10px', cursor: 'pointer' }}>
+                        ✕ Quitar logo
+                      </button>
+                    </div>
+                  )}
                 </div>
-              ) : (
+              ) : isSA ? (
                 <label style={{
                   display: 'flex', alignItems: 'center', gap: '10px',
                   border: '2px dashed #c0d0f0', borderRadius: '10px',
@@ -390,6 +428,13 @@ export default function SettingsPage({ teacher }) {
                   <input type="file" accept="image/*" style={{ display: 'none' }}
                     onChange={e => handleLogoUpload(e.target.files[0])} />
                 </label>
+              ) : (
+                <div style={{
+                  border: '1px dashed #ddd', borderRadius: '8px', padding: '14px 18px',
+                  fontSize: '12px', color: '#bbb', fontStyle: 'italic',
+                }}>
+                  Sin logo cargado — el Superadmin puede subir uno desde su cuenta.
+                </div>
               )}
             </div>
 
@@ -411,39 +456,53 @@ export default function SettingsPage({ teacher }) {
                     display: 'block', marginBottom: '4px' }}>
                     {field.label}
                   </label>
-                  <input
-                    type="text"
-                    value={schoolForm[field.key] || ''}
-                    placeholder={field.placeholder}
-                    onChange={e => setSchoolForm(prev => ({ ...prev, [field.key]: e.target.value }))}
-                    style={{
+                  {isSA ? (
+                    <input
+                      type="text"
+                      value={schoolForm[field.key] || ''}
+                      placeholder={field.placeholder}
+                      onChange={e => setSchoolForm(prev => ({ ...prev, [field.key]: e.target.value }))}
+                      style={{
+                        width: '100%', boxSizing: 'border-box',
+                        border: '1px solid #d0d8e8', borderRadius: '7px',
+                        padding: '7px 10px', fontSize: '12px', color: '#333',
+                      }}
+                    />
+                  ) : (
+                    <div style={{
                       width: '100%', boxSizing: 'border-box',
-                      border: '1px solid #d0d8e8', borderRadius: '7px',
-                      padding: '7px 10px', fontSize: '12px', color: '#333',
-                    }}
-                  />
+                      border: '1px solid #eee', borderRadius: '7px',
+                      padding: '7px 10px', fontSize: '12px',
+                      color: schoolForm[field.key] ? '#555' : '#ccc',
+                      background: '#fafafa', fontStyle: schoolForm[field.key] ? 'normal' : 'italic',
+                    }}>
+                      {schoolForm[field.key] || field.placeholder}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <button
-                onClick={saveSchoolIdentity}
-                disabled={schoolSaving}
-                style={{
-                  background: schoolSaving ? '#ccc' : '#2E5598',
-                  color: '#fff', border: 'none', borderRadius: '8px',
-                  padding: '8px 20px', fontSize: '13px', fontWeight: 600,
-                  cursor: schoolSaving ? 'default' : 'pointer',
-                }}>
-                {schoolSaving ? 'Guardando…' : 'Guardar datos institucionales'}
-              </button>
-              {schoolSaved && (
-                <span style={{ fontSize: '12px', color: '#3a7d44', fontWeight: 600 }}>
-                  ✅ Guardado — se aplica a todas las guías nuevas
-                </span>
-              )}
-            </div>
+            {isSA && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <button
+                  onClick={saveSchoolIdentity}
+                  disabled={schoolSaving}
+                  style={{
+                    background: schoolSaving ? '#ccc' : '#2E5598',
+                    color: '#fff', border: 'none', borderRadius: '8px',
+                    padding: '8px 20px', fontSize: '13px', fontWeight: 600,
+                    cursor: schoolSaving ? 'default' : 'pointer',
+                  }}>
+                  {schoolSaving ? 'Guardando…' : 'Guardar datos institucionales'}
+                </button>
+                {schoolSaved && (
+                  <span style={{ fontSize: '12px', color: '#3a7d44', fontWeight: 600 }}>
+                    ✅ Guardado — se aplica a todas las guías nuevas
+                  </span>
+                )}
+              </div>
+            )}
             <div style={{ fontSize: '10px', color: '#bbb', marginTop: '8px' }}>
               Estos datos aparecen en el encabezado de todas las guías y proyectos NEWS exportados.
             </div>
@@ -569,7 +628,11 @@ export default function SettingsPage({ teacher }) {
       </div>
 
       {/* Feature groups */}
-      {FEATURE_GROUPS.map(group => (
+      {FEATURE_GROUPS.filter(group => {
+        // Security group (email domain) → superadmin only
+        if (group.title.includes('Seguridad') && !isSA) return false
+        return true
+      }).map(group => (
         <div key={group.title} className="card" style={{ marginBottom: '16px' }}>
           <div className="card-title" style={{ marginBottom: '14px' }}>
             <div className="badge" style={{ background: group.color }}>{group.title.split(' ')[0]}</div>
