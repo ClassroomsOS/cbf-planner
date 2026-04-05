@@ -549,7 +549,12 @@ function AssignmentModal({ teacher, admin, school, allAssignments, allTeachers, 
     setErrors([]); setWarnings([])
 
     const { errs, warns } = detectConflicts(newGrade, newSection, subject)
-    if (errs.length) { setErrors(errs); setSaving(false); return }
+    if (errs.length) {
+      setErrors(errs)
+      errs.forEach(e => showToast(e, 'error'))
+      setSaving(false)
+      return
+    }
     if (warns.length) setWarnings(warns)
 
     const { data, error } = await supabase
