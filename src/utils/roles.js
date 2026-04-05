@@ -6,7 +6,7 @@
 //   teacher       → standard teacher UX
 //   admin         → Coordinador Académico — manages teachers, agendas, all documents
 //   superadmin    → all admin powers + can assign any role
-//   rector        → school principal — read-only + feedback on all documents
+//   rector        → school principal — same admin powers as Coordinador (manages teachers, roles, documents)
 //   psicopedagoga → access to calendar for institutional events
 //
 // NOTE: "Director de Grupo" is NOT a role — it is a teacher with a homeroom
@@ -30,9 +30,10 @@ export const LEVEL_LABELS = {
 
 // ── Permission helpers ────────────────────────────────────────────────────────
 
-/** Can manage school: teachers, notifications, calendar, settings */
+/** Can manage school: teachers, notifications, calendar, settings.
+ *  Rector has the same admin powers as Coordinador — they cover for each other. */
 export const canManage = (role) =>
-  role === 'admin' || role === 'superadmin'
+  role === 'admin' || role === 'superadmin' || role === 'rector'
 
 /** Full superadmin — can assign any role, bypass restrictions */
 export const isSuperAdmin = (role) => role === 'superadmin'
@@ -63,9 +64,9 @@ export const canManageAgendas = (role) =>
 export const canGiveFeedback = (role) =>
   role === 'rector' || role === 'admin' || role === 'superadmin'
 
-/** Coordinator — can edit documents belonging to other teachers */
+/** Coordinator/Rector — can edit documents belonging to other teachers */
 export const canEditOthersDocs = (role) =>
-  role === 'admin' || role === 'superadmin'
+  role === 'admin' || role === 'superadmin' || role === 'rector'
 
 /** Returns true if the teacher currently has active co-teacher access (absence window is open) */
 export const isCoteacherActive = (teacher) => {
@@ -74,10 +75,11 @@ export const isCoteacherActive = (teacher) => {
   return new Date(teacher.director_absent_until + 'T23:59:59') >= new Date()
 }
 
-/** Can change another teacher's role (admin can promote to anything except superadmin) */
+/** Can change another teacher's role.
+ *  Superadmin: any role. Admin/Rector: any role except superadmin. */
 export const canChangeRole = (actorRole, targetNewRole) => {
   if (actorRole === 'superadmin') return true
-  if (actorRole === 'admin') return targetNewRole !== 'superadmin'
+  if (actorRole === 'admin' || actorRole === 'rector') return targetNewRole !== 'superadmin'
   return false
 }
 

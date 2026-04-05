@@ -37,7 +37,7 @@ function DashboardInner({ session, teacher, setTeacher }) {
   const [showProfile, setShowProfile] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const navigate = useNavigate()
-  const isAdmin      = canManage(teacher.role)        // admin + superadmin
+  const isAdmin      = canManage(teacher.role)        // admin + superadmin + rector
   const isSuperAdm   = isSuperAdmin(teacher.role)
   const hasCalendar = canAccessCalendar(teacher.role) // admin + superadmin + psicopedagoga
   const hasDirectorView = isRector(teacher.role)
@@ -213,8 +213,8 @@ function DashboardInner({ session, teacher, setTeacher }) {
             Uso de IA
           </NavLink>
 
-          {/* ── RECTOR ── */}
-          {hasDirectorView && (
+          {/* ── RECTOR standalone link — solo si NO es isAdmin (rector ya ve /director en el bloque admin) ── */}
+          {hasDirectorView && !isAdmin && (
             <>
               <div className="sb-nav-divider" />
               <NavLink to="/director" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
