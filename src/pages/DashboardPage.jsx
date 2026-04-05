@@ -20,7 +20,7 @@ import AgendaPage          from './AgendaPage'
 import CurriculumPage      from './CurriculumPage'
 import ProfileModal        from '../components/ProfileModal'
 import { FeaturesProvider, useFeatures } from '../context/FeaturesContext'
-import { canManage, canAccessCalendar, isRector, canReadAllPlans, canViewSchedule, canManageAgendas, isCoteacherActive, isSuperAdmin } from '../utils/roles'
+import { canManage, canAccessCalendar, isRector, canReadAllPlans, canViewSchedule, canManageAgendas, isCoteacherActive, isSuperAdmin, roleLabel, ROLE_STYLES } from '../utils/roles'
 import { setAIContext } from '../utils/AIAssistant'
 
 // ── Wrapper — provides context ────────────────────────────────
@@ -311,7 +311,18 @@ function DashboardInner({ session, teacher, setTeacher }) {
           <button className="btn-profile has-profile"
             onClick={() => { setShowProfile(true); closeSidebar() }}>
             <span className="sb-avatar">{ini}</span>
-            <span className="sb-name">{teacher.full_name.split(' ')[0]}</span>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', minWidth: 0 }}>
+              <span className="sb-name">{teacher.full_name.split(' ')[0]}</span>
+              {teacher.role !== 'teacher' && (
+                <span style={{
+                  fontSize: '9px', fontWeight: 700, letterSpacing: '.4px',
+                  color: ROLE_STYLES[teacher.role]?.color || '#888',
+                  textTransform: 'uppercase', lineHeight: 1,
+                }}>
+                  {roleLabel(teacher.role)}
+                </span>
+              )}
+            </div>
             <span className="prof-edit-icon">✎</span>
           </button>
           <button className="btn-logout" onClick={handleLogout} title="Cerrar sesión">⎋</button>

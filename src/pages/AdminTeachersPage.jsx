@@ -642,6 +642,9 @@ function AssignmentModal({ teacher, admin, school, allAssignments, allTeachers, 
             </div>
           ))}
 
+          {/* ── Datos del docente ── */}
+          <TeacherProfileEditor teacher={teacher} isSelf={isSelf} />
+
           {/* ── Rol y Nivel ── */}
           {isSelf
             ? <div style={{ background: '#f5f5f5', borderRadius: '8px', padding: '10px 14px', fontSize: '12px', color: '#888', marginBottom: '16px' }}>
@@ -765,6 +768,9 @@ function AssignmentModal({ teacher, admin, school, allAssignments, allTeachers, 
               </div>
             ))
           )}
+          {/* ── Zona de peligro ── */}
+          {!isSelf && <DeleteTeacherZone teacher={teacher} onDeleted={onSave} />}
+
         </div>
 
         <div className="sb-modal-footer">
@@ -1061,6 +1067,171 @@ function RoleAndLevelEditor({ teacher, admin }) {
         >
           {saving ? '⏳ Guardando…' : '💾 Guardar rol, nivel y límite IA'}
         </button>
+      )}
+    </div>
+  )
+}
+
+// ── TeacherProfileEditor ──────────────────────────────────────────────────────
+// Edits full_name and initials of a teacher.
+function TeacherProfileEditor({ teacher, isSelf }) {
+  const { showToast } = useToast()
+  const [fullName,  setFullName]  = useState(teacher.full_name  || '')
+  const [initials,  setInitials]  = useState(teacher.initials   || '')
+  const [saving,    setSaving]    = useState(false)
+
+  const unchanged = fullName === (teacher.full_name || '') &&
+                    initials === (teacher.initials   || '')
+
+  async function handleSave() {
+    if (!fullName.trim()) { showToast('El nombre no puede estar vacío', 'error'); return }
+    setSaving(true)
+    const { error } = await supabase
+      .from('teachers')
+      .update({ full_name: fullName.trim(), initials: initials.trim().toUpperCase().slice(0, 3) || null })
+      .eq('id', teacher.id)
+    setSaving(false)
+    if (error) {
+      showToast('Error al guardar: ' + error.message, 'error')
+    } else {
+      teacher.full_name = fullName.trim()
+      teacher.initials  = initials.trim().toUpperCase().slice(0, 3) || null
+      showToast('Datos del docente actualizados', 'success')
+    }
+  }
+
+  return (
+    <div style={{ background: '#f8faff', border: '1.5px solid #d0ddf0', borderRadius: '10px', padding: '14px', marginBottom: '16px' }}>
+      <div style={{ fontSize: '11px', fontWeight: 700, color: '#2E5598', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: '10px' }}>
+        👤 Datos del docente
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12, marginBottom: 10 }}>
+        <div className="ge-field">
+          <label>Nombre completo</label>
+          <input type="text" value={fullName}
+            onChange={e => setFullName(e.target.value)}
+            placeholder="Ej. María González"
+            readOnly={isSelf} style={isSelf ? { background: '#f5f5f5', color: '#888' } : {}} />
+        </div>
+        <div className="ge-field">
+          <label>Iniciales <span style={{ color: '#999', fontWeight: 400 }}>(máx. 3)</span></label>
+          <input type="text" value={initials}
+            onChange={e => setInitials(e.target.value.toUpperCase().slice(0, 3))}
+            placeholder="MG"
+            readOnly={isSelf} style={isSelf ? { background: '#f5f5f5', color: '#888' } : {}} />
+        </div>
+      </div>
+      <div className="ge-field" style={{ marginBottom: isSelf ? 0 : 10 }}>
+        <label>Email institucional <span style={{ color: '#999', fontWeight: 400 }}>(no editable)</span></label>
+        <input type="email" value={teacher.email || ''} readOnly
+          style={{ background: '#f5f5f5', color: '#888', cursor: 'default' }} />
+      </div>
+      {!isSelf && !unchanged && (
+        <button className="btn-primary btn-save" style={{ fontSize: '12px', padding: '6px 16px' }}
+          onClick={handleSave} disabled={saving}>
+          {saving ? '⏳ Guardando…' : '💾 Guardar nombre'}
+        </button>
+      )}
+    </div>
+  )
+}
+
+// ── DeleteTeacherZone ─────────────────────────────────────────────────────────
+// Shows a danger zone to delete a teacher only if they have no lesson_plans or news_projects.
+// NOTE: deletes from DB only. Auth user deletion requires Edge Function (future).
+function DeleteTeacherZone({ teacher, onDeleted }) {
+  const { showToast }  = useToast()
+  const [checked,  setChecked]  = useState(false)   // has check run?
+  const [canDelete, setCanDelete] = useState(false)
+  const [counts,   setCounts]   = useState({ plans: 0, news: 0 })
+  const [expanded, setExpanded] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
+  async function checkContent() {
+    setExpanded(true)
+    if (checked) return
+    const [{ count: plans }, { count: news }] = await Promise.all([
+      supabase.from('lesson_plans').select('id', { count: 'exact', head: true }).eq('teacher_id', teacher.id),
+      supabase.from('news_projects').select('id', { count: 'exact', head: true }).eq('teacher_id', teacher.id),
+    ])
+    const p = plans || 0, n = news || 0
+    setCounts({ plans: p, news: n })
+    setCanDelete(p === 0 && n === 0)
+    setChecked(true)
+  }
+
+  async function handleDelete() {
+    if (!confirm(`¿Eliminar permanentemente a ${teacher.full_name}?\n\nEsta acción no se puede deshacer.`)) return
+    setDeleting(true)
+    // Delete assignments first, then teacher row
+    await supabase.from('teacher_assignments').delete().eq('teacher_id', teacher.id)
+    const { error } = await supabase.from('teachers').delete().eq('id', teacher.id)
+    if (error) {
+      showToast('Error al eliminar: ' + error.message, 'error')
+      setDeleting(false)
+      return
+    }
+    showToast(`${teacher.full_name} eliminado del sistema`, 'success')
+    onDeleted()
+  }
+
+  return (
+    <div style={{ marginTop: '24px', borderTop: '2px dashed #fcc', paddingTop: '16px' }}>
+      <button
+        onClick={checkContent}
+        style={{
+          background: 'none', border: 'none', cursor: 'pointer',
+          fontSize: '11px', fontWeight: 700, color: '#C0504D',
+          textTransform: 'uppercase', letterSpacing: '.5px',
+          display: 'flex', alignItems: 'center', gap: '6px', padding: 0,
+        }}>
+        🗑 Zona de peligro — Eliminar docente {expanded ? '▲' : '▼'}
+      </button>
+
+      {expanded && (
+        <div style={{
+          marginTop: '12px', background: '#fff5f5', border: '1.5px solid #f0c0c0',
+          borderRadius: '10px', padding: '14px',
+        }}>
+          {!checked ? (
+            <div style={{ fontSize: '12px', color: '#888' }}>Verificando contenido…</div>
+          ) : canDelete ? (
+            <>
+              <div style={{ fontSize: '12px', color: '#3a6b1a', fontWeight: 600, marginBottom: '10px' }}>
+                ✅ Este docente no tiene guías ni proyectos NEWS. Puede eliminarse.
+              </div>
+              <div style={{ fontSize: '11px', color: '#888', marginBottom: '12px' }}>
+                Se eliminarán también sus asignaciones de clase. El acceso al sistema quedará bloqueado.
+              </div>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                style={{
+                  background: '#C0504D', color: '#fff', border: 'none',
+                  borderRadius: '8px', padding: '8px 20px', fontSize: '12px',
+                  fontWeight: 700, cursor: deleting ? 'default' : 'pointer',
+                  opacity: deleting ? 0.7 : 1,
+                }}>
+                {deleting ? '⏳ Eliminando…' : `🗑 Eliminar a ${teacher.full_name}`}
+              </button>
+            </>
+          ) : (
+            <div style={{ fontSize: '12px', color: '#7B1A1A' }}>
+              <div style={{ fontWeight: 700, marginBottom: '6px' }}>
+                ❌ No se puede eliminar este docente.
+              </div>
+              <div style={{ color: '#555' }}>
+                Tiene contenido activo en el sistema:
+                {counts.plans > 0 && <span style={{ display: 'block', marginTop: '4px' }}>📝 {counts.plans} guía{counts.plans !== 1 ? 's' : ''} de clase</span>}
+                {counts.news > 0  && <span style={{ display: 'block', marginTop: '4px' }}>📋 {counts.news} proyecto{counts.news !== 1 ? 's' : ''} NEWS</span>}
+              </div>
+              <div style={{ marginTop: '10px', fontSize: '11px', color: '#888' }}>
+                Para eliminar el docente, primero debe eliminarse todo su contenido,
+                o reasignarse a otro docente.
+              </div>
+            </div>
+          )}
+        </div>
       )}
     </div>
   )
