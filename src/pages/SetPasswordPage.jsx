@@ -2,11 +2,13 @@ import { useState } from 'react'
 import { supabase } from '../supabase'
 
 export default function SetPasswordPage({ onDone }) {
-  const [password,  setPassword]  = useState('')
-  const [confirm,   setConfirm]   = useState('')
-  const [loading,   setLoading]   = useState(false)
-  const [error,     setError]     = useState(null)
-  const [success,   setSuccess]   = useState(false)
+  const [password,   setPassword]  = useState('')
+  const [confirm,    setConfirm]   = useState('')
+  const [showPass,   setShowPass]  = useState(false)
+  const [showConf,   setShowConf]  = useState(false)
+  const [loading,    setLoading]   = useState(false)
+  const [error,      setError]     = useState(null)
+  const [success,    setSuccess]   = useState(false)
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -52,25 +54,43 @@ export default function SetPasswordPage({ onDone }) {
           <form onSubmit={handleSubmit}>
             <div className="form-field">
               <label>Nueva contraseña</label>
-              <input
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="Mínimo 6 caracteres"
-                required
-                minLength={6}
-                autoFocus
-              />
+              <div style={{ position: 'relative' }}>
+                <input
+                  type={showPass ? 'text' : 'password'}
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="Mínimo 6 caracteres"
+                  required minLength={6} autoFocus
+                  style={{ paddingRight: '40px', width: '100%', boxSizing: 'border-box' }}
+                />
+                <button type="button" onClick={() => setShowPass(v => !v)}
+                  style={{
+                    position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)',
+                    background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', color: '#888',
+                  }}>
+                  {showPass ? '🙈' : '👁'}
+                </button>
+              </div>
             </div>
             <div className="form-field">
               <label>Confirmar contraseña</label>
-              <input
-                type="password"
-                value={confirm}
-                onChange={e => setConfirm(e.target.value)}
-                placeholder="Repite la contraseña"
-                required
-              />
+              <div style={{ position: 'relative' }}>
+                <input
+                  type={showConf ? 'text' : 'password'}
+                  value={confirm}
+                  onChange={e => setConfirm(e.target.value)}
+                  placeholder="Repite la contraseña"
+                  required
+                  style={{ paddingRight: '40px', width: '100%', boxSizing: 'border-box' }}
+                />
+                <button type="button" onClick={() => setShowConf(v => !v)}
+                  style={{
+                    position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)',
+                    background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', color: '#888',
+                  }}>
+                  {showConf ? '🙈' : '👁'}
+                </button>
+              </div>
             </div>
 
             {error && <div className="alert alert-error">⚠️ {error}</div>}

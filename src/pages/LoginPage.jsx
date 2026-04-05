@@ -2,12 +2,13 @@ import { useState } from 'react'
 import { supabase } from '../supabase'
 
 export default function LoginPage() {
-  const [email, setEmail]       = useState('')
-  const [password, setPassword] = useState('')
-  const [mode, setMode]         = useState('login')   // 'login' | 'register'
-  const [loading, setLoading]   = useState(false)
-  const [message, setMessage]   = useState(null)
-  const [error, setError]       = useState(null)
+  const [email,       setEmail]       = useState('')
+  const [password,    setPassword]    = useState('')
+  const [showPass,    setShowPass]    = useState(false)
+  const [mode,        setMode]        = useState('login')
+  const [loading,     setLoading]     = useState(false)
+  const [message,     setMessage]     = useState(null)
+  const [error,       setError]       = useState(null)
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -85,14 +86,25 @@ export default function LoginPage() {
           </div>
           <div className="form-field">
             <label>Contraseña</label>
-            <input
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              placeholder="••••••••"
-              required
-              minLength={6}
-            />
+            <div style={{ position: 'relative' }}>
+              <input
+                type={showPass ? 'text' : 'password'}
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+                minLength={6}
+                style={{ paddingRight: '40px', width: '100%', boxSizing: 'border-box' }}
+              />
+              <button type="button" onClick={() => setShowPass(v => !v)}
+                style={{
+                  position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)',
+                  background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px',
+                  color: '#888', padding: '2px',
+                }}>
+                {showPass ? '🙈' : '👁'}
+              </button>
+            </div>
           </div>
 
           {error   && <div className="alert alert-error">⚠️ {error}</div>}

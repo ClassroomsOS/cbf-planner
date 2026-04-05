@@ -681,7 +681,7 @@ input:focus, select:focus, textarea:focus {
 }
 .prof-close:hover { opacity: 1; }
 
-.prof-body { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 16px; }
+.prof-body { flex: 1; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; padding: 16px; }
 @media (min-width: 480px) { .prof-body { padding: 20px; } }
 
 .prof-section       { margin-bottom: 18px; }
