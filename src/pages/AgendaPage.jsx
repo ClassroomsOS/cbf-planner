@@ -79,6 +79,7 @@ export default function AgendaPage({ teacher }) {
   const [schoolAssignments, setSchoolAssignments] = useState([])
   const [loading,           setLoading]          = useState(true)
   const [editing,           setEditing]          = useState(null)
+  const [previewing,        setPreviewing]       = useState(null)  // { grade, section, week_start, agenda|null }
   const [dashWeek,          setDashWeek]         = useState(todayMonday)
   const [dashGenerating,    setDashGenerating]   = useState({})
   const [dashGenAll,        setDashGenAll]        = useState(false)
@@ -161,6 +162,13 @@ export default function AgendaPage({ teacher }) {
   function openEdit(agenda) {
     setEditing({ ...agenda, content: { entries: [], ...agenda.content } })
     setView('edit')
+  }
+
+  function openPreview(grade, section) {
+    const key      = `${grade}|${section}`
+    const existing = agendaWeekMap[key] || null
+    setPreviewing({ grade, section, week_start: dashWeek, agenda: existing })
+    setView('preview')
   }
 
   async function fetchSharedData(weekStart) {
@@ -327,6 +335,31 @@ export default function AgendaPage({ teacher }) {
     <div className="ge-loading"><div className="loading-spinner" /><p>Cargando agendas…</p></div>
   )
 
+  if (view === 'preview' && previewing) {
+    const previewKey = `${previewing.grade}|${previewing.section}`
+    const previewAgenda = agendaWeekMap[previewKey] || previewing.agenda
+    return (
+      <AgendaViewer
+        grade={previewing.grade}
+        section={previewing.section}
+        week_start={previewing.week_start}
+        agenda={previewAgenda}
+        teacher={teacher}
+        schoolAssignments={schoolAssignments}
+        allTeachers={allTeachers}
+        allPlans={allPlans}
+        onEdit={previewAgenda ? () => openEdit(previewAgenda) : null}
+        onGenerate={!previewAgenda ? () => {
+          generateOne(previewing.grade, previewing.section).then(() => {
+            const newKey = `${previewing.grade}|${previewing.section}`
+            setPreviewing(p => ({ ...p, agenda: agendaWeekMap[newKey] || null }))
+          })
+        } : null}
+        onBack={() => setView('list')}
+      />
+    )
+  }
+
   if (view === 'edit' && editing) {
     return (
       <AgendaEditor
@@ -402,12 +435,18 @@ export default function AgendaPage({ teacher }) {
               const barColor  = pct === 100 ? '#9BBB59' : pct >= 50 ? '#F79646' : '#dde5f0'
 
               return (
-                <div key={key} style={{
-                  display: 'flex', alignItems: 'center', gap: '14px',
-                  padding: '10px 16px', borderRadius: '10px',
-                  border: `1.5px solid ${existing ? '#bfcfff' : '#dde5f0'}`,
-                  background: existing ? '#fafbff' : '#fff',
-                }}>
+                <div key={key}
+                  onClick={() => openPreview(grade, section)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '14px',
+                    padding: '10px 16px', borderRadius: '10px',
+                    border: `1.5px solid ${existing ? '#bfcfff' : '#dde5f0'}`,
+                    background: existing ? '#fafbff' : '#fff',
+                    cursor: 'pointer', transition: 'box-shadow .15s',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.boxShadow = '0 2px 10px rgba(46,85,152,.12)'}
+                  onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}
+                >
 
                   {/* Grade + section */}
                   <div style={{ minWidth: '88px' }}>
@@ -442,7 +481,15 @@ export default function AgendaPage({ teacher }) {
                   )}
 
                   {/* Action buttons */}
-                  <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                  <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}
+                    onClick={e => e.stopPropagation()}>
+                    <button
+                      className="btn-secondary"
+                      style={{ fontSize: '11px', padding: '4px 10px' }}
+                      onClick={() => openPreview(grade, section)}
+                      title="Ver agenda">
+                      👁 Ver
+                    </button>
                     <button
                       className="btn-secondary"
                       style={{ fontSize: '11px', padding: '4px 10px' }}
@@ -450,13 +497,13 @@ export default function AgendaPage({ teacher }) {
                       disabled={isGenning || dashGenAll}
                       title={existing ? 'Actualizar desde guías' : 'Generar desde guías'}
                     >
-                      {isGenning ? '⏳' : existing ? '🔄 Actualizar' : '⚡ Generar'}
+                      {isGenning ? '⏳' : existing ? '🔄' : '⚡'}
                     </button>
                     {existing && (
                       <>
                         <button className="btn-secondary" style={{ fontSize: '11px', padding: '4px 10px' }}
                           onClick={() => openEdit(existing)}>
-                          ✏️ Editar
+                          ✏️
                         </button>
                         <button className="btn-icon-danger"
                           onClick={e => { e.stopPropagation(); handleDelete(existing.id) }}
@@ -1135,4 +1182,455 @@ function thS(bg, width) {
     textAlign: 'center', fontWeight: 700, fontSize: '11px',
     ...(width ? { width, minWidth: width } : {}),
   }
+}
+
+// ── AgendaViewer ──────────────────────────────────────────────────────────────
+// Read-only view of a weekly agenda. Works even when no agenda has been generated yet
+// (shows the empty schedule structure so the coordinator can see what subjects are assigned).
+function AgendaViewer({ grade, section, week_start, agenda, teacher, schoolAssignments, allTeachers, allPlans, onEdit, onGenerate, onBack }) {
+  const { showToast } = useToast()
+  const [holidays,  setHolidays]  = useState({})
+  const [newsHitos, setNewsHitos] = useState([])
+  const [loading,   setLoading]   = useState(true)
+
+  const weekDates  = useMemo(() => getWeekDates(week_start), [week_start])
+  const teacherMap = useMemo(() => {
+    const m = {}; allTeachers.forEach(t => { m[t.id] = t }); return m
+  }, [allTeachers])
+
+  // Build display entries: use agenda entries if available, else build from assignments
+  const entries = useMemo(() => {
+    if (agenda?.content?.entries?.length > 0) return agenda.content.entries
+    // Fallback: build skeleton from teacher_assignments
+    return schoolAssignments
+      .filter(a => a.grade === grade && a.section === section)
+      .map(asgn => ({
+        subject:      asgn.subject,
+        teacher_name: teacherMap[asgn.teacher_id]?.full_name?.split(' ').slice(0, 2).join(' ') || '',
+        schedule:     asgn.schedule || {},
+        days:         {},
+      }))
+  }, [agenda, schoolAssignments, grade, section, teacherMap])
+
+  useEffect(() => {
+    async function load() {
+      setLoading(true)
+      const weekDate = new Date(week_start + 'T12:00:00')
+      const [{ data: calEntries }, { data: newsProjects }] = await Promise.all([
+        supabase.from('school_calendar')
+          .select('date, name, is_school_day')
+          .eq('school_id', teacher.school_id)
+          .in('date', weekDates),
+        supabase.from('news_projects')
+          .select('title, skill, actividades_evaluativas, due_date, subject')
+          .eq('school_id', teacher.school_id),
+      ])
+      const hMap = {}
+      ;(calEntries || []).filter(c => c.is_school_day === false).forEach(c => { hMap[c.date] = c.name })
+      setHolidays(hMap)
+      const hitos = []
+      ;(newsProjects || []).forEach(p => {
+        ;(p.actividades_evaluativas || []).forEach(act => {
+          if (act.fecha && weekDates.includes(act.fecha))
+            hitos.push({ fecha: act.fecha, nombre: act.nombre, porcentaje: act.porcentaje, skill: p.skill, projectTitle: p.title })
+        })
+        if (p.due_date && weekDates.includes(p.due_date))
+          hitos.push({ fecha: p.due_date, nombre: `🏁 Entrega: ${p.title}`, skill: p.skill, isDelivery: true })
+      })
+      hitos.sort((a, b) => a.fecha.localeCompare(b.fecha))
+      setNewsHitos(hitos)
+      setLoading(false)
+    }
+    load()
+  }, [week_start, teacher.school_id])
+
+  // Subject color palette — cycles through a set of distinct colors
+  const SUBJECT_COLORS = [
+    '#2E5598', '#C0504D', '#9BBB59', '#F79646', '#8064A2',
+    '#4BACC6', '#C9A84C', '#1A6B3A', '#B8860B', '#17375E',
+  ]
+  const subjectColorMap = useMemo(() => {
+    const m = {}
+    entries.forEach((e, i) => { m[e.subject] = SUBJECT_COLORS[i % SUBJECT_COLORS.length] })
+    return m
+  }, [entries])
+
+  function exportViewerPdf() {
+    const gradeLabel = `${grade} ${section}`
+    const weekLabel  = formatWeekRange(week_start)
+    const school     = teacher.schools?.name || teacher.school_name || ''
+    const activeDates = weekDates.filter(d => !holidays[d])
+
+    const dayHeaders = activeDates.map(d => {
+      const idx = weekDates.indexOf(d)
+      return `<th style="background:#2E5598;color:#fff;padding:8px 6px;font-size:11px;text-align:center;min-width:90px">
+        ${DAYS[idx]?.label || ''}<br><span style="font-weight:400;font-size:10px">${formatDate(d)}</span>
+      </th>`
+    }).join('')
+
+    const SCHED_KEYS_ALL = ['mon','tue','wed','thu','fri']
+    const entryRows = entries.filter(e => e.subject).map((e, i) => {
+      const color = SUBJECT_COLORS[i % SUBJECT_COLORS.length]
+      const dayCells = activeDates.map(d => {
+        const di  = weekDates.indexOf(d)
+        const key = SCHED_KEYS_ALL[di]
+        const hasClass = e.schedule && Object.keys(e.schedule).length > 0
+          ? (e.schedule[key]?.length > 0) : true
+        const text = hasClass ? (e.days?.[d] || '').replace(/\n/g,'<br>') : ''
+        return `<td style="padding:7px 8px;border:1px solid #e0e0e0;font-size:11px;vertical-align:top;
+          background:${!hasClass ? '#f9f9f9' : 'transparent'}">
+          ${hasClass ? (text || '<span style="color:#ddd">—</span>') : '<span style="color:#ccc">—</span>'}
+        </td>`
+      }).join('')
+      return `<tr>
+        <td style="padding:7px 10px;border:1px solid #e0e0e0;font-weight:700;font-size:11px;
+          white-space:nowrap;color:${color};border-left:3px solid ${color}">${e.subject}</td>
+        <td style="padding:7px 8px;border:1px solid #e0e0e0;font-size:10px;color:#777;white-space:nowrap">${e.teacher_name || ''}</td>
+        ${dayCells}
+      </tr>`
+    }).join('')
+
+    const devHtml = agenda?.devotional ? `
+      <div style="background:#eef2ff;border-left:4px solid #2E5598;padding:10px 14px;
+        margin-bottom:14px;border-radius:0 6px 6px 0;font-size:12px;white-space:pre-wrap">
+        ✝ <strong>Devoción de la semana</strong><br>${agenda.devotional}
+      </div>` : ''
+
+    const hitosHtml = newsHitos.length ? `
+      <div style="margin-bottom:12px">
+        <div style="font-size:11px;font-weight:700;color:#1F3864;margin-bottom:5px">📌 Actividades evaluativas esta semana</div>
+        <div style="display:flex;flex-wrap:wrap;gap:5px">
+          ${newsHitos.map(h => `<span style="font-size:10px;padding:2px 10px;border-radius:12px;
+            background:${(SKILL_COLOR[h.skill]||'#1A3A8F')+'20'};border:1px solid ${(SKILL_COLOR[h.skill]||'#1A3A8F')+'50'};
+            color:${SKILL_COLOR[h.skill]||'#1A3A8F'};font-weight:600">${h.nombre} · ${formatDate(h.fecha)}</span>`).join('')}
+        </div>
+      </div>` : ''
+
+    const notesHtml = agenda?.notes ? `
+      <div style="background:#f9f9f9;border:1px solid #e0e0e0;border-radius:6px;
+        padding:10px 14px;margin-top:14px;font-size:12px">
+        📝 <strong>Notas para los padres:</strong><br>${agenda.notes}
+      </div>` : ''
+
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+<title>Agenda Semanal — ${gradeLabel}</title>
+<style>
+  body{font-family:Arial,sans-serif;margin:20px;color:#222}
+  h1{font-size:18px;color:#1F3864;margin:0 0 2px}
+  .sub{font-size:12px;color:#666;margin-bottom:14px}
+  table{width:100%;border-collapse:collapse}
+  @media print{body{margin:10mm}.no-print{display:none}}
+</style></head><body>
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+  <div>
+    <h1>📋 Agenda Semanal — ${gradeLabel}</h1>
+    <div class="sub">${school} · Semana del ${weekLabel}${agenda?.period ? ' · Período ' + agenda.period : ''}</div>
+  </div>
+</div>
+${Object.entries(holidays).length ? `<div style="background:#fff8f0;border-left:3px solid #f59e0b;padding:7px 12px;
+  margin-bottom:12px;font-size:11px;border-radius:0 5px 5px 0">
+  🗓 <strong>Días no laborables:</strong> ${Object.entries(holidays).map(([d,n])=>`<strong>${formatDate(d)}</strong> — ${n}`).join(' · ')}
+</div>` : ''}
+${devHtml}${hitosHtml}
+<table>
+  <thead><tr>
+    <th style="background:#1F3864;color:#fff;padding:8px 10px;font-size:11px;text-align:left;width:130px">Materia</th>
+    <th style="background:#1F3864;color:#fff;padding:8px;font-size:11px;width:110px">Docente</th>
+    ${dayHeaders}
+  </tr></thead>
+  <tbody>${entryRows}</tbody>
+</table>
+${notesHtml}
+<button class="no-print" onclick="window.print()" style="position:fixed;bottom:20px;right:20px;
+  background:#C0504D;color:#fff;border:none;border-radius:50px;padding:10px 20px;
+  font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 2px 12px rgba(0,0,0,.2)">🖨️ Guardar como PDF</button>
+</body></html>`
+
+    const win = window.open('', '_blank')
+    win.document.write(html)
+    win.document.close()
+    setTimeout(() => win.print(), 600)
+  }
+
+  const activeDates = weekDates.filter(d => !holidays[d])
+  const SCHED_KEYS  = ['mon','tue','wed','thu','fri']
+  const hasContent  = entries.some(e => Object.values(e.days || {}).some(v => v))
+
+  return (
+    <div className="planner-wrap">
+      <div className="card">
+
+        {/* Top bar */}
+        <div className="card-title" style={{ flexWrap: 'wrap', gap: '8px' }}>
+          <button className="btn-secondary" style={{ fontSize: '11px' }} onClick={onBack}>← Volver</button>
+          <div className="badge">📋</div>
+          <div style={{ fontWeight: 700, fontSize: '14px', color: '#1F3864' }}>
+            {grade} <span style={{ color: '#2E5598' }}>{section}</span>
+          </div>
+          <div style={{ fontSize: '12px', color: '#888', marginLeft: 4 }}>
+            · Semana del {formatWeekRange(week_start)}
+          </div>
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', alignItems: 'center' }}>
+            {agenda && (
+              <span style={{
+                fontSize: '11px', fontWeight: 700, padding: '3px 10px', borderRadius: '10px',
+                background: (STATUS_CFG[agenda.status] || STATUS_CFG.draft).bg,
+                color: (STATUS_CFG[agenda.status] || STATUS_CFG.draft).color,
+              }}>
+                {(STATUS_CFG[agenda.status] || STATUS_CFG.draft).label}
+              </span>
+            )}
+            <button className="btn-secondary" style={{ fontSize: '11px' }}
+              onClick={exportViewerPdf}
+              disabled={loading || entries.length === 0}>
+              🖨️ PDF
+            </button>
+            {onGenerate && (
+              <button className="btn-secondary" style={{ fontSize: '11px' }} onClick={onGenerate}>
+                ⚡ Generar
+              </button>
+            )}
+            {onEdit && (
+              <button className="btn-primary" style={{ fontSize: '11px' }} onClick={onEdit}>
+                ✏️ Editar
+              </button>
+            )}
+          </div>
+        </div>
+
+        {loading ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '20px 0',
+            fontSize: '13px', color: '#888' }}>
+            <div className="loading-spinner" style={{ width: 18, height: 18 }} />
+            Cargando contexto de la semana…
+          </div>
+        ) : (
+          <>
+            {/* No agenda banner */}
+            {!agenda && (
+              <div style={{
+                background: '#fffbeb', border: '1px solid #f59e0b', borderRadius: '8px',
+                padding: '10px 16px', marginBottom: '14px', fontSize: '12px', color: '#92400e',
+                display: 'flex', alignItems: 'center', gap: '10px',
+              }}>
+                <span>⚠️ No hay agenda generada para esta semana.</span>
+                {onGenerate && (
+                  <button className="btn-primary" style={{ fontSize: '11px' }} onClick={onGenerate}>
+                    ⚡ Generar desde guías
+                  </button>
+                )}
+                <span style={{ color: '#b45309', fontSize: '11px' }}>
+                  Mostrando estructura de materias asignadas.
+                </span>
+              </div>
+            )}
+
+            {/* Holidays */}
+            {Object.keys(holidays).length > 0 && (
+              <div style={{
+                background: '#fffbeb', border: '1px solid #f59e0b', borderRadius: '8px',
+                padding: '8px 14px', marginBottom: '12px', fontSize: '12px', color: '#92400e',
+                display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center',
+              }}>
+                <span style={{ fontWeight: 700 }}>🗓 Días no laborables:</span>
+                {Object.entries(holidays).map(([d, n]) => (
+                  <span key={d} style={{
+                    background: '#fef3c7', border: '1px solid #f59e0b',
+                    borderRadius: '5px', padding: '1px 8px', fontWeight: 600,
+                  }}>{formatDate(d)} — {n}</span>
+                ))}
+              </div>
+            )}
+
+            {/* Devotional */}
+            {agenda?.devotional && (
+              <div style={{
+                background: '#eef2ff', borderLeft: '4px solid #2E5598', borderRadius: '0 8px 8px 0',
+                padding: '10px 16px', marginBottom: '14px',
+              }}>
+                <div style={{ fontSize: '11px', fontWeight: 800, color: '#1F3864',
+                  textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: '5px' }}>
+                  ✝ Devoción de la semana
+                </div>
+                <div style={{ fontSize: '13px', color: '#2E5598', fontStyle: 'italic',
+                  lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                  {agenda.devotional}
+                </div>
+              </div>
+            )}
+
+            {/* NEWS hitos */}
+            {newsHitos.length > 0 && (
+              <div style={{
+                background: '#f0f4ff', border: '1px solid #bfcfff', borderRadius: '8px',
+                padding: '10px 14px', marginBottom: '14px',
+              }}>
+                <div style={{ fontSize: '11px', fontWeight: 800, color: '#1F3864',
+                  textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: '7px' }}>
+                  📌 Actividades evaluativas esta semana
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                  {newsHitos.map((h, i) => {
+                    const color = SKILL_COLOR[h.skill] || '#1A3A8F'
+                    return (
+                      <span key={i} style={{
+                        fontSize: '11px', padding: '2px 10px', borderRadius: '12px',
+                        background: color + '18', border: `1px solid ${color}50`, color, fontWeight: 700,
+                      }}>
+                        {h.nombre}{h.porcentaje > 0 && ` (${h.porcentaje}%)`} · {formatDate(h.fecha)}
+                      </span>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Main weekly table */}
+            {entries.length === 0 ? (
+              <div className="empty-state" style={{ padding: '30px' }}>
+                No hay materias asignadas para {grade} {section}.
+              </div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                  <thead>
+                    <tr>
+                      <th style={{
+                        background: '#1F3864', color: '#fff', padding: '9px 12px',
+                        textAlign: 'left', fontSize: '11px', fontWeight: 700,
+                        width: '130px', borderRadius: '6px 0 0 0',
+                      }}>Materia</th>
+                      <th style={{
+                        background: '#1F3864', color: '#fff', padding: '9px 8px',
+                        fontSize: '11px', textAlign: 'center', width: '100px',
+                      }}>Docente</th>
+                      {weekDates.map((d, i) => {
+                        const isHol = !!holidays[d]
+                        const dayHitos = newsHitos.filter(h => h.fecha === d)
+                        return (
+                          <th key={d} style={{
+                            background: isHol ? '#b0b8c8' : '#2E5598', color: '#fff',
+                            padding: '9px 8px', fontSize: '11px', textAlign: 'center',
+                            minWidth: '120px',
+                            ...(i === 4 ? { borderRadius: '0 6px 0 0' } : {}),
+                          }}>
+                            <div style={{ fontWeight: 700 }}>{DAYS[i]?.label || ''}</div>
+                            <div style={{ fontWeight: 400, fontSize: '10px', opacity: .85 }}>{formatDate(d)}</div>
+                            {isHol && (
+                              <div style={{ fontSize: '9px', fontWeight: 600, marginTop: '2px',
+                                background: 'rgba(0,0,0,.15)', borderRadius: '3px', padding: '1px 4px' }}>
+                                🚫 {holidays[d].slice(0, 16)}
+                              </div>
+                            )}
+                            {dayHitos.map((h, j) => (
+                              <div key={j} style={{
+                                fontSize: '9px', fontWeight: 700, marginTop: '2px',
+                                background: 'rgba(255,255,255,.18)', borderRadius: '3px', padding: '1px 4px',
+                                color: '#fff',
+                              }}>
+                                📌 {h.nombre.length > 14 ? h.nombre.slice(0, 14) + '…' : h.nombre}
+                              </div>
+                            ))}
+                          </th>
+                        )
+                      })}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {entries.map((entry, idx) => {
+                      const color = subjectColorMap[entry.subject] || '#2E5598'
+                      return (
+                        <tr key={idx} style={{ background: idx % 2 === 0 ? '#fafbff' : '#fff' }}>
+                          {/* Subject */}
+                          <td style={{
+                            padding: '8px 10px', borderBottom: '1px solid #eef0f8',
+                            borderLeft: `3px solid ${color}`,
+                          }}>
+                            <div style={{ fontWeight: 700, fontSize: '12px', color }}>{entry.subject}</div>
+                          </td>
+                          {/* Teacher */}
+                          <td style={{
+                            padding: '8px', borderBottom: '1px solid #eef0f8',
+                            fontSize: '10px', color: '#777', textAlign: 'center', verticalAlign: 'top',
+                          }}>
+                            {entry.teacher_name || '—'}
+                          </td>
+                          {/* Day cells */}
+                          {weekDates.map((d, di) => {
+                            const isHol    = !!holidays[d]
+                            const schedKey = SCHED_KEYS[di]
+                            const hasClass = entry.schedule && Object.keys(entry.schedule).length > 0
+                              ? (entry.schedule[schedKey]?.length > 0) : true
+                            const inactive  = isHol || !hasClass
+                            const cellText  = entry.days?.[d] || ''
+                            return (
+                              <td key={d} style={{
+                                padding: inactive ? '8px' : '8px 10px',
+                                borderBottom: '1px solid #eef0f8',
+                                background: inactive ? '#f4f6fb' : 'transparent',
+                                verticalAlign: 'top',
+                                fontSize: '12px', color: '#333', lineHeight: 1.5,
+                              }}>
+                                {inactive ? (
+                                  <span style={{ color: '#ccc', fontSize: '11px' }}>
+                                    {isHol ? '🚫' : '—'}
+                                  </span>
+                                ) : cellText ? (
+                                  <div style={{ whiteSpace: 'pre-wrap' }}>
+                                    {cellText.split('\n').map((line, li) => {
+                                      const icon = line.startsWith('📌') ? color :
+                                                   line.startsWith('📝') ? '#333' :
+                                                   line.startsWith('📚') ? '#555' : '#333'
+                                      return (
+                                        <div key={li} style={{
+                                          color: icon,
+                                          fontWeight: line.startsWith('📌') ? 600 : 400,
+                                          marginBottom: li < cellText.split('\n').length - 1 ? '4px' : 0,
+                                        }}>
+                                          {line}
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                ) : (
+                                  <span style={{ color: '#ddd', fontSize: '11px' }}>—</span>
+                                )}
+                              </td>
+                            )
+                          })}
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Notes */}
+            {agenda?.notes && (
+              <div style={{
+                marginTop: '16px', background: '#f9f9f9', border: '1px solid #e8e8e8',
+                borderRadius: '8px', padding: '10px 14px', fontSize: '12px', color: '#555',
+                lineHeight: 1.6,
+              }}>
+                <div style={{ fontWeight: 700, color: '#1F3864', marginBottom: '5px' }}>
+                  📝 Notas para los padres
+                </div>
+                <div style={{ whiteSpace: 'pre-wrap' }}>{agenda.notes}</div>
+              </div>
+            )}
+
+            {/* Footer metadata */}
+            {agenda?.updated_at && (
+              <div style={{ marginTop: '12px', fontSize: '10px', color: '#bbb', textAlign: 'right' }}>
+                Última actualización: {new Date(agenda.updated_at).toLocaleString('es-CO', {
+                  day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
+                })}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  )
 }
