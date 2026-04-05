@@ -10,6 +10,7 @@
  */
 
 import { createContext, useContext, useState, useCallback, useRef } from 'react'
+import { createPortal } from 'react-dom'
 
 const ToastContext = createContext(null)
 
@@ -47,8 +48,8 @@ export function ToastProvider({ children }) {
     <ToastContext.Provider value={{ showToast }}>
       {children}
 
-      {/* Toast container — fixed bottom-right */}
-      {toasts.length > 0 && (
+      {/* Toast container — portaled to document.body to escape all stacking contexts */}
+      {toasts.length > 0 && createPortal(
         <div style={S.container} aria-label="Notificaciones">
           {toasts.map(toast => {
             const style = TOAST_STYLES[toast.type] || TOAST_STYLES.info
@@ -79,7 +80,8 @@ export function ToastProvider({ children }) {
               </div>
             )
           })}
-        </div>
+        </div>,
+        document.body
       )}
     </ToastContext.Provider>
   )
