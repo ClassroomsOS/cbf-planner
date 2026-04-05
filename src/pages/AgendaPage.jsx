@@ -56,6 +56,14 @@ function htmlToText(html) {
 function todayMonday() {
   return toMonday(new Date().toISOString().slice(0, 10))
 }
+function prevWeek(w) {
+  const d = new Date(w + 'T12:00:00'); d.setDate(d.getDate() - 7)
+  return d.toISOString().slice(0, 10)
+}
+function nextWeek(w) {
+  const d = new Date(w + 'T12:00:00'); d.setDate(d.getDate() + 7)
+  return d.toISOString().slice(0, 10)
+}
 
 // ── Main component ────────────────────────────────────────────────────────────
 export default function AgendaPage({ teacher }) {
@@ -67,9 +75,9 @@ export default function AgendaPage({ teacher }) {
   const [schoolAssignments, setSchoolAssignments] = useState([])
   const [loading,           setLoading]          = useState(true)
   const [editing,           setEditing]          = useState(null)
-
-  const [filterGrade,   setFilterGrade]   = useState('all')
-  const [filterSection, setFilterSection] = useState('all')
+  const [dashWeek,          setDashWeek]         = useState(todayMonday)
+  const [dashGenerating,    setDashGenerating]   = useState({})
+  const [dashGenAll,        setDashGenAll]        = useState(false)
 
   useEffect(() => { fetchAll() }, [])
 
@@ -112,11 +120,31 @@ export default function AgendaPage({ teacher }) {
     })
   }, [schoolAssignments])
 
-  const filteredAgendas = useMemo(() => agendas.filter(a => {
-    if (filterGrade   !== 'all' && a.grade   !== filterGrade)   return false
-    if (filterSection !== 'all' && a.section !== filterSection) return false
-    return true
-  }), [agendas, filterGrade, filterSection])
+  const teacherMap = useMemo(() => {
+    const m = {}; allTeachers.forEach(t => { m[t.id] = t }); return m
+  }, [allTeachers])
+
+  const planCoverageMap = useMemo(() => {
+    const map    = {}
+    const wDates = getWeekDates(dashWeek)
+    gradePairs.forEach(({ grade, section }) => {
+      const fullGrade = `${grade} ${section}`
+      const subjects  = [...new Set(schoolAssignments.filter(a => a.grade === grade && a.section === section).map(a => a.subject))]
+      const covered   = new Set(allPlans.filter(p =>
+        p.grade === fullGrade && Object.keys(p.content?.days || {}).some(d => wDates.includes(d))
+      ).map(p => p.subject))
+      map[`${grade}|${section}`] = { total: subjects.length, covered: covered.size }
+    })
+    return map
+  }, [gradePairs, allPlans, schoolAssignments, dashWeek])
+
+  const agendaWeekMap = useMemo(() => {
+    const map = {}
+    agendas.filter(a => a.week_start === dashWeek).forEach(a => {
+      map[`${a.grade}|${a.section}`] = a
+    })
+    return map
+  }, [agendas, dashWeek])
 
   function openNew() {
     setEditing({
@@ -129,6 +157,129 @@ export default function AgendaPage({ teacher }) {
   function openEdit(agenda) {
     setEditing({ ...agenda, content: { entries: [], ...agenda.content } })
     setView('edit')
+  }
+
+  async function fetchSharedData(weekStart) {
+    const wDates   = getWeekDates(weekStart)
+    const weekDate = new Date(weekStart + 'T12:00:00')
+    const [{ data: principle }, { data: calEntries }] = await Promise.all([
+      supabase.from('school_monthly_principles')
+        .select('month_verse, month_verse_ref')
+        .eq('school_id', teacher.school_id)
+        .eq('year', weekDate.getFullYear())
+        .eq('month', weekDate.getMonth() + 1)
+        .maybeSingle(),
+      supabase.from('school_calendar')
+        .select('date, name, is_school_day')
+        .eq('school_id', teacher.school_id)
+        .in('date', wDates),
+    ])
+    const holidayMap = {}
+    ;(calEntries || []).filter(c => c.is_school_day === false).forEach(c => { holidayMap[c.date] = c.name })
+    const devotional = principle?.month_verse
+      ? principle.month_verse + (principle.month_verse_ref ? `\n— ${principle.month_verse_ref}` : '')
+      : ''
+    return { wDates, holidayMap, devotional }
+  }
+
+  function buildEntriesForPair(grade, section, wDates, holidayMap) {
+    const SCHED_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri']
+    const fullGrade  = `${grade} ${section}`
+    const gradeAsgns = schoolAssignments.filter(a => a.grade === grade && a.section === section)
+    const planMap    = {}
+    allPlans.forEach(p => {
+      if (p.grade !== fullGrade) return
+      if (Object.keys(p.content?.days || {}).some(d => wDates.includes(d))) planMap[p.subject] = p
+    })
+    return gradeAsgns.map(asgn => {
+      const t    = teacherMap[asgn.teacher_id]
+      const plan = planMap[asgn.subject]
+      const days = {}
+      wDates.forEach((date, idx) => {
+        if (holidayMap[date]) return
+        const schedKey = SCHED_KEYS[idx]
+        if (!(asgn.schedule?.[schedKey]?.length > 0)) return
+        const dayData    = plan?.content?.days?.[date]
+        const parts      = []
+        const unit       = dayData?.unit
+        const activity   = htmlToText(dayData?.sections?.activity?.content || dayData?.sections?.skill?.content || '').slice(0, 140)
+        const assignment = htmlToText(dayData?.sections?.assignment?.content || '').slice(0, 160)
+        if (unit)       parts.push(`📌 ${unit}`)
+        if (activity)   parts.push(`📝 ${activity}`)
+        if (assignment) parts.push(`📚 ${assignment}`)
+        days[date] = parts.join('\n') || ''
+      })
+      return {
+        subject:      asgn.subject,
+        teacher_name: t?.full_name?.split(' ').slice(0, 2).join(' ') || '',
+        schedule:     asgn.schedule || {},
+        days,
+      }
+    })
+  }
+
+  async function generateOne(grade, section) {
+    const key = `${grade}|${section}`
+    setDashGenerating(prev => ({ ...prev, [key]: true }))
+    try {
+      const shared   = await fetchSharedData(dashWeek)
+      const entries  = buildEntriesForPair(grade, section, shared.wDates, shared.holidayMap)
+      const existing = agendaWeekMap[key]
+      const payload  = {
+        school_id:  teacher.school_id,
+        grade, section,
+        week_start: dashWeek,
+        devotional: shared.devotional || null,
+        content:    { entries },
+        status:     existing?.status || 'draft',
+        updated_at: new Date().toISOString(),
+      }
+      let error
+      if (existing) {
+        ;({ error } = await supabase.from('weekly_agendas').update(payload).eq('id', existing.id))
+      } else {
+        ;({ error } = await supabase.from('weekly_agendas').insert(payload))
+      }
+      if (error) showToast(`Error: ${error.message}`, 'error')
+      else { showToast(`Agenda ${grade} ${section} generada`, 'success'); await fetchAll() }
+    } finally {
+      setDashGenerating(prev => ({ ...prev, [key]: false }))
+    }
+  }
+
+  async function generateAll() {
+    if (gradePairs.length === 0) return
+    setDashGenAll(true)
+    try {
+      const shared = await fetchSharedData(dashWeek)
+      let ok = 0, fail = 0
+      for (const { grade, section } of gradePairs) {
+        const key      = `${grade}|${section}`
+        const entries  = buildEntriesForPair(grade, section, shared.wDates, shared.holidayMap)
+        const existing = agendaWeekMap[key]
+        const payload  = {
+          school_id:  teacher.school_id,
+          grade, section,
+          week_start: dashWeek,
+          devotional: shared.devotional || null,
+          content:    { entries },
+          status:     existing?.status || 'draft',
+          updated_at: new Date().toISOString(),
+        }
+        let error
+        if (existing) {
+          ;({ error } = await supabase.from('weekly_agendas').update(payload).eq('id', existing.id))
+        } else {
+          ;({ error } = await supabase.from('weekly_agendas').insert(payload))
+        }
+        if (error) fail++; else ok++
+      }
+      if (fail === 0) showToast(`✅ ${ok} agenda${ok !== 1 ? 's' : ''} generada${ok !== 1 ? 's' : ''}`, 'success')
+      else showToast(`${ok} generadas, ${fail} con error`, 'warning')
+      await fetchAll()
+    } finally {
+      setDashGenAll(false)
+    }
   }
 
   async function handleDelete(id) {
@@ -156,78 +307,144 @@ export default function AgendaPage({ teacher }) {
     )
   }
 
-  // ── List view ─────────────────────────────────────────────────────────────
-  const gradeOptions   = [...new Set(agendas.map(a => a.grade))].sort()
-  const sectionOptions = [...new Set(
-    agendas.filter(a => filterGrade === 'all' || a.grade === filterGrade).map(a => a.section)
-  )].sort()
+  // ── Dashboard / list view ─────────────────────────────────────────────────
+  const generatedCount = Object.keys(agendaWeekMap).length
 
   return (
     <div className="planner-wrap">
       <div className="card">
+
+        {/* Header */}
         <div className="card-title">
           <div className="badge">📋</div>
           Agenda Semanal
-          <button className="btn-primary" style={{ marginLeft: 'auto', fontSize: '12px' }} onClick={openNew}>
-            + Nueva agenda
-          </button>
         </div>
 
-        <div style={{ display: 'flex', gap: '10px', marginBottom: '16px', flexWrap: 'wrap' }}>
-          <select value={filterGrade} onChange={e => { setFilterGrade(e.target.value); setFilterSection('all') }}>
-            <option value="all">Todos los grados</option>
-            {gradeOptions.map(g => <option key={g} value={g}>{g}</option>)}
-          </select>
-          <select value={filterSection} onChange={e => setFilterSection(e.target.value)} disabled={filterGrade === 'all'}>
-            <option value="all">Todas las secciones</option>
-            {sectionOptions.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </div>
-
-        {filteredAgendas.length === 0 ? (
-          <div className="empty-state">
-            No hay agendas.{' '}
-            <button className="btn-primary" style={{ fontSize: '12px', marginTop: '8px' }} onClick={openNew}>
-              Crear la primera
+        {/* Week navigator + generate-all */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap',
+          background: '#f0f4ff', padding: '10px 14px', borderRadius: '10px', marginBottom: '16px',
+        }}>
+          <button className="btn-secondary" style={{ fontSize: '13px', padding: '4px 12px', lineHeight: 1 }}
+            onClick={() => setDashWeek(w => prevWeek(w))}>‹</button>
+          <div style={{ fontWeight: 700, fontSize: '13px', color: '#1F3864', minWidth: '210px', textAlign: 'center' }}>
+            Semana del {formatWeekRange(dashWeek)}
+          </div>
+          <button className="btn-secondary" style={{ fontSize: '13px', padding: '4px 12px', lineHeight: 1 }}
+            onClick={() => setDashWeek(w => nextWeek(w))}>›</button>
+          <button className="btn-secondary" style={{ fontSize: '11px', padding: '3px 10px' }}
+            onClick={() => setDashWeek(todayMonday())}>Hoy</button>
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <span style={{ fontSize: '11px', color: '#888' }}>
+              {generatedCount}/{gradePairs.length} generadas esta semana
+            </span>
+            <button className="btn-primary" style={{ fontSize: '11px' }}
+              onClick={generateAll}
+              disabled={dashGenAll || gradePairs.length === 0}>
+              {dashGenAll ? '⏳ Generando…' : '🚀 Generar todas'}
             </button>
+          </div>
+        </div>
+
+        {/* Grid of grade+section pairs */}
+        {gradePairs.length === 0 ? (
+          <div className="empty-state">
+            No hay grados/secciones configurados.{' '}
+            <span style={{ fontSize: '11px', color: '#aaa' }}>
+              Configura asignaciones en Panel de Control → Docentes y materias.
+            </span>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {filteredAgendas.map(a => {
-              const st = STATUS_CFG[a.status] || STATUS_CFG.draft
-              const entryCount = a.content?.entries?.length || 0
+            {gradePairs.map(({ grade, section }) => {
+              const key       = `${grade}|${section}`
+              const coverage  = planCoverageMap[key] || { total: 0, covered: 0 }
+              const existing  = agendaWeekMap[key]
+              const st        = existing ? (STATUS_CFG[existing.status] || STATUS_CFG.draft) : null
+              const isGenning = !!dashGenerating[key]
+              const pct       = coverage.total > 0 ? Math.round((coverage.covered / coverage.total) * 100) : 0
+              const barColor  = pct === 100 ? '#9BBB59' : pct >= 50 ? '#F79646' : '#dde5f0'
+
               return (
-                <div key={a.id} onClick={() => openEdit(a)} style={{
-                  display: 'flex', alignItems: 'center', gap: '12px',
-                  padding: '12px 16px', borderRadius: '10px',
-                  border: '1.5px solid #dde5f0', background: '#fafbff',
-                  cursor: 'pointer', transition: 'background .15s',
-                }}
-                  onMouseEnter={e => e.currentTarget.style.background = '#f0f4ff'}
-                  onMouseLeave={e => e.currentTarget.style.background = '#fafbff'}
-                >
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 700, fontSize: '13px', color: '#1F3864' }}>
-                      {a.grade} {a.section} — Semana del {formatWeekRange(a.week_start)}
+                <div key={key} style={{
+                  display: 'flex', alignItems: 'center', gap: '14px',
+                  padding: '10px 16px', borderRadius: '10px',
+                  border: `1.5px solid ${existing ? '#bfcfff' : '#dde5f0'}`,
+                  background: existing ? '#fafbff' : '#fff',
+                }}>
+
+                  {/* Grade + section */}
+                  <div style={{ minWidth: '88px' }}>
+                    <div style={{ fontWeight: 700, fontSize: '13px', color: '#1F3864' }}>{grade}</div>
+                    <div style={{ fontSize: '11px', color: '#2E5598', fontWeight: 600 }}>{section}</div>
+                  </div>
+
+                  {/* Plan coverage */}
+                  <div style={{ flex: 1, minWidth: '100px' }}>
+                    <div style={{ fontSize: '10px', color: '#888', marginBottom: '3px' }}>
+                      {coverage.covered}/{coverage.total} materias con guía
                     </div>
-                    <div style={{ fontSize: '11px', color: '#888', marginTop: '2px' }}>
-                      {entryCount} materia{entryCount !== 1 ? 's' : ''}
-                      {a.devotional && ' · Con devoción'}
-                      {a.period && ` · P${a.period}`}
+                    <div style={{ height: '5px', borderRadius: '3px', background: '#e0e0e0', overflow: 'hidden' }}>
+                      <div style={{
+                        height: '100%', borderRadius: '3px', background: barColor,
+                        width: `${pct}%`, transition: 'width .3s',
+                      }} />
                     </div>
                   </div>
-                  <span style={{
-                    padding: '3px 10px', borderRadius: '10px', fontSize: '11px',
-                    fontWeight: 700, background: st.bg, color: st.color,
-                  }}>{st.label}</span>
-                  <button className="btn-icon-danger"
-                    onClick={e => { e.stopPropagation(); handleDelete(a.id) }}
-                    title="Eliminar">🗑</button>
+
+                  {/* Status badge */}
+                  {st ? (
+                    <span style={{
+                      padding: '3px 10px', borderRadius: '10px', fontSize: '11px',
+                      fontWeight: 700, background: st.bg, color: st.color, whiteSpace: 'nowrap',
+                    }}>{st.label}</span>
+                  ) : (
+                    <span style={{
+                      padding: '3px 10px', borderRadius: '10px', fontSize: '11px',
+                      fontWeight: 500, background: '#f5f5f5', color: '#bbb', whiteSpace: 'nowrap',
+                    }}>Sin agenda</span>
+                  )}
+
+                  {/* Action buttons */}
+                  <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                    <button
+                      className="btn-secondary"
+                      style={{ fontSize: '11px', padding: '4px 10px' }}
+                      onClick={() => generateOne(grade, section)}
+                      disabled={isGenning || dashGenAll}
+                      title={existing ? 'Actualizar desde guías' : 'Generar desde guías'}
+                    >
+                      {isGenning ? '⏳' : existing ? '🔄 Actualizar' : '⚡ Generar'}
+                    </button>
+                    {existing && (
+                      <>
+                        <button className="btn-secondary" style={{ fontSize: '11px', padding: '4px 10px' }}
+                          onClick={() => openEdit(existing)}>
+                          ✏️ Editar
+                        </button>
+                        <button className="btn-icon-danger"
+                          onClick={e => { e.stopPropagation(); handleDelete(existing.id) }}
+                          title="Eliminar agenda">🗑</button>
+                      </>
+                    )}
+                  </div>
                 </div>
               )
             })}
           </div>
         )}
+
+        {/* Manual create */}
+        <div style={{ marginTop: '16px', paddingTop: '14px', borderTop: '1px solid #eee',
+          display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <button className="btn-secondary" style={{ fontSize: '11px' }} onClick={openNew}>
+            + Nueva agenda manual
+          </button>
+          <span style={{ fontSize: '11px', color: '#aaa' }}>
+            Para casos especiales fuera de la generación automática
+          </span>
+        </div>
+
       </div>
     </div>
   )
