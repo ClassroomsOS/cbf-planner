@@ -29,13 +29,30 @@ INDICADOR DE LOGRO → PROYECTO NEWS (inmutable al publicar) → GUÍAS SEMANALE
 
 ## ⚠️ Session Checklist
 
-**Al INICIAR:** Lee `.claude-session-checklist.md` y verifica commits sin documentar.
+**Al INICIAR:** Lee `.claude-session-checklist.md` + **revisa `OPEN_QUESTIONS.md`** (preguntas de diseño pendientes).
 **Al FINALIZAR:** Ejecuta `.claude/session-end-check.sh` y actualiza CLAUDE.md.
+
+## 🤝 Convención de trabajo — OPEN_QUESTIONS.md
+
+`OPEN_QUESTIONS.md` en la raíz es la "segunda pantalla" para preguntas de diseño complejas.
+
+**Cuándo escribir ahí** (NO en el chat):
+- Decisiones que afectan múltiples archivos o el modelo de datos
+- Preguntas que bloquean un bloque entero de implementación
+- Cuando hay 3 o más preguntas relacionadas
+
+**Cuándo preguntar en el chat** (NO en el archivo):
+- Preguntas puntuales de 1-2 líneas con respuesta rápida
+
+**Señal en el chat:** cuando haya algo nuevo en OPEN_QUESTIONS.md escribir:
+> 📋 **OPEN_QUESTIONS.md actualizado** — [tema breve]
+
+El usuario mantiene el archivo abierto en su editor como panel de auditoría.
 
 ## 🚨 Commits obligatorios
 
 **NUNCA salir con cambios sin commitear.**
-- Formato: `feat/fix/refactor/docs(scope):` — Scopes: `news`, `ai`, `editor`, `auth`, `export`, `perf`, `a11y`, `agenda`
+- Formato: `feat/fix/refactor/docs(scope):` — Scopes: `news`, `ai`, `editor`, `auth`, `export`, `perf`, `a11y`, `agenda`, `roles`
 - Scripts: `./.claude/auto-commit.sh "feat(scope): desc"` · `./.claude/session-end-check.sh`
 
 ## Commands
@@ -51,11 +68,11 @@ Local: `.env.local` con `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY`
 ## 🔐 Seguridad
 
 ### Validación de dominio de email
-- **Toggle en Panel de Control → Seguridad:** `schools.features.restrict_email_domain` (bool, default `true`)
+- **Toggle en `/superadmin` → Seguridad:** `schools.features.restrict_email_domain` (bool, default `true`)
 - **Dominio permitido:** `schools.features.email_domain` (string, default `"redboston.edu.co"`)
 - **LoginPage** (auto-registro): consulta `schools.features` antes de `signUp`; bloquea si dominio no coincide y restricción activa
 - **Edge Function `admin-create-teacher`**: valida dominio contra `schools.features` antes de crear auth user; hace rollback del auth user si falla el insert en `teachers`
-- **Para pruebas:** desactivar toggle en Panel de Control → Seguridad
+- **Para pruebas:** desactivar toggle en `/superadmin` → Seguridad
 
 ### Flujo de creación de docentes por admin
 ```
@@ -114,13 +131,24 @@ Admin → Panel Control → Docentes → ➕ Crear docente
 - `f4ddc70` PlannerPeriodTimeline horizontal con `detectActivityType()` y campo `tier`
 - `school_calendar` integrado en NewsProjectEditor: warnings días no laborables
 
-**Sesión 2026-04-05 (agenda + auth):**
+**Sesión 2026-04-05 (agenda + auth + roles):**
 - `2aaf2aa` Agenda dashboard semanal: 🚀 Generar todas, cobertura por grado/sección, `buildEntriesForPair()`
 - `3079d47` Edge Fn `admin-create-teacher` + modal Crear docente en AdminTeachersPage
 - `bf5fb47` `SetPasswordPage` para recovery link de docentes creados por admin
 - `542c5d8` Validación dominio email en Edge Fn + LoginPage
 - `1d2cfaa` Toggle `restrict_email_domain` en Panel de Control → Seguridad + `FeaturesContext`
 - `b99cac9` Modal perfil sin scroll horizontal (`overflow-x: hidden`) + ojito 👁 en contraseñas
+- AgendaViewer read-only (coordinator + rector pueden ver contenido de agendas)
+- Co-teacher con `director_absent_until` (edición activada por ausencia del director)
+- `CoteacherEditor` en AdminTeachersPage
+- DirectorPage reescrito: 3 tabs (Guías | NEWS | Agendas) + `FeedbackModal`
+- `FeedbackModal` nuevo componente con `document_feedback` table
+- `roles.js` ampliado: `canGiveFeedback`, `canEditOthersDocs`, `isCoteacherActive`
+
+**Sesión 2026-04-05 (paneles admin):**
+- SettingsPage limpio para Coordinador (docentes, franjas, feature flags — sin identidad ni seguridad)
+- `2931943` SuperAdminPage nuevo (`/superadmin`): logo, DANE, resolución, dominio email
+- DashboardPage: sidebar `🔑 Panel Superadmin` solo para superadmin; ruta `/superadmin` protegida
 
 ### Roadmap
 
@@ -132,6 +160,37 @@ Admin → Panel Control → Docentes → ➕ Crear docente
 | 3 | ⬜ | Refactoring archivos grandes, TeacherContext, CSS modular, a11y |
 | 4 | ⬜ | TypeScript gradual, offline support |
 | 5 | ⬜ | Persistencia/archivado guías+NEWS, versioning, pipeline imágenes libros |
+
+---
+
+## 🗂 Mapa de Roles — Decisiones confirmadas
+
+> Detalle completo en `docs/claude/architecture.md`. Este es el resumen ejecutivo.
+
+| Perfil | Rol DB | Flag | Capacidades clave |
+|---|---|---|---|
+| Docente | `teacher` | — | Guías propias, NEWS propio, mensajes |
+| Dir. de grupo | `teacher` | `homeroom_grade/section` | + Agenda de su grupo |
+| Co-teacher | `teacher` | `coteacher_grade/section` | + Ver agenda (editar si `director_absent_until` activo) |
+| Psicopedagoga | `psicopedagoga` | — | + Calendario, horario, ver todos los planes |
+| Rector | `rector` | — | = Coordinador en gestión docentes + vista Director + feedback/revisión |
+| Coordinador | `admin` | — | Gestión docentes, roles, feature flags, revisión de documentos |
+| Superadmin | `superadmin` | — | Todo lo anterior + identidad institucional + seguridad |
+
+**Decisión confirmada 2026-04-05:** Rector y Coordinador comparten capacidades de gestión de docentes y asignación de roles. En el futuro, Superadmin tendrá toggles para definir diferencias finas.
+
+**Pendiente:** Implementar `canManage` expandido para incluir `rector` — ver `OPEN_QUESTIONS.md` Q1-followup.
+
+### Sala de Revisión de Guías Publicadas *(pendiente — feature nueva)*
+Lugar donde descansan las guías publicadas, organizadas por grado. Ambos docente y coordinador/rector pueden editar, corregir, dar feedback y notificar al otro.
+- Ruta propuesta: `/published-guides` o `/sala-revision`
+- RLS: UPDATE en `lesson_plans` permitido para `admin` y `rector`
+- Banner "Estás editando la guía de [docente]" cuando otro perfil edita
+- Modal de justificación obligatorio antes de guardar cambios de otro
+- Notificación automática al dueño del documento cuando hay cambios o feedback
+
+### Mensajería expandida *(pendiente)*
+MessagesPage actual → sala de chat completa: mensajes 1-a-1 + salas grupales.
 
 ---
 
