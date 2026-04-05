@@ -212,7 +212,7 @@ export default function AdminTeachersPage({ teacher: admin }) {
                         ))}
                       </div>
                     )}
-                    {tas.length === 0 && !canManage(t.role) && t.role !== 'director' && t.role !== 'psicopedagoga' && (
+                    {tas.length === 0 && !canManage(t.role) && t.role !== 'rector' && t.role !== 'psicopedagoga' && (
                       <div style={{ fontSize: '11px', color: '#F79646', marginTop: '4px', fontStyle: 'italic' }}>
                         ⚠️ Sin asignaciones
                       </div>
@@ -400,7 +400,7 @@ function CreateTeacherModal({ admin, onClose, onCreated }) {
                   <select value={form.role} onChange={e => updateField('role', e.target.value)}>
                     <option value="teacher">Docente</option>
                     <option value="admin">Administrador</option>
-                    <option value="director">Director de grupo</option>
+                    <option value="rector">Rector</option>
                     <option value="psicopedagoga">Psicopedagoga</option>
                   </select>
                 </div>
@@ -786,7 +786,7 @@ function RoleAndLevelEditor({ teacher, admin }) {
   const ALL_ROLES = [
     { value: 'teacher',       label: '👩‍🏫 Docente' },
     { value: 'admin',         label: '🏫 Coordinador' },
-    { value: 'director',      label: '📋 Director de Grupo' },
+    { value: 'rector',        label: '🎓 Rector' },
     { value: 'psicopedagoga', label: '💜 Psicopedagoga' },
     ...(isSuperAdmin(admin.role) ? [{ value: 'superadmin', label: '🔑 Superadmin' }] : []),
   ]

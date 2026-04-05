@@ -66,7 +66,7 @@ describe('teacherProfileSchema', () => {
 
 describe('teacherRoleUpdateSchema', () => {
   it('accepts all valid roles', () => {
-    const validRoles = ['teacher', 'admin', 'superadmin', 'director', 'psicopedagoga']
+    const validRoles = ['teacher', 'admin', 'superadmin', 'rector', 'psicopedagoga']
     validRoles.forEach(role => {
       const result = teacherRoleUpdateSchema.safeParse({
         role,

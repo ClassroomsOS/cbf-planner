@@ -35,7 +35,7 @@ export const teacherStatusUpdateSchema = z.object({
 })
 
 export const teacherRoleUpdateSchema = z.object({
-  role: z.enum(['teacher', 'admin', 'superadmin', 'director', 'psicopedagoga'], {
+  role: z.enum(['teacher', 'admin', 'superadmin', 'rector', 'psicopedagoga'], {
     errorMap: () => ({ message: 'Rol inválido' })
   }),
   teacher_id: z.string().uuid('ID de docente inválido'),

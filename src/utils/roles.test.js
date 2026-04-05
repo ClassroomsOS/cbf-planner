@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { canManage, isSuperAdmin, isDirector, isPsicopedagoga, ROLES } from './roles'
+import { canManage, isSuperAdmin, isRector, isPsicopedagoga, ROLES } from './roles'
 
 describe('canManage', () => {
   it('returns true for admin', () => {
@@ -11,8 +11,8 @@ describe('canManage', () => {
   it('returns false for teacher', () => {
     expect(canManage('teacher')).toBe(false)
   })
-  it('returns false for director', () => {
-    expect(canManage('director')).toBe(false)
+  it('returns false for rector', () => {
+    expect(canManage('rector')).toBe(false)
   })
   it('returns false for psicopedagoga', () => {
     expect(canManage('psicopedagoga')).toBe(false)
@@ -30,11 +30,11 @@ describe('isSuperAdmin', () => {
   })
 })
 
-describe('isDirector', () => {
-  it('returns true only for director', () => {
-    expect(isDirector('director')).toBe(true)
-    expect(isDirector('admin')).toBe(false)
-    expect(isDirector('teacher')).toBe(false)
+describe('isRector', () => {
+  it('returns true only for rector', () => {
+    expect(isRector('rector')).toBe(true)
+    expect(isRector('admin')).toBe(false)
+    expect(isRector('teacher')).toBe(false)
   })
 })
 
@@ -51,7 +51,7 @@ describe('ROLES constants', () => {
     expect(ROLES.TEACHER).toBe('teacher')
     expect(ROLES.ADMIN).toBe('admin')
     expect(ROLES.SUPERADMIN).toBe('superadmin')
-    expect(ROLES.DIRECTOR).toBe('director')
+    expect(ROLES.RECTOR).toBe('rector')
     expect(ROLES.PSICOPEDAGOGA).toBe('psicopedagoga')
   })
 })

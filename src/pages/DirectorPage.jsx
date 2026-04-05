@@ -79,7 +79,7 @@ export default function DirectorPage({ teacher }) {
       {/* Top bar */}
       <div className="ge-topbar">
         <div className="ge-topbar-info">
-          <span className="ge-guide-title">📋 Vista de Director</span>
+          <span className="ge-guide-title">🎓 Vista Rector</span>
           <span className="ge-guide-dates">
             {teacher.schools?.name || 'Mi Colegio'}
             {teacher.level ? ` · ${LEVEL_LABELS[teacher.level]}` : ''}

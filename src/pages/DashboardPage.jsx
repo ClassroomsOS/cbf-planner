@@ -19,7 +19,7 @@ import AgendaPage          from './AgendaPage'
 import CurriculumPage      from './CurriculumPage'
 import ProfileModal        from '../components/ProfileModal'
 import { FeaturesProvider, useFeatures } from '../context/FeaturesContext'
-import { canManage, canAccessCalendar, isDirector, canReadAllPlans, canViewSchedule, canManageAgendas } from '../utils/roles'
+import { canManage, canAccessCalendar, isRector, canReadAllPlans, canViewSchedule, canManageAgendas } from '../utils/roles'
 import { setAIContext } from '../utils/AIAssistant'
 
 // ── Wrapper — provides context ────────────────────────────────
@@ -38,9 +38,9 @@ function DashboardInner({ session, teacher, setTeacher }) {
   const navigate = useNavigate()
   const isAdmin   = canManage(teacher.role)        // admin + superadmin
   const hasCalendar = canAccessCalendar(teacher.role) // admin + superadmin + psicopedagoga
-  const hasDirectorView = isDirector(teacher.role)
-  const hasScheduleView = canViewSchedule(teacher.role)   // admin + superadmin + director + psicopedagoga
-  const hasAgendas = canManageAgendas(teacher.role)        // admin + superadmin + director
+  const hasDirectorView = isRector(teacher.role)
+  const hasScheduleView = canViewSchedule(teacher.role)   // admin + superadmin + rector + psicopedagoga
+  const hasAgendas = canManageAgendas(teacher.role)        // admin + superadmin + rector
   const { features } = useFeatures()
 
   // Set AI context once so callClaude() can log usage and enforce limits
@@ -208,13 +208,13 @@ function DashboardInner({ session, teacher, setTeacher }) {
             Uso de IA
           </NavLink>
 
-          {/* ── DIRECTOR DE GRUPO ── */}
+          {/* ── RECTOR ── */}
           {hasDirectorView && (
             <>
               <div className="sb-nav-divider" />
               <NavLink to="/director" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
                 <span className="dot" style={{ background: '#B8860B' }} />
-                📋 Vista de mi Grado
+                🎓 Vista Rector
               </NavLink>
             </>
           )}
