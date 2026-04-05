@@ -12,8 +12,9 @@ export default function AdminTeachersPage({ teacher: admin }) {
   const [assignments,  setAssignments]  = useState([])
   const [school,       setSchool]       = useState(null)
   const [loading,      setLoading]      = useState(true)
-  const [selected,     setSelected]     = useState(null) // teacher being edited
-  const [showModal,    setShowModal]    = useState(false)
+  const [selected,        setSelected]        = useState(null) // teacher being edited
+  const [showModal,       setShowModal]       = useState(false)
+  const [showCreateModal, setShowCreateModal] = useState(false)
 
   useEffect(() => { fetchAll() }, [])
 
@@ -60,9 +61,15 @@ export default function AdminTeachersPage({ teacher: admin }) {
         <div className="card-title">
           <div className="badge">👥</div>
           Docentes — {school?.short_name || ''}
-          <span style={{ marginLeft: 'auto', fontSize: '11px', color: '#888', fontWeight: 400, textTransform: 'none' }}>
-            {teachers.length} docente{teachers.length !== 1 ? 's' : ''}
-          </span>
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <span style={{ fontSize: '11px', color: '#888', fontWeight: 400, textTransform: 'none' }}>
+              {teachers.length} docente{teachers.length !== 1 ? 's' : ''}
+            </span>
+            <button className="btn-primary" style={{ fontSize: '11px' }}
+              onClick={() => setShowCreateModal(true)}>
+              ➕ Crear docente
+            </button>
+          </div>
         </div>
 
         {/* ── Pending approvals ── */}
@@ -230,6 +237,196 @@ export default function AdminTeachersPage({ teacher: admin }) {
           onSave={() => { setShowModal(false); setSelected(null); fetchAll() }}
         />
       )}
+
+      {showCreateModal && (
+        <CreateTeacherModal
+          admin={admin}
+          onClose={() => setShowCreateModal(false)}
+          onCreated={() => { setShowCreateModal(false); fetchAll() }}
+        />
+      )}
+    </div>
+  )
+}
+
+// ── Create Teacher Modal ──────────────────────────────────────
+const EDGE_BASE = (import.meta.env.VITE_SUPABASE_URL || 'https://vouxrqsiyoyllxgcriic.supabase.co') + '/functions/v1'
+
+function CreateTeacherModal({ admin, onClose, onCreated }) {
+  const { showToast } = useToast()
+  const [form,         setForm]         = useState({ full_name: '', email: '', role: 'teacher', level: '' })
+  const [saving,       setSaving]       = useState(false)
+  const [recoveryUrl,  setRecoveryUrl]  = useState(null)
+  const [copied,       setCopied]       = useState(false)
+
+  function updateField(field, value) {
+    setForm(prev => ({ ...prev, [field]: value }))
+  }
+
+  async function handleCreate() {
+    if (!form.full_name.trim() || !form.email.trim()) {
+      showToast('Nombre y email son requeridos', 'error')
+      return
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(form.email.trim())) {
+      showToast('Ingresa un email válido', 'error')
+      return
+    }
+    setSaving(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch(`${EDGE_BASE}/admin-create-teacher`, {
+        method: 'POST',
+        headers: {
+          'Content-Type':  'application/json',
+          'Authorization': `Bearer ${session?.access_token}`,
+          'apikey':        import.meta.env.VITE_SUPABASE_ANON_KEY || '',
+        },
+        body: JSON.stringify({
+          email:     form.email.trim().toLowerCase(),
+          full_name: form.full_name.trim(),
+          role:      form.role,
+          level:     form.level || null,
+          school_id: admin.school_id,
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok || json.error) {
+        showToast(json.error || 'Error al crear el docente', 'error')
+        return
+      }
+      if (json.recovery_url) {
+        setRecoveryUrl(json.recovery_url)
+      } else {
+        showToast(`Docente ${form.full_name} creado`, 'success')
+        onCreated()
+      }
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function copyLink() {
+    navigator.clipboard.writeText(recoveryUrl).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      zIndex: 1000, padding: '20px',
+    }}>
+      <div style={{
+        background: '#fff', borderRadius: '14px', width: '100%', maxWidth: '460px',
+        boxShadow: '0 20px 60px rgba(0,0,0,.2)', overflow: 'hidden',
+      }}>
+        {/* Header */}
+        <div style={{
+          background: 'linear-gradient(135deg, #1F3864, #2E5598)',
+          padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '10px',
+        }}>
+          <span style={{ fontSize: '18px' }}>👤</span>
+          <div style={{ color: '#fff', fontWeight: 700, fontSize: '14px' }}>Crear nuevo docente</div>
+          <button onClick={onClose} style={{
+            marginLeft: 'auto', background: 'rgba(255,255,255,.15)', border: 'none',
+            color: '#fff', borderRadius: '6px', padding: '4px 10px', cursor: 'pointer',
+            fontSize: '13px',
+          }}>✕</button>
+        </div>
+
+        <div style={{ padding: '20px' }}>
+          {recoveryUrl ? (
+            /* ── Success state ── */
+            <div>
+              <div style={{
+                background: '#eef7e0', border: '1px solid #9BBB59', borderRadius: '10px',
+                padding: '14px', marginBottom: '16px',
+              }}>
+                <div style={{ fontWeight: 700, color: '#3a6b1a', marginBottom: '4px' }}>
+                  ✅ Docente creado exitosamente
+                </div>
+                <div style={{ fontSize: '12px', color: '#555' }}>
+                  Comparte este enlace con <strong>{form.full_name}</strong> para que establezca su contraseña.
+                  El enlace expira en 24 horas.
+                </div>
+              </div>
+              <div style={{
+                background: '#f5f5f5', borderRadius: '8px', padding: '10px 12px',
+                fontSize: '11px', color: '#555', wordBreak: 'break-all',
+                marginBottom: '12px', lineHeight: 1.5,
+              }}>
+                {recoveryUrl}
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button className="btn-primary" style={{ fontSize: '12px', flex: 1 }}
+                  onClick={copyLink}>
+                  {copied ? '✅ ¡Copiado!' : '📋 Copiar enlace'}
+                </button>
+                <button className="btn-secondary" style={{ fontSize: '12px' }}
+                  onClick={onCreated}>
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* ── Form ── */
+            <>
+              <div className="ge-field" style={{ marginBottom: '12px' }}>
+                <label>Nombre completo *</label>
+                <input
+                  type="text"
+                  value={form.full_name}
+                  onChange={e => updateField('full_name', e.target.value)}
+                  placeholder="Ej. María González"
+                  autoFocus
+                />
+              </div>
+              <div className="ge-field" style={{ marginBottom: '12px' }}>
+                <label>Email institucional *</label>
+                <input
+                  type="email"
+                  value={form.email}
+                  onChange={e => updateField('email', e.target.value)}
+                  placeholder="docente@colegio.edu.co"
+                />
+              </div>
+              <div style={{ display: 'flex', gap: '12px', marginBottom: '20px' }}>
+                <div className="ge-field" style={{ flex: 1 }}>
+                  <label>Rol</label>
+                  <select value={form.role} onChange={e => updateField('role', e.target.value)}>
+                    <option value="teacher">Docente</option>
+                    <option value="admin">Administrador</option>
+                    <option value="director">Director de grupo</option>
+                    <option value="psicopedagoga">Psicopedagoga</option>
+                  </select>
+                </div>
+                <div className="ge-field" style={{ flex: 1 }}>
+                  <label>Nivel</label>
+                  <select value={form.level} onChange={e => updateField('level', e.target.value)}>
+                    <option value="">— Todos —</option>
+                    <option value="elementary">Primaria</option>
+                    <option value="middle">Bachillerato Básico</option>
+                    <option value="high">Bachillerato Superior</option>
+                  </select>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                <button className="btn-secondary" style={{ fontSize: '12px' }} onClick={onClose}>
+                  Cancelar
+                </button>
+                <button className="btn-primary btn-save" style={{ fontSize: '12px' }}
+                  onClick={handleCreate} disabled={saving || !form.full_name.trim() || !form.email.trim()}>
+                  {saving ? '⏳ Creando…' : '➕ Crear docente'}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
