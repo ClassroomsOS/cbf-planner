@@ -8,11 +8,13 @@ import DashboardPage from './pages/DashboardPage'
 import ProfileSetupPage from './pages/ProfileSetupPage'
 import PendingPage from './pages/PendingPage'
 import RejectedPage from './pages/RejectedPage'
+import SetPasswordPage from './pages/SetPasswordPage'
 
 export default function App() {
-  const [session, setSession] = useState(undefined) // undefined = loading
-  const [teacher, setTeacher] = useState(null)
-  const [loadError, setLoadError] = useState(false)
+  const [session,    setSession]    = useState(undefined) // undefined = loading
+  const [teacher,    setTeacher]    = useState(null)
+  const [loadError,  setLoadError]  = useState(false)
+  const [isRecovery, setIsRecovery] = useState(false)
 
   useEffect(() => {
     // Get initial session
@@ -22,7 +24,12 @@ export default function App() {
     })
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsRecovery(true)
+        setSession(session)
+        return
+      }
       setSession(session)
       if (session) loadTeacher(session.user.id)
       else setTeacher(null)
@@ -39,6 +46,20 @@ export default function App() {
       .single()
     if (error) { setLoadError(true); return }
     setTeacher(data)
+  }
+
+  // Password recovery flow (docente using recovery link)
+  if (isRecovery) {
+    return (
+      <ErrorBoundary>
+        <ToastProvider>
+          <SetPasswordPage onDone={() => {
+            setIsRecovery(false)
+            if (session) loadTeacher(session.user.id)
+          }} />
+        </ToastProvider>
+      </ErrorBoundary>
+    )
   }
 
   // Still loading
