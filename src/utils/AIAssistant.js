@@ -410,13 +410,8 @@ MANDATO ABSOLUTO: Esta es una escuela cristiana. El enfoque bíblico es OBLIGATO
 sin importar la materia ni el indicador. Nunca generes contenido neutral o secular puro.
 
 Secciones por día:
-1. SUBJECT TO BE WORKED (~8 min): SIEMPRE EMPIEZA EXACTAMENTE con este texto (cópialo literal):
-   "${PRAYER_TEXT}"
-   Luego, en 1 oración adicional, enuncia el tema o habilidad del día.
-
-2. MOTIVATION (~8 min): SIEMPRE EMPIEZA EXACTAMENTE con estas reglas (cópialas literales):
-   "${CLASS_RULES}"
-   Luego, en 1-2 oraciones, describe la actividad de enganche (pregunta, juego corto, imagen, reto).
+1. SUBJECT TO BE WORKED (~8 min): 1 oración que enuncia el tema o habilidad del día.
+2. MOTIVATION (~8 min): 1-2 oraciones que describen la actividad de enganche (pregunta, juego corto, imagen, reto). NO incluyas reglas de clase ni textos de oración — eso se maneja por separado.
 
 3. ACTIVITY (~15 min): actividad principal de práctica con conexión al valor cristiano del día
 4. SKILL DEVELOPMENT (~40 min): desarrollo profundo de la habilidad — la sección más importante
@@ -558,11 +553,35 @@ No uses listas con viñetas dentro del contenido. Texto corrido, directo al punt
     }
   }
 
-  // Converts plain text to a single <p> block; leaves existing HTML untouched
+  // Converts plain text to a <p> block; leaves existing HTML untouched
   function toHtml(text) {
     const t = (text || '').trim()
     if (!t) return ''
     return t.startsWith('<') ? t : `<p>${t}</p>`
+  }
+
+  // Strips any class rules the AI may have included (defensive, prevents duplicates)
+  function stripRules(text) {
+    if (!text) return ''
+    return text
+      .replace(/📋\s*Class Rules:?\s*/gi, '')
+      .replace(/Rule\s+\d+\s*:[^\n<]*/gi, '')
+      .replace(/,\s*(?=Rule\s+\d+)/gi, '')
+      .replace(/^[\s,;.]+/, '')
+      .trim()
+  }
+
+  // Strips any prayer/thanksgiving text the AI may have included (defensive)
+  function stripPrayer(text) {
+    if (!text) return ''
+    return text
+      .replace(/🙏[^\n<]*/gi, '')
+      .replace(/before starting the class[^.]*\./gi, '')
+      .replace(/the teacher (then )?explains the class rules[^.]*\./gi, '')
+      .replace(/antes de iniciar la clase[^.]*\./gi, '')
+      .replace(/el docente (luego )?recuerda[^.]*\./gi, '')
+      .replace(/^[\s,;.]+/, '')
+      .trim()
   }
 
   // Post-process: prepend fixed texts to whatever the AI generated
@@ -572,12 +591,12 @@ No uses listas con viñetas dentro del contenido. Texto corrido, directo al punt
       if (!day?.sections) return
       const subj = day.sections.subject
       if (subj) {
-        const aiHtml = toHtml(subj.content)
+        const aiHtml = toHtml(stripPrayer(subj.content))
         subj.content = PRAYER_TEXT + (aiHtml ? aiHtml : '')
       }
       const motiv = day.sections.motivation
       if (motiv) {
-        const aiHtml = toHtml(motiv.content)
+        const aiHtml = toHtml(stripRules(motiv.content))
         motiv.content = CLASS_RULES + (aiHtml ? aiHtml : '')
       }
     })
