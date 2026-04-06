@@ -389,16 +389,10 @@ export async function generateGuideStructure({
   const isEnglishSubject = MODELO_B_SUBJECTS.includes(subject)
 
   const PRAYER_TEXT = isEnglishSubject
-    ? `Before starting the class, the teacher asks a student to give thanks to the Lord, because He is our guide and helps us understand our path. The teacher then explains the class rules to the students, establishing what is allowed and what is not.`
-    : `Antes de iniciar la clase, el docente pide a un estudiante que dé gracias al Señor, porque Él es nuestro guía y nos ayuda a entender nuestro camino. El docente luego recuerda a los estudiantes las normas de la clase, estableciendo qué está permitido y qué no.`
+    ? `<p>🙏 <em>Before starting the class, the teacher asks a student to give thanks to the Lord, because He is our guide and helps us understand our path.</em></p><p>The teacher then explains the class rules to the students, establishing what is allowed and what is not.</p>`
+    : `<p>🙏 <em>Antes de iniciar la clase, el docente pide a un estudiante que dé gracias al Señor, porque Él es nuestro guía y nos ayuda a entender nuestro camino.</em></p><p>El docente luego recuerda a los estudiantes las normas de la clase, estableciendo qué está permitido y qué no.</p>`
 
-  const CLASS_RULES = `Rule 1: Listen when your teacher is talking
-Rule 2: Follow directions quickly
-Rule 3: Respect others. Respect yourself. Respect your school
-Rule 4: Raise your hand to speak or stand
-Rule 5: Be safe, Be kind, Be honest for the glory of God
-Rule 6: Use English at all times, it is the only way to improve.
-Rule 7: Do not translate what your teacher says, please.`
+  const CLASS_RULES = `<p><strong>📋 Class Rules:</strong></p><p>Rule 1: Listen when your teacher is talking<br>Rule 2: Follow directions quickly<br>Rule 3: Respect others. Respect yourself. Respect your school<br>Rule 4: Raise your hand to speak or stand<br>Rule 5: Be safe, Be kind, Be honest for the glory of God<br>Rule 6: Use English at all times, it is the only way to improve.<br>Rule 7: Do not translate what your teacher says, please.</p>`
 
   const pBlock = biblicalBlock(principles, `OBLIGATORIO — SIN EXCEPCIÓN:
 - TODO el contenido de CADA sección de CADA día tiene orientación cristiana confesional.
@@ -572,12 +566,12 @@ No uses listas con viñetas dentro del contenido. Texto corrido, directo al punt
       const subj = day.sections.subject
       if (subj) {
         const aiContent = (subj.content || '').trim()
-        subj.content = PRAYER_TEXT + (aiContent ? '\n\n' + aiContent : '')
+        subj.content = PRAYER_TEXT + (aiContent ? `<p>${aiContent}</p>` : '')
       }
       const motiv = day.sections.motivation
       if (motiv) {
         const aiContent = (motiv.content || '').trim()
-        motiv.content = CLASS_RULES + (aiContent ? '\n\n' + aiContent : '')
+        motiv.content = CLASS_RULES + (aiContent ? `<p>${aiContent}</p>` : '')
       }
     })
     return parsed
