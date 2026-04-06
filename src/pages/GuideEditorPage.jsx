@@ -786,14 +786,15 @@ export default function GuideEditorPage({ teacher }) {
             🖨️ <span className="ge-print-label">Imprimir / PDF</span>
           </button>
 
-          <div className="ge-export-wrap">
+          <div className="ge-export-wrap"
+            onMouseLeave={() => { setDayPickerOpen(false); closeExport() }}>
             <button className="btn-secondary"
               style={{ fontSize: '12px' }}
               onClick={toggleExport}>
               ⋯ Más opciones ▾
             </button>
             {exportOpen && (
-              <div className="ge-export-menu" onMouseLeave={closeExport}>
+              <div className="ge-export-menu">
                 <div style={{ padding: '4px 12px 6px', fontSize: '10px', fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '.5px' }}>
                   Exportar como
                 </div>
