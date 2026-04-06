@@ -98,10 +98,18 @@ DOCX day tables use **3 columns** `[1760, 5605, 3435]` DXA. Header and unit rows
 | File | Function | Notes |
 |---|---|---|
 | `src/utils/exportHtml.js` | `exportHtml(content, newsProject?)`, `exportPdf(content, newsProject?)`, `buildHtml(content, newsProject?)` | Imports `blockPreviewHTML` + `BLOCK_TYPES` from SmartBlocks.jsx. Tabla indicadores: **full-width una columna**. Objetos Modelo B normalizados. Bloque `📋 Proyecto NEWS` entre indicadores y versículo. |
+| `src/utils/exportHtml.js` | `buildDayHtml(content, dayKey, newsProject?)`, `exportDayHtml(content, dayKey, newsProject?)`, `getActiveDays(content)` | Export por jornada para Virtual Campus. CSS 100% scoped a `.cbf-day` — no contamina el layout del campus. Incluye encabezado compacto, indicador, versículo y la jornada completa con SmartBlocks interactivos. |
 | `src/utils/exportDocx.js` | `exportGuideDocx()` | `buildSmartBlockDocx(block)` handles all 9 block types. Tabla indicadores: **full-width una columna**, header `INDICADORES DE LOGRO`. Solo renderiza si hay indicadores. |
 | `src/utils/exportRubricHtml.js` | `exportRubricHtml(project, principles, school)` | HTML interactivo para evaluar proyectos NEWS. Clickear celda → calcula nota (1.0–5.0 Boston Flex). Abre en `window.open('', '_blank')`. |
 
 Both exports render: text content, images (with layout), videos (HTML only — iframes), and SmartBlocks.
+
+**Virtual Campus export (`buildDayHtml`) specifics:**
+- CSS scoped to `.cbf-day` — safe to paste as raw HTML snippet into any CMS/LMS without breaking its layout
+- All `<button>` elements have `type="button"` explicitly — prevents accidental form submit inside virtual campus forms
+- Images served via Supabase Storage URLs (not base64) — requires internet to display
+- SmartBlocks fully interactive: matching, fill-blank, grammar choose, true/false, exit ticket
+- Menu: `⋯ Más opciones` → `🏫 Campus Virtual — por jornada` → click a day → downloads `{grade}_{subject}_{date}.html`
 
 **HTML export specifics:**
 - `verse.text` is rendered as raw HTML (not escaped) since it comes from RichEditor

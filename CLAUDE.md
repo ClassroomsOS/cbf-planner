@@ -70,6 +70,7 @@ Local: `.env.local` con `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY`
 | Feedback/Revisión | 🔶 Parcial | FeedbackModal existe. **Falta:** sala-revision, edición con justificación |
 | Tests + CI | ✅ | Vitest 71 tests, CI bloqueante |
 | Mensajería | 🔶 Básica | 1-a-1 funciona. Falta: salas grupales |
+| Export Virtual Campus | ✅ | Por jornada, CSS scoped, SmartBlocks interactivos funcionan |
 | Sala de Revisión | ⬜ | `/sala-revision` — guías publicadas por grado |
 | Archivado Fase 5 | ⬜ | Snapshot JSON/PDF al publicar, versioning |
 | Refactoring Fase 3 | ⬜ | Archivos grandes, CSS modular, TeacherContext |
@@ -139,6 +140,14 @@ Local: `.env.local` con `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY`
 - `aa02d73` Badge de rol en sidebar + editar/eliminar docentes en AdminTeachersPage
 - `2931943` SuperAdminPage (`/superadmin`): identidad institucional + seguridad
 - `840084e` Fix test canManage rector · `78b54db` Toast con createPortal
+
+**Sesión 2026-04-06 (export + AI bíblico):**
+- `ccdaf33` Fix `#pdf-tip` oculto en `@media print`
+- `f387cce`–`e050193` (sesión anterior): fix encoding UTF-8, logo persistencia, columnas `document_code`/`doc_version`, principio bíblico en AI y export
+- `427adfc` Export por jornada para Virtual Campus — `buildDayHtml`, `exportDayHtml`, `getActiveDays` en `exportHtml.js`
+- `0c2a486` CSS scoped a `.cbf-day` — evita destruir layout del virtual campus al pegar snippet
+- `7f22a5e` `type="button"` en todos los botones SmartBlock — evita submit de form en virtual campus
+- `3306aa1` Click-outside handler para dropdown export (reemplaza `onMouseLeave` frágil)
 
 ---
 
