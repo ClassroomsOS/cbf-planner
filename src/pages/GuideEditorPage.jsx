@@ -643,10 +643,16 @@ export default function GuideEditorPage({ teacher }) {
   }, [teacher.school_id, content?.days])
 
   // ── Objeto de principios unificado para la IA ──
+  // Prioridad indicatorPrinciple: principio del indicador activo > NEWS project > mes > colegio
   const principles = content ? {
     yearVerse:          { text: content.verse?.text || school.year_verse || '', ref: content.verse?.ref || school.year_verse_ref || '' },
     monthVerse:         { text: monthPrinciples?.month_verse || '', ref: monthPrinciples?.month_verse_ref || '' },
-    indicatorPrinciple: monthPrinciples?.indicator_principle || school.indicator_principle || '',
+    indicatorPrinciple: activeIndicator?.principio_biblico?.cita
+                        || activeIndicator?.principio_biblico?.titulo
+                        || activeNewsProject?.biblical_principle
+                        || monthPrinciples?.indicator_principle
+                        || school.indicator_principle
+                        || '',
   } : null
 
   // ── Field helpers ──
