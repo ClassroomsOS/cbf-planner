@@ -238,7 +238,11 @@ export default function GuideEditorPage({ teacher }) {
       // Always fetch logo fresh from school (prop may be stale from session start)
       const { data: schoolData } = await supabase
         .from('schools').select('logo_url').eq('id', teacher.school_id).single()
-      c.header.logo_url = schoolData?.logo_url || null
+      const freshLogo = schoolData?.logo_url || null
+      const logoChanged = c.header.logo_url !== freshLogo
+      c.header.logo_url = freshLogo
+      // If logo differs from what's saved in content, mark dirty so it persists
+      if (logoChanged) dirtyRef.current = true
 
       // ── Check for unsaved localStorage draft ──
       const draft = loadDraftLocal(id)
