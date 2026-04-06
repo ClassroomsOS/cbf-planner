@@ -337,11 +337,12 @@ ${(() => {
   const indicadores = rawInds.map(ind => typeof ind === 'object' ? (ind.texto_es || ind.texto_en || ind.habilidad || '') : (ind || '')).filter(Boolean)
   if (!indicadores.length) return ''
   const indHtml = `<ol style="margin:0;padding-left:18px;font-size:12px;line-height:1.8">${indicadores.map(ind => `<li>${esc(ind)}</li>`).join('')}</ol>`
-  const principioRow = o.principio ? `
+  const principioText = o.principio || newsProject?.biblical_principle || ''
+  const principioRow = principioText ? `
   <tr>
     <td style="padding:8px 14px;background:#f0f5f0;border-top:1px solid #ddd;
                font-size:11px;color:#555;font-style:italic;border-left:3px solid #9BBB59">
-      <strong style="font-style:normal;color:#9BBB59">Principio:</strong> ${esc(o.principio)}
+      <strong style="font-style:normal;color:#9BBB59">Principio:</strong> ${esc(principioText)}
     </td>
   </tr>` : ''
   return `

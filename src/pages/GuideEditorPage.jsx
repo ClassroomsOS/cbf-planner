@@ -109,8 +109,7 @@ function buildInitialContent({ grade, subject, period, week, dateRange }, teache
     objetivo: {
       general:     '',
       indicadores: [''],
-      principio: school?.indicator_principle
-        || 'El mundo y sus malos deseos pasarán, pero el que hace la voluntad de Dios vivirá para siempre.',
+      principio:   '',   // se auto-puebla desde indicator/NEWS project en el useEffect
     },
     verse: { text: school?.year_verse || '', ref: school?.year_verse_ref || '' },
     days:    {},
