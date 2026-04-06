@@ -2,7 +2,7 @@
 // Builds the CBF guide as a standalone HTML string and optionally downloads it
 // or opens it for printing (PDF).
 
-import { blockPreviewHTML, blockInteractiveHTML, BLOCK_TYPES } from '../components/SmartBlocks'
+import { blockPreviewHTML, blockInteractiveHTML, BLOCK_TYPES } from './smartBlockHtml'
 
 const SECTIONS = [
   { key: 'subject',    label: 'SUBJECT TO BE WORKED', hex: '4F81BD', time: '~8 min'  },
