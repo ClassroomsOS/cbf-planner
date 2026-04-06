@@ -210,6 +210,7 @@ export function buildHtml(content, newsProject) {
     .day-block + .day-block { break-before: page; page-break-before: always; }
     .pdf-fab { display: none !important; }
     .sbd-launch { display: none !important; }
+    #pdf-tip { display: none !important; }
   }
   /* ── SmartBlock Interactive Dialogs ──────────────────────────────── */
   dialog.sbd {
