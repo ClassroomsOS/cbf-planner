@@ -263,6 +263,7 @@ function CreateTeacherModal({ admin, onClose, onCreated }) {
   const [form,         setForm]         = useState({ full_name: '', email: '', role: 'teacher', level: '' })
   const [saving,       setSaving]       = useState(false)
   const [recoveryUrl,  setRecoveryUrl]  = useState(null)
+  const [emailSent,    setEmailSent]    = useState(false)
   const [copied,       setCopied]       = useState(false)
 
   function updateField(field, value) {
@@ -304,6 +305,7 @@ function CreateTeacherModal({ admin, onClose, onCreated }) {
       }
       if (json.recovery_url) {
         setRecoveryUrl(json.recovery_url)
+        setEmailSent(json.email_sent || false)
       } else {
         showToast(`Docente ${form.full_name} creado`, 'success')
         onCreated()
@@ -355,10 +357,17 @@ function CreateTeacherModal({ admin, onClose, onCreated }) {
                 <div style={{ fontWeight: 700, color: '#3a6b1a', marginBottom: '4px' }}>
                   ✅ Docente creado exitosamente
                 </div>
-                <div style={{ fontSize: '12px', color: '#555' }}>
-                  Comparte este enlace con <strong>{form.full_name}</strong> para que establezca su contraseña.
-                  El enlace expira en 24 horas.
-                </div>
+                {emailSent ? (
+                  <div style={{ fontSize: '12px', color: '#555' }}>
+                    📧 Se envió un correo a <strong>{form.email}</strong> con el enlace para establecer su contraseña.
+                    Si no llega, usa el enlace de respaldo abajo.
+                  </div>
+                ) : (
+                  <div style={{ fontSize: '12px', color: '#555' }}>
+                    Comparte este enlace con <strong>{form.full_name}</strong> para que establezca su contraseña.
+                    El enlace expira en 24 horas.
+                  </div>
+                )}
               </div>
               <div style={{
                 background: '#f5f5f5', borderRadius: '8px', padding: '10px 12px',

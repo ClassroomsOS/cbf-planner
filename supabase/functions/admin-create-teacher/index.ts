@@ -106,10 +106,24 @@ Deno.serve(async (req) => {
       email: email.toLowerCase().trim(),
     })
 
+    // 5. Best-effort: send recovery email via Supabase SMTP
+    const siteUrl = Deno.env.get('SITE_URL') || 'https://classroomsos.github.io/cbf-planner/'
+    let emailSent = false
+    try {
+      const { error: emailError } = await supabaseAdmin.auth.resetPasswordForEmail(
+        email.toLowerCase().trim(),
+        { redirectTo: siteUrl }
+      )
+      emailSent = !emailError
+    } catch (_) {
+      // non-fatal — admin can still share the recovery link manually
+    }
+
     return new Response(JSON.stringify({
       success:      true,
       id:           userId,
       recovery_url: linkData?.properties?.action_link ?? null,
+      email_sent:   emailSent,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })

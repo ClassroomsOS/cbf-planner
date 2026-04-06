@@ -15,6 +15,7 @@ export default function App() {
   const [teacher,    setTeacher]    = useState(null)
   const [loadError,  setLoadError]  = useState(false)
   const [isRecovery, setIsRecovery] = useState(false)
+  const [loginError, setLoginError] = useState(null)
 
   useEffect(() => {
     // Get initial session
@@ -24,12 +25,33 @@ export default function App() {
     })
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'PASSWORD_RECOVERY') {
         setIsRecovery(true)
         setSession(session)
         return
       }
+
+      // Validate domain for Google OAuth sign-ins
+      if (event === 'SIGNED_IN' && session) {
+        const provider = session.user.app_metadata?.provider
+        const providers = session.user.app_metadata?.providers || []
+        const isGoogle = provider === 'google' || providers.includes('google')
+        if (isGoogle) {
+          const { data: schoolData } = await supabase
+            .from('schools').select('features').limit(1).single()
+          const restrict     = schoolData?.features?.restrict_email_domain !== false
+          const allowedDomain = schoolData?.features?.email_domain || 'redboston.edu.co'
+          const emailDomain  = session.user.email?.toLowerCase().split('@')[1] || ''
+          if (restrict && emailDomain !== allowedDomain) {
+            await supabase.auth.signOut()
+            setLoginError(`Solo se permiten cuentas Google @${allowedDomain}. Tu cuenta no está autorizada.`)
+            setSession(null)
+            return
+          }
+        }
+      }
+
       setSession(session)
       if (session) loadTeacher(session.user.id)
       else setTeacher(null)
@@ -99,7 +121,7 @@ export default function App() {
           <Routes>
           {/* Not logged in → Login */}
           <Route path="/login" element={
-            session ? <Navigate to="/" replace /> : <LoginPage />
+            session ? <Navigate to="/" replace /> : <LoginPage loginError={loginError} />
           } />
 
           {/* Logged in but no profile yet → Setup */}
