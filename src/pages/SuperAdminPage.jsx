@@ -81,7 +81,7 @@ export default function SuperAdminPage({ teacher }) {
       })
       .eq('id', teacher.school_id)
     if (error) {
-      showToast('Error al guardar datos institucionales', 'error')
+      showToast('Error al guardar datos institucionales: ' + error.message, 'error')
     } else {
       setSchool(s => ({ ...s, ...schoolForm }))
       showToast('Datos institucionales guardados', 'success')
