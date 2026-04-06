@@ -175,10 +175,17 @@ export default function CalendarPage({ teacher }) {
   }
 
   async function handleDelete(id) {
-    const { error } = await supabase.from('school_calendar').delete().eq('id', id)
-    if (error) { showToast('Error al eliminar el evento', 'error'); return }
+    const { data: deleted, error } = await supabase
+      .from('school_calendar').delete().eq('id', id).select()
+    if (error) { showToast('Error al eliminar el evento: ' + error.message, 'error'); return }
+    if (!deleted || deleted.length === 0) {
+      showToast('Sin permiso para eliminar este evento. Verifica las políticas RLS en Supabase.', 'error')
+      setDeleteId(null)
+      return
+    }
     setDeleteId(null)
     fetchEntries()
+    showToast('Evento eliminado', 'success')
   }
 
   function prepareHolidayImport() {
