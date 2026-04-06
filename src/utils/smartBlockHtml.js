@@ -317,13 +317,13 @@ export function blockInteractiveHTML(block, blockId) {
       ? `<div class="sbd-f">${footer}</div>`
       : ''
     return `
-<button onclick="document.getElementById('${bid}').showModal()" class="sbd-launch" style="background:#${color}">
+<button type="button" onclick="document.getElementById('${bid}').showModal()" class="sbd-launch" style="background:#${color}">
   ▶ Realizar actividad
 </button>
 <dialog id="${bid}" class="sbd">
   <div class="sbd-h" style="background:#${color}">
     <span>${typeDef.icon || ''} ${title}</span>
-    <button onclick="document.getElementById('${bid}').close()" class="sbd-close">✕</button>
+    <button type="button" onclick="document.getElementById('${bid}').close()" class="sbd-close">✕</button>
   </div>
   <div class="sbd-b">${body}</div>
   ${footerHtml}
@@ -363,8 +363,8 @@ export function blockInteractiveHTML(block, blockId) {
       <div id="${bid}_res" style="margin-top:10px;font-size:13px;font-weight:700"></div>`
 
     const footer = `
-      <button onclick="${bid}_chk()" class="sbd-check">Verificar ✓</button>
-      <button onclick="${bid}_rst()" class="sbd-reset">Reiniciar</button>`
+      <button type="button" onclick="${bid}_chk()" class="sbd-check">Verificar ✓</button>
+      <button type="button" onclick="${bid}_rst()" class="sbd-reset">Reiniciar</button>`
 
     const script = `
 <script>
@@ -408,8 +408,8 @@ function ${bid}_rst(){
       <div id="${bid}_res" style="margin-top:8px;font-size:13px;font-weight:700"></div>`
 
     const footer = `
-      <button onclick="${bid}_chk()" class="sbd-check">Verificar ✓</button>
-      <button onclick="${bid}_rst()" class="sbd-reset">Reiniciar</button>`
+      <button type="button" onclick="${bid}_chk()" class="sbd-check">Verificar ✓</button>
+      <button type="button" onclick="${bid}_rst()" class="sbd-reset">Reiniciar</button>`
 
     const script = `
 <script>
@@ -455,8 +455,8 @@ function ${bid}_rst(){
       <div id="${bid}_res" style="margin-top:8px;font-size:13px;font-weight:700"></div>`
 
     const footer = `
-      <button onclick="${bid}_chk()" class="sbd-check">Verificar ✓</button>
-      <button onclick="${bid}_rst()" class="sbd-reset">Reiniciar</button>`
+      <button type="button" onclick="${bid}_chk()" class="sbd-check">Verificar ✓</button>
+      <button type="button" onclick="${bid}_rst()" class="sbd-reset">Reiniciar</button>`
 
     const script = `
 <script>
@@ -516,8 +516,8 @@ function ${bid}_rst(){
     }).join('')
 
     const footer = `
-      <button onclick="${bid}_done()" class="sbd-check">Listo ✓</button>
-      <button onclick="${bid}_rst()" class="sbd-reset">Reiniciar</button>
+      <button type="button" onclick="${bid}_done()" class="sbd-check">Listo ✓</button>
+      <button type="button" onclick="${bid}_rst()" class="sbd-reset">Reiniciar</button>
       <div id="${bid}_res" style="font-size:12px;margin-left:8px;align-self:center"></div>`
 
     const script = `
@@ -566,7 +566,7 @@ function ${bid}_rst(){
       </div>`).join('')
 
     const footer = `
-      <button onclick="${bid}_done()" class="sbd-check">Listo ✓</button>
+      <button type="button" onclick="${bid}_done()" class="sbd-check">Listo ✓</button>
       <div id="${bid}_res" style="font-size:12px;margin-left:8px;align-self:center"></div>`
 
     const script = `
@@ -607,8 +607,8 @@ function ${bid}_done(){
       <div id="${bid}_res" style="font-size:13px;font-weight:700;margin-top:6px"></div>`
 
     const footer = `
-      <button onclick="${bid}_done()" class="sbd-check">Enviar ✓</button>
-      <button onclick="${bid}_rst()" class="sbd-reset">Reiniciar</button>`
+      <button type="button" onclick="${bid}_done()" class="sbd-check">Enviar ✓</button>
+      <button type="button" onclick="${bid}_rst()" class="sbd-reset">Reiniciar</button>`
 
     const script = `
 <script>
@@ -652,8 +652,8 @@ function ${bid}_rst(){
       <div id="${bid}_res" style="font-size:13px;font-weight:700;margin-top:6px"></div>`
 
     const footer = `
-      <button onclick="${bid}_done()" class="sbd-check">Enviar ✓</button>
-      <button onclick="${bid}_rst()" class="sbd-reset">Reiniciar</button>`
+      <button type="button" onclick="${bid}_done()" class="sbd-check">Enviar ✓</button>
+      <button type="button" onclick="${bid}_rst()" class="sbd-reset">Reiniciar</button>`
 
     const script = `
 <script>
