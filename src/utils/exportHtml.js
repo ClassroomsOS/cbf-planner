@@ -13,6 +13,50 @@ const SECTIONS = [
   { key: 'assignment', label: 'ASSIGNMENT',             hex: '4E84A2', time: '~5 min'  },
 ]
 
+// ── Base64 image inlining ─────────────────────────────────────────────────────
+
+async function fetchBase64(url) {
+  if (!url || url.startsWith('data:')) return url
+  try {
+    const res = await fetch(url)
+    if (!res.ok) return url
+    const blob = await res.blob()
+    return new Promise((resolve) => {
+      const reader = new FileReader()
+      reader.onloadend = () => resolve(reader.result)
+      reader.onerror  = () => resolve(url)
+      reader.readAsDataURL(blob)
+    })
+  } catch {
+    return url
+  }
+}
+
+// Returns a deep-cloned content object with all image src replaced by data URIs
+async function inlineImages(content) {
+  const c = JSON.parse(JSON.stringify(content))
+  const jobs = []
+
+  // Logo
+  if (c.header?.logo_url) {
+    jobs.push(fetchBase64(c.header.logo_url).then(b64 => { c.header.logo_url = b64 }))
+  }
+
+  // Section images across all days
+  for (const day of Object.values(c.days || {})) {
+    for (const section of Object.values(day.sections || {})) {
+      for (const img of (section.images || [])) {
+        if (img?.url) {
+          jobs.push(fetchBase64(img.url).then(b64 => { img.url = b64 }))
+        }
+      }
+    }
+  }
+
+  await Promise.all(jobs)
+  return c
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function esc(str) {
@@ -595,11 +639,12 @@ ${body}
 </html>`
 }
 
-export function exportDayHtml(content, dayKey, newsProject) {
-  const i   = content.info || {}
-  const day = content.days?.[dayKey]
+export async function exportDayHtml(content, dayKey, newsProject) {
+  const inlined = await inlineImages(content)
+  const i   = inlined.info || {}
+  const day = inlined.days?.[dayKey]
   if (!day) return
-  const html = buildDayHtml(content, dayKey, newsProject)
+  const html = buildDayHtml(inlined, dayKey, newsProject)
   if (!html) return
   const grade   = (i.grado || 'CBF').replace(/\s/g, '_')
   const subject = (i.asignatura || '').replace(/\s/g, '_').slice(0, 12)
@@ -623,9 +668,10 @@ export function getActiveDays(content) {
 
 // ── Export functions ──────────────────────────────────────────────────────────
 
-export function exportHtml(content, newsProject) {
-  const i    = content.info || {}
-  const html = buildHtml(content, newsProject)
+export async function exportHtml(content, newsProject) {
+  const inlined = await inlineImages(content)
+  const i    = inlined.info || {}
+  const html = buildHtml(inlined, newsProject)
   const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
   const url  = URL.createObjectURL(blob)
   const a    = document.createElement('a')
@@ -635,9 +681,10 @@ export function exportHtml(content, newsProject) {
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
-export function exportPdf(content, newsProject) {
-  const i    = content.info || {}
-  const html = buildHtml(content, newsProject)
+export async function exportPdf(content, newsProject) {
+  const inlined = await inlineImages(content)
+  const i    = inlined.info || {}
+  const html = buildHtml(inlined, newsProject)
   const tip  = `<div id="pdf-tip" style="
     position:fixed;top:12px;right:12px;z-index:9999;
     background:#1F3864;color:#fff;padding:10px 16px;border-radius:8px;

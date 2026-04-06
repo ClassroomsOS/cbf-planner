@@ -795,7 +795,7 @@ export default function GuideEditorPage({ teacher }) {
           )}
           {/* Botón principal: Imprimir / PDF */}
           <button className="ge-print-btn"
-            onClick={() => { doSave(); exportPdf(contentRef.current, activeNewsProject) }}
+            onClick={async () => { doSave(); await exportPdf(contentRef.current, activeNewsProject) }}
             title="Guardar e imprimir como PDF">
             🖨️ <span className="ge-print-label">Imprimir / PDF</span>
           </button>
@@ -814,7 +814,7 @@ export default function GuideEditorPage({ teacher }) {
                 <button onClick={async () => { closeExport(); await doSave(); exportGuideDocx(contentRef.current) }}>
                   📄 Word (.docx) — para correcciones
                 </button>
-                <button onClick={() => { closeExport(); exportHtml(contentRef.current, activeNewsProject) }}>
+                <button onClick={async () => { closeExport(); await exportHtml(contentRef.current, activeNewsProject) }}>
                   🌐 HTML — archivo web
                 </button>
                 <button onClick={() => setDayPickerOpen(v => !v)}>
@@ -823,10 +823,10 @@ export default function GuideEditorPage({ teacher }) {
                 {dayPickerOpen && getActiveDays(contentRef.current).map(({ key, label }) => (
                   <button key={key}
                     style={{ paddingLeft: '24px', color: '#2E5598', fontWeight: 600 }}
-                    onClick={() => {
+                    onClick={async () => {
                       setDayPickerOpen(false)
                       closeExport()
-                      exportDayHtml(contentRef.current, key, activeNewsProject)
+                      await exportDayHtml(contentRef.current, key, activeNewsProject)
                     }}>
                     📅 {label}
                   </button>
