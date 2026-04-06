@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import RichEditor from '../components/RichEditor'
@@ -23,7 +23,7 @@ import { importGuideFromDocx } from '../utils/AIAssistant'
 import DayPanel from '../components/editor/DayPanel'
 import { buildEmptySection, buildEmptyDay } from '../utils/guideEditorUtils'
 
-// â”€â”€ Map activity name â†’ SmartBlock stub â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Map activity name → SmartBlock stub ──────────────────────────────────────
 function guessSmartBlock(act) {
   const n = (act.nombre || '').toLowerCase()
   if (n.includes('dict')) return {
@@ -53,14 +53,14 @@ function guessSmartBlock(act) {
   return null
 }
 
-// â”€â”€ Indicator text helper (handles Modelo A strings + Modelo B objects) â”€â”€â”€â”€â”€
+// ── Indicator text helper (handles Modelo A strings + Modelo B objects) ─────
 function getIndText(ind) {
   if (!ind) return ''
   if (typeof ind === 'string') return ind
   return ind.texto_es || ind.texto_en || ind.habilidad || ''
 }
 
-// â”€â”€ localStorage draft helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── localStorage draft helpers ──────────────────────────────────────────────
 const DRAFT_PREFIX = 'cbf_draft_'
 
 function saveDraftLocal(planId, content) {
@@ -68,7 +68,7 @@ function saveDraftLocal(planId, content) {
     const key = DRAFT_PREFIX + planId
     const payload = { content, savedAt: Date.now() }
     localStorage.setItem(key, JSON.stringify(payload))
-  } catch { /* quota exceeded or private mode â€” silent */ }
+  } catch { /* quota exceeded or private mode — silent */ }
 }
 
 function loadDraftLocal(planId) {
@@ -85,18 +85,17 @@ function clearDraftLocal(planId) {
 }
 
 
-// â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// buildEmptySection + buildEmptyDay â†’ src/utils/guideEditorUtils.js
-// DayPanel + VideoList + getEmbedUrl â†’ src/components/editor/DayPanel.jsx
+// ── Helpers ──────────────────────────────────────────────────────────────────
+// buildEmptySection + buildEmptyDay → src/utils/guideEditorUtils.js
 
 function buildInitialContent({ grade, subject, period, week, dateRange }, teacher, school) {
   return {
     header: {
       school:   school?.name     || 'COLEGIO BOSTON FLEXIBLE',
-      dane:     `DANE: ${school?.dane || '308001800455'} â€” RESOLUCIÃ“N ${school?.resolution || '09685 DE 2019'}`,
+      dane:     `DANE: ${school?.dane || '308001800455'} — RESOLUCIÓN ${school?.resolution || '09685 DE 2019'}`,
       codigo:   school?.plan_code    || 'CBF-G AC-01',
-      version:  school?.plan_version || 'VersiÃ³n 02 Febrero 2022',
-      proceso:  'PROCESO: GESTIÃ“N ACADÃ‰MICA Y CURRICULAR',
+      version:  school?.plan_version || 'Versión 02 Febrero 2022',
+      proceso:  'PROCESO: GESTIÓN ACADÉMICA Y CURRICULAR',
       logo_url: school?.logo_url || null,
     },
     info: {
@@ -111,7 +110,7 @@ function buildInitialContent({ grade, subject, period, week, dateRange }, teache
       general:     '',
       indicadores: [''],
       principio: school?.indicator_principle
-        || 'El mundo y sus malos deseos pasarÃ¡n, pero el que hace la voluntad de Dios vivirÃ¡ para siempre.',
+        || 'El mundo y sus malos deseos pasarán, pero el que hace la voluntad de Dios vivirá para siempre.',
     },
     verse: { text: school?.year_verse || '', ref: school?.year_verse_ref || '' },
     days:    {},
@@ -121,7 +120,7 @@ function buildInitialContent({ grade, subject, period, week, dateRange }, teache
 
 
 
-// â”€â”€ Main Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Main Component ────────────────────────────────────────────────────────────
 
 export default function GuideEditorPage({ teacher }) {
   const { id }   = useParams()
@@ -142,7 +141,7 @@ export default function GuideEditorPage({ teacher }) {
   const [linkedNewsProjects, setLinkedNewsProjects] = useState([])
   const [monthPrinciples, setMonthPrinciples] = useState(null)
 
-  // â”€â”€ Modal/UI toggles (migrated to useToggle) â”€â”€
+  // ── Modal/UI toggles (migrated to useToggle) ──
   const [exportOpen,      toggleExport,      openExport,      closeExport]      = useToggle(false)
   const [showAnalyzer,    toggleAnalyzer,    openAnalyzer,    closeAnalyzer]    = useToggle(false)
   const [showGenerator,   toggleGenerator,   openGenerator,   closeGenerator]   = useToggle(false)
@@ -155,7 +154,7 @@ export default function GuideEditorPage({ teacher }) {
   const docxInputRef  = useRef(null)
   const [importingDocx, setImportingDocx] = useState(false)
 
-  // â”€â”€ Load â”€â”€
+  // ── Load ──
   useEffect(() => {
     async function load() {
       setLoading(true)
@@ -205,7 +204,7 @@ export default function GuideEditorPage({ teacher }) {
           })
         })
       }
-      // Migrate old indicador (string) â†’ indicadores (array)
+      // Migrate old indicador (string) → indicadores (array)
       if (c.objetivo) {
         if (!c.objetivo.indicadores) {
           c.objetivo.indicadores = c.objetivo.indicador ? [c.objetivo.indicador] : ['']
@@ -241,15 +240,15 @@ export default function GuideEditorPage({ teacher }) {
         .from('schools').select('logo_url').eq('id', teacher.school_id).single()
       c.header.logo_url = schoolData?.logo_url || null
 
-      // â”€â”€ Check for unsaved localStorage draft â”€â”€
+      // ── Check for unsaved localStorage draft ──
       const draft = loadDraftLocal(id)
       if (draft && draft.savedAt) {
         const dbUpdated = data.updated_at ? new Date(data.updated_at).getTime() : 0
         if (draft.savedAt > dbUpdated) {
-          // Draft is newer than DB â€” offer to restore
+          // Draft is newer than DB — offer to restore
           setDraftRestore(draft)
         } else {
-          // DB is newer â€” discard stale draft
+          // DB is newer — discard stale draft
           clearDraftLocal(id)
         }
       }
@@ -261,7 +260,7 @@ export default function GuideEditorPage({ teacher }) {
     load()
   }, [id])
 
-  // â”€â”€ Load linked learning target â”€â”€
+  // ── Load linked learning target ──
   useEffect(() => {
     if (!plan?.target_id) { setLinkedTarget(null); return }
     supabase
@@ -272,7 +271,7 @@ export default function GuideEditorPage({ teacher }) {
       .then(({ data }) => setLinkedTarget(data || null))
   }, [plan?.target_id])
 
-  // â”€â”€ Load NEWS projects linked to the same target â”€â”€
+  // ── Load NEWS projects linked to the same target ──
   useEffect(() => {
     if (!plan?.target_id) { setLinkedNewsProjects([]); return }
     supabase
@@ -284,10 +283,10 @@ export default function GuideEditorPage({ teacher }) {
       .then(({ data }) => setLinkedNewsProjects(data || []))
   }, [plan?.target_id])
 
-  // â”€â”€ Derive active NEWS project for this guide's date range â”€â”€
-  // Priority 0: plan.news_project_id â€” set at guide creation, direct pointer
+  // ── Derive active NEWS project for this guide's date range ──
+  // Priority 0: plan.news_project_id — set at guide creation, direct pointer
   // Priority 1: a NEWS activity fecha falls within the guide's days
-  // Priority 2: nearest due_date AFTER the guide's first day â€” the next hito
+  // Priority 2: nearest due_date AFTER the guide's first day — the next hito
   //   this guide is building toward. A guide never looks at a NEWS whose
   //   due_date is before the guide's own date.
   // Priority 3: any linked project without due_date (teacher hasn't scheduled yet)
@@ -323,7 +322,7 @@ export default function GuideEditorPage({ teacher }) {
     return null
   }, [linkedNewsProjects, content?.days, plan?.news_project_id])
 
-  // â”€â”€ Derive the specific indicator for this guide from the active NEWS project â”€â”€
+  // ── Derive the specific indicator for this guide from the active NEWS project ──
   // Modelo B: indicator object matched by skill (habilidad) from learning_targets.indicadores
   // Modelo A: synthetic indicator object built from news_projects.target_indicador
   const activeIndicator = useMemo(() => {
@@ -331,14 +330,14 @@ export default function GuideEditorPage({ teacher }) {
     const subject = content?.info?.asignatura || ''
     const isModeloB = linkedTarget?.news_model === 'language' || MODELO_B_SUBJECTS.includes(subject)
     if (isModeloB) {
-      // Modelo B â€” find the indicator object matching the project's skill
+      // Modelo B — find the indicator object matching the project's skill
       if (!activeNewsProject.skill || !linkedTarget?.indicadores) return null
       return linkedTarget.indicadores.find(ind =>
         typeof ind === 'object' &&
         ind.habilidad?.toLowerCase() === activeNewsProject.skill.toLowerCase()
       ) || null
     } else {
-      // Modelo A â€” use target_indicador from the NEWS project as a synthetic indicator
+      // Modelo A — use target_indicador from the NEWS project as a synthetic indicator
       if (!activeNewsProject.target_indicador) return null
       return {
         texto_en: activeNewsProject.target_indicador,
@@ -353,7 +352,7 @@ export default function GuideEditorPage({ teacher }) {
   useEffect(() => {
     if (principioInitRef.current) return
     if (!content) return
-    if (content.objetivo?.principio) return // already has a value â€” don't overwrite
+    if (content.objetivo?.principio) return // already has a value — don't overwrite
     let text = ''
     if (activeIndicator?.principio_biblico) {
       const pb = activeIndicator.principio_biblico
@@ -383,12 +382,12 @@ export default function GuideEditorPage({ teacher }) {
 
     const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri']
 
-    // â”€â”€ Consultar schedule desde teacher_assignments â”€â”€
+    // ── Consultar schedule desde teacher_assignments ──
     let scheduledDayKeys = null
     let scheduleMap = null
 
-    // PlannerPage stores grade as "${baseGrade} ${section}" (e.g. "10.Â° A").
-    // teacher_assignments.grade stores only the base part ("10.Â°"), so strip
+    // PlannerPage stores grade as "${baseGrade} ${section}" (e.g. "10.° A").
+    // teacher_assignments.grade stores only the base part ("10.°"), so strip
     // the section suffix before querying.
     const baseGrade = data.section && data.grade?.endsWith(' ' + data.section)
       ? data.grade.slice(0, -data.section.length - 1)
@@ -408,12 +407,12 @@ export default function GuideEditorPage({ teacher }) {
       scheduledDayKeys = DAY_KEYS.filter(k => scheduleMap[k])
     }
 
-    // â”€â”€ Si no hay schedule, usar los 5 dÃ­as (fallback) â”€â”€
+    // ── Si no hay schedule, usar los 5 días (fallback) ──
     const activeDayIndices = scheduledDayKeys
       ? scheduledDayKeys.map(k => DAY_KEYS.indexOf(k))
       : [0, 1, 2, 3, 4]
 
-    // â”€â”€ Generar ISOs para 1 o 2 semanas â”€â”€
+    // ── Generar ISOs para 1 o 2 semanas ──
     const weekCount = data.week_count || 1
     const isos = []
     for (let w = 0; w < weekCount; w++) {
@@ -426,7 +425,7 @@ export default function GuideEditorPage({ teacher }) {
 
     if (!isos.length) return {}
 
-    // â”€â”€ Filtrar festivos del calendario escolar â”€â”€
+    // ── Filtrar festivos del calendario escolar ──
     let calQuery = supabase
       .from('school_calendar').select('date, is_school_day, name')
       .eq('school_id', teacher.school_id).in('date', isos)
@@ -454,7 +453,7 @@ export default function GuideEditorPage({ teacher }) {
     return days
   }
 
-  // â”€â”€ Content updaters â”€â”€
+  // ── Content updaters ──
   function deepClone(obj) { return JSON.parse(JSON.stringify(obj)) }
 
   function setPath(obj, path, value) {
@@ -497,7 +496,7 @@ export default function GuideEditorPage({ teacher }) {
     setOpenSections(prev => ({ ...prev, [key]: !prev[key] }))
   }
 
-  // â”€â”€ IA: aplicar guÃ­a generada â€” recibe contenido ya mezclado â”€â”€
+  // ── IA: aplicar guía generada — recibe contenido ya mezclado ──
   function handleApplyGenerated(mergedContent) {
     contentRef.current = mergedContent
     dirtyRef.current = true
@@ -506,7 +505,7 @@ export default function GuideEditorPage({ teacher }) {
     saveDraftLocal(id, mergedContent)
   }
 
-  // â”€â”€ Save â”€â”€
+  // ── Save ──
   const doSave = useCallback(async () => {
     if (!dirtyRef.current) return
     setSaveStatus('saving')
@@ -517,12 +516,12 @@ export default function GuideEditorPage({ teacher }) {
     if (error) {
       setSaveStatus('error')
       logError(error, { page: 'GuideEditor', action: 'save', entityId: id })
-      showToast('Error al guardar la guÃ­a', 'error')
+      showToast('Error al guardar la guía', 'error')
     } else {
       setSaveStatus('saved')
       dirtyRef.current = false
       clearDraftLocal(id)
-      showToast('GuÃ­a guardada âœ“', 'success')
+      showToast('Guía guardada ✓', 'success')
     }
   }, [id, showToast])
 
@@ -533,13 +532,13 @@ export default function GuideEditorPage({ teacher }) {
 
   useEffect(() => { return () => { if (dirtyRef.current) doSave() } }, [doSave])
 
-  // â”€â”€ Import .docx handler â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Import .docx handler ───────────────────────────────────
   async function handleDocxImport(e) {
     const file = e.target.files?.[0]
     if (!docxInputRef.current) return
     docxInputRef.current.value = ''
     if (!file) return
-    if (!confirm('âš ï¸ Importar este documento reemplazarÃ¡ el contenido actual de la guÃ­a. Â¿Continuar?')) return
+    if (!confirm('⚠️ Importar este documento reemplazará el contenido actual de la guía. ¿Continuar?')) return
     setImportingDocx(true)
     closeExport()
     try {
@@ -574,7 +573,7 @@ export default function GuideEditorPage({ teacher }) {
       contentRef.current = merged
       setContent({ ...merged })
       dirtyRef.current = true
-      showToast('âœ… Documento importado correctamente. Revisa y ajusta el contenido.', 'success')
+      showToast('✅ Documento importado correctamente. Revisa y ajusta el contenido.', 'success')
     } catch (err) {
       showToast('Error al importar: ' + err.message, 'error')
     } finally {
@@ -590,7 +589,7 @@ export default function GuideEditorPage({ teacher }) {
     return () => window.removeEventListener('keydown', onKey)
   }, [doSave])
 
-  // â”€â”€ Panels â”€â”€
+  // ── Panels ──
   const dayPanels = content
     ? Object.entries(content.days || {})
         .sort(([a],[b]) => a.localeCompare(b))
@@ -604,18 +603,18 @@ export default function GuideEditorPage({ teacher }) {
     : []
 
   const panels = [
-    { key: 'verse',    label: '1 Â· VersÃ­culo',    dot: '#C9A84C' },
-    { key: 'objetivo', label: '2 Â· Indicador',   dot: '#9BBB59' },
+    { key: 'verse',    label: '1 · Versículo',    dot: '#C9A84C' },
+    { key: 'objetivo', label: '2 · Indicador',   dot: '#9BBB59' },
     ...dayPanels.map(d => ({
       key: d.key, iso: d.iso, label: d.label,
       sub: `${MONTHS_ES[parseInt(d.iso.slice(5,7))-1]} ${parseInt(d.iso.slice(8,10))}`,
       dot: '#4BACC6',
       filled: d.filled, total: d.total,
     })),
-    { key: 'summary', label: 'â˜… Resumen', dot: '#8064A2' },
+    { key: 'summary', label: '★ Resumen', dot: '#8064A2' },
   ]
 
-  // â”€â”€ DÃ­as activos (para AIGeneratorModal) â”€â”€
+  // ── Días activos (para AIGeneratorModal) ──
   const activeDays = content
     ? Object.entries(content.days || {})
         .filter(([, day]) => day.active !== false)
@@ -623,7 +622,7 @@ export default function GuideEditorPage({ teacher }) {
         .sort()
     : []
 
-  // â”€â”€ Cargar principios del mes de la guÃ­a â”€â”€
+  // ── Cargar principios del mes de la guía ──
   useEffect(() => {
     if (!content || !teacher.school_id) return
     const iso = activeDays[0] || new Date().toISOString().slice(0, 10)
@@ -639,14 +638,14 @@ export default function GuideEditorPage({ teacher }) {
       .then(({ data }) => setMonthPrinciples(data || null))
   }, [teacher.school_id, content?.days])
 
-  // â”€â”€ Objeto de principios unificado para la IA â”€â”€
+  // ── Objeto de principios unificado para la IA ──
   const principles = content ? {
     yearVerse:          { text: content.verse?.text || school.year_verse || '', ref: content.verse?.ref || school.year_verse_ref || '' },
     monthVerse:         { text: monthPrinciples?.month_verse || '', ref: monthPrinciples?.month_verse_ref || '' },
     indicatorPrinciple: monthPrinciples?.indicator_principle || school.indicator_principle || '',
   } : null
 
-  // â”€â”€ Field helpers â”€â”€
+  // ── Field helpers ──
   function inputField(label, value, path, placeholder = '') {
     return (
       <div className="ge-field" key={label}>
@@ -671,17 +670,17 @@ export default function GuideEditorPage({ teacher }) {
     )
   }
 
-  // â”€â”€ Loading â”€â”€
+  // ── Loading ──
   if (loading || !content) return (
     <div className="ge-loading">
       <div className="loading-spinner" />
-      <p>Cargando guÃ­aâ€¦</p>
+      <p>Cargando guía…</p>
     </div>
   )
 
   const activeDayISO = activePanel.startsWith('day-') ? activePanel.replace('day-', '') : null
 
-  // â”€â”€ Draft restore handler â”€â”€
+  // ── Draft restore handler ──
   function handleRestoreDraft() {
     if (!draftRestore?.content) return
     const restored = draftRestore.content
@@ -690,7 +689,7 @@ export default function GuideEditorPage({ teacher }) {
     dirtyRef.current = true
     setSaveStatus('unsaved')
     setDraftRestore(null)
-    showToast('Borrador restaurado â€” guÃ¡rdalo cuando estÃ©s listo', 'info')
+    showToast('Borrador restaurado — guárdalo cuando estés listo', 'info')
   }
 
   function handleDiscardDraft() {
@@ -702,17 +701,17 @@ export default function GuideEditorPage({ teacher }) {
   return (
     <div className="ge-wrap">
 
-      {/* â”€â”€ Draft restore banner â”€â”€ */}
+      {/* ── Draft restore banner ── */}
       {draftRestore && (
         <div style={{
           background: '#FFFDF0', border: '1.5px solid #F5C300', borderRadius: 10,
           padding: '12px 18px', margin: '0 0 12px',
           display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
         }}>
-          <span style={{ fontSize: 18 }}>ðŸ’¾</span>
+          <span style={{ fontSize: 18 }}>💾</span>
           <div style={{ flex: 1, minWidth: 200 }}>
             <div style={{ fontWeight: 700, fontSize: 13, color: '#8a4f00' }}>
-              Se encontrÃ³ un borrador sin guardar
+              Se encontró un borrador sin guardar
             </div>
             <div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>
               Guardado localmente el {new Date(draftRestore.savedAt).toLocaleString('es-CO')}
@@ -723,7 +722,7 @@ export default function GuideEditorPage({ teacher }) {
             background: '#1A3A8F', color: 'white', fontSize: 12,
             fontWeight: 700, cursor: 'pointer',
           }}>
-            âœ… Restaurar
+            ✅ Restaurar
           </button>
           <button onClick={handleDiscardDraft} style={{
             padding: '6px 16px', borderRadius: 8, border: '1px solid #ddd',
@@ -737,29 +736,29 @@ export default function GuideEditorPage({ teacher }) {
 
       {/* Top bar */}
       <div className="ge-topbar">
-        <button className="ge-back-btn" onClick={() => navigate('/plans')}>â† Mis GuÃ­as</button>
+        <button className="ge-back-btn" onClick={() => navigate('/plans')}>← Mis Guías</button>
         <div className="ge-topbar-info">
           <span className="ge-guide-title">
-            {content.info.grado} Â· {content.info.asignatura} Â· Semana {content.info.semana}
+            {content.info.grado} · {content.info.asignatura} · Semana {content.info.semana}
           </span>
           <span className="ge-guide-dates">{content.info.fechas}</span>
         </div>
         <div className="ge-save-area">
           <span className={`ge-save-status ge-save-${saveStatus}`}>
-            {saveStatus === 'saving'  && <><span className="ge-save-pulse" />Guardandoâ€¦</>}
-            {saveStatus === 'saved'   && 'âœ“ Guardado'}
-            {saveStatus === 'unsaved' && 'â— Cambios sin guardar'}
-            {saveStatus === 'error'   && 'âš  Error al guardar'}
+            {saveStatus === 'saving'  && <><span className="ge-save-pulse" />Guardando…</>}
+            {saveStatus === 'saved'   && '✓ Guardado'}
+            {saveStatus === 'unsaved' && '● Cambios sin guardar'}
+            {saveStatus === 'error'   && '⚠ Error al guardar'}
           </span>
           <button className="btn-primary" onClick={doSave} disabled={saveStatus === 'saving'}>
-            ðŸ’¾ Guardar
+            💾 Guardar
           </button>
           {features.comments !== false && (
             <button
               className="btn-secondary"
               onClick={toggleComments}
               style={{ fontSize: '12px' }}>
-              ðŸ’¬ Comentarios
+              💬 Comentarios
             </button>
           )}
           {features.corrections !== false && (
@@ -767,21 +766,21 @@ export default function GuideEditorPage({ teacher }) {
               className="btn-secondary"
               onClick={openCorrections}
               style={{ fontSize: '12px' }}>
-              ðŸ”§ Correcciones
+              🔧 Correcciones
             </button>
           )}
-          {/* BotÃ³n principal: Imprimir / PDF */}
+          {/* Botón principal: Imprimir / PDF */}
           <button className="ge-print-btn"
             onClick={() => { doSave(); exportPdf(contentRef.current, activeNewsProject) }}
             title="Guardar e imprimir como PDF">
-            ðŸ–¨ï¸ <span className="ge-print-label">Imprimir / PDF</span>
+            🖨️ <span className="ge-print-label">Imprimir / PDF</span>
           </button>
 
           <div className="ge-export-wrap">
             <button className="btn-secondary"
               style={{ fontSize: '12px' }}
               onClick={toggleExport}>
-              â‹¯ MÃ¡s opciones â–¾
+              ⋯ Más opciones ▾
             </button>
             {exportOpen && (
               <div className="ge-export-menu" onMouseLeave={closeExport}>
@@ -789,10 +788,10 @@ export default function GuideEditorPage({ teacher }) {
                   Exportar como
                 </div>
                 <button onClick={async () => { closeExport(); await doSave(); exportGuideDocx(contentRef.current) }}>
-                  ðŸ“„ Word (.docx) â€” para correcciones
+                  📄 Word (.docx) — para correcciones
                 </button>
                 <button onClick={() => { closeExport(); exportHtml(contentRef.current, activeNewsProject) }}>
-                  ðŸŒ HTML â€” archivo web
+                  🌐 HTML — archivo web
                 </button>
                 <hr style={{ margin: '4px 0', border: 'none', borderTop: '1px solid #e0e6f0' }} />
                 <div style={{ padding: '4px 12px 6px', fontSize: '10px', fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '.5px' }}>
@@ -800,12 +799,12 @@ export default function GuideEditorPage({ teacher }) {
                 </div>
                 {features.ai_analyze !== false && (
                   <button onClick={() => { closeExport(); openAnalyzer() }}>
-                    ðŸ” Analizar con IA
+                    🔍 Analizar con IA
                   </button>
                 )}
                 {features.ai_generate !== false && (
                   <button onClick={() => { closeExport(); openGenerator() }}>
-                    ðŸ¤– Generar guÃ­a con IA
+                    🤖 Generar guía con IA
                   </button>
                 )}
                 <hr style={{ margin: '4px 0', border: 'none', borderTop: '1px solid #e0e6f0' }} />
@@ -813,7 +812,7 @@ export default function GuideEditorPage({ teacher }) {
                   Importar
                 </div>
                 <button onClick={() => { docxInputRef.current?.click() }} disabled={importingDocx}>
-                  {importingDocx ? 'â³ Importandoâ€¦' : 'ðŸ“‚ Importar desde .docx'}
+                  {importingDocx ? '⏳ Importando…' : '📂 Importar desde .docx'}
                 </button>
               </div>
             )}
@@ -879,7 +878,7 @@ export default function GuideEditorPage({ teacher }) {
         {/* Content */}
         <div className="ge-content">
 
-          {/* â”€â”€ Context Banner (read-only, always visible) â”€â”€ */}
+          {/* ── Context Banner (read-only, always visible) ── */}
           {activePanel !== 'header' && activePanel !== 'info' && (
             <div className="ge-context-banner">
               {content.header.logo_url && (
@@ -889,11 +888,11 @@ export default function GuideEditorPage({ teacher }) {
                 <div className="ge-context-school">{content.header.school}</div>
                 <div className="ge-context-meta">
                   <span>{content.info.grado}</span>
-                  <span className="ge-context-sep">Â·</span>
+                  <span className="ge-context-sep">·</span>
                   <span>{content.info.asignatura}</span>
-                  <span className="ge-context-sep">Â·</span>
+                  <span className="ge-context-sep">·</span>
                   <span>Semana {content.info.semana}</span>
-                  <span className="ge-context-sep">Â·</span>
+                  <span className="ge-context-sep">·</span>
                   <span>{content.info.fechas}</span>
                 </div>
                 <div className="ge-context-teacher">{content.info.docente}</div>
@@ -901,26 +900,26 @@ export default function GuideEditorPage({ teacher }) {
               {canManage(teacher.role) && (
                 <div className="ge-context-admin-links">
                   <button className="ge-context-edit-btn" onClick={() => setActivePanel('header')}>
-                    âš™ Encabezado
+                    ⚙ Encabezado
                   </button>
                   <button className="ge-context-edit-btn" onClick={() => setActivePanel('info')}>
-                    âœ InformaciÃ³n
+                    ✏ Información
                   </button>
                 </div>
               )}
             </div>
           )}
 
-          {/* â”€â”€ Back to editing button (shown inside admin-only panels) â”€â”€ */}
+          {/* ── Back to editing button (shown inside admin-only panels) ── */}
           {(activePanel === 'header' || activePanel === 'info') && (
             <div style={{ marginBottom: '12px' }}>
               <button className="ge-context-back-btn" onClick={() => setActivePanel('verse')}>
-                â† Volver al editor
+                ← Volver al editor
               </button>
               {activePanel === 'header' && (
                 <button className="ge-context-edit-btn" style={{ marginLeft: '8px' }}
                   onClick={() => setActivePanel('info')}>
-                  InformaciÃ³n del perÃ­odo â†’
+                  Información del período →
                 </button>
               )}
             </div>
@@ -931,10 +930,10 @@ export default function GuideEditorPage({ teacher }) {
             <div className="card">
               <div className="card-title"><div className="badge">1</div> Encabezado institucional</div>
               {inputField('Nombre del colegio', content.header.school,   ['header','school'],  'COLEGIO BOSTON FLEXIBLE')}
-              {inputField('DANE / ResoluciÃ³n',  content.header.dane,     ['header','dane'])}
+              {inputField('DANE / Resolución',  content.header.dane,     ['header','dane'])}
               <div className="ge-grid-2">
-                {inputField('CÃ³digo',  content.header.codigo,  ['header','codigo'],  'CBF-G AC-01')}
-                {inputField('VersiÃ³n', content.header.version, ['header','version'], 'VersiÃ³n 02 Febrero 2022')}
+                {inputField('Código',  content.header.codigo,  ['header','codigo'],  'CBF-G AC-01')}
+                {inputField('Versión', content.header.version, ['header','version'], 'Versión 02 Febrero 2022')}
               </div>
               {inputField('Proceso', content.header.proceso, ['header','proceso'])}
               <div className="ge-field">
@@ -948,7 +947,7 @@ export default function GuideEditorPage({ teacher }) {
                     ? <img src={content.header.logo_url} alt="Logo"
                         style={{ height: '48px', width: 'auto', objectFit: 'contain',
                           borderRadius: '4px', border: '1px solid #eee' }} />
-                    : <div style={{ fontSize: '24px' }}>ðŸ«</div>
+                    : <div style={{ fontSize: '24px' }}>🏫</div>
                   }
                   <div>
                     <div style={{ fontSize: '12px', color: '#555', fontWeight: 500 }}>
@@ -957,9 +956,9 @@ export default function GuideEditorPage({ teacher }) {
                     <div style={{ fontSize: '11px', color: '#999', marginTop: '3px' }}>
                       El logo se administra desde{' '}
                       <a href="/cbf-planner/settings" style={{ color: '#2E5598', fontWeight: 600 }}>
-                        Panel de control â†’ Identidad institucional
+                        Panel de control → Identidad institucional
                       </a>
-                      {' '}y se aplica a todas las guÃ­as automÃ¡ticamente.
+                      {' '}y se aplica a todas las guías automáticamente.
                     </div>
                   </div>
                 </div>
@@ -967,19 +966,19 @@ export default function GuideEditorPage({ teacher }) {
             </div>
           )}
 
-          {/* INFORMACIÃ“N */}
+          {/* INFORMACIÓN */}
           {activePanel === 'info' && (
             <div className="card">
-              <div className="card-title"><div className="badge">2</div> InformaciÃ³n del perÃ­odo</div>
+              <div className="card-title"><div className="badge">2</div> Información del período</div>
               <div className="ge-grid-4">
-                {inputField('Grado',      content.info.grado,      ['info','grado'],      '8.Â° (Azul y Rojo)')}
-                {inputField('PerÃ­odo',    content.info.periodo,    ['info','periodo'],    '1.er PerÃ­odo 2026')}
-                {inputField('Semana NÂ°',  content.info.semana,     ['info','semana'],     'Ej: 5')}
+                {inputField('Grado',      content.info.grado,      ['info','grado'],      '8.° (Azul y Rojo)')}
+                {inputField('Período',    content.info.periodo,    ['info','periodo'],    '1.er Período 2026')}
+                {inputField('Semana N°',  content.info.semana,     ['info','semana'],     'Ej: 5')}
                 {inputField('Asignatura', content.info.asignatura, ['info','asignatura'], 'Language Arts')}
               </div>
               <div className="ge-grid-2">
                 {inputField('Docente',         content.info.docente, ['info','docente'], 'Nombre del docente')}
-                {inputField('Rango de fechas', content.info.fechas,  ['info','fechas'],  'Ej: Mar. 23â€“27, 2026')}
+                {inputField('Rango de fechas', content.info.fechas,  ['info','fechas'],  'Ej: Mar. 23–27, 2026')}
               </div>
             </div>
           )}
@@ -1015,12 +1014,12 @@ export default function GuideEditorPage({ teacher }) {
               />
               {plan?.target_id && (
                 <div style={{ fontSize: '11px', color: '#888', margin: '-4px 0 8px', fontStyle: 'italic' }}>
-                  â†‘ Al vincular un logro, los campos de abajo se llenan automÃ¡ticamente. Puedes editarlos para esta semana.
+                  ↑ Al vincular un logro, los campos de abajo se llenan automáticamente. Puedes editarlos para esta semana.
                 </div>
               )}
               {activeNewsProject && (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', margin: '0 0 12px', alignItems: 'center' }}>
-                  <span style={{ fontSize: '11px', color: '#666' }}>ðŸ“‹ Proyecto NEWS activo esta semana:</span>
+                  <span style={{ fontSize: '11px', color: '#666' }}>📋 Proyecto NEWS activo esta semana:</span>
                   <span style={{
                     fontSize: '11px', fontWeight: 600, padding: '3px 10px', borderRadius: '12px',
                     background: '#f0f7ff', border: '1px solid #c5d5f0', color: '#2E5598',
@@ -1049,14 +1048,14 @@ export default function GuideEditorPage({ teacher }) {
                     </ol>
                   ) : (
                     <div style={{ fontSize: '12px', color: '#aaa', fontStyle: 'italic', padding: '8px 0' }}>
-                      Vincula un indicador de logro arriba para ver los criterios aquÃ­.
+                      Vincula un indicador de logro arriba para ver los criterios aquí.
                     </div>
                   )
                 })()}
                 <div style={{ fontSize: '11px', color: '#999', marginTop: '4px' }}>
                   Para editar los indicadores ve a{' '}
                   <a href="#" onClick={e => { e.preventDefault(); navigate('/targets') }} style={{ color: '#2E5598' }}>
-                    Indicadores de Logro â†’
+                    Indicadores de Logro →
                   </a>
                 </div>
               </div>
@@ -1065,16 +1064,16 @@ export default function GuideEditorPage({ teacher }) {
             </div>
           )}
 
-          {/* VERSÃCULO */}
+          {/* VERSÍCULO */}
           {activePanel === 'verse' && (
             <div className="card">
-              <div className="card-title"><div className="badge">1</div> VersÃ­culo del aÃ±o â€” AÃ‘O DE LA PUREZA</div>
+              <div className="card-title"><div className="badge">1</div> Versículo del año — AÑO DE LA PUREZA</div>
               <div className="verse-box">
                 {school.year_verse}
-                <span className="verse-ref">â€” {school.year_verse_ref}</span>
+                <span className="verse-ref">— {school.year_verse_ref}</span>
               </div>
               <p style={{ fontSize: 12, color: '#888', marginTop: 10 }}>
-                El versÃ­culo del aÃ±o es declarado por el Pastor y se gestiona desde{' '}
+                El versículo del año es declarado por el Pastor y se gestiona desde{' '}
                 <strong>Principios Rectores</strong>.
               </p>
             </div>
@@ -1101,18 +1100,18 @@ export default function GuideEditorPage({ teacher }) {
           {/* SUMMARY */}
           {activePanel === 'summary' && (
             <div className="card">
-              <div className="card-title"><div className="badge">â˜…</div> Resumen y prÃ³xima semana</div>
+              <div className="card-title"><div className="badge">★</div> Resumen y próxima semana</div>
               {richField('Lo trabajado esta semana',
-                content.summary.done, ['summary','done'], 'Actividades completadas esta semanaâ€¦', 120)}
-              {richField('PrÃ³xima semana â€“ contenidos',
-                content.summary.next, ['summary','next'], 'Temas de la prÃ³xima semanaâ€¦', 100)}
+                content.summary.done, ['summary','done'], 'Actividades completadas esta semana…', 120)}
+              {richField('Próxima semana – contenidos',
+                content.summary.next, ['summary','next'], 'Temas de la próxima semana…', 100)}
             </div>
           )}
 
         </div>
       </div>
 
-      {/* â”€â”€ Modales IA â”€â”€ */}
+      {/* ── Modales IA ── */}
       {showAnalyzer && (
         <AIAnalyzerModal
           content={contentRef.current}
@@ -1156,4 +1155,3 @@ export default function GuideEditorPage({ teacher }) {
     </div>
   )
 }
-
