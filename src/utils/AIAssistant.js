@@ -564,21 +564,40 @@ No uses listas con viñetas dentro del contenido. Texto corrido, directo al punt
     }
   }
 
+  // Post-process: inject fixed texts regardless of what the AI generated
+  function injectFixedTexts(parsed) {
+    if (!parsed?.days) return parsed
+    Object.values(parsed.days).forEach(day => {
+      if (!day?.sections) return
+      const subj = day.sections.subject
+      if (subj) {
+        const aiContent = (subj.content || '').trim()
+        subj.content = PRAYER_TEXT + (aiContent ? '\n\n' + aiContent : '')
+      }
+      const motiv = day.sections.motivation
+      if (motiv) {
+        const aiContent = (motiv.content || '').trim()
+        motiv.content = CLASS_RULES + (aiContent ? '\n\n' + aiContent : '')
+      }
+    })
+    return parsed
+  }
+
   const result = tryParseJSON(raw)
-  if (result) return result
+  if (result) return injectFixedTexts(result)
 
   // Retry: ask for more compact content
   const retryMessage = `${message}
 
 IMPORTANTE: Tu respuesta anterior fue cortada. Sé más breve:
-- SUBJECT: texto fijo de oración/reglas + 1 oración del tema. CLOSING, ASSIGNMENT: 1 oración cada uno.
-- MOTIVATION: reglas fijas + 1 oración de enganche. ACTIVITY: 2 oraciones.
-- SKILL DEVELOPMENT: 3 oraciones.
+- SUBJECT: solo 1 oración con el tema del día (el texto de oración/reglas se añade automáticamente).
+- MOTIVATION: solo 1-2 oraciones con la actividad de enganche (las reglas se añaden automáticamente).
+- CLOSING, ASSIGNMENT: 1 oración cada uno. ACTIVITY: 2 oraciones. SKILL DEVELOPMENT: 3 oraciones.
 - Responde SOLO con el JSON, sin texto antes ni después.`
 
   const retryRaw = await callClaude({ type: 'generate', system, message: retryMessage, planId, maxTokens: 16000 })
   const retryResult = tryParseJSON(retryRaw)
-  if (retryResult) return retryResult
+  if (retryResult) return injectFixedTexts(retryResult)
 
   throw new Error(`No se pudo generar la guía. Intenta con menos días o un objetivo más específico.`)
 }
