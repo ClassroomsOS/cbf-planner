@@ -537,8 +537,8 @@ El contenido debe estar en el idioma apropiado para la materia (inglés para Lan
 Usa texto plano, no HTML.
 
 LÍMITES DE EXTENSIÓN POR SECCIÓN (sé conciso y específico):
-- SUBJECT (~8 min): El texto de la oración/reglas YA está fijado arriba (cópialo LITERAL). Añade solo 1 oración con el tema del día.
-- MOTIVATION (~8 min): Las reglas YA están fijadas arriba (cópialas LITERALES). Añade solo 1-2 oraciones con la actividad de enganche.
+- SUBJECT (~8 min): 1 oración clara que enuncia el tema o habilidad del día.
+- MOTIVATION (~8 min): 1-2 oraciones que describen la actividad de enganche (pregunta, juego corto, imagen, reto).
 - ACTIVITY (~15 min): 2-3 oraciones. Actividad práctica con conexión al valor cristiano.
 - SKILL DEVELOPMENT (~40 min): 3-4 oraciones. Paso a paso de la actividad principal. La más importante.
 - CLOSING (~8 min): 1 oración. Reflexión que conecte el aprendizaje con el principio bíblico del día.
@@ -558,20 +558,27 @@ No uses listas con viñetas dentro del contenido. Texto corrido, directo al punt
     }
   }
 
-  // Post-process: inject fixed texts regardless of what the AI generated
+  // Converts plain text to a single <p> block; leaves existing HTML untouched
+  function toHtml(text) {
+    const t = (text || '').trim()
+    if (!t) return ''
+    return t.startsWith('<') ? t : `<p>${t}</p>`
+  }
+
+  // Post-process: prepend fixed texts to whatever the AI generated
   function injectFixedTexts(parsed) {
     if (!parsed?.days) return parsed
     Object.values(parsed.days).forEach(day => {
       if (!day?.sections) return
       const subj = day.sections.subject
       if (subj) {
-        const aiContent = (subj.content || '').trim()
-        subj.content = PRAYER_TEXT + (aiContent ? `<p>${aiContent}</p>` : '')
+        const aiHtml = toHtml(subj.content)
+        subj.content = PRAYER_TEXT + (aiHtml ? aiHtml : '')
       }
       const motiv = day.sections.motivation
       if (motiv) {
-        const aiContent = (motiv.content || '').trim()
-        motiv.content = CLASS_RULES + (aiContent ? `<p>${aiContent}</p>` : '')
+        const aiHtml = toHtml(motiv.content)
+        motiv.content = CLASS_RULES + (aiHtml ? aiHtml : '')
       }
     })
     return parsed
@@ -584,8 +591,7 @@ No uses listas con viñetas dentro del contenido. Texto corrido, directo al punt
   const retryMessage = `${message}
 
 IMPORTANTE: Tu respuesta anterior fue cortada. Sé más breve:
-- SUBJECT: solo 1 oración con el tema del día (el texto de oración/reglas se añade automáticamente).
-- MOTIVATION: solo 1-2 oraciones con la actividad de enganche (las reglas se añaden automáticamente).
+- SUBJECT: 1 oración con el tema del día. MOTIVATION: 1-2 oraciones con la actividad de enganche.
 - CLOSING, ASSIGNMENT: 1 oración cada uno. ACTIVITY: 2 oraciones. SKILL DEVELOPMENT: 3 oraciones.
 - Responde SOLO con el JSON, sin texto antes ni después.`
 
