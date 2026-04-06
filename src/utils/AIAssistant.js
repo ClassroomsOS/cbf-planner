@@ -4,6 +4,7 @@
 
 import { supabase } from '../supabase'
 import { sanitizeAIInput } from './validationSchemas'
+import { MODELO_B_SUBJECTS } from './constants'
 
 // ── AI context (set once at login) ───────────────────────────────────────────
 // schoolId + teacherId needed for usage logging and limit enforcement.
@@ -385,21 +386,47 @@ export async function generateGuideStructure({
   const TAXONOMY_DESC = { recognize: 'Reconocer (identificar, recordar, nombrar)', apply: 'Aplicar (usar, demostrar, resolver)', produce: 'Producir (crear, diseñar, componer)' }
   const v = fmtVerse(principles?.monthVerse) || fmtVerse(principles?.yearVerse)
 
-  const pBlock = biblicalBlock(principles, `OBLIGATORIO:
+  const isEnglishSubject = MODELO_B_SUBJECTS.includes(subject)
+
+  const PRAYER_TEXT = isEnglishSubject
+    ? `Before starting the class, the teacher asks a student to give thanks to the Lord, because He is our guide and helps us understand our path. The teacher then explains the class rules to the students, establishing what is allowed and what is not.`
+    : `Antes de iniciar la clase, el docente pide a un estudiante que dé gracias al Señor, porque Él es nuestro guía y nos ayuda a entender nuestro camino. El docente luego recuerda a los estudiantes las normas de la clase, estableciendo qué está permitido y qué no.`
+
+  const CLASS_RULES = `Rule 1: Listen when your teacher is talking
+Rule 2: Follow directions quickly
+Rule 3: Respect others. Respect yourself. Respect your school
+Rule 4: Raise your hand to speak or stand
+Rule 5: Be safe, Be kind, Be honest for the glory of God
+Rule 6: Use English at all times, it is the only way to improve.
+Rule 7: Do not translate what your teacher says, please.`
+
+  const pBlock = biblicalBlock(principles, `OBLIGATORIO — SIN EXCEPCIÓN:
+- TODO el contenido de CADA sección de CADA día tiene orientación cristiana confesional.
+  No importa qué tan secular sea el indicador o la materia — el enfoque bíblico es
+  el NORTE INAMOVIBLE de esta institución y debe impregnar TODA la planificación.
 - La sección CLOSING de CADA día DEBE terminar con una pregunta o reflexión que conecte
   lo aprendido ese día con estos principios. No como un añadido artificial, sino como
   el cierre natural de la experiencia de aprendizaje.
-- Al menos uno de los indicadores de logro en "objetivo.indicadores" debe reflejar la
-  dimensión espiritual/formativa del logro en conexión con el Principio del Indicador.
-- La semana tiene un arco espiritual además del académico.`)
+- La semana tiene un arco espiritual además del académico. El estudiante debe terminar
+  la semana con una conexión más profunda entre su aprendizaje y su fe.`)
 
-  const system = `Eres un experto en diseño de guías de aprendizaje autónomo para colegios bilingües colombianos.
-Generas estructuras completas de guías semanales siguiendo el modelo CBF con 6 secciones por día:
-1. SUBJECT TO BE WORKED (~8 min): introducción al tema del día
-2. MOTIVATION (~8 min): actividad de enganche/warm-up
-3. ACTIVITY (~15 min): actividad principal de práctica
-4. SKILL DEVELOPMENT (~40 min): desarrollo profundo de la habilidad
-5. CLOSING (~8 min): cierre y reflexión — SIEMPRE conecta con los principios rectores
+  const system = `Eres un experto en diseño de guías de aprendizaje autónomo para colegios bilingües colombianos CRISTIANOS CONFESIONALES.
+Generas estructuras completas de guías semanales siguiendo el modelo CBF con 6 secciones por día.
+MANDATO ABSOLUTO: Esta es una escuela cristiana. El enfoque bíblico es OBLIGATORIO en TODA sección,
+sin importar la materia ni el indicador. Nunca generes contenido neutral o secular puro.
+
+Secciones por día:
+1. SUBJECT TO BE WORKED (~8 min): SIEMPRE EMPIEZA EXACTAMENTE con este texto (cópialo literal):
+   "${PRAYER_TEXT}"
+   Luego, en 1 oración adicional, enuncia el tema o habilidad del día.
+
+2. MOTIVATION (~8 min): SIEMPRE EMPIEZA EXACTAMENTE con estas reglas (cópialas literales):
+   "${CLASS_RULES}"
+   Luego, en 1-2 oraciones, describe la actividad de enganche (pregunta, juego corto, imagen, reto).
+
+3. ACTIVITY (~15 min): actividad principal de práctica con conexión al valor cristiano del día
+4. SKILL DEVELOPMENT (~40 min): desarrollo profundo de la habilidad — la sección más importante
+5. CLOSING (~8 min): cierre con reflexión bíblica — SIEMPRE conecta con los principios rectores
 6. ASSIGNMENT (~5 min): tarea o extensión
 ${pBlock}
 ${learningTarget ? `
@@ -516,11 +543,11 @@ El contenido debe estar en el idioma apropiado para la materia (inglés para Lan
 Usa texto plano, no HTML.
 
 LÍMITES DE EXTENSIÓN POR SECCIÓN (sé conciso y específico):
-- SUBJECT (~8 min): 1 oración. Enuncia el tema o habilidad del día.
-- MOTIVATION (~8 min): 1-2 oraciones. Describe la actividad de enganche (pregunta, juego corto, imagen, reto).
-- ACTIVITY (~15 min): 2-3 oraciones. Instrucción clara de la actividad práctica con un ejemplo concreto.
-- SKILL DEVELOPMENT (~40 min): 3-4 oraciones. Paso a paso de la actividad principal. Esta es la sección más importante.
-- CLOSING (~8 min): 1 oración. Pregunta de reflexión que conecte el aprendizaje del día con el principio bíblico.
+- SUBJECT (~8 min): El texto de la oración/reglas YA está fijado arriba (cópialo LITERAL). Añade solo 1 oración con el tema del día.
+- MOTIVATION (~8 min): Las reglas YA están fijadas arriba (cópialas LITERALES). Añade solo 1-2 oraciones con la actividad de enganche.
+- ACTIVITY (~15 min): 2-3 oraciones. Actividad práctica con conexión al valor cristiano.
+- SKILL DEVELOPMENT (~40 min): 3-4 oraciones. Paso a paso de la actividad principal. La más importante.
+- CLOSING (~8 min): 1 oración. Reflexión que conecte el aprendizaje con el principio bíblico del día.
 - ASSIGNMENT (~5 min): 1 oración. Tarea específica y alcanzable.
 No uses listas con viñetas dentro del contenido. Texto corrido, directo al punto.`
 
@@ -544,8 +571,8 @@ No uses listas con viñetas dentro del contenido. Texto corrido, directo al punt
   const retryMessage = `${message}
 
 IMPORTANTE: Tu respuesta anterior fue cortada. Sé más breve:
-- SUBJECT, MOTIVATION, CLOSING, ASSIGNMENT: 1 oración cada uno.
-- ACTIVITY: 2 oraciones.
+- SUBJECT: texto fijo de oración/reglas + 1 oración del tema. CLOSING, ASSIGNMENT: 1 oración cada uno.
+- MOTIVATION: reglas fijas + 1 oración de enganche. ACTIVITY: 2 oraciones.
 - SKILL DEVELOPMENT: 3 oraciones.
 - Responde SOLO con el JSON, sin texto antes ni después.`
 
