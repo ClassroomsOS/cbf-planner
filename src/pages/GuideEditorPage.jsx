@@ -803,34 +803,20 @@ export default function GuideEditorPage({ teacher }) {
                 <button onClick={() => { closeExport(); exportHtml(contentRef.current, activeNewsProject) }}>
                   🌐 HTML — archivo web
                 </button>
-                <div style={{ position: 'relative' }}>
-                  <button
-                    onClick={() => setDayPickerOpen(v => !v)}
-                    style={{ width: '100%', textAlign: 'left' }}>
-                    🏫 Campus Virtual — por jornada ▾
-                  </button>
-                  {dayPickerOpen && (
-                    <div style={{
-                      position: 'absolute', left: '100%', top: 0, zIndex: 200,
-                      background: '#fff', border: '1px solid #d0d8e8', borderRadius: '8px',
-                      boxShadow: '0 4px 16px rgba(0,0,0,0.15)', minWidth: '200px', padding: '6px 0'
+                <button onClick={() => setDayPickerOpen(v => !v)}>
+                  🏫 Campus Virtual — por jornada {dayPickerOpen ? '▴' : '▾'}
+                </button>
+                {dayPickerOpen && getActiveDays(contentRef.current).map(({ key, label }) => (
+                  <button key={key}
+                    style={{ paddingLeft: '24px', color: '#2E5598', fontWeight: 600 }}
+                    onClick={() => {
+                      setDayPickerOpen(false)
+                      closeExport()
+                      exportDayHtml(contentRef.current, key, activeNewsProject)
                     }}>
-                      <div style={{ padding: '4px 12px 6px', fontSize: '10px', fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '.5px' }}>
-                        Selecciona la jornada
-                      </div>
-                      {getActiveDays(contentRef.current).map(({ key, label }) => (
-                        <button key={key} style={{ width: '100%', textAlign: 'left' }}
-                          onClick={() => {
-                            setDayPickerOpen(false)
-                            closeExport()
-                            exportDayHtml(contentRef.current, key, activeNewsProject)
-                          }}>
-                          📅 {label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                    📅 {label}
+                  </button>
+                ))}
                 <hr style={{ margin: '4px 0', border: 'none', borderTop: '1px solid #e0e6f0' }} />
                 <div style={{ padding: '4px 12px 6px', fontSize: '10px', fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '.5px' }}>
                   Inteligencia Artificial
