@@ -440,6 +440,177 @@ ${s.done || s.next ? `
 </html>`
 }
 
+// ── Shared CSS for SmartBlock dialogs (reused in per-day HTML) ────────────────
+const SMARTBLOCK_CSS = `
+  dialog.sbd {
+    border: none; border-radius: 12px; padding: 0;
+    max-width: 600px; width: 90vw; max-height: 85vh;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.30);
+  }
+  dialog.sbd[open] { display: flex; flex-direction: column; }
+  dialog.sbd::backdrop { background: rgba(0,0,0,0.50); }
+  .sbd-h {
+    flex-shrink: 0;
+    color: #fff; padding: 12px 16px;
+    display: flex; justify-content: space-between; align-items: center;
+    font-weight: 700; font-size: 14px; font-family: Arial, sans-serif;
+  }
+  .sbd-close {
+    background: rgba(255,255,255,0.20); border: none; color: #fff;
+    width: 30px; height: 30px; border-radius: 50%;
+    cursor: pointer; font-size: 15px; line-height: 1;
+  }
+  .sbd-b {
+    flex: 1; min-height: 0;
+    padding: 16px; overflow-y: auto;
+    font-family: Arial, sans-serif;
+  }
+  .sbd-f {
+    flex-shrink: 0;
+    padding: 10px 16px; border-top: 1px solid #eee;
+    display: flex; gap: 8px; align-items: center; justify-content: flex-end;
+    font-family: Arial, sans-serif;
+  }
+  .sbd-launch {
+    display: inline-flex; align-items: center; gap: 6px;
+    margin-top: 10px; padding: 8px 18px;
+    color: #fff; border: none; border-radius: 20px;
+    font-size: 12px; font-weight: 700; font-family: Arial, sans-serif;
+    cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.20);
+    transition: transform .12s, box-shadow .12s;
+  }
+  .sbd-launch:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,0,0,0.28); }
+  .sbd-check {
+    padding: 8px 20px; background: #2E5598; color: #fff;
+    border: none; border-radius: 6px;
+    font-size: 13px; font-weight: 700; font-family: Arial, sans-serif; cursor: pointer;
+  }
+  .sbd-reset {
+    padding: 8px 16px; background: #f0f0f0; color: #555;
+    border: none; border-radius: 6px;
+    font-size: 13px; font-family: Arial, sans-serif; cursor: pointer;
+  }`
+
+// ── Per-day HTML builder (for Virtual Campus embedding) ───────────────────────
+
+export function buildDayHtml(content, dayKey, newsProject) {
+  const h   = content.header   || {}
+  const i   = content.info     || {}
+  const o   = content.objetivo || {}
+  const v   = content.verse    || {}
+  const day = content.days?.[dayKey]
+  if (!day) return null
+
+  // Compact indicator line
+  const rawInds = o.indicadores?.length ? o.indicadores : o.indicador ? [o.indicador] : []
+  const indText = rawInds
+    .map(ind => typeof ind === 'object' ? (ind.texto_es || ind.texto_en || ind.habilidad || '') : (ind || ''))
+    .filter(Boolean)
+    .join(' · ')
+
+  // Principio
+  const principio = o.principio || newsProject?.biblical_principle || ''
+
+  // Active skill name from newsProject (Modelo B)
+  const skillLabel = newsProject?.skill
+    ? ` — ${newsProject.skill.charAt(0).toUpperCase() + newsProject.skill.slice(1)}`
+    : ''
+
+  const dayBlock = buildDayBlock(dayKey, day)
+
+  return `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${esc(day.date_label || dayKey)} · ${esc(i.asignatura)} · ${esc(i.grado)}</title>
+<style>
+  body { font-family: Arial, sans-serif; max-width: 900px; margin: 0 auto; padding: 16px; color: #222; }
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  a { color: #2E5598; }
+  @media print {
+    body { padding: 0; max-width: 100%; }
+    tr { break-inside: avoid; page-break-inside: avoid; }
+    .sbd-launch { display: none !important; }
+  }
+  ${SMARTBLOCK_CSS}
+</style>
+</head>
+<body>
+
+<!-- Encabezado compacto -->
+<table style="width:100%;border:2px solid #2E5598;border-collapse:collapse;margin-bottom:10px">
+  <tr>
+    ${h.logo_url
+      ? `<td style="width:64px;padding:6px;text-align:center;border-right:1px solid #2E5598">
+           <img src="${h.logo_url}" style="max-height:52px;max-width:56px;width:auto;height:auto;object-fit:contain">
+         </td>`
+      : ''}
+    <td style="padding:6px 12px;border-right:1px solid #2E5598">
+      <div style="font-weight:700;font-size:14px;color:#1F3864">${esc(h.school)}</div>
+      <div style="font-size:11px;color:#555;margin-top:1px">
+        ${esc(i.grado)} &nbsp;·&nbsp; ${esc(i.asignatura)}${esc(skillLabel)} &nbsp;·&nbsp; Semana ${esc(i.semana)}
+      </div>
+      <div style="font-size:11px;color:#888;margin-top:1px">Docente: ${esc(i.docente)}</div>
+    </td>
+    <td style="padding:6px 12px;text-align:right;white-space:nowrap;min-width:110px">
+      <div style="font-weight:700;font-size:13px;color:#2E5598">📅 ${esc(day.date_label || dayKey)}</div>
+      ${day.class_periods ? `<div style="font-size:11px;color:#888;margin-top:2px">${esc(day.class_periods)}</div>` : ''}
+    </td>
+  </tr>
+</table>
+
+${indText ? `
+<div style="background:#f0f7e8;border-left:4px solid #9BBB59;padding:7px 14px;
+            margin-bottom:10px;border-radius:0 5px 5px 0;font-size:11px;color:#333;line-height:1.6">
+  <strong style="color:#9BBB59">🎯 Indicador:</strong> ${esc(indText)}
+  ${principio ? `<br><strong style="color:#9BBB59">Principio:</strong> <em>${esc(principio)}</em>` : ''}
+</div>` : ''}
+
+${v.text ? `
+<div style="background:#FFF8E7;border-left:4px solid #C9A84C;padding:8px 14px;
+            border-radius:0 5px 5px 0;margin-bottom:12px;font-style:italic;
+            font-size:11px;color:#5a4000;line-height:1.6">
+  ${v.text}
+  ${v.ref ? `<div style="margin-top:3px"><strong style="font-style:normal;color:#C9A84C">— ${esc(v.ref)}</strong></div>` : ''}
+</div>` : ''}
+
+${dayBlock}
+
+<p style="text-align:center;color:#aaa;font-size:10px;margin-top:14px">
+  ${esc(h.school)} · ${esc(i.grado)} · ${esc(i.asignatura)} · Generado con CBF Planner
+</p>
+
+</body>
+</html>`
+}
+
+export function exportDayHtml(content, dayKey, newsProject) {
+  const i   = content.info || {}
+  const day = content.days?.[dayKey]
+  if (!day) return
+  const html = buildDayHtml(content, dayKey, newsProject)
+  if (!html) return
+  const grade   = (i.grado || 'CBF').replace(/\s/g, '_')
+  const subject = (i.asignatura || '').replace(/\s/g, '_').slice(0, 12)
+  const label   = (day.date_label || dayKey).replace(/\s/g, '_').replace(/[^a-zA-Z0-9_\-\.]/g, '')
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
+  const url  = URL.createObjectURL(blob)
+  const a    = document.createElement('a')
+  a.href     = url
+  a.download = `${grade}_${subject}_${label}.html`
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+// ── Returns active days sorted: [{ key, label }] ─────────────────────────────
+export function getActiveDays(content) {
+  return Object.entries(content.days || {})
+    .sort(([a], [b]) => a.localeCompare(b))
+    .filter(([, day]) => day.active !== false)
+    .map(([key, day]) => ({ key, label: day.date_label || key }))
+}
+
 // ── Export functions ──────────────────────────────────────────────────────────
 
 export function exportHtml(content, newsProject) {
