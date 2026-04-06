@@ -118,7 +118,7 @@ Both exports render: text content, images (with layout), videos (HTML only — i
 | Table | Purpose |
 |---|---|
 | `teachers` | User profiles. `status`, `role`, `school_id`, `default_class/subject/period`, `ai_monthly_limit int` (0=ilimitado) |
-| `schools` | Multi-tenant root. `features` JSONB, `year_verse`, `logo_url` |
+| `schools` | Multi-tenant root. `features` JSONB, `year_verse`, `logo_url`, `document_code`, `doc_version`, `dane`, `resolution`, `process_name` |
 | `teacher_assignments` | Admin-controlled class assignments. `grade` (base only, e.g. `"10.°"`), `section`, `subject`, `schedule` JSONB (keys: `mon/tue/wed/thu/fri`, values: period arrays), `classroom text` |
 | `lesson_plans` | One row per guide. `content` JSONB holds all plan data. `grade` = combined label. Links to `target_id`, `news_project_id`. `week_count int` (1 or 2). |
 | `learning_targets` | **Logros del trimestre** (meta macro). `description` = el Logro (Modelo A only). `taxonomy` enum: `recognize | apply | produce`. `indicadores jsonb` = array of strings (Modelo A) or objects `{habilidad, taxonomy, texto_en, principio_biblico: {titulo, referencia, cita}, es_titulo, es_descripcion, es_grupo}` (Modelo B). `tematica_names jsonb`. `news_model text` ('standard'\|'language'). |
