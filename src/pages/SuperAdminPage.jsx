@@ -24,7 +24,7 @@ export default function SuperAdminPage({ teacher }) {
   const [schoolLoading, setSchoolLoading] = useState(true)
   const [schoolSaving,  setSchoolSaving]  = useState(false)
   const [schoolForm, setSchoolForm] = useState({
-    name: '', dane: '', resolution: '', plan_code: '', plan_version: '',
+    name: '', dane: '', resolution: '', document_code: '', doc_version: '',
   })
 
   // ── Logo ─────────────────────────────────────────────────────────────────────
@@ -41,7 +41,7 @@ export default function SuperAdminPage({ teacher }) {
     async function fetchSchool() {
       const { data } = await supabase
         .from('schools')
-        .select('id, name, dane, resolution, plan_code, plan_version, logo_url')
+        .select('id, name, dane, resolution, document_code, doc_version, logo_url')
         .eq('id', teacher.school_id)
         .single()
       if (data) {
@@ -50,8 +50,8 @@ export default function SuperAdminPage({ teacher }) {
           name:         data.name         || '',
           dane:         data.dane         || '',
           resolution:   data.resolution   || '',
-          plan_code:    data.plan_code    || '',
-          plan_version: data.plan_version || '',
+          document_code: data.document_code || '',
+          doc_version:   data.doc_version   || '',
         })
       }
       setSchoolLoading(false)
@@ -76,8 +76,8 @@ export default function SuperAdminPage({ teacher }) {
         name:         schoolForm.name.trim(),
         dane:         schoolForm.dane.trim()         || null,
         resolution:   schoolForm.resolution.trim()   || null,
-        plan_code:    schoolForm.plan_code.trim()    || null,
-        plan_version: schoolForm.plan_version.trim() || null,
+        document_code: schoolForm.document_code.trim() || null,
+        doc_version:   schoolForm.doc_version.trim()   || null,
       })
       .eq('id', teacher.school_id)
     if (error) {
@@ -308,8 +308,8 @@ export default function SuperAdminPage({ teacher }) {
           <div>
             <label style={labelStyle}>Código del documento (plan de estudios)</label>
             <input
-              value={schoolForm.plan_code}
-              onChange={e => setSchoolForm(p => ({ ...p, plan_code: e.target.value }))}
+              value={schoolForm.document_code}
+              onChange={e => setSchoolForm(p => ({ ...p, document_code: e.target.value }))}
               placeholder="Ej. CBF-PE-2025"
               style={fieldStyle}
             />
@@ -317,8 +317,8 @@ export default function SuperAdminPage({ teacher }) {
           <div>
             <label style={labelStyle}>Versión del documento</label>
             <input
-              value={schoolForm.plan_version}
-              onChange={e => setSchoolForm(p => ({ ...p, plan_version: e.target.value }))}
+              value={schoolForm.doc_version}
+              onChange={e => setSchoolForm(p => ({ ...p, doc_version: e.target.value }))}
               placeholder="Ej. v3.1"
               style={fieldStyle}
             />

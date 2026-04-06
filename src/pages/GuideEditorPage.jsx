@@ -93,8 +93,8 @@ function buildInitialContent({ grade, subject, period, week, dateRange }, teache
     header: {
       school:   school?.name     || 'COLEGIO BOSTON FLEXIBLE',
       dane:     `DANE: ${school?.dane || '308001800455'} — RESOLUCIÓN ${school?.resolution || '09685 DE 2019'}`,
-      codigo:   school?.plan_code    || 'CBF-G AC-01',
-      version:  school?.plan_version || 'Versión 02 Febrero 2022',
+      codigo:   school?.document_code || 'CBF-G AC-01',
+      version:  school?.doc_version  || 'Versión 02 Febrero 2022',
       proceso:  'PROCESO: GESTIÓN ACADÉMICA Y CURRICULAR',
       logo_url: school?.logo_url || null,
     },
