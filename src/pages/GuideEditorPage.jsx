@@ -152,6 +152,7 @@ export default function GuideEditorPage({ teacher }) {
   const dirtyRef      = useRef(false)
   const contentRef    = useRef(null)
   const docxInputRef  = useRef(null)
+  const exportWrapRef = useRef(null)
   const [importingDocx, setImportingDocx] = useState(false)
 
   // ── Load ──
@@ -536,6 +537,19 @@ export default function GuideEditorPage({ teacher }) {
 
   useEffect(() => { return () => { if (dirtyRef.current) doSave() } }, [doSave])
 
+  // ── Click-outside closes export dropdown ──────────────────
+  useEffect(() => {
+    if (!exportOpen) return
+    function handleClick(e) {
+      if (exportWrapRef.current && !exportWrapRef.current.contains(e.target)) {
+        setDayPickerOpen(false)
+        closeExport()
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [exportOpen, closeExport])
+
   // ── Import .docx handler ───────────────────────────────────
   async function handleDocxImport(e) {
     const file = e.target.files?.[0]
@@ -786,8 +800,7 @@ export default function GuideEditorPage({ teacher }) {
             🖨️ <span className="ge-print-label">Imprimir / PDF</span>
           </button>
 
-          <div className="ge-export-wrap"
-            onMouseLeave={() => { setDayPickerOpen(false); closeExport() }}>
+          <div className="ge-export-wrap" ref={exportWrapRef}>
             <button className="btn-secondary"
               style={{ fontSize: '12px' }}
               onClick={toggleExport}>
