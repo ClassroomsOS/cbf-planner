@@ -518,25 +518,21 @@ export function buildDayHtml(content, dayKey, newsProject) {
 
   const dayBlock = buildDayBlock(dayKey, day)
 
-  return `<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${esc(day.date_label || dayKey)} · ${esc(i.asignatura)} · ${esc(i.grado)}</title>
-<style>
-  body { font-family: Arial, sans-serif; max-width: 900px; margin: 0 auto; padding: 16px; color: #222; }
-  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-  a { color: #2E5598; }
+  // All CSS is scoped to .cbf-day so it doesn't leak when pasted into a virtual campus page
+  const css = `
+  .cbf-day { font-family: Arial, sans-serif; color: #222; line-height: 1.4; }
+  .cbf-day * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; box-sizing: border-box; }
+  .cbf-day a { color: #2E5598; }
+  .cbf-day table { border-collapse: collapse; }
   @media print {
-    body { padding: 0; max-width: 100%; }
-    tr { break-inside: avoid; page-break-inside: avoid; }
-    .sbd-launch { display: none !important; }
+    .cbf-day { padding: 0; }
+    .cbf-day tr { break-inside: avoid; page-break-inside: avoid; }
+    .cbf-day .sbd-launch { display: none !important; }
   }
-  ${SMARTBLOCK_CSS}
-</style>
-</head>
-<body>
+  ${SMARTBLOCK_CSS}`
+
+  const body = `
+<div class="cbf-day" style="max-width:900px;margin:0 auto;padding:12px;font-family:Arial,sans-serif">
 
 <!-- Encabezado compacto -->
 <table style="width:100%;border:2px solid #2E5598;border-collapse:collapse;margin-bottom:10px">
@@ -581,6 +577,20 @@ ${dayBlock}
   ${esc(h.school)} · ${esc(i.grado)} · ${esc(i.asignatura)} · Generado con CBF Planner
 </p>
 
+</div>`
+
+  // Full standalone HTML (for opening directly in browser)
+  // AND the inner content works safely when pasted as a snippet into a CMS/virtual campus
+  return `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${esc(day.date_label || dayKey)} · ${esc(i.asignatura)} · ${esc(i.grado)}</title>
+<style>${css}</style>
+</head>
+<body style="margin:0;padding:0;background:#f5f7fa">
+${body}
 </body>
 </html>`
 }
