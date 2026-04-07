@@ -143,6 +143,7 @@ export default function GuideEditorPage({ teacher }) {
   // ── Modal/UI toggles (migrated to useToggle) ──
   const [exportOpen,      toggleExport,      openExport,      closeExport]      = useToggle(false)
   const [dayPickerOpen,   setDayPickerOpen]  = useState(false)
+  const [exportingDay,    setExportingDay]   = useState(false)
   const [showAnalyzer,    toggleAnalyzer,    openAnalyzer,    closeAnalyzer]    = useToggle(false)
   const [showGenerator,   toggleGenerator,   openGenerator,   closeGenerator]   = useToggle(false)
   const [showComments,    toggleComments,    openComments,    closeComments]    = useToggle(false)
@@ -820,17 +821,24 @@ export default function GuideEditorPage({ teacher }) {
                 <button onClick={() => setDayPickerOpen(v => !v)}>
                   🏫 Campus Virtual — por jornada {dayPickerOpen ? '▴' : '▾'}
                 </button>
-                {dayPickerOpen && getActiveDays(contentRef.current).map(({ key, label }) => (
-                  <button key={key}
-                    style={{ paddingLeft: '24px', color: '#2E5598', fontWeight: 600 }}
-                    onClick={async () => {
-                      setDayPickerOpen(false)
-                      closeExport()
-                      await exportDayHtml(contentRef.current, key, activeNewsProject)
-                    }}>
-                    📅 {label}
-                  </button>
-                ))}
+                {dayPickerOpen && (
+                  <>
+                    {getActiveDays(contentRef.current).map(({ key, label }) => (
+                      <button key={key}
+                        style={{ paddingLeft: '24px', color: exportingDay ? '#aaa' : '#2E5598', fontWeight: 600 }}
+                        disabled={exportingDay}
+                        onClick={async () => {
+                          setExportingDay(true)
+                          setDayPickerOpen(false)
+                          closeExport()
+                          await exportDayHtml(contentRef.current, key, activeNewsProject)
+                          setExportingDay(false)
+                        }}>
+                        {exportingDay ? '⏳ Generando…' : `📅 ${label}`}
+                      </button>
+                    ))}
+                  </>
+                )}
                 <hr style={{ margin: '4px 0', border: 'none', borderTop: '1px solid #e0e6f0' }} />
                 <div style={{ padding: '4px 12px 6px', fontSize: '10px', fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '.5px' }}>
                   Inteligencia Artificial

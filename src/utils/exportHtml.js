@@ -187,7 +187,7 @@ function buildImageGrid(images, layout) {
   return `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:${gap}">${images.map(img => cell(img, '3/2')).join('')}</div>`
 }
 
-function buildDayBlock(iso, day) {
+function buildDayBlock(iso, day, { accordion = false, defaultOpen = false } = {}) {
   const isoKey = iso.replace(/-/g, '')
   const secRows = SECTIONS.map(s => {
     const sd = day.sections?.[s.key] || {}
@@ -206,6 +206,32 @@ function buildDayBlock(iso, day) {
     </tr>`
   }).join('')
 
+  const unitRow = day.unit ? `
+    <div style="background:#D6E4F0;padding:6px 16px;font-size:12px;font-weight:600;color:#1F3864">
+      📚 ${esc(day.unit)}
+    </div>` : ''
+
+  const tableHtml = `<table style="width:100%;border-collapse:collapse">${secRows}</table>`
+
+  if (accordion) {
+    return `
+  <div class="day-block" style="margin-bottom:12px;border-radius:6px;overflow:hidden;border:2px solid #2E5598">
+    <details ${defaultOpen ? 'open' : ''}>
+      <summary style="background:#1F3864;color:#fff;padding:10px 16px;
+                      display:flex;justify-content:space-between;align-items:center;
+                      cursor:pointer;list-style:none;user-select:none">
+        <span style="font-weight:700;font-size:14px">
+          📅 ${esc(day.date_label || iso)}
+          ${!defaultOpen ? `<span style="font-size:11px;font-weight:400;opacity:.6;margin-left:8px">▸ clic para expandir</span>` : ''}
+        </span>
+        ${day.class_periods ? `<span style="font-size:12px;opacity:.8">${esc(day.class_periods)}</span>` : ''}
+      </summary>
+      ${unitRow}
+      ${tableHtml}
+    </details>
+  </div>`
+  }
+
   return `
   <div class="day-block" style="margin-bottom:20px;border-radius:6px;overflow:hidden;border:2px solid #2E5598">
     <div style="background:#1F3864;color:#fff;padding:10px 16px;
@@ -215,11 +241,8 @@ function buildDayBlock(iso, day) {
       </span>
       ${day.class_periods ? `<span style="font-size:12px;opacity:.8">${esc(day.class_periods)}</span>` : ''}
     </div>
-    ${day.unit ? `
-    <div style="background:#D6E4F0;padding:6px 16px;font-size:12px;font-weight:600;color:#1F3864">
-      📚 ${esc(day.unit)}
-    </div>` : ''}
-    <table style="width:100%;border-collapse:collapse">${secRows}</table>
+    ${unitRow}
+    ${tableHtml}
   </div>`
 }
 
@@ -232,10 +255,12 @@ export function buildHtml(content, newsProject) {
   const v = content.verse    || {}
   const s = content.summary  || {}
 
-  const dayBlocks = Object.entries(content.days || {})
+  const activeDays = Object.entries(content.days || {})
     .sort(([a], [b]) => a.localeCompare(b))
     .filter(([, day]) => day.active !== false)
-    .map(([iso, day]) => buildDayBlock(iso, day))
+
+  const dayBlocks = activeDays
+    .map(([iso, day], idx) => buildDayBlock(iso, day, { accordion: true, defaultOpen: idx === 0 }))
     .join('')
 
   return `<!DOCTYPE html>
