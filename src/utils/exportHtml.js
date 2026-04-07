@@ -214,21 +214,24 @@ function buildDayBlock(iso, day, { accordion = false, defaultOpen = false } = {}
   const tableHtml = `<table style="width:100%;border-collapse:collapse">${secRows}</table>`
 
   if (accordion) {
+    const bodyId = `day_${isoKey}`
+    const display = defaultOpen ? 'block' : 'none'
+    const arrow   = defaultOpen ? '▾' : '▸'
     return `
-  <div class="day-block" style="margin-bottom:12px;border-radius:6px;overflow:hidden;border:2px solid #2E5598">
-    <details ${defaultOpen ? 'open' : ''}>
-      <summary style="background:#1F3864;color:#fff;padding:10px 16px;
-                      display:flex;justify-content:space-between;align-items:center;
-                      cursor:pointer;list-style:none;user-select:none">
-        <span style="font-weight:700;font-size:14px">
-          📅 ${esc(day.date_label || iso)}
-          ${!defaultOpen ? `<span style="font-size:11px;font-weight:400;opacity:.6;margin-left:8px">▸ clic para expandir</span>` : ''}
-        </span>
-        ${day.class_periods ? `<span style="font-size:12px;opacity:.8">${esc(day.class_periods)}</span>` : ''}
-      </summary>
+  <div class="day-block" style="margin-bottom:12px;border-radius:6px;border:2px solid #2E5598;overflow:hidden">
+    <div onclick="var b=document.getElementById('${bodyId}');var a=document.getElementById('${bodyId}_a');if(b.style.display==='none'){b.style.display='block';a.textContent='▾'}else{b.style.display='none';a.textContent='▸'}"
+         style="background:#1F3864;color:#fff;padding:10px 16px;cursor:pointer;
+                display:flex;justify-content:space-between;align-items:center;user-select:none">
+      <span style="font-weight:700;font-size:14px">
+        📅 ${esc(day.date_label || iso)}
+        <span id="${bodyId}_a" style="font-size:12px;font-weight:400;opacity:.7;margin-left:8px">${arrow}</span>
+      </span>
+      ${day.class_periods ? `<span style="font-size:12px;opacity:.8">${esc(day.class_periods)}</span>` : ''}
+    </div>
+    <div id="${bodyId}" style="display:${display}">
       ${unitRow}
       ${tableHtml}
-    </details>
+    </div>
   </div>`
   }
 
