@@ -187,7 +187,7 @@ function buildImageGrid(images, layout) {
   return `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:${gap}">${images.map(img => cell(img, '3/2')).join('')}</div>`
 }
 
-function buildDayBlock(iso, day, { accordion = false, defaultOpen = false } = {}) {
+function buildDayBlock(iso, day) {
   const isoKey = iso.replace(/-/g, '')
   const secRows = SECTIONS.map(s => {
     const sd = day.sections?.[s.key] || {}
@@ -213,27 +213,6 @@ function buildDayBlock(iso, day, { accordion = false, defaultOpen = false } = {}
 
   const tableHtml = `<table style="width:100%;border-collapse:collapse">${secRows}</table>`
 
-  if (accordion) {
-    const bodyId = `day_${isoKey}`
-    const display = defaultOpen ? 'block' : 'none'
-    const arrow   = defaultOpen ? '▾' : '▸'
-    return `
-  <div class="day-block" style="margin-bottom:12px;border-radius:6px;border:2px solid #2E5598;overflow:hidden">
-    <div onclick="var b=document.getElementById('${bodyId}');var a=document.getElementById('${bodyId}_a');if(b.style.display==='none'){b.style.display='block';a.textContent='▾'}else{b.style.display='none';a.textContent='▸'}"
-         style="background:#1F3864;color:#fff;padding:10px 16px;cursor:pointer;
-                display:flex;justify-content:space-between;align-items:center;user-select:none">
-      <span style="font-weight:700;font-size:14px">
-        📅 ${esc(day.date_label || iso)}
-        <span id="${bodyId}_a" style="font-size:12px;font-weight:400;opacity:.7;margin-left:8px">${arrow}</span>
-      </span>
-      ${day.class_periods ? `<span style="font-size:12px;opacity:.8">${esc(day.class_periods)}</span>` : ''}
-    </div>
-    <div id="${bodyId}" style="display:${display}">
-      ${unitRow}
-      ${tableHtml}
-    </div>
-  </div>`
-  }
 
   return `
   <div class="day-block" style="margin-bottom:20px;border-radius:6px;overflow:hidden;border:2px solid #2E5598">
@@ -258,12 +237,10 @@ export function buildHtml(content, newsProject) {
   const v = content.verse    || {}
   const s = content.summary  || {}
 
-  const activeDays = Object.entries(content.days || {})
+  const dayBlocks = Object.entries(content.days || {})
     .sort(([a], [b]) => a.localeCompare(b))
     .filter(([, day]) => day.active !== false)
-
-  const dayBlocks = activeDays
-    .map(([iso, day], idx) => buildDayBlock(iso, day, { accordion: true, defaultOpen: idx === 0 }))
+    .map(([iso, day]) => buildDayBlock(iso, day))
     .join('')
 
   return `<!DOCTYPE html>
