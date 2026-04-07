@@ -84,14 +84,14 @@ function ProgressBar({ evaluated, total }) {
 // ── Goal Form Modal ────────────────────────────────────────────────────────────
 
 function GoalFormModal({ goal, assignments, onSave, onClose }) {
+  const [form, setForm] = useState(goal || emptyGoal())
+  const [saving, setSaving] = useState(false)
+
   const uniqueSubjects = [...new Set(assignments.map(a => a.subject))].sort()
   const grades = assignments
     .filter(a => !form.subject || a.subject === form.subject)
     .map(a => `${a.grade} ${a.section}`.trim())
   const uniqueGrades = [...new Set(grades)].sort()
-
-  const [form, setForm] = useState(goal || emptyGoal())
-  const [saving, setSaving] = useState(false)
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
