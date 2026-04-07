@@ -104,17 +104,24 @@ DOCX day tables use **3 columns** `[1760, 5605, 3435]` DXA. Header and unit rows
 
 Both exports render: text content, images (with layout), videos (HTML only — iframes), and SmartBlocks.
 
+**Shared image inlining (`inlineImages(content)` in `exportHtml.js`):**
+- Called by `exportHtml`, `exportPdf`, and `exportDayHtml` before building any HTML
+- Deep-clones content, fetches logo + all section images in parallel via `fetchBase64(url)`
+- Replaces every `img.url` and `header.logo_url` with a `data:image/...;base64,...` URI
+- Result: all HTML exports are **fully self-contained** — no external requests, zero CORS issues
+- Fallback: if a fetch fails (network error, CORS), the original URL is kept silently
+
 **Virtual Campus export (`buildDayHtml`) specifics:**
 - CSS scoped to `.cbf-day` — safe to paste as raw HTML snippet into any CMS/LMS without breaking its layout
 - All `<button>` elements have `type="button"` explicitly — prevents accidental form submit inside virtual campus forms
-- Images served via Supabase Storage URLs (not base64) — requires internet to display
+- Images embedded as base64 (via `inlineImages`) — works fully offline, no CORS
 - SmartBlocks fully interactive: matching, fill-blank, grammar choose, true/false, exit ticket
-- Menu: `⋯ Más opciones` → `🏫 Campus Virtual — por jornada` → click a day → downloads `{grade}_{subject}_{date}.html`
+- Menu: `⋯ Más opciones` → `🏫 Campus Virtual — por jornada` → click a day → spinner while fetching → downloads `{grade}_{subject}_{date}.html`
 
 **HTML export specifics:**
 - `verse.text` is rendered as raw HTML (not escaped) since it comes from RichEditor
+- Each day uses `<details>/<summary>` accordion — first day `open`, rest collapsed with `▸ clic para expandir`
 - Each section `<tr>` has `break-inside: avoid; page-break-inside: avoid` for clean PDF printing
-- Each day block has class `day-block`; consecutive days force a page break (`break-before: page`)
 - The exported HTML includes a **floating red "🖨️ Guardar como PDF" button** (`.pdf-fab`) that calls `window.print()` — hidden in `@media print`.
 - `exportPdf()` opens a new window, writes the HTML, and calls `window.print()` after 900ms.
 

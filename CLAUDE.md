@@ -141,13 +141,15 @@ Local: `.env.local` con `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY`
 - `2931943` SuperAdminPage (`/superadmin`): identidad institucional + seguridad
 - `840084e` Fix test canManage rector · `78b54db` Toast con createPortal
 
-**Sesión 2026-04-06 (export + AI bíblico):**
+**Sesión 2026-04-06 (export + AI bíblico + Virtual Campus):**
 - `ccdaf33` Fix `#pdf-tip` oculto en `@media print`
 - `f387cce`–`e050193` (sesión anterior): fix encoding UTF-8, logo persistencia, columnas `document_code`/`doc_version`, principio bíblico en AI y export
-- `427adfc` Export por jornada para Virtual Campus — `buildDayHtml`, `exportDayHtml`, `getActiveDays` en `exportHtml.js`
+- `427adfc` Export por jornada para Virtual Campus — `buildDayHtml`, `exportDayHtml`, `getActiveDays`
 - `0c2a486` CSS scoped a `.cbf-day` — evita destruir layout del virtual campus al pegar snippet
 - `7f22a5e` `type="button"` en todos los botones SmartBlock — evita submit de form en virtual campus
 - `3306aa1` Click-outside handler para dropdown export (reemplaza `onMouseLeave` frágil)
+- `c571195` `inlineImages()` — todas las imágenes (logo + secciones) se convierten a base64 en HTML/PDF/día. Cero CORS en virtual campus.
+- `6bec16f` Acordeón `<details>/<summary>` por día en semana completa — primer día abierto, resto colapsados. Spinner en export por jornada.
 
 ---
 
