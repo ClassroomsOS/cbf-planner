@@ -491,36 +491,36 @@ ${s.done || s.next ? `
 
 // ── Shared CSS for SmartBlock dialogs (reused in per-day HTML) ────────────────
 const SMARTBLOCK_CSS = `
-  dialog.sbd {
+  .cbf-day dialog.sbd {
     border: none; border-radius: 12px; padding: 0;
     max-width: 600px; width: 90vw; max-height: 85vh;
     box-shadow: 0 8px 40px rgba(0,0,0,0.30);
   }
-  dialog.sbd[open] { display: flex; flex-direction: column; }
-  dialog.sbd::backdrop { background: rgba(0,0,0,0.50); }
-  .sbd-h {
+  .cbf-day dialog.sbd[open] { display: flex; flex-direction: column; }
+  .cbf-day dialog.sbd::backdrop { background: rgba(0,0,0,0.50); }
+  .cbf-day .sbd-h {
     flex-shrink: 0;
     color: #fff; padding: 12px 16px;
     display: flex; justify-content: space-between; align-items: center;
     font-weight: 700; font-size: 14px; font-family: Arial, sans-serif;
   }
-  .sbd-close {
+  .cbf-day .sbd-close {
     background: rgba(255,255,255,0.20); border: none; color: #fff;
     width: 30px; height: 30px; border-radius: 50%;
     cursor: pointer; font-size: 15px; line-height: 1;
   }
-  .sbd-b {
+  .cbf-day .sbd-b {
     flex: 1; min-height: 0;
     padding: 16px; overflow-y: auto;
     font-family: Arial, sans-serif;
   }
-  .sbd-f {
+  .cbf-day .sbd-f {
     flex-shrink: 0;
     padding: 10px 16px; border-top: 1px solid #eee;
     display: flex; gap: 8px; align-items: center; justify-content: flex-end;
     font-family: Arial, sans-serif;
   }
-  .sbd-launch {
+  .cbf-day .sbd-launch {
     display: inline-flex; align-items: center; gap: 6px;
     margin-top: 10px; padding: 8px 18px;
     color: #fff; border: none; border-radius: 20px;
@@ -528,13 +528,13 @@ const SMARTBLOCK_CSS = `
     cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.20);
     transition: transform .12s, box-shadow .12s;
   }
-  .sbd-launch:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,0,0,0.28); }
-  .sbd-check {
+  .cbf-day .sbd-launch:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,0,0,0.28); }
+  .cbf-day .sbd-check {
     padding: 8px 20px; background: #2E5598; color: #fff;
     border: none; border-radius: 6px;
     font-size: 13px; font-weight: 700; font-family: Arial, sans-serif; cursor: pointer;
   }
-  .sbd-reset {
+  .cbf-day .sbd-reset {
     padding: 8px 16px; background: #f0f0f0; color: #555;
     border: none; border-radius: 6px;
     font-size: 13px; font-family: Arial, sans-serif; cursor: pointer;
@@ -644,12 +644,11 @@ ${body}
 </html>`
 }
 
-export async function exportDayHtml(content, dayKey, newsProject) {
-  const inlined = await inlineImages(content)
-  const i   = inlined.info || {}
-  const day = inlined.days?.[dayKey]
+export function exportDayHtml(content, dayKey, newsProject) {
+  const i   = content.info || {}
+  const day = content.days?.[dayKey]
   if (!day) return
-  const html = buildDayHtml(inlined, dayKey, newsProject)
+  const html = buildDayHtml(content, dayKey, newsProject)
   if (!html) return
   const grade   = (i.grado || 'CBF').replace(/\s/g, '_')
   const subject = (i.asignatura || '').replace(/\s/g, '_').slice(0, 12)

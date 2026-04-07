@@ -827,12 +827,10 @@ export default function GuideEditorPage({ teacher }) {
                       <button key={key}
                         style={{ paddingLeft: '24px', color: exportingDay ? '#aaa' : '#2E5598', fontWeight: 600 }}
                         disabled={exportingDay}
-                        onClick={async () => {
-                          setExportingDay(true)
+                        onClick={() => {
                           setDayPickerOpen(false)
                           closeExport()
-                          await exportDayHtml(contentRef.current, key, activeNewsProject)
-                          setExportingDay(false)
+                          exportDayHtml(contentRef.current, key, activeNewsProject)
                         }}>
                         {exportingDay ? '⏳ Generando…' : `📅 ${label}`}
                       </button>
