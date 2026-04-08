@@ -618,9 +618,20 @@ export default function ObjectivesPage({ teacher }) {
 
   const handleSaveGoal = async (form) => {
     const isEdit = !!form.id
+    const payload = {
+      subject:       form.subject,
+      grade:         form.grade,
+      period:        form.period,
+      academic_year: form.academic_year,
+      text:          form.text,
+      verb:          form.verb || null,
+      bloom_level:   form.bloom_level || null,
+      year_verse:    form.year_verse || null,
+      status:        form.status,
+    }
     const { error: err } = isEdit
-      ? await updateGoal(form.id, form)
-      : await createGoal(form)
+      ? await updateGoal(form.id, payload)
+      : await createGoal(payload)
     if (err) { showToast(err, 'error'); return }
     showToast(isEdit ? 'Logro actualizado' : 'Logro creado', 'success')
     setGoalModal(null)
