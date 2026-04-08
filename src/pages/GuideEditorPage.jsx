@@ -319,9 +319,13 @@ export default function GuideEditorPage({ teacher }) {
         }
       }
 
-      // Repair: if no indicator_id and no target_id, try to find matching achievement_goal
-      if (!data.indicator_id && !data.target_id && data.subject && data.grade) {
+      // Repair: link to correct achievement_indicator for this guide's subject/grade/period.
+      // Runs when: (a) indicator_id is null, OR (b) existing indicator_id belongs to a
+      // different period (can happen when news_projects had wrong-period indicator_id).
+      if (data.subject && data.grade) {
         const p = parseInt(data.period) || 1
+
+        // Fetch the correct goal for this period
         const { data: goals } = await supabase
           .from('achievement_goals')
           .select('id')
@@ -342,16 +346,27 @@ export default function GuideEditorPage({ teacher }) {
             .limit(1)
 
           if (inds?.length) {
-            data.indicator_id = inds[0].id
-            // Persist the repair so next load is instant
-            await supabase.from('lesson_plans')
-              .update({ indicator_id: inds[0].id })
-              .eq('id', data.id)
-            // Update plan state so linkedAchievementIndicator useEffect fires
-            setPlan(prev => ({ ...prev, indicator_id: inds[0].id }))
-            // Also populate objetivo fields if still empty
-            if (c.objetivo && !c.objetivo.general && inds[0].text) {
-              c.objetivo.indicadores = [inds[0].text]
+            // Only repair if there's no indicator, or the current indicator belongs
+            // to a DIFFERENT goal (i.e. wrong period)
+            let needsRepair = !data.indicator_id
+            if (!needsRepair && data.indicator_id) {
+              const { data: cur } = await supabase
+                .from('achievement_indicators')
+                .select('goal_id')
+                .eq('id', data.indicator_id)
+                .single()
+              needsRepair = cur && cur.goal_id !== goals[0].id
+            }
+
+            if (needsRepair) {
+              data.indicator_id = inds[0].id
+              await supabase.from('lesson_plans')
+                .update({ indicator_id: inds[0].id })
+                .eq('id', data.id)
+              setPlan(prev => ({ ...prev, indicator_id: inds[0].id }))
+              if (c.objetivo && !c.objetivo.general && inds[0].text) {
+                c.objetivo.indicadores = [inds[0].text]
+              }
             }
           }
         }
