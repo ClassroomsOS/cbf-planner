@@ -1,8 +1,8 @@
-# CBF PLANNER — v4.2
+# CBF PLANNER — v4.3
 ## CLAUDE.md — Documento maestro
 
 > **Principio rector:** *"Nosotros diseñamos. El docente enseña."*
-> Léelo completo antes de escribir código. · Última actualización: Abril 7, 2026
+> Léelo completo antes de escribir código. · Última actualización: Abril 8, 2026
 
 ---
 
@@ -95,7 +95,12 @@ SESIÓN E ✅  AgendaGenerator.js — buildSessionAgenda + auto-save session_age
              AIAssistant.js: analyzeGuideCoverage() + generateStudentRubric()
              exportDocx.js: DOCX nativo para los 7 nuevos block types
 
-PRÓXIMO → SESIÓN F
+SESIÓN F (parcial) ✅
+             Grade+Section systemic fix: combined grade viaja en todo el sistema
+             — ObjectivesPage, SyllabusPage, GuideEditorPage, useAchievements, useSyllabus
+             — DB migrada: achievement_goals grade base → combined grade+section
+
+PRÓXIMO → SESIÓN F (continúa)
 ```
 
 ---
@@ -203,6 +208,38 @@ CREATE POLICY "eleot_read_all" ON eleot_domains FOR SELECT USING (true);
 8. Nunca borrar datos de producción sin backup explícito
 9. learning_targets y news_legacy: LEGACY — no borrar hasta confirmar todo migrado
 10. NUNCA usar window.alert — usar showToast() del ToastContext
+11. Grade SIEMPRE combined: ver sección "GRADE+SECTION — CONVENCIÓN" abajo
+```
+
+---
+
+## 📐 GRADE+SECTION — CONVENCIÓN (LEY DEL SISTEMA)
+
+`teacher_assignments` almacena `grade="8.°"` + `section="Blue"` por separado.
+**En todas las demás tablas el grade es SIEMPRE combinado: `"8.° Blue"`.**
+
+```
+COMBINED grade  →  achievement_goals.grade
+                   achievement_indicators.grade (denorm.)
+                   syllabus_topics.grade
+                   lesson_plans.grade
+                   checkpoints.grade
+
+SEPARADOS       →  teacher_assignments: grade + section
+                   news_projects: grade (base) + section  ← excepción histórica
+```
+
+**Reglas de código:**
+- Dropdowns de grado: SIEMPRE `<select>` con opciones `assignments.map(a => a.section ? \`${a.grade} ${a.section}\` : a.grade)` — **NUNCA** `<input>` libre
+- Queries a achievement_goals / syllabus_topics: `.eq('grade', combinedGrade)` — NUNCA `.ilike` ni `.split(' ')[0]`
+- NewsProjectEditor es la única excepción: construye `gradeFull` desde `form.grade + form.section` para buscar en achievement_goals, porque news_projects guarda los dos campos separados
+
+**NUNCA hacer:**
+```js
+// ❌ stripea la sección
+grade.replace(/\s+[A-Z]$/, '').trim()
+plan.grade.split(' ')[0]
+q.ilike('grade', gradeBase + '%')
 ```
 
 ---

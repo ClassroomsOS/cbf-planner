@@ -42,6 +42,18 @@ export const ACADEMIC_PERIODS = [
   { value: '4', label: `4.° Período ${_year}`,  short: 'P4' },
 ]
 
+// ── Grade helpers ─────────────────────────────────────────────────────────────
+// teacher_assignments stores grade + section separately.
+// All other tables (achievement_goals, syllabus_topics, lesson_plans…) use the
+// combined label. Always use combinedGrade() when building a grade value for DB writes
+// or dropdown options — NEVER concatenate inline or strip the section ad-hoc.
+export function combinedGrade(assignment) {
+  if (!assignment) return ''
+  return assignment.section
+    ? `${assignment.grade} ${assignment.section}`
+    : assignment.grade
+}
+
 // ── Modelo B — Materias en inglés (estructura pedagógica diferente) ───────────
 // Language Arts, Social Studies, Science y Lingua Skill usan competencias/habilidades/operadores
 // en lugar de Logro + Temáticas del Modelo A. Úsalo para mostrar UI diferente.

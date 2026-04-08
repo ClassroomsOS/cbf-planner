@@ -26,7 +26,7 @@ content: {
 
 The six **CBF sections** per day always follow this order and default times: `subject (~8 min)`, `motivation (~8 min)`, `activity (~15 min)`, `skill (~40 min)`, `closing (~8 min)`, `assignment (~5 min)`.
 
-`lesson_plans.grade` stores the combined label `"10.° A"` (grade + section). `teacher_assignments.grade` stores only the base `"10.°"`. In `buildDaysFromDB` (GuideEditorPage), strip the section suffix before querying: `data.grade.slice(0, -data.section.length - 1)`.
+`lesson_plans.grade` stores the combined label `"8.° Blue"` (grade + section). `teacher_assignments.grade` stores only the base `"8.°"`. `news_projects` also stores `grade` (base) + `section` separately — historical exception. All other tables (`achievement_goals`, `syllabus_topics`, `lesson_plans`, `checkpoints`) store **combined grade**. In `buildDaysFromDB` (GuideEditorPage), strip the section suffix before querying `teacher_assignments`: `data.grade.slice(0, -data.section.length - 1)`.
 
 The logo is always fetched fresh from `schools.logo_url` on guide load — never rely on a cached prop.
 

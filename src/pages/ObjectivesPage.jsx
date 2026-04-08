@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../supabase'
 import useAchievements from '../hooks/useAchievements'
 import { useToast } from '../context/ToastContext'
-import { ACADEMIC_PERIODS } from '../utils/constants'
+import { ACADEMIC_PERIODS, combinedGrade } from '../utils/constants'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -90,7 +90,7 @@ function GoalFormModal({ goal, assignments, onSave, onClose }) {
   const uniqueSubjects = [...new Set(assignments.map(a => a.subject))].sort()
   const grades = assignments
     .filter(a => !form.subject || a.subject === form.subject)
-    .map(a => a.section ? `${a.grade} ${a.section}` : a.grade)
+    .map(a => combinedGrade(a))
   const uniqueGrades = [...new Set(grades)].sort()
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
@@ -610,7 +610,7 @@ export default function ObjectivesPage({ teacher }) {
     [...new Set(assignments.map(a => a.subject))].sort(), [assignments]
   )
   const uniqueGrades = useMemo(() =>
-    [...new Set(assignments.map(a => a.section ? `${a.grade} ${a.section}` : a.grade))].sort(), [assignments]
+    [...new Set(assignments.map(a => combinedGrade(a)))].sort(), [assignments]
   )
 
   // ── Goal handlers ──────────────────────────────────────────────────────────
