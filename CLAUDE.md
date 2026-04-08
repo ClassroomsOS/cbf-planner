@@ -294,6 +294,36 @@ useEffect(() => {
 
 **Regla general derivada:** Cualquier modal/editor que recibe una entidad por prop y carga datos secundarios basados en esa entidad **DEBE tener `key={entity.id}`** para garantizar remount limpio. Sin `key`, el ciclo de vida de React reutiliza la instancia y los `useEffect` solo disparan si sus deps cambian — lo que puede no ocurrir si el nuevo item tiene los mismos valores en esas deps.
 
+### NewsProjectEditor: indicadores agrupados por logro + botón IA deshabilitado (resuelto Ses. F — Abril 2026)
+
+**Síntoma 1:** El paso "Indicador" mostraba lista plana sin agrupar por logro; si había varios logros para el mismo subject+grade+period solo se veía el texto del primer logro como contexto.
+
+**Fix:** Los indicadores ahora se agrupan por `goal_id` con cabecera por logro ("Logro 1:", "Logro 2:"…). El render agrupado se usa tanto en modo selector como en modo read-only (cuando ya hay `indicator_id` vinculado). Se agregó botón **"Desvincular"** para poder cambiar el indicador.
+
+**Síntoma 2:** El botón "✨ Generar con IA" permanecía deshabilitado aunque el docente hubiera seleccionado un indicador.
+
+**Causa:** El botón verifica `form.target_indicador` (campo texto legacy). Al seleccionar un indicador del nuevo sistema (`achievement_indicators`) solo se actualizaba `form.indicator_id` — `target_indicador` quedaba vacío.
+
+**Fix (`763d20e`):**
+```js
+// Click en indicador → batch-actualiza ambos campos
+() => {
+  updateForm('indicator_id', ind.id)
+  updateForm('target_indicador', ind.text || '')   // ← habilita el botón IA
+}
+
+// useEffect de sincronización — cubre proyectos existentes con indicator_id pero target_indicador vacío
+useEffect(() => {
+  if (!form.indicator_id || achievementIndicators.length === 0) return
+  const ind = achievementIndicators.find(i => i.id === form.indicator_id)
+  if (!ind) return
+  if (!form.target_indicador && ind.text) updateForm('target_indicador', ind.text)
+  // también auto-carga la plantilla de rúbrica por skill_area si rubric está vacío
+}, [form.indicator_id, achievementIndicators])
+```
+
+**Regla derivada:** Cuando coexisten un sistema nuevo (`indicator_id` FK) y un campo legacy de texto (`target_indicador`), siempre sincronizarlos juntos. El botón de IA y la generación de rúbrica dependen de `target_indicador`; no asumir que `indicator_id` es suficiente.
+
 ---
 
 ## 🗂 ROLES
@@ -422,4 +452,4 @@ git add . && git commit -m "feat: ..." && git push      # deploy automático ~2 
 ---
 
 *CBF Planner · ETA Platform · Edoardo Ortiz + Claude Sonnet · Barranquilla 2026*
-*"Nosotros diseñamos. El docente enseña." · CLAUDE.md v4.4 — Abril 8, 2026*
+*"Nosotros diseñamos. El docente enseña." · CLAUDE.md v4.5 — Abril 8, 2026*
