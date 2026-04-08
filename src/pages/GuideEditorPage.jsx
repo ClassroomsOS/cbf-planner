@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import RichEditor from '../components/RichEditor'
 import { exportGuideDocx } from '../utils/exportDocx'
+import { exportLegacyDocx } from '../utils/exportLegacyDocx'
 import { exportHtml, exportPdf, exportDayHtml, getActiveDays } from '../utils/exportHtml'
 import ImageUploader from '../components/ImageUploader'
 import { SmartBlocksList } from '../components/SmartBlocks'
@@ -186,6 +187,12 @@ export default function GuideEditorPage({ teacher }) {
   const [showCorrections, toggleCorrections, openCorrections, closeCorrections] = useToggle(false)
   const [showPreview,     togglePreview]                                        = useToggle(true)
 
+  // ── Legacy Format fields ──
+  const [weeklyLabel,    setWeeklyLabel]    = useState('')
+  const [weeklyBiblical, setWeeklyBiblical] = useState('')
+  const weeklyLabelRef    = useRef('')
+  const weeklyBiblicalRef = useRef('')
+
   const dirtyRef      = useRef(false)
   const lockedRef     = useRef(false) // mirrors plan.locked — avoids stale closure in doSave
   const contentRef    = useRef(null)
@@ -202,6 +209,10 @@ export default function GuideEditorPage({ teacher }) {
       if (error || !data) { navigate('/'); return }
       setPlan(data)
       lockedRef.current = !!data.locked
+      const lbl = data.weekly_label || ''
+      const bib = data.weekly_biblical_principle || ''
+      setWeeklyLabel(lbl);    weeklyLabelRef.current    = lbl
+      setWeeklyBiblical(bib); weeklyBiblicalRef.current = bib
       // If admin/rector is opening another teacher's guide, fetch owner name
       if (data.teacher_id !== teacher.id && canEditOthersDocs(teacher.role)) {
         const { data: ownerRow } = await supabase
@@ -658,7 +669,13 @@ export default function GuideEditorPage({ teacher }) {
     const session_agenda = flattenAgendaForDb(agendaByDay)
     const { error } = await supabase
       .from('lesson_plans')
-      .update({ content: contentRef.current, session_agenda, updated_at: new Date().toISOString() })
+      .update({
+        content:                    contentRef.current,
+        session_agenda,
+        weekly_label:               weeklyLabelRef.current    || null,
+        weekly_biblical_principle:  weeklyBiblicalRef.current || null,
+        updated_at:                 new Date().toISOString(),
+      })
       .eq('id', id)
     if (error) {
       setSaveStatus('error')
@@ -816,6 +833,7 @@ export default function GuideEditorPage({ teacher }) {
       filled: d.filled, total: d.total,
     })),
     { key: 'summary', label: '★ Resumen', dot: '#8064A2' },
+    { key: 'legacy',  label: '📄 Legacy',  dot: '#F79646' },
   ]
 
   // ── Días activos (para AIGeneratorModal) ──
@@ -1056,7 +1074,15 @@ export default function GuideEditorPage({ teacher }) {
                   Exportar como
                 </div>
                 <button onClick={async () => { closeExport(); await doSave(); exportGuideDocx(contentRef.current) }}>
-                  📄 Word (.docx) — para correcciones
+                  📄 Word (.docx) — formato CBF
+                </button>
+                <button onClick={async () => {
+                  closeExport()
+                  await doSave()
+                  const planWithLegacy = { ...plan, weekly_label: weeklyLabelRef.current || null, weekly_biblical_principle: weeklyBiblicalRef.current || null }
+                  await exportLegacyDocx(contentRef.current, planWithLegacy)
+                }}>
+                  📋 Legacy Format (.docx)
                 </button>
                 <button onClick={async () => { closeExport(); await exportHtml(contentRef.current, activeNewsProject) }}>
                   🌐 HTML — archivo web
@@ -1491,6 +1517,58 @@ export default function GuideEditorPage({ teacher }) {
                 content.summary.done, ['summary','done'], 'Actividades completadas esta semana…', 120)}
               {richField('Próxima semana – contenidos',
                 content.summary.next, ['summary','next'], 'Temas de la próxima semana…', 100)}
+            </div>
+          )}
+
+          {/* LEGACY FORMAT */}
+          {activePanel === 'legacy' && (
+            <div className="card">
+              <div className="card-title"><div className="badge" style={{ background: '#F79646' }}>📄</div> Legacy Format</div>
+              <div style={{ background: '#FFF9F0', border: '1px solid #F79646', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#7C4A00' }}>
+                Estos campos se incluyen en el <strong>Legacy Format (.docx)</strong> — formato Word libre, sin Smart Blocks ni colores. Válido para todos los grados (7°–11°). Exporta desde <strong>⋯ Más opciones → 📋 Legacy Format</strong>.
+              </div>
+              <div className="ge-field">
+                <label>Etiqueta temática de la semana</label>
+                <input
+                  type="text"
+                  placeholder='Ej: "SPEAKING WEEK", "READING WEEK", "GRAMMAR REVIEW"…'
+                  value={weeklyLabel}
+                  onChange={e => {
+                    setWeeklyLabel(e.target.value)
+                    weeklyLabelRef.current = e.target.value
+                    dirtyRef.current = true
+                    setSaveStatus('unsaved')
+                  }}
+                />
+              </div>
+              <div className="ge-field" style={{ marginTop: 12 }}>
+                <label>Principio bíblico semanal</label>
+                <textarea
+                  rows={6}
+                  placeholder={'Ej:\nGod\'s plan: A dream worth waiting for\nGénesis 50:20 (NIV)\n"You intended to harm me, but God intended it for good…"'}
+                  value={weeklyBiblical}
+                  style={{ width: '100%', fontFamily: 'inherit', fontSize: 14, borderRadius: 6, border: '1.5px solid #dde5f0', padding: '8px 10px', resize: 'vertical', boxSizing: 'border-box' }}
+                  onChange={e => {
+                    setWeeklyBiblical(e.target.value)
+                    weeklyBiblicalRef.current = e.target.value
+                    dirtyRef.current = true
+                    setSaveStatus('unsaved')
+                  }}
+                />
+              </div>
+              <div style={{ marginTop: 20 }}>
+                <button
+                  type="button"
+                  className="ge-print-btn"
+                  style={{ background: 'linear-gradient(135deg,#C55A11,#E8722E)', padding: '10px 20px', fontSize: 14 }}
+                  onClick={async () => {
+                    await doSave()
+                    const planWithLegacy = { ...plan, weekly_label: weeklyLabelRef.current || null, weekly_biblical_principle: weeklyBiblicalRef.current || null }
+                    await exportLegacyDocx(contentRef.current, planWithLegacy)
+                  }}>
+                  📋 Exportar Legacy Format (.docx)
+                </button>
+              </div>
             </div>
           )}
 
