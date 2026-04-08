@@ -22,6 +22,7 @@ import { useToggle } from '../hooks'
 import { importGuideFromDocx } from '../utils/AIAssistant'
 import DayPanel from '../components/editor/DayPanel'
 import { buildEmptySection, buildEmptyDay } from '../utils/guideEditorUtils'
+import EleotCoveragePanel from '../components/EleotCoveragePanel'
 
 // ── Map activity name → SmartBlock stub ──────────────────────────────────────
 function guessSmartBlock(act) {
@@ -960,8 +961,11 @@ export default function GuideEditorPage({ teacher }) {
 
       <div className="ge-body">
 
+        {/* Left sidebar: nav + eleot panel */}
+        <div style={{ display: 'flex', flexDirection: 'column', width: 180, minWidth: 180, flexShrink: 0, borderRight: '1.5px solid #dde5f0', background: '#f8faff', overflow: 'hidden' }}>
+
         {/* Nav */}
-        <nav className="ge-nav">
+        <nav className="ge-nav" style={{ flex: 1, width: '100%', borderRight: 'none', minWidth: 'unset' }}>
           {(() => {
             const week2Monday = plan?.week_count === 2 && plan?.monday_date
               ? (() => { const d = new Date(plan.monday_date + 'T12:00:00'); d.setDate(d.getDate() + 7); return toISO(d) })()
@@ -1009,6 +1013,11 @@ export default function GuideEditorPage({ teacher }) {
             })
           })()}
         </nav>
+
+        {/* eleot® Coverage Panel — bottom of left sidebar */}
+        <EleotCoveragePanel content={content} />
+
+        </div>{/* end left sidebar */}
 
         {/* Content */}
         <div className="ge-content">
