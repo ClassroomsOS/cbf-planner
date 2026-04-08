@@ -4,7 +4,8 @@ import useRubricTemplates from '../hooks/useRubricTemplates'
 import NewsProjectEditor from '../components/news/NewsProjectEditor'
 import NewsProjectCard from '../components/news/NewsProjectCard'
 import { supabase } from '../supabase'
-import { ACADEMIC_PERIODS } from '../utils/constants'
+import { ACADEMIC_PERIODS, combinedGrade } from '../utils/constants'
+import { useToast } from '../context/ToastContext'
 
 // Map to legacy format for this component
 const PERIODS = ACADEMIC_PERIODS.map((p, i) => ({
@@ -13,13 +14,25 @@ const PERIODS = ACADEMIC_PERIODS.map((p, i) => ({
 }))
 
 export default function NewsPage({ teacher }) {
+  const { showToast } = useToast()
   const school = teacher.schools || {}
   const [selectedPeriod, setSelectedPeriod] = useState(1)
   const [editorOpen, setEditorOpen] = useState(false)
   const [editingProject, setEditingProject] = useState(null)
-  const [filterSubject, setFilterSubject] = useState('')
-  const [monthPrinciple, setMonthPrinciple] = useState(null)
-  const [hasTargets, setHasTargets] = useState(null) // null = loading
+  const [filterSubject,     setFilterSubject]     = useState('')
+  const [monthPrinciple,    setMonthPrinciple]    = useState(null)
+  const [hasTargets,        setHasTargets]        = useState(null)
+  const [assignments,       setAssignments]       = useState([])
+  const [duplicatingProject, setDuplicatingProject] = useState(null)
+
+  useEffect(() => {
+    supabase
+      .from('teacher_assignments')
+      .select('subject, grade, section')
+      .eq('teacher_id', teacher.id)
+      .eq('school_id', teacher.school_id)
+      .then(({ data }) => setAssignments(data || []))
+  }, [teacher.id])
 
   // Check if there are any learning targets for this school (prerequisite for NEWS)
   useEffect(() => {
@@ -110,6 +123,48 @@ export default function NewsPage({ teacher }) {
 
   const handleStatusChange = async (id, newStatus) => {
     await updateStatus(id, newStatus)
+  }
+
+  // Returns other sections (same base grade + subject) that have no project for this period
+  const getAvailableSectionsForProject = (project) => {
+    const thisAss = assignments.find(a =>
+      a.subject === project.subject &&
+      a.grade === project.grade &&
+      a.section === project.section
+    )
+    if (!thisAss) return []
+    return assignments
+      .filter(a => a.grade === project.grade && a.subject === project.subject && a.section !== project.section)
+      .map(a => a.section)
+      .filter(sec => !projects.some(p =>
+        p.subject === project.subject &&
+        p.grade === project.grade &&
+        p.section === sec &&
+        p.period === project.period
+      ))
+  }
+
+  const handleDuplicateProject = async (project, targetSection) => {
+    const key = `${project.id}-${targetSection}`
+    setDuplicatingProject(key)
+    const { title, description, subject, grade, period, skill, due_date, start_date,
+            biblical_principle, actividades_evaluativas, conditions, rubric,
+            news_model, textbook_reference } = project
+    const { error } = await createProject({
+      title, description, subject, grade,
+      section:                 targetSection,
+      period, skill, due_date, start_date, biblical_principle,
+      actividades_evaluativas: actividades_evaluativas || [],
+      conditions:              conditions || null,
+      rubric:                  rubric || null,
+      news_model:              news_model || null,
+      textbook_reference:      textbook_reference || null,
+      indicator_id:            null,  // indicators are per-section; teacher re-links
+      status:                  'draft',
+    })
+    setDuplicatingProject(null)
+    if (error) { showToast(typeof error === 'string' ? error : error.message, 'error'); return }
+    showToast(`Proyecto duplicado para ${grade} ${targetSection}`, 'success')
   }
 
   const statusCounts = useMemo(() => {
@@ -270,6 +325,9 @@ export default function NewsPage({ teacher }) {
                   <NewsProjectCard
                     key={project.id}
                     project={project}
+                    availableSections={getAvailableSectionsForProject(project)}
+                    onDuplicate={sec => handleDuplicateProject(project, sec)}
+                    duplicatingTarget={duplicatingProject}
                     onEdit={() => handleEdit(project)}
                     onDelete={() => handleDelete(project.id)}
                     onStatusChange={handleStatusChange}

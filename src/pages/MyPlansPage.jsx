@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
-import { LESSON_PLAN_STATUS as STATUS_CONFIG, LESSON_PLAN_STATUS_ORDER as STATUS_ORDER } from '../utils/constants'
+import { LESSON_PLAN_STATUS as STATUS_CONFIG, LESSON_PLAN_STATUS_ORDER as STATUS_ORDER, combinedGrade } from '../utils/constants'
 import { useToast } from '../context/ToastContext'
 
 export default function MyPlansPage({ teacher }) {
@@ -11,11 +11,21 @@ export default function MyPlansPage({ teacher }) {
   const [loading,       setLoading]       = useState(true)
   const [filterGrade,   setFilterGrade]   = useState('all')
   const [filterStatus,  setFilterStatus]  = useState('all')
-  const [duplicating,   setDuplicating]   = useState(null)
-  const [confirmDelete, setConfirmDelete] = useState(null)
-  const [previewId,    setPreviewId]    = useState(null)
+  const [duplicating,        setDuplicating]        = useState(null)
+  const [duplicatingSection, setDuplicatingSection] = useState(null)
+  const [assignments,        setAssignments]        = useState([])
+  const [confirmDelete,      setConfirmDelete]      = useState(null)
+  const [previewId,          setPreviewId]          = useState(null)
 
   useEffect(() => { fetchPlans() }, [teacher.id])
+
+  useEffect(() => {
+    supabase
+      .from('teacher_assignments')
+      .select('subject, grade, section')
+      .eq('teacher_id', teacher.id)
+      .then(({ data }) => setAssignments(data || []))
+  }, [teacher.id])
 
   async function fetchPlans() {
     setLoading(true)
@@ -113,6 +123,47 @@ export default function MyPlansPage({ teacher }) {
     setDuplicating(null)
     if (error) { showToast('Error al duplicar la guía', 'error'); return }
     if (newPlan) { await fetchPlans(); navigate(`/editor/${newPlan.id}`) }
+  }
+
+  // Returns combined grades of other sections (same base grade + subject) that
+  // don't yet have a plan for this week_number
+  function getAvailableSectionsForPlan(plan) {
+    const thisAss = assignments.find(a => combinedGrade(a) === plan.grade && a.subject === plan.subject)
+    if (!thisAss) return []
+    return assignments
+      .filter(a => a.grade === thisAss.grade && a.subject === plan.subject && combinedGrade(a) !== plan.grade)
+      .map(a => combinedGrade(a))
+      .filter(g => !plans.some(p => p.grade === g && p.subject === plan.subject && p.week_number === plan.week_number))
+  }
+
+  async function duplicatePlanForSection(plan, targetGrade, e) {
+    e.stopPropagation()
+    const key = `${plan.id}-${targetGrade}`
+    setDuplicatingSection(key)
+    const newContent = plan.content ? JSON.parse(JSON.stringify(plan.content)) : {}
+    if (newContent.info) newContent.info.grado = targetGrade
+    const { error } = await supabase
+      .from('lesson_plans')
+      .insert({
+        teacher_id:      teacher.id,
+        school_id:       teacher.school_id,
+        grade:           targetGrade,
+        subject:         plan.subject,
+        period:          plan.period,
+        week_number:     plan.week_number,
+        monday_date:     plan.monday_date || null,
+        date_range:      plan.date_range  || null,
+        week_count:      plan.week_count  || 1,
+        status:          'draft',
+        content:         newContent,
+        indicator_id:    null,  // indicator is per-section; teacher re-links
+        news_project_id: null,
+        target_id:       null,
+      })
+    setDuplicatingSection(null)
+    if (error) { showToast('Error al duplicar la guía', 'error'); return }
+    showToast(`Guía duplicada para ${targetGrade}`, 'success')
+    await fetchPlans()
   }
 
   async function confirmDeletePlan() {
@@ -214,6 +265,19 @@ export default function MyPlansPage({ teacher }) {
                         title="Duplicar (semana +1)">
                         {duplicating === plan.id ? '⏳' : '⎘'}
                       </button>
+                      {getAvailableSectionsForPlan(plan).map(tg => {
+                        const key = `${plan.id}-${tg}`
+                        return (
+                          <button key={tg}
+                            className="mp-action-btn"
+                            style={{ borderStyle: 'dashed', color: '#1a7a9a', borderColor: '#4BACC6' }}
+                            onClick={e => duplicatePlanForSection(plan, tg, e)}
+                            disabled={duplicatingSection === key}
+                            title={`Duplicar para ${tg}`}>
+                            {duplicatingSection === key ? '⏳' : `⎘→${tg.split(' ').pop()}`}
+                          </button>
+                        )
+                      })}
                       {confirmDelete === plan.id ? (
                         <div className="mp-confirm-row" onClick={e => e.stopPropagation()}>
                           <span style={{ fontSize:'11px', color:'#cc3333', fontWeight:700 }}>¿Eliminar?</span>

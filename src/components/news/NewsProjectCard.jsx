@@ -1,6 +1,6 @@
 import { NEWS_PROJECT_STATUS as STATUS_CONFIG, NEWS_STATUS_FLOW as STATUS_FLOW, NEWS_SKILL_LABELS as SKILL_LABELS } from '../../utils/constants'
 
-export default function NewsProjectCard({ project, onEdit, onDelete, onStatusChange }) {
+export default function NewsProjectCard({ project, onEdit, onDelete, onStatusChange, availableSections, onDuplicate, duplicatingTarget }) {
   const status = STATUS_CONFIG[project.status] || STATUS_CONFIG.draft
   const dueDate = project.due_date ? new Date(project.due_date + 'T12:00:00') : null
   const today = new Date()
@@ -128,9 +128,10 @@ export default function NewsProjectCard({ project, onEdit, onDelete, onStatusCha
         {/* Actions */}
         <div style={{
           display: 'flex', gap: 8, justifyContent: 'space-between',
-          borderTop: '1px solid #f0f0f0', paddingTop: 12, marginTop: 4
+          borderTop: '1px solid #f0f0f0', paddingTop: 12, marginTop: 4,
+          flexWrap: 'wrap',
         }}>
-          <div style={{ display: 'flex', gap: 6 }}>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             <button onClick={onEdit} style={actionBtnStyle}>
               ✏️ Editar
             </button>
@@ -139,6 +140,18 @@ export default function NewsProjectCard({ project, onEdit, onDelete, onStatusCha
                 🗑️
               </button>
             )}
+            {availableSections?.map(sec => {
+              const key = `${project.id}-${sec}`
+              return (
+                <button key={sec} type="button"
+                  onClick={() => onDuplicate(sec)}
+                  disabled={duplicatingTarget === key}
+                  title={`Duplicar proyecto para ${project.grade} ${sec}`}
+                  style={{ ...actionBtnStyle, borderStyle: 'dashed', color: '#1a7a9a', borderColor: '#4BACC6' }}>
+                  {duplicatingTarget === key ? '⏳' : `📋 → ${sec}`}
+                </button>
+              )
+            })}
           </div>
           {nextStatus && (
             <button

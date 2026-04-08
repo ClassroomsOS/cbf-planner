@@ -378,7 +378,7 @@ function IndicatorFormModal({ indicator, goalId, onSave, onClose }) {
 
 // ── Goal Card ─────────────────────────────────────────────────────────────────
 
-function GoalCard({ goal, onEdit, onDelete, onPublish, onNewIndicator, onEditIndicator, onDeleteIndicator }) {
+function GoalCard({ goal, availableSections, onEdit, onDelete, onPublish, onNewIndicator, onEditIndicator, onDeleteIndicator, onDuplicate, duplicatingTarget }) {
   const [expanded, setExpanded] = useState(true)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
@@ -541,6 +541,19 @@ function GoalCard({ goal, onEdit, onDelete, onPublish, onNewIndicator, onEditInd
                 ✅ Publicar
               </button>
             )}
+            {availableSections?.map(tg => (
+              <button key={tg} type="button"
+                onClick={() => onDuplicate(tg)}
+                disabled={duplicatingTarget === `${goal.id}-${tg}`}
+                title={`Duplicar logro e indicadores para ${tg}`}
+                style={{
+                  padding: '7px 14px', border: '1.5px dashed #4BACC6', borderRadius: 8,
+                  background: '#f0f9fc', color: '#1a7a9a', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                  opacity: duplicatingTarget === `${goal.id}-${tg}` ? 0.6 : 1,
+                }}>
+                {duplicatingTarget === `${goal.id}-${tg}` ? '⏳' : `📋 → ${tg}`}
+              </button>
+            ))}
             {!confirmDelete ? (
               <button type="button" onClick={() => setConfirmDelete(true)}
                 style={{ padding: '7px 14px', border: '1px solid #ffcdd2', borderRadius: 8, background: '#fff5f5', cursor: 'pointer', fontSize: 13, color: '#c33' }}>
@@ -580,8 +593,9 @@ export default function ObjectivesPage({ teacher }) {
   const [assignments, setAssignments] = useState([])
 
   // Modals
-  const [goalModal,      setGoalModal]      = useState(null)  // null | 'new' | goalObj
-  const [indicatorModal, setIndicatorModal] = useState(null)  // null | { goalId } | indicatorObj
+  const [goalModal,       setGoalModal]       = useState(null)  // null | 'new' | goalObj
+  const [indicatorModal,  setIndicatorModal]  = useState(null)  // null | { goalId } | indicatorObj
+  const [duplicatingGoal, setDuplicatingGoal] = useState(null)  // "goalId-targetGrade" while copying
 
   // Hook
   const {
@@ -673,6 +687,50 @@ export default function ObjectivesPage({ teacher }) {
     const { error: err } = await deleteIndicator(id)
     if (err) { showToast(err, 'error'); return }
     showToast('Indicador eliminado', 'success')
+  }
+
+  // ── Duplicate goal for another section ────────────────────────────────────
+
+  // Returns combined grades of other sections (same base grade + subject) that
+  // don't yet have a goal for this subject+period+academic_year
+  const getAvailableSections = (goal) => {
+    const thisAss = assignments.find(a => combinedGrade(a) === goal.grade && a.subject === goal.subject)
+    if (!thisAss) return []
+    return assignments
+      .filter(a => a.grade === thisAss.grade && a.subject === goal.subject && combinedGrade(a) !== goal.grade)
+      .map(a => combinedGrade(a))
+      .filter(g => !goals.some(eg =>
+        eg.grade === g && eg.subject === goal.subject && eg.period === goal.period
+      ))
+  }
+
+  const handleDuplicateGoal = async (goal, targetGrade) => {
+    const key = `${goal.id}-${targetGrade}`
+    setDuplicatingGoal(key)
+    const { data: newGoal, error: err } = await createGoal({
+      subject:       goal.subject,
+      grade:         targetGrade,
+      period:        goal.period,
+      academic_year: goal.academic_year,
+      text:          goal.text,
+      verb:          goal.verb || null,
+      bloom_level:   goal.bloom_level || null,
+      status:        'draft',
+    })
+    if (err) { showToast(err, 'error'); setDuplicatingGoal(null); return }
+    for (const ind of (goal.indicators || [])) {
+      await createIndicator(newGoal.id, {
+        dimension:    ind.dimension,
+        text:         ind.text,
+        student_text: ind.student_text || null,
+        bloom_level:  ind.bloom_level || null,
+        weight:       ind.weight || null,
+        skill_area:   ind.skill_area || null,
+        order_index:  ind.order_index,
+      })
+    }
+    setDuplicatingGoal(null)
+    showToast(`Logro duplicado para ${targetGrade} con ${goal.indicators?.length || 0} indicadores`, 'success')
   }
 
   // ── Summary stats ──────────────────────────────────────────────────────────
@@ -798,12 +856,15 @@ export default function ObjectivesPage({ teacher }) {
           <div key={goal.id} style={{ marginBottom: 14 }}>
             <GoalCard
               goal={goal}
+              availableSections={getAvailableSections(goal)}
               onEdit={g => setGoalModal(g)}
               onDelete={handleDeleteGoal}
               onPublish={handlePublishGoal}
               onNewIndicator={goalId => setIndicatorModal({ goalId })}
               onEditIndicator={ind => setIndicatorModal(ind)}
               onDeleteIndicator={handleDeleteIndicator}
+              onDuplicate={tg => handleDuplicateGoal(goal, tg)}
+              duplicatingTarget={duplicatingGoal}
             />
           </div>
         ))}
