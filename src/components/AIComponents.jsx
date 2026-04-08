@@ -345,8 +345,8 @@ export const AIGeneratorModal = memo(function AIGeneratorModal({ grade, subject,
         <div className="sb-modal-body">
           {!preview && (
             <>
-              {/* Sin learningTarget: bloqueado con instrucción */}
-              {!learningTarget ? (
+              {/* Sin ningún indicador (ni nuevo ni legacy): bloqueado */}
+              {!learningTarget && !activeIndicator && !achievementGoal ? (
                 <div style={{ background: '#fff8e1', border: '1px solid #f5c842', borderRadius: '8px', padding: '14px 16px', fontSize: '13px', color: '#7a5c00', lineHeight: 1.6 }}>
                   <div style={{ fontWeight: 700, marginBottom: '6px' }}>⚠️ No hay un Indicador de Logro vinculado</div>
                   La IA necesita el indicador para generar contenido alineado. Ve al panel <strong>1 · Indicador</strong> (barra izquierda) y vincula el indicador antes de generar.
@@ -358,8 +358,8 @@ export const AIGeneratorModal = memo(function AIGeneratorModal({ grade, subject,
                 </div>
               )}
 
-              {/* Resto del formulario solo si hay indicador vinculado */}
-              {learningTarget && <>
+              {/* Resto del formulario si hay indicador (nuevo o legacy) */}
+              {(learningTarget || activeIndicator || achievementGoal) && <>
 
               {/* Modelo B sin indicador auto-detectado: selector de skill */}
               {isModeloB && !activeIndicator && (
