@@ -691,7 +691,10 @@ export default function PlannerPage({ teacher }) {
           period={period}
           activeDays={activeDays.map(d => toISO(d))}
           learningTarget={activeTarget}
-          activeIndicator={plannerActiveIndicator}
+          achievementGoal={activeAchievementGoal}
+          activeIndicator={plannerActiveIndicator || (activeAchievementGoal?.indicators?.[0]
+            ? { texto_en: activeAchievementGoal.indicators[0].text, dimension: activeAchievementGoal.indicators[0].dimension, skill_area: activeAchievementGoal.indicators[0].skill_area }
+            : null)}
           principles={{
             yearVerse:          { text: school.year_verse || '', ref: school.year_verse_ref || '' },
             monthVerse:         { text: monthPrinciple?.month_verse || '', ref: monthPrinciple?.month_verse_ref || '' },
