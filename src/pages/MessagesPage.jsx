@@ -3,6 +3,7 @@ import { useFeatures } from '../context/FeaturesContext'
 import { supabase } from '../supabase'
 import { canManage } from '../utils/roles'
 import { useToast } from '../context/ToastContext'
+import GroupChat from '../components/GroupChat'
 
 export default function MessagesPage({ teacher }) {
   const { features } = useFeatures()
@@ -24,7 +25,7 @@ export default function MessagesPage({ teacher }) {
   const [selected,    setSelected]    = useState(null)
   const [form,        setForm]        = useState({ to_id: '', subject: '', body: '' })
   const [sending,     setSending]     = useState(false)
-  const [tab,         setTab]         = useState('inbox') // inbox | sent
+  const [tab,         setTab]         = useState('inbox') // inbox | sent | rooms
 
   useEffect(() => { fetchMessages(); fetchTeachers() }, [teacher.id])
 
@@ -123,6 +124,7 @@ export default function MessagesPage({ teacher }) {
           {[
             { key: 'inbox', label: `📥 Recibidos (${inbox.length})` },
             { key: 'sent',  label: `📤 Enviados (${sent.length})` },
+            { key: 'rooms', label: '💬 Salas' },
           ].map(t => (
             <button key={t.key}
               onClick={() => { setTab(t.key); setSelected(null); setShowCompose(false) }}
@@ -139,7 +141,14 @@ export default function MessagesPage({ teacher }) {
           ))}
         </div>
 
-        <div style={{ display: 'flex', minHeight: '400px' }}>
+        {/* Group chat tab */}
+        {tab === 'rooms' && (
+          <div style={{ minHeight: '440px' }}>
+            <GroupChat teacher={teacher} />
+          </div>
+        )}
+
+        <div style={{ display: tab === 'rooms' ? 'none' : 'flex', minHeight: '400px' }}>
           {/* List */}
           <div style={{
             width: selected || showCompose ? '40%' : '100%',
