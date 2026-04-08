@@ -1,4 +1,4 @@
-# CBF PLANNER — v4.3
+# CBF PLANNER — v4.4
 ## CLAUDE.md — Documento maestro
 
 > **Principio rector:** *"Nosotros diseñamos. El docente enseña."*
@@ -105,7 +105,25 @@ SESIÓN F ✅   Grade+Section systemic fix: combined grade viaja en todo el sist
              — combinedGrade() helper en constants.js
              — CLAUDE.md v4.3
 
-PRÓXIMO → SESIÓN G
+SESIÓN G ✅   Cascada pedagógica en guías: indicator_id fluye correctamente
+             — PlannerPage: activeAchievementGoal (fetch goal+indicators por subject/grade/period)
+             — PlannerPage: indicator_id faltaba en select de news_projects (fix crítico)
+             — PlannerPage: callout muestra logro del nuevo sistema con chips de indicadores
+             — PlannerPage: AIGeneratorModal recibe achievementGoal + activeIndicator del nuevo sistema
+             — GuideEditorPage: linkedAchievementGoal — carga goal completo + todos sus indicadores
+             — GuideEditorPage: repair en load() — busca NEWS project más próximo por fecha,
+               hereda su indicator_id; fallback a achievement_goal del período
+             — GuideEditorPage: botón 🔄 para re-vincular indicador (handleLoadRelinkOptions)
+             — GuideEditorPage: "Principio del indicador" editable debajo del versículo
+             — AIComponents/AIGeneratorModal: desbloqueado con activeIndicator || achievementGoal
+               (antes solo aceptaba learningTarget legacy — bloqueaba todo el formulario)
+             — AIAssistant.generateGuideStructure: bloque 🎯 LOGRO E INDICADORES DEL PERÍODO
+               (logro + todos los indicadores + indicador específico → contexto obligatorio para IA)
+             — CheckpointModal: reemplaza upsert(onConflict) por check-then-insert/update
+               (constraint UNIQUE(plan_id) no estaba aplicada en prod)
+             — CLAUDE.md v4.4
+
+PRÓXIMO → SESIÓN H
 ```
 
 ---
@@ -184,7 +202,15 @@ error_log · activity_log · ai_usage · schedule_slots · school_calendar
 | `analyzeGuideCoverage()` ✅ Ses. E | AIAssistant.js | 1800 |
 | `generateStudentRubric()` ✅ Ses. E | AIAssistant.js | 3000 |
 
-**ConversationalGuideModal** (Ses. E) — wizard 5 pasos que llama `generateGuideStructure()` con contexto de dominios eleot® débiles + skill focus + block types preferidos.
+**ConversationalGuideModal** (Ses. E) — wizard 5 pasos que llama `generateGuideStructure()` con contexto de dominios eleot® débiles + skill focus + block types preferidos + `achievementGoal` completo (Ses. G).
+
+**Flujo de contexto IA para generación de guía (Ses. G):**
+```
+NEWS project más próximo → indicator_id → achievement_indicator → achievement_goal
+  → generateGuideStructure recibe achievementGoal { text, period, indicators[] }
+  → bloque 🎯 LOGRO E INDICADORES DEL PERÍODO en el prompt
+  → IA genera contenido alineado a todos los indicadores del período
+```
 
 ---
 
@@ -324,6 +350,75 @@ useEffect(() => {
 
 **Regla derivada:** Cuando coexisten un sistema nuevo (`indicator_id` FK) y un campo legacy de texto (`target_indicador`), siempre sincronizarlos juntos. El botón de IA y la generación de rúbrica dependen de `target_indicador`; no asumir que `indicator_id` es suficiente.
 
+### indicator_id no se guardaba al crear guías (resuelto Ses. G — Abril 2026)
+
+**Síntoma:** Las guías creadas desde PlannerPage tenían `indicator_id = null` aunque existieran `achievement_goals` e `achievement_indicators` en DB. El editor no mostraba indicador vinculado.
+
+**Causa raíz (triple):**
+
+1. **`indicator_id` faltaba en el select de `news_projects`** en PlannerPage. El campo se leía como `undefined` → `null` al guardar la guía.
+
+2. **Sin fallback a `achievement_goals`** cuando el NEWS project no tiene `indicator_id` (proyectos creados en el sistema antiguo). No había ninguna búsqueda directa en `achievement_goals` + `achievement_indicators`.
+
+3. **Guías existentes sin vínculo** — el repair en `load()` solo corría si AMBOS `indicator_id` y `target_id` eran null, y buscaba NEWS projects solo con `indicator_id IS NOT NULL`, excluyendo los proyectos legacy.
+
+**Fix:**
+```js
+// PlannerPage: indicator_id ya en el select
+.select('id, title, skill, ..., indicator_id')   // ← campo faltante
+
+// PlannerPage: activeAchievementGoal como fallback
+indicator_id: plannerActiveNewsProject?.indicator_id
+              || activeAchievementGoal?.indicators?.[0]?.id
+              || null
+
+// GuideEditorPage load(): repair busca por fecha, sin filtro indicator_id
+const { data: newsProjects } = await supabase
+  .from('news_projects').select('id, indicator_id, due_date, ...')
+  // sin .not('indicator_id', 'is', null) — toma el más próximo y verifica después
+```
+
+**Regla derivada — LEY DE LA CASCADA:**
+> El `indicator_id` de una guía viene del **NEWS project más próximo al futuro** tomando como base las fechas de la guía:
+> 1. Proyecto con actividad evaluativa en la semana de la guía
+> 2. Proyecto con `due_date` más cercano ≥ primer día de la guía
+> 3. Fallback: primer indicador del `achievement_goal` del período
+>
+> **NUNCA** usar solo el filtro de período (`achievement_goals.period`) como fuente primaria. El período es solo el fallback.
+
+### AIGeneratorModal bloqueado con sistema nuevo (resuelto Ses. G — Abril 2026)
+
+**Síntoma:** Al presionar "Generar con IA" en PlannerPage o en el editor, el formulario no aparecía — solo el mensaje "⚠️ No hay un Indicador de Logro vinculado". El botón Generar tampoco se renderizaba.
+
+**Causa:** Todo el formulario del modal estaba dentro de `{learningTarget && <>...</>}`. Si el docente usa solo el nuevo sistema (`achievement_goals`/`achievement_indicators`) sin legacy `learning_targets`, `learningTarget = null` → formulario invisible.
+
+**Fix:**
+```jsx
+// Antes (bloqueaba con solo sistema nuevo):
+{!learningTarget ? <blocking> : <info>}
+{learningTarget && <> ...formulario + botón Generar... </>}
+
+// Después (acepta cualquier fuente de indicador):
+{!learningTarget && !activeIndicator && !achievementGoal ? <blocking> : <info>}
+{(learningTarget || activeIndicator || achievementGoal) && <> ...formulario... </>}
+```
+
+**Regla derivada:** Todo gate de UI que controle acceso a funciones de IA debe aceptar las tres fuentes: `learningTarget` (legacy), `activeIndicator` (nuevo — indicador específico), `achievementGoal` (nuevo — logro completo). Nunca gatear solo por `learningTarget`.
+
+### CheckpointModal: error al guardar con nuevo sistema (resuelto Ses. G — Abril 2026)
+
+**Síntoma:** "Error al guardar el checkpoint" al intentar registrar el avance al final de una semana.
+
+**Causa:** El `upsert` usaba `onConflict: 'plan_id'` que requiere `UNIQUE(plan_id)` en la tabla `checkpoints`. La migración `20260407_checkpoints_plan_unique.sql` existe en el repo pero **nunca fue aplicada en producción**.
+
+**Fix:** Reemplazado por check-then-insert/update sin dependencia de constraints:
+```js
+// Busca existente por plan_id, luego por target_id+teacher_id+week_number (legacy)
+// → update si existe, insert si no
+```
+
+**Regla derivada:** No confiar en `upsert(onConflict: 'columna')` a menos que la constraint UNIQUE esté confirmada en prod. Para operaciones críticas (checkpoints, logs), usar check-then-write.
+
 ---
 
 ## 🗂 ROLES
@@ -376,10 +471,23 @@ useRubricTemplates.js // CRUD rubric_templates (5 plantillas sembradas)
 // Export:  exportDocx.js · exportHtml.js · exportRubricHtml.js · AgendaGenerator.js (✅ Ses. E)
 // NEWS:    NewsProjectEditor (wizard 8 pasos) · NewsProjectCard · NewsTimeline
 // System:  CheckpointModal · ProfileModal · ErrorBoundary · logger.js
-// AI:      AIAssistant.js · AIComponents.jsx (AISuggestButton · AIAnalyzerModal)
+// AI:      AIAssistant.js · AIComponents.jsx (AISuggestButton · AIAnalyzerModal · AIGeneratorModal)
 // ctx:     FeaturesContext · ToastContext
 
 // NOTA: GoalCard / IndicatorList / PeriodProgress están inline en ObjectivesPage.jsx
+```
+
+### Estado nuevo en GuideEditorPage (Ses. G)
+```javascript
+linkedAchievementGoal    // achievement_goal completo + indicators[] — cargado cuando linkedAchievementIndicator cambia
+relinkLoading            // booleano para el botón 🔄
+relinkOptions            // null | indicator[] — dropdown de re-vinculación inline
+```
+
+### Estado nuevo en PlannerPage (Ses. G)
+```javascript
+activeAchievementGoal    // { id, text, period, indicators[] } — goal activo para subject/grade/period
+                         // fetched async; se muestra en callout y se pasa a AIGeneratorModal
 ```
 
 ### Provider pattern — CRÍTICO (no romper)
@@ -419,8 +527,9 @@ git add . && git commit -m "feat: ..." && git push      # deploy automático ~2 
 ✅ SESIÓN D — 16 Smart Blocks + duration_minutes + DOCX para nuevos tipos
 ✅ SESIÓN E — AgendaGenerator + ConversationalGuideModal + analyzeGuideCoverage + studentRubric
 ✅ SESIÓN F — Grade+Section fix sistémico · N logros por período · Duplicar para sección · SyllabusPage dinámico · NewsProjectEditor fix definitivo de indicadores
+✅ SESIÓN G — Cascada indicator_id funcional en guías · repair automático al abrir · botón 🔄 re-vincular · AIGeneratorModal desbloqueado con nuevo sistema · achievementGoal en prompt IA · Principio del indicador en panel versículo · CheckpointModal check-then-write
 
-🔜 SESIÓN G — Pendientes
+🔜 SESIÓN H — Pendientes
   22. SubjectManagerPage — gestor de materias (admin) → /subjects
   23. GuideLibraryPage — biblioteca de guías aprobadas → /library
   24. PeriodCoverageDashboard — cobertura eleot® acumulada por período
@@ -452,4 +561,4 @@ git add . && git commit -m "feat: ..." && git push      # deploy automático ~2 
 ---
 
 *CBF Planner · ETA Platform · Edoardo Ortiz + Claude Sonnet · Barranquilla 2026*
-*"Nosotros diseñamos. El docente enseña." · CLAUDE.md v4.5 — Abril 8, 2026*
+*"Nosotros diseñamos. El docente enseña." · CLAUDE.md v4.4 — Abril 8, 2026*
