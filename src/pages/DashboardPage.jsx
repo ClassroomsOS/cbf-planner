@@ -15,6 +15,7 @@ import LearningTargetsPage      from './LearningTargetsPage'
 import ObjectivesPage           from './ObjectivesPage'
 import SyllabusPage             from './SyllabusPage'
 import NewsPage                 from './NewsPage'
+import ReviewRoomPage           from './ReviewRoomPage'
 import SubjectManagerPage       from './SubjectManagerPage'
 import GuideLibraryPage         from './GuideLibraryPage'
 import PeriodCoverageDashboard  from './PeriodCoverageDashboard'
@@ -305,6 +306,11 @@ function DashboardInner({ session, teacher, setTeacher }) {
                 📊 Malla Curricular
                 <span className="sb-admin-badge">Admin</span>
               </NavLink>
+              <NavLink to="/sala-revision" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
+                <span className="dot" style={{ background: '#C0504D' }} />
+                🏛 Sala de Revisión
+                <span className="sb-admin-badge">Admin</span>
+              </NavLink>
               <NavLink to="/subjects" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
                 <span className="dot" style={{ background: '#F79646' }} />
                 📋 Materias
@@ -395,8 +401,9 @@ function DashboardInner({ session, teacher, setTeacher }) {
               <Route path="/calendar"      element={<CalendarPage      teacher={teacher} />} />
               <Route path="/schedule"      element={<SchedulePage      teacher={teacher} />} />
               <Route path="/agenda"      element={<AgendaPage      teacher={teacher} />} />
-              <Route path="/curriculum"    element={<CurriculumPage          teacher={teacher} />} />
-              <Route path="/subjects"     element={<SubjectManagerPage      teacher={teacher} />} />
+              <Route path="/curriculum"      element={<CurriculumPage          teacher={teacher} />} />
+              <Route path="/sala-revision" element={<ReviewRoomPage          teacher={teacher} />} />
+              <Route path="/subjects"      element={<SubjectManagerPage      teacher={teacher} />} />
               <Route path="/library"      element={<GuideLibraryPage        teacher={teacher} />} />
               <Route path="/coverage"     element={<PeriodCoverageDashboard teacher={teacher} />} />
               <Route path="/observations" element={<ObservationLoggerPage   teacher={teacher} />} />

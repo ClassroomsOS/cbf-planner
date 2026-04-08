@@ -17,7 +17,7 @@ import LearningTargetSelector from '../components/LearningTargetSelector'
 import { useToast } from '../context/ToastContext'
 import { logError } from '../utils/logger'
 import { SECTIONS, RICH_SECTIONS, MODELO_B_SUBJECTS } from '../utils/constants'
-import { canManage } from '../utils/roles'
+import { canManage, canEditOthersDocs, canGiveFeedback } from '../utils/roles'
 import { toISO, formatDateEN, getDayName, MONTHS_EN, DAYS_EN, MONTHS_ES } from '../utils/dateUtils'
 import { useToggle } from '../hooks'
 import { importGuideFromDocx } from '../utils/AIAssistant'
@@ -169,6 +169,13 @@ export default function GuideEditorPage({ teacher }) {
   const [linkedNewsProjects, setLinkedNewsProjects] = useState([])
   const [monthPrinciples, setMonthPrinciples] = useState(null)
 
+  // ── Other-teacher editing ──────────────────────────────────────
+  // Computed once plan loads. isOtherTeacher = admin editing someone else's guide.
+  const [ownerName,        setOwnerName]        = useState(null)
+  const [showJustifModal,  setShowJustifModal]  = useState(false)
+  const [justifText,       setJustifText]       = useState('')
+  const [savingJustif,     setSavingJustif]     = useState(false)
+
   // ── Modal/UI toggles (migrated to useToggle) ──
   const [exportOpen,      toggleExport,      openExport,      closeExport]      = useToggle(false)
   const [dayPickerOpen,   setDayPickerOpen]  = useState(false)
@@ -193,6 +200,12 @@ export default function GuideEditorPage({ teacher }) {
         .from('lesson_plans').select('*').eq('id', id).single()
       if (error || !data) { navigate('/'); return }
       setPlan(data)
+      // If admin/rector is opening another teacher's guide, fetch owner name
+      if (data.teacher_id !== teacher.id && canEditOthersDocs(teacher.role)) {
+        const { data: ownerRow } = await supabase
+          .from('teachers').select('full_name').eq('id', data.teacher_id).single()
+        if (ownerRow) setOwnerName(ownerRow.full_name)
+      }
       let c = data.content || {}
       const savedDays = c.days && Object.keys(c.days).length > 0 ? c.days : null
       if (!c.header) {
@@ -656,6 +669,50 @@ export default function GuideEditorPage({ teacher }) {
     }
   }, [id, showToast])
 
+  // ── Manual save — guarded for other-teacher edits ──────────────────────────
+  const isOtherTeacher = plan && plan.teacher_id !== teacher.id && canEditOthersDocs(teacher.role)
+
+  function handleManualSave() {
+    if (isOtherTeacher) {
+      setShowJustifModal(true)
+    } else {
+      doSave()
+    }
+  }
+
+  async function handleConfirmJustifSave() {
+    if (!justifText.trim()) {
+      showToast('Escribe una justificación antes de guardar.', 'error')
+      return
+    }
+    setSavingJustif(true)
+    await doSave()
+    // Record in document_feedback so teacher sees why their guide was changed
+    const title = `${content?.info?.grado || ''} · ${content?.info?.asignatura || ''} · Sem. ${content?.info?.semana || ''}`
+    await supabase.from('document_feedback').insert({
+      school_id:    teacher.school_id,
+      entity_type:  'guide',
+      entity_id:    id,
+      entity_title: title,
+      author_id:    teacher.id,
+      body:         `[Edición directa] ${justifText.trim()}`,
+    })
+    // Notify plan owner
+    await supabase.from('notifications').insert({
+      school_id: teacher.school_id,
+      from_id:   teacher.id,
+      to_id:     plan.teacher_id,
+      to_role:   'teacher',
+      type:      'guide_edited',
+      plan_id:   id,
+      message:   `${teacher.full_name} editó tu guía "${title}". Justificación: ${justifText.trim()}`,
+    })
+    setSavingJustif(false)
+    setShowJustifModal(false)
+    setJustifText('')
+    showToast('Guía guardada y docente notificado ✓', 'success')
+  }
+
   useEffect(() => {
     const interval = setInterval(doSave, 30000)
     return () => clearInterval(interval)
@@ -884,9 +941,30 @@ export default function GuideEditorPage({ teacher }) {
         </div>
       )}
 
+      {/* ── Other-teacher banner ─────────────────────────────── */}
+      {isOtherTeacher && ownerName && (
+        <div style={{
+          background: 'linear-gradient(90deg,#7A3A00,#B05A00)',
+          color: '#fff', padding: '8px 20px',
+          display: 'flex', alignItems: 'center', gap: 10, fontSize: 13,
+        }}>
+          <span style={{ fontSize: 18 }}>⚠️</span>
+          <span>
+            Estás editando la guía de <strong>{ownerName}</strong>.
+            Cada guardado manual requiere justificación y notifica al docente.
+          </span>
+          <a href="/sala-revision" onClick={e => { e.preventDefault(); navigate('/sala-revision') }}
+            style={{ marginLeft: 'auto', color: '#FFD580', fontSize: 12, textDecoration: 'underline' }}>
+            ← Volver a Sala de Revisión
+          </a>
+        </div>
+      )}
+
       {/* Top bar */}
       <div className="ge-topbar">
-        <button className="ge-back-btn" onClick={() => navigate('/plans')}>← Mis Guías</button>
+        <button className="ge-back-btn" onClick={() => navigate(isOtherTeacher ? '/sala-revision' : '/plans')}>
+          {isOtherTeacher ? '← Sala de Revisión' : '← Mis Guías'}
+        </button>
         <div className="ge-topbar-info">
           <span className="ge-guide-title">
             {content.info.grado} · {content.info.asignatura} · Semana {content.info.semana}
@@ -900,8 +978,11 @@ export default function GuideEditorPage({ teacher }) {
             {saveStatus === 'unsaved' && '● Cambios sin guardar'}
             {saveStatus === 'error'   && '⚠ Error al guardar'}
           </span>
-          <button className="btn-primary" onClick={doSave} disabled={saveStatus === 'saving'}>
-            💾 Guardar
+          <button className="btn-primary"
+            onClick={handleManualSave}
+            disabled={saveStatus === 'saving'}
+            style={isOtherTeacher ? { background: '#B05A00', borderColor: '#B05A00' } : {}}>
+            {isOtherTeacher ? '💾 Guardar (con justificación)' : '💾 Guardar'}
           </button>
           {features.comments !== false && (
             <button
@@ -1390,6 +1471,64 @@ export default function GuideEditorPage({ teacher }) {
           onApply={handleApplyGenerated}
           onClose={closeGenerator}
         />
+      )}
+
+      {/* ── Justification modal (admin editing other teacher's guide) ──── */}
+      {showJustifModal && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 9999,
+        }}>
+          <div style={{
+            background: '#fff', borderRadius: 14, padding: '28px',
+            maxWidth: 480, width: '90%', boxShadow: '0 8px 32px rgba(0,0,0,.22)',
+          }}>
+            <h3 style={{ margin: '0 0 6px', fontSize: 18, color: '#1F3864' }}>
+              Justificación de edición
+            </h3>
+            <p style={{ margin: '0 0 16px', fontSize: 13, color: '#64748B' }}>
+              Estás guardando cambios en la guía de <strong>{ownerName}</strong>.
+              El docente recibirá una notificación con tu justificación.
+            </p>
+            <textarea
+              value={justifText}
+              onChange={e => setJustifText(e.target.value)}
+              rows={4}
+              placeholder="Ej: Corregí la ortografía en la sección Skill y actualicé el Smart Block de Dictation…"
+              autoFocus
+              style={{
+                width: '100%', boxSizing: 'border-box',
+                padding: '10px 12px', borderRadius: 8,
+                border: `2px solid ${justifText.trim() ? '#2E5598' : '#E2E8F0'}`,
+                fontSize: 13, fontFamily: 'inherit', resize: 'vertical',
+                outline: 'none', transition: 'border-color .15s',
+              }}
+            />
+            <div style={{ display: 'flex', gap: 10, marginTop: 16, justifyContent: 'flex-end' }}>
+              <button type="button"
+                onClick={() => { setShowJustifModal(false); setJustifText('') }}
+                style={{
+                  padding: '9px 18px', borderRadius: 8,
+                  border: '1px solid #E2E8F0', background: '#fff',
+                  color: '#374151', fontSize: 13, cursor: 'pointer',
+                }}>
+                Cancelar
+              </button>
+              <button type="button"
+                onClick={handleConfirmJustifSave}
+                disabled={savingJustif || !justifText.trim()}
+                style={{
+                  padding: '9px 22px', borderRadius: 8, border: 'none',
+                  background: savingJustif || !justifText.trim() ? '#93C5FD' : '#B05A00',
+                  color: '#fff', fontSize: 13, fontWeight: 700,
+                  cursor: savingJustif || !justifText.trim() ? 'default' : 'pointer',
+                }}>
+                {savingJustif ? 'Guardando…' : '✓ Guardar y notificar'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
     </div>
