@@ -3,7 +3,6 @@ import {
   sanitizeAIInput,
   teacherProfileSchema,
   teacherRoleUpdateSchema,
-  learningTargetSchema,
   lessonPlanMetaSchema,
 } from './validationSchemas'
 
@@ -80,31 +79,6 @@ describe('teacherRoleUpdateSchema', () => {
       role: 'janitor',
       teacher_id: '123e4567-e89b-12d3-a456-426614174000',
     })
-    expect(result.success).toBe(false)
-  })
-})
-
-describe('learningTargetSchema', () => {
-  const valid = {
-    subject: 'Language Arts',
-    grade: '5.°',
-    period: '1',
-    description: 'Students will demonstrate reading comprehension skills.',
-    taxonomy: 'apply',
-  }
-  it('validates a correct learning target', () => {
-    expect(learningTargetSchema.safeParse(valid).success).toBe(true)
-  })
-  it('rejects description shorter than 10 chars', () => {
-    const result = learningTargetSchema.safeParse({ ...valid, description: 'Short' })
-    expect(result.success).toBe(false)
-  })
-  it('rejects invalid taxonomy', () => {
-    const result = learningTargetSchema.safeParse({ ...valid, taxonomy: 'memorize' })
-    expect(result.success).toBe(false)
-  })
-  it('rejects period outside 1-4', () => {
-    const result = learningTargetSchema.safeParse({ ...valid, period: '5' })
     expect(result.success).toBe(false)
   })
 })

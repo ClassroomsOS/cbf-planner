@@ -86,28 +86,6 @@ export function sanitizeAIInput(input) {
   return cleaned
 }
 
-// ── Learning Target ────────────────────────────────────────────────────────────
-export const learningTargetSchema = z.object({
-  subject: z.string()
-    .min(1, 'La asignatura es requerida')
-    .max(100, 'Asignatura muy larga')
-    .trim(),
-  grade: z.string()
-    .min(1, 'El grado es requerido')
-    .max(50, 'Grado inválido')
-    .trim(),
-  period: z.string()
-    .regex(/^[1-4]$/, 'Período debe ser 1, 2, 3 o 4'),
-  description: z.string()
-    .min(10, 'La descripción debe tener al menos 10 caracteres')
-    .max(1000, 'La descripción no debe superar 1000 caracteres')
-    .trim(),
-  taxonomy: z.enum(['recognize', 'apply', 'produce'], {
-    errorMap: () => ({ message: 'Nivel taxonómico inválido' })
-  }),
-  indicadores: z.array(z.string().min(1).max(500)).optional(),
-})
-
 // ── NEWS Project ───────────────────────────────────────────────────────────────
 export const newsProjectSchema = z.object({
   title: z.string()
