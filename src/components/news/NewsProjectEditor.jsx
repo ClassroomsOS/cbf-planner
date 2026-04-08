@@ -350,21 +350,30 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
   }
 
   const handleGenerateRubric = async () => {
-    if (!form.title || !form.description || !form.target_indicador) {
-      showToast('Completa título, descripción y selecciona un indicador de logro antes de generar la rúbrica.', 'warning')
+    const hasIndicator = form.indicator_id || form.target_indicador
+    if (!form.title || !hasIndicator) {
+      showToast('Completa el título y vincula un indicador de logro antes de generar la rúbrica.', 'warning')
       return
     }
     setGeneratingRubric(true)
     try {
-      const selectedTarget = learningTargets.find(t => t.id === form.target_id)
-      const indicadores = selectedTarget?.indicadores || []
+      // Nuevo sistema: usar achievement_indicators del goal
+      // Legacy: usar indicadores[] del learning_target
+      let indicadoresTexto = []
+      if (achievementIndicators.length > 0) {
+        indicadoresTexto = achievementIndicators.map(i => i.text).filter(Boolean)
+      } else {
+        const selectedTarget = learningTargets.find(t => t.id === form.target_id)
+        const rawInds = selectedTarget?.indicadores || []
+        indicadoresTexto = rawInds.map(i => getIndText(i)).filter(Boolean)
+      }
       const result = await generateRubric({
         projectTitle: form.title,
-        projectDescription: form.description,
+        projectDescription: form.description || achievementIndicators[0]?._goalText || '',
         subject: form.subject,
-        grade: form.grade,
-        skill: form.skill,
-        indicadores: indicadores,
+        grade: `${form.grade}${form.section ? ` ${form.section}` : ''}`,
+        skill: effectiveSkill || form.skill,
+        indicadores: indicadoresTexto,
         principles: principles
       })
       if (result && Array.isArray(result) && result.length > 0) {
