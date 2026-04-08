@@ -317,6 +317,44 @@ export default function GuideEditorPage({ teacher }) {
         }
       }
 
+      // Repair: if no indicator_id and no target_id, try to find matching achievement_goal
+      if (!data.indicator_id && !data.target_id && data.subject && data.grade) {
+        const p = parseInt(data.period) || 1
+        const { data: goals } = await supabase
+          .from('achievement_goals')
+          .select('id')
+          .eq('school_id', teacher.school_id)
+          .eq('teacher_id', data.teacher_id)
+          .eq('subject', data.subject)
+          .eq('grade', data.grade)
+          .eq('period', p)
+          .order('created_at', { ascending: false })
+          .limit(1)
+
+        if (goals?.length) {
+          const { data: inds } = await supabase
+            .from('achievement_indicators')
+            .select('id, text, dimension, skill_area')
+            .eq('goal_id', goals[0].id)
+            .order('order_index', { ascending: true })
+            .limit(1)
+
+          if (inds?.length) {
+            data.indicator_id = inds[0].id
+            // Persist the repair so next load is instant
+            await supabase.from('lesson_plans')
+              .update({ indicator_id: inds[0].id })
+              .eq('id', data.id)
+            // Update plan state so linkedAchievementIndicator useEffect fires
+            setPlan(prev => ({ ...prev, indicator_id: inds[0].id }))
+            // Also populate objetivo fields if still empty
+            if (c.objetivo && !c.objetivo.general && inds[0].text) {
+              c.objetivo.indicadores = [inds[0].text]
+            }
+          }
+        }
+      }
+
       // Always fetch logo fresh from school (prop may be stale from session start)
       const { data: schoolData } = await supabase
         .from('schools').select('logo_url').eq('id', teacher.school_id).single()

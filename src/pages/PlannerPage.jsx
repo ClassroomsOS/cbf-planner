@@ -53,6 +53,8 @@ export default function PlannerPage({ teacher }) {
   // checkpointData = { previousPlan, target, pendingAction } | null
   // ── Active learning target for this grade/subject ──
   const [activeTarget, setActiveTarget] = useState(null)
+  // ── Active achievement_goal + indicators for this grade/subject/period (new system) ──
+  const [activeAchievementGoal, setActiveAchievementGoal] = useState(null)
   // ── Whether any NEWS projects exist for this grade+subject ──
   const [hasNews, setHasNews] = useState(null) // null = not checked yet
   const [plannerNewsProjects, setPlannerNewsProjects] = useState([])
@@ -101,6 +103,35 @@ export default function PlannerPage({ teacher }) {
     fetchTarget()
   }, [grade, subject])
 
+  // Fetch active achievement_goal + indicators for subject/grade/period (new system)
+  useEffect(() => {
+    if (!grade || !subject || !period) { setActiveAchievementGoal(null); return }
+    const p = parseInt(period) || 1
+    ;(async () => {
+      const { data: goals } = await supabase
+        .from('achievement_goals')
+        .select('id, text, period, subject, grade, status')
+        .eq('school_id', teacher.school_id)
+        .eq('teacher_id', teacher.id)
+        .eq('subject', subject)
+        .eq('grade', grade)
+        .eq('period', p)
+        .order('created_at', { ascending: false })
+        .limit(1)
+
+      if (!goals?.length) { setActiveAchievementGoal(null); return }
+      const goal = goals[0]
+
+      const { data: indicators } = await supabase
+        .from('achievement_indicators')
+        .select('id, text, dimension, skill_area, order_index')
+        .eq('goal_id', goal.id)
+        .order('order_index', { ascending: true })
+
+      setActiveAchievementGoal({ ...goal, indicators: indicators || [] })
+    })()
+  }, [grade, subject, period, teacher.id, teacher.school_id])
+
   // Fetch NEWS projects — check existence + hitos for this week
   useEffect(() => {
     if (!grade || !subject) { setWeeklyNewsHitos([]); setHasNews(null); return }
@@ -110,7 +141,7 @@ export default function PlannerPage({ teacher }) {
     const weekDates = new Set(allDays.map(toISO))
     supabase
       .from('news_projects')
-      .select('id, title, skill, grade, section, actividades_evaluativas, due_date, target_indicador')
+      .select('id, title, skill, grade, section, actividades_evaluativas, due_date, target_indicador, indicator_id')
       .eq('school_id', teacher.school_id)
       .eq('subject', subject)
       .then(({ data }) => {
@@ -338,7 +369,7 @@ export default function PlannerPage({ teacher }) {
         status:           'draft',
         content:          {},
         target_id:        activeTarget?.id || null,
-        indicator_id:     plannerActiveNewsProject?.indicator_id || null,
+        indicator_id:     plannerActiveNewsProject?.indicator_id || activeAchievementGoal?.indicators?.[0]?.id || null,
         news_project_id:  plannerActiveNewsProject?.id || null,
       })
       .select()
@@ -424,8 +455,27 @@ export default function PlannerPage({ teacher }) {
             </div>
           </div>
 
-          {/* Logro vinculado */}
-          {activeTarget && grade && subject && (
+          {/* Logro vinculado — nuevo sistema (achievement_goals) */}
+          {activeAchievementGoal && grade && subject && (
+            <div className="planner-linked-target">
+              <span className="plt-icon">🎯</span>
+              <div className="plt-content">
+                <div className="plt-label">Indicador de Logro vinculado — P{activeAchievementGoal.period}</div>
+                <div className="plt-text">{activeAchievementGoal.text}</div>
+                {activeAchievementGoal.indicators.length > 0 && (
+                  <div style={{ marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                    {activeAchievementGoal.indicators.map(ind => (
+                      <span key={ind.id} style={{ fontSize: 10, padding: '1px 7px', borderRadius: 10, background: '#e8f5e9', color: '#1A6B3A', border: '1px solid #b8e8c8' }}>
+                        {{ speaking: '🎤', listening: '🎧', reading: '📖', writing: '✍️', cognitive: '🧠', procedural: '🛠️', attitudinal: '💫' }[ind.skill_area || ind.dimension] || '📋'} {ind.skill_area || ind.dimension || 'indicador'}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          {/* Logro vinculado — sistema legacy (learning_targets) */}
+          {!activeAchievementGoal && activeTarget && grade && subject && (
             <div className="planner-linked-target">
               <span className="plt-icon">🎯</span>
               <div className="plt-content">
