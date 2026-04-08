@@ -43,7 +43,12 @@ export default function useSyllabus(teacher, filters = {}) {
         .order('created_at',  { ascending: true })
 
       if (subject)       q = q.eq('subject', subject)
-      if (grade)         q = q.eq('grade', grade)
+      if (grade) {
+        // Normalizar a grado base y usar ilike para que coincida tanto con "8.°"
+        // como con datos históricos "8.° A", "8.° B" que puedan existir en DB
+        const gradeBase = grade.replace(/\s+[A-Z]$/, '').trim()
+        q = q.ilike('grade', gradeBase + '%')
+      }
       if (period)        q = q.eq('period', period)
       if (academic_year) q = q.eq('academic_year', academic_year)
       if (week_number)   q = q.eq('week_number', week_number)

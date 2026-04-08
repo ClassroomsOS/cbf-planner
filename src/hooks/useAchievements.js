@@ -48,7 +48,10 @@ export default function useAchievements(teacher, filters = {}) {
         .order('created_at', { ascending: true })
 
       if (subject)       q = q.eq('subject', subject)
-      if (grade)         q = q.eq('grade', grade)
+      if (grade) {
+        const gradeBase = grade.replace(/\s+[A-Z]$/, '').trim()
+        q = q.ilike('grade', gradeBase + '%')
+      }
       if (period)        q = q.eq('period', period)
       if (academic_year) q = q.eq('academic_year', academic_year)
       if (status)        q = q.eq('status', status)
