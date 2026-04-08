@@ -1,4 +1,4 @@
-# CBF PLANNER — v4.4
+# CBF PLANNER — v4.5
 ## CLAUDE.md — Documento maestro
 
 > **Principio rector:** *"Nosotros diseñamos. El docente enseña."*
@@ -56,7 +56,7 @@ SYLLABUS TOPICS → ACHIEVEMENT GOAL → ACHIEVEMENT INDICATORS
 
 ---
 
-## ✅ ESTADO ACTUAL — PRODUCCIÓN (Sesiones A–E completas)
+## ✅ ESTADO ACTUAL — PRODUCCIÓN (Sesiones A–H completas)
 
 ```
 BASE ✅  Auth · perfiles · dashboard · sidebar pedagógico
@@ -95,7 +95,7 @@ SESIÓN E ✅  AgendaGenerator.js — buildSessionAgenda + auto-save session_age
              AIAssistant.js: analyzeGuideCoverage() + generateStudentRubric()
              exportDocx.js: DOCX nativo para los 7 nuevos block types
 
-SESIÓN F ✅   Grade+Section systemic fix: combined grade viaja en todo el sistema
+SESIÓN F ✅  Grade+Section systemic fix: combined grade viaja en todo el sistema
              — ObjectivesPage, SyllabusPage, GuideEditorPage, useAchievements, useSyllabus
              — DB migrada: achievement_goals grade base → combined grade+section
              — Constraint UNIQUE dropped: N logros por teacher+subject+grade+period
@@ -105,7 +105,7 @@ SESIÓN F ✅   Grade+Section systemic fix: combined grade viaja en todo el sist
              — combinedGrade() helper en constants.js
              — CLAUDE.md v4.3
 
-SESIÓN G ✅   Cascada pedagógica en guías: indicator_id fluye correctamente
+SESIÓN G ✅  Cascada pedagógica en guías: indicator_id fluye correctamente
              — PlannerPage: activeAchievementGoal (fetch goal+indicators por subject/grade/period)
              — PlannerPage: indicator_id faltaba en select de news_projects (fix crítico)
              — PlannerPage: callout muestra logro del nuevo sistema con chips de indicadores
@@ -116,14 +116,35 @@ SESIÓN G ✅   Cascada pedagógica en guías: indicator_id fluye correctamente
              — GuideEditorPage: botón 🔄 para re-vincular indicador (handleLoadRelinkOptions)
              — GuideEditorPage: "Principio del indicador" editable debajo del versículo
              — AIComponents/AIGeneratorModal: desbloqueado con activeIndicator || achievementGoal
-               (antes solo aceptaba learningTarget legacy — bloqueaba todo el formulario)
              — AIAssistant.generateGuideStructure: bloque 🎯 LOGRO E INDICADORES DEL PERÍODO
-               (logro + todos los indicadores + indicador específico → contexto obligatorio para IA)
              — CheckpointModal: reemplaza upsert(onConflict) por check-then-insert/update
-               (constraint UNIQUE(plan_id) no estaba aplicada en prod)
              — CLAUDE.md v4.4
 
-PRÓXIMO → SESIÓN H
+SESIÓN H ✅  Páginas admin/especializadas completadas:
+             — SubjectManagerPage (/subjects) — gestor de materias (admin)
+             — GuideLibraryPage (/library) — biblioteca de guías aprobadas
+             — PeriodCoverageDashboard (/coverage) — cobertura eleot® acumulada
+             — ObservationLoggerPage (/observations) — observaciones Cognia
+             — ReviewRoomPage (/sala-revision) — sala de revisión de guías publicadas
+             — CurriculumPage (/curriculum) — malla curricular (admin)
+             — AgendaPage (/agenda) — agenda semanal (homeroom + co-teacher + admin)
+             — PrinciplesPage (/principles) — principios rectores por mes
+
+LIMPIEZA LEGACY ✅  Sistema learning_targets eliminado del frontend (Abril 8, 2026)
+             — ELIMINADOS: LearningTargetsPage.jsx · LearningTargets.css · LearningTargetSelector.jsx
+             — Ruta /targets eliminada del dashboard
+             — Prop learningTarget removido de toda la cascada:
+               DayPanel · AIComponents · AIAssistant · ConversationalGuideModal · CheckpointModal
+             — isModeloB = MODELO_B_SUBJECTS.includes(subject) — sin dependencia de news_model legacy
+             — NewsProjectEditor: target_id removido del form state; target_indicador se mantiene
+               (es el gate del botón IA de rúbrica — sincronizado con indicator_id)
+             — AIGeneratorModal gate: !activeIndicator && !achievementGoal (sin learningTarget)
+             — DB: checkpoints.target_id NOT NULL constraint eliminada;
+               orphaned rows (plan_id IS NULL) eliminados
+             — learning_targets y news_legacy siguen en DB (LEGACY — no borrar aún)
+             — CLAUDE.md v4.5
+
+PRÓXIMO → SESIÓN I
 ```
 
 ---
@@ -135,21 +156,24 @@ teachers              — RLS via get_my_school_id() SECURITY DEFINER
 schools               — features JSONB · year_verse · logo_url · dane · resolution
 teacher_assignments   — asignaciones materia/grado/sección/horario JSONB
 lesson_plans          — content JSONB · indicator_id · syllabus_topic_id
-                        eleot_coverage {} · session_agenda [] · week_count
+                        eleot_coverage {} · session_agenda [] · week_count · status
 news_projects         — indicator_id FK → achievement_indicators · actividades_evaluativas
 rubric_templates      — 5 plantillas institucionales sembradas
 achievement_goals     — UNIQUE(teacher_id, subject, grade, period, academic_year)
 achievement_indicators— dimension + skill_area · teacher_id (denorm. para RLS)
 syllabus_topics       — contenidos por semana · indicator_id FK
-checkpoints           — target_id (legacy) + indicator_id (nuevo) · plan_id UNIQUE
+checkpoints           — indicator_id (nuevo) · target_id nullable (legacy) · plan_id
 eleot_domains         — 7 dominios A–G (seed inmutable)
 eleot_items           — 28 ítems A1–G3 (seed inmutable)
 eleot_block_mapping   — block_type → item_id + weight (seed inmutable)
 eleot_observations    — historial observaciones Cognia (teacher_id + school_id RLS)
 school_monthly_principles — year_verse · month_verse · indicator_principle por mes
-learning_targets      — LEGACY (migrado — no borrar aún)
+weekly_agendas        — grade · section · week_start · content JSONB · status
+schedule_slots        — franjas del horario institucional por nivel
+school_calendar       — días hábiles · is_school_day · affects_planning
+learning_targets      — LEGACY (no borrar — datos históricos)
 news_legacy           — LEGACY (era tabla news — no borrar)
-error_log · activity_log · ai_usage · schedule_slots · school_calendar
+error_log · activity_log · ai_usage
 ```
 
 ---
@@ -392,18 +416,14 @@ const { data: newsProjects } = await supabase
 
 **Causa:** Todo el formulario del modal estaba dentro de `{learningTarget && <>...</>}`. Si el docente usa solo el nuevo sistema (`achievement_goals`/`achievement_indicators`) sin legacy `learning_targets`, `learningTarget = null` → formulario invisible.
 
-**Fix:**
+**Fix (estado actual tras Limpieza Legacy):**
 ```jsx
-// Antes (bloqueaba con solo sistema nuevo):
-{!learningTarget ? <blocking> : <info>}
-{learningTarget && <> ...formulario + botón Generar... </>}
-
-// Después (acepta cualquier fuente de indicador):
-{!learningTarget && !activeIndicator && !achievementGoal ? <blocking> : <info>}
-{(learningTarget || activeIndicator || achievementGoal) && <> ...formulario... </>}
+// Sistema unificado — solo dos fuentes válidas:
+{!activeIndicator && !achievementGoal ? <blocking> : <info>}
+{(activeIndicator || achievementGoal) && <> ...formulario + botón Generar... </>}
 ```
 
-**Regla derivada:** Todo gate de UI que controle acceso a funciones de IA debe aceptar las tres fuentes: `learningTarget` (legacy), `activeIndicator` (nuevo — indicador específico), `achievementGoal` (nuevo — logro completo). Nunca gatear solo por `learningTarget`.
+**Regla derivada:** El gate de UI para IA acepta dos fuentes: `activeIndicator` (indicador específico del nuevo sistema) o `achievementGoal` (logro completo del período). `learningTarget` fue eliminado en la Limpieza Legacy. Nunca agregar un tercer gate que dependa de una tabla legacy.
 
 ### CheckpointModal: error al guardar con nuevo sistema (resuelto Ses. G — Abril 2026)
 
@@ -441,17 +461,36 @@ const { data: newsProjects } = await supabase
 
 ### DashboardPage.jsx — rutas activas
 ```javascript
-import PlannerPage         from './PlannerPage'        // /
-import MyPlansPage         from './MyPlansPage'         // /plans
-import GuideEditorPage     from './GuideEditorPage'     // /editor/:id
-import NewsPage            from './NewsPage'             // /news
-import LearningTargetsPage from './LearningTargetsPage' // /targets (legacy — mantener)
-import ObjectivesPage      from './ObjectivesPage'      // /objectives ✅
-import SyllabusPage        from './SyllabusPage'        // /syllabus  ✅
-import AIUsagePage         from './AIUsagePage'         // /ai-usage
-import MessagesPage        from './MessagesPage'        // /messages
-// Admin: CalendarPage · NotificationsPage · AdminTeachersPage · SettingsPage · SuperAdminPage
-// Pendiente Ses. F: SubjectManagerPage (/subjects) · GuideLibraryPage (/library)
+// ── FLUJO PEDAGÓGICO (todos los roles) ──
+/principles       PrinciplesPage           Versículos + principio del indicador por mes
+/objectives       ObjectivesPage           CRUD achievement_goals + indicators
+/syllabus         SyllabusPage             CRUD syllabus_topics por semana
+/news             NewsPage                 Listado + wizard 8 pasos NewsProjectEditor
+/                 PlannerPage              Crear guía (punto de entrada del flujo)
+/plans            MyPlansPage              Mis guías
+/editor/:id       GuideEditorPage          Editor completo
+/library          GuideLibraryPage         Biblioteca de guías aprobadas
+/ai-usage         AIUsagePage              Monitor de tokens IA
+/messages         MessagesPage             Mensajería 1-a-1
+/coverage         PeriodCoverageDashboard  Cobertura eleot® acumulada (admin)
+/observations     ObservationLoggerPage    Observaciones Cognia (admin)
+
+// ── ROLES ESPECIALES ──
+/agenda           AgendaPage               Homeroom + co-teacher + admin
+/director         DirectorPage             Rector (guías · NEWS · agendas · feedback)
+/schedule         SchedulePage             Admin + rector + psicopedagoga
+/calendar         CalendarPage             Admin + psicopedagoga
+
+// ── SOLO ADMIN ──
+/teachers         AdminTeachersPage        CRUD docentes + asignaciones
+/notifications    NotificationsPage        Centro de notificaciones
+/curriculum       CurriculumPage           Malla curricular
+/sala-revision    ReviewRoomPage           Revisión de guías publicadas
+/subjects         SubjectManagerPage       Gestión de materias
+/settings         SettingsPage             Feature flags + horario institucional
+
+// ── SOLO SUPERADMIN ──
+/superadmin       SuperAdminPage           Identidad institucional + seguridad
 ```
 
 ### Hooks — src/hooks/
@@ -459,35 +498,45 @@ import MessagesPage        from './MessagesPage'        // /messages
 useAchievements.js    // CRUD achievement_goals + indicators + getPeriodProgress()
 useSyllabus.js        // CRUD syllabus_topics · byWeek Map · getTopicsForWeek(week)
 useActiveNews.js      // NEWS activo desde news_projects · buildNewsPromptContext()
-useEleot.js           // computeCoverage, domainStatus, suggestions — eleot® ✅ Ses. C
+useEleot.js           // computeCoverage, domainStatus, suggestions
 useNewsProjects.js    // CRUD news_projects
 useRubricTemplates.js // CRUD rubric_templates (5 plantillas sembradas)
+useAsync.js           // Wrapper async con loading/error state
+useAutoSave.js        // Auto-save con debounce
+useForm.js            // Form state helper
+useFocusTrap.js       // Trap foco en modales (a11y)
+usePersistentState.js // Estado persistente en localStorage
+useToggle.js          // Toggle boolean
 ```
 
 ### Componentes clave
 ```javascript
-// Editor:  GuideEditorPage · ConversationalGuideModal (✅ Ses. E) · EleotCoveragePanel (✅ Ses. C)
-// Bloques: SmartBlocks.jsx (modal + BlockForm) · smartBlockHtml.js (preview + export HTML)
-// Export:  exportDocx.js · exportHtml.js · exportRubricHtml.js · AgendaGenerator.js (✅ Ses. E)
-// NEWS:    NewsProjectEditor (wizard 8 pasos) · NewsProjectCard · NewsTimeline
+// Editor:  GuideEditorPage · ConversationalGuideModal · EleotCoveragePanel
+//          DayPanel (editor/DayPanel.jsx) — secciones accordion por día
+// Bloques: SmartBlocks.jsx (modal 3 pasos + BlockForm) · smartBlockHtml.js (preview + export)
+// Export:  exportDocx.js · exportHtml.js · exportRubricHtml.js · AgendaGenerator.js
+// NEWS:    news/NewsProjectEditor (wizard 8 pasos) · NewsProjectCard · NewsTimeline · NewsWeekBadge
 // System:  CheckpointModal · ProfileModal · ErrorBoundary · logger.js
+//          FeedbackModal · CommentsPanel · CorrectionRequestModal · VersionHistoryModal
 // AI:      AIAssistant.js · AIComponents.jsx (AISuggestButton · AIAnalyzerModal · AIGeneratorModal)
-// ctx:     FeaturesContext · ToastContext
+// ctx:     FeaturesContext (useFeatures) · ToastContext (useToast → createPortal)
 
 // NOTA: GoalCard / IndicatorList / PeriodProgress están inline en ObjectivesPage.jsx
 ```
 
-### Estado nuevo en GuideEditorPage (Ses. G)
+### Estado clave en GuideEditorPage
 ```javascript
-linkedAchievementGoal    // achievement_goal completo + indicators[] — cargado cuando linkedAchievementIndicator cambia
+linkedAchievementGoal    // achievement_goal completo + indicators[] — fuente del panel Indicador
+linkedAchievementIndicator // indicator vinculado (indicator_id)
 relinkLoading            // booleano para el botón 🔄
 relinkOptions            // null | indicator[] — dropdown de re-vinculación inline
 ```
 
-### Estado nuevo en PlannerPage (Ses. G)
+### Estado clave en PlannerPage
 ```javascript
 activeAchievementGoal    // { id, text, period, indicators[] } — goal activo para subject/grade/period
                          // fetched async; se muestra en callout y se pasa a AIGeneratorModal
+plannerActiveNewsProject // NEWS project activo — fuente primaria de indicator_id
 ```
 
 ### Provider pattern — CRÍTICO (no romper)
@@ -527,13 +576,17 @@ git add . && git commit -m "feat: ..." && git push      # deploy automático ~2 
 ✅ SESIÓN D — 16 Smart Blocks + duration_minutes + DOCX para nuevos tipos
 ✅ SESIÓN E — AgendaGenerator + ConversationalGuideModal + analyzeGuideCoverage + studentRubric
 ✅ SESIÓN F — Grade+Section fix sistémico · N logros por período · Duplicar para sección · SyllabusPage dinámico · NewsProjectEditor fix definitivo de indicadores
-✅ SESIÓN G — Cascada indicator_id funcional en guías · repair automático al abrir · botón 🔄 re-vincular · AIGeneratorModal desbloqueado con nuevo sistema · achievementGoal en prompt IA · Principio del indicador en panel versículo · CheckpointModal check-then-write
+✅ SESIÓN G — Cascada indicator_id funcional en guías · repair automático al abrir · botón 🔄 re-vincular · AIGeneratorModal desbloqueado con nuevo sistema · achievementGoal en prompt IA · Principio del indicador · CheckpointModal check-then-write
+✅ SESIÓN H — SubjectManagerPage · GuideLibraryPage · PeriodCoverageDashboard · ObservationLoggerPage · ReviewRoomPage · CurriculumPage · AgendaPage · PrinciplesPage
+✅ LIMPIEZA LEGACY — Sistema learning_targets eliminado del frontend · LearningTargetsPage/LearningTargetSelector/learningTarget prop eliminados · isModeloB derivado de MODELO_B_SUBJECTS · checkpoints.target_id NOT NULL eliminado
 
-🔜 SESIÓN H — Pendientes
-  22. SubjectManagerPage — gestor de materias (admin) → /subjects
-  23. GuideLibraryPage — biblioteca de guías aprobadas → /library
-  24. PeriodCoverageDashboard — cobertura eleot® acumulada por período
-  25. ObservationLogger — registrar observaciones Cognia reales (eleot_observations)
+🔜 SESIÓN I — Pendientes de profundización
+  26. SubjectManagerPage — completar funcionalidad CRUD real de materias
+  27. GuideLibraryPage — implementar búsqueda, filtros y aprobación de guías
+  28. ReviewRoomPage — interfaz de corrección con justificación + notificación al docente
+  29. PeriodCoverageDashboard — datos reales desde eleot_observations + lesson_plans
+  30. ObservationLoggerPage — CRUD real de eleot_observations (hoy es scaffold)
+  31. CurriculumPage — malla curricular completa con indicadores por grado/período
 
 ⏳ FASE 2 — Login/Auth completo
   Google OAuth + validación dominio post-OAuth en App.jsx:onAuthStateChange
@@ -561,4 +614,4 @@ git add . && git commit -m "feat: ..." && git push      # deploy automático ~2 
 ---
 
 *CBF Planner · ETA Platform · Edoardo Ortiz + Claude Sonnet · Barranquilla 2026*
-*"Nosotros diseñamos. El docente enseña." · CLAUDE.md v4.4 — Abril 8, 2026*
+*"Nosotros diseñamos. El docente enseña." · CLAUDE.md v4.5 — Abril 8, 2026*
