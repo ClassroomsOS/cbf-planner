@@ -365,7 +365,7 @@ function CreateTeacherModal({ admin, onClose, onCreated }) {
                 ) : (
                   <div style={{ fontSize: '12px', color: '#555' }}>
                     Comparte este enlace con <strong>{form.full_name}</strong> para que establezca su contraseña.
-                    El enlace expira en 24 horas.
+                    El enlace expira en 1 hora.
                   </div>
                 )}
               </div>
