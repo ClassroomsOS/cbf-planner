@@ -48,7 +48,7 @@ const PROGRESS_STEPS = [
 
 export const ConversationalGuideModal = memo(function ConversationalGuideModal({
   grade, subject, period, activeDays,
-  indicator, learningTarget, activeNewsProject,
+  indicator, achievementGoal, learningTarget, activeNewsProject,
   currentContent, principles, eleotCoverage,
   onApply, onClose,
 }) {
@@ -122,8 +122,9 @@ export const ConversationalGuideModal = memo(function ConversationalGuideModal({
         learningTarget: indicator
           ? { description: objective, taxonomy: learningTarget?.taxonomy || 'apply', news_model: learningTarget?.news_model }
           : learningTarget,
+        achievementGoal,
         activeNewsProject, principles,
-        _focusHints: focusHints, // passed as extra context to system prompt (handled gracefully)
+        _focusHints: focusHints,
       })
       setPreview(result)
       // Default: all days open

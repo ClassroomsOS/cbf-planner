@@ -400,7 +400,7 @@ Dame un análisis pedagógico completo. En la sección 🙏 evalúa específicam
 
 // ── Punto 3: Generar estructura completa desde objetivo ───────────────────────
 export async function generateGuideStructure({
-  grade, subject, objective, unit, activeDays, period, planId, learningTarget, activeNewsProject, principles
+  grade, subject, objective, unit, activeDays, period, planId, learningTarget, achievementGoal, activeNewsProject, principles
 }) {
   const TAXONOMY_DESC = { recognize: 'Reconocer (identificar, recordar, nombrar)', apply: 'Aplicar (usar, demostrar, resolver)', produce: 'Producir (crear, diseñar, componer)' }
   const v = fmtVerse(principles?.monthVerse) || fmtVerse(principles?.yearVerse)
@@ -498,6 +498,24 @@ Usa inglés en los datos del bloque (colegio bilingüe). Si no hay un bloque cla
   const safeObjective = sanitizeAIInput(objective || '')
   const safeLTDesc = learningTarget?.description ? sanitizeAIInput(learningTarget.description) : ''
 
+  // Build achievement_goal context block (new system)
+  const achievementBlock = achievementGoal ? (() => {
+    const lines = []
+    if (achievementGoal.text) lines.push(`- Logro del período: "${sanitizeAIInput(achievementGoal.text)}"`)
+    if (achievementGoal.period) lines.push(`- Período: ${achievementGoal.period}`)
+    const inds = achievementGoal.indicators || []
+    if (inds.length) {
+      lines.push(`- Indicadores de logro del período (${inds.length} total):`)
+      inds.forEach((ind, i) => {
+        const dim = ind.dimension ? `[${ind.dimension}]` : ''
+        const skill = ind.skill_area ? `[${ind.skill_area}]` : ''
+        lines.push(`  ${i+1}. ${dim}${skill} ${sanitizeAIInput(ind.text || '')}`)
+      })
+    }
+    if (safeObjective) lines.push(`- Indicador específico de esta guía: "${safeObjective}"`)
+    return lines.length ? `\n🎯 LOGRO E INDICADORES DEL PERÍODO (contexto curricular obligatorio):\n${lines.join('\n')}\nTODA la guía debe construir hacia estos indicadores. El estudiante debe terminar la semana más cerca de demostrar este logro.` : ''
+  })() : ''
+
   // Build NEWS project context block
   const np = activeNewsProject
   const newsBlock = np ? (() => {
@@ -537,7 +555,8 @@ Usa inglés en los datos del bloque (colegio bilingüe). Si no hay un bloque cla
 - Unidad/Tema: ${safeUnit || 'No especificado'}
 - Objetivo del docente: ${safeObjective}
 - Días de clase ${activeDays.length > 5 ? 'estas dos semanas' : 'esta semana'}: ${daysStr}
-${learningTarget ? `
+${achievementBlock}
+${!achievementBlock && learningTarget ? `
 🎯 OBJETIVO DE DESEMPEÑO VINCULADO:
 - Desempeño observable: ${safeLTDesc}
 - Nivel taxonómico: ${TAXONOMY_DESC[learningTarget.taxonomy] || learningTarget.taxonomy}

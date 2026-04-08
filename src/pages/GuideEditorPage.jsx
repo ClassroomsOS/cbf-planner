@@ -166,6 +166,7 @@ export default function GuideEditorPage({ teacher }) {
   const [draftRestore,  setDraftRestore]  = useState(null) // { content, savedAt } | null
   const [linkedTarget,            setLinkedTarget]            = useState(null)
   const [linkedAchievementIndicator, setLinkedAchievementIndicator] = useState(null)
+  const [linkedAchievementGoal, setLinkedAchievementGoal] = useState(null) // full goal + all indicators
   const [relinkLoading, setRelinkLoading] = useState(false)
   const [relinkOptions, setRelinkOptions] = useState(null) // null | [] — list of available indicators
   const [linkedSyllabusTopics,    setLinkedSyllabusTopics]    = useState([])
@@ -326,12 +327,12 @@ export default function GuideEditorPage({ teacher }) {
         const firstDay = data.monday_date || Object.keys(c.days || {}).sort()[0]
 
         // 1. Try nearest NEWS project (same logic as PlannerPage)
+        // Note: no indicator_id filter — pick nearest by date, then check if it has indicator_id
         const { data: newsProjects } = await supabase
           .from('news_projects')
           .select('id, indicator_id, due_date, actividades_evaluativas, skill, grade')
           .eq('school_id', teacher.school_id)
           .eq('subject', data.subject)
-          .not('indicator_id', 'is', null)
 
         const filtered = (newsProjects || []).filter(np =>
           data.grade?.startsWith(np.grade || '')
@@ -345,15 +346,14 @@ export default function GuideEditorPage({ teacher }) {
           const byActivity = filtered.find(np =>
             (np.actividades_evaluativas || []).some(act => act.fecha && dayKeys.has(act.fecha))
           )
-          if (byActivity) {
-            resolvedIndicatorId = byActivity.indicator_id
-          } else {
+          const nearest = byActivity || (() => {
             // Priority 2: nearest due_date >= guide's first day
-            const future = filtered
+            return filtered
               .filter(np => np.due_date && np.due_date >= firstDay)
-              .sort((a, b) => a.due_date.localeCompare(b.due_date))
-            if (future.length) resolvedIndicatorId = future[0].indicator_id
-          }
+              .sort((a, b) => a.due_date.localeCompare(b.due_date))[0] || null
+          })()
+
+          if (nearest?.indicator_id) resolvedIndicatorId = nearest.indicator_id
         }
 
         // 2. Fallback: first indicator of the achievement_goal for this period
@@ -446,6 +446,25 @@ export default function GuideEditorPage({ teacher }) {
       .single()
       .then(({ data }) => setLinkedAchievementIndicator(data || null))
   }, [plan?.indicator_id])
+
+  // ── Load full achievement_goal + all its indicators when linked indicator changes ──
+  useEffect(() => {
+    if (!linkedAchievementIndicator?.goal_id) { setLinkedAchievementGoal(null); return }
+    ;(async () => {
+      const { data: goal } = await supabase
+        .from('achievement_goals')
+        .select('id, text, period, subject, grade, status, academic_year')
+        .eq('id', linkedAchievementIndicator.goal_id)
+        .single()
+      if (!goal) { setLinkedAchievementGoal(null); return }
+      const { data: indicators } = await supabase
+        .from('achievement_indicators')
+        .select('id, text, dimension, skill_area, order_index, student_text')
+        .eq('goal_id', goal.id)
+        .order('order_index', { ascending: true })
+      setLinkedAchievementGoal({ ...goal, indicators: indicators || [] })
+    })()
+  }, [linkedAchievementIndicator?.goal_id])
 
   // ── Load syllabus topics for current week ──
   useEffect(() => {
@@ -1804,6 +1823,7 @@ export default function GuideEditorPage({ teacher }) {
           period={content.info.periodo}
           activeDays={activeDays}
           indicator={linkedAchievementIndicator}
+          achievementGoal={linkedAchievementGoal}
           learningTarget={linkedTarget}
           activeNewsProject={activeNewsProject}
           currentContent={contentRef.current}
