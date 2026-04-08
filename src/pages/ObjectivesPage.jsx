@@ -812,7 +812,7 @@ export default function ObjectivesPage({ teacher }) {
       {/* ── Indicator modal ── */}
       {indicatorModal && (
         <IndicatorFormModal
-          indicator={indicatorModal.goal_id ? null : indicatorModal}
+          indicator={indicatorModal.id ? indicatorModal : null}
           goalId={indicatorModal.goalId || indicatorModal.goal_id}
           onSave={handleSaveIndicator}
           onClose={() => setIndicatorModal(null)}
