@@ -166,6 +166,8 @@ export default function GuideEditorPage({ teacher }) {
   const [draftRestore,  setDraftRestore]  = useState(null) // { content, savedAt } | null
   const [linkedTarget,            setLinkedTarget]            = useState(null)
   const [linkedAchievementIndicator, setLinkedAchievementIndicator] = useState(null)
+  const [relinkLoading, setRelinkLoading] = useState(false)
+  const [relinkOptions, setRelinkOptions] = useState(null) // null | [] — list of available indicators
   const [linkedSyllabusTopics,    setLinkedSyllabusTopics]    = useState([])
   const [linkedNewsProjects, setLinkedNewsProjects] = useState([])
   const [monthPrinciples, setMonthPrinciples] = useState(null)
@@ -964,6 +966,58 @@ export default function GuideEditorPage({ teacher }) {
     showToast('Borrador descartado', 'warning')
   }
 
+  // ── Relink indicator: busca achievement_goals para esta guía y permite elegir ──
+  async function handleLoadRelinkOptions() {
+    if (!plan?.subject || !plan?.grade) return
+    setRelinkLoading(true)
+    const p = parseInt(plan.period) || 1
+    const { data: goals } = await supabase
+      .from('achievement_goals')
+      .select('id, text, period')
+      .eq('school_id', teacher.school_id)
+      .eq('teacher_id', plan.teacher_id || teacher.id)
+      .eq('subject', plan.subject)
+      .eq('grade', plan.grade)
+      .eq('period', p)
+      .order('created_at', { ascending: false })
+
+    if (!goals?.length) {
+      showToast('No se encontró ningún logro para este grado/materia/período', 'warning')
+      setRelinkLoading(false)
+      return
+    }
+
+    const allInds = []
+    for (const goal of goals) {
+      const { data: inds } = await supabase
+        .from('achievement_indicators')
+        .select('id, text, dimension, skill_area, order_index')
+        .eq('goal_id', goal.id)
+        .order('order_index', { ascending: true })
+      ;(inds || []).forEach(i => allInds.push({ ...i, goalText: goal.text }))
+    }
+
+    if (!allInds.length) {
+      showToast('El logro no tiene indicadores aún. Ve a Objetivos para agregarlos.', 'warning')
+      setRelinkLoading(false)
+      return
+    }
+
+    setRelinkOptions(allInds)
+    setRelinkLoading(false)
+  }
+
+  async function handleSelectRelinkIndicator(ind) {
+    const { error } = await supabase.from('lesson_plans')
+      .update({ indicator_id: ind.id, target_id: null })
+      .eq('id', plan.id)
+    if (error) { showToast('Error al actualizar el indicador', 'error'); return }
+    setPlan(prev => ({ ...prev, indicator_id: ind.id, target_id: null }))
+    setContentField(['objetivo', 'indicadores'], [ind.text])
+    setRelinkOptions(null)
+    showToast('Indicador actualizado correctamente', 'success')
+  }
+
   return (
     <div className="ge-wrap">
 
@@ -1405,12 +1459,45 @@ export default function GuideEditorPage({ teacher }) {
                       👩‍🎓 {linkedAchievementIndicator.student_text}
                     </div>
                   )}
-                  <div style={{ fontSize: 10, color: '#888', marginTop: 6 }}>
-                    Para cambiar el indicador, ve a{' '}
-                    <a href="#" onClick={e => { e.preventDefault(); navigate('/objectives') }} style={{ color: '#1A6B3A' }}>
-                      Objetivos →
-                    </a>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 10, color: '#888' }}>
+                      Para editar el indicador ve a{' '}
+                      <a href="#" onClick={e => { e.preventDefault(); navigate('/objectives') }} style={{ color: '#1A6B3A' }}>
+                        Objetivos →
+                      </a>
+                    </span>
+                    <button
+                      onClick={handleLoadRelinkOptions}
+                      disabled={relinkLoading}
+                      style={{ fontSize: 10, padding: '2px 10px', borderRadius: 4, border: '1px solid #b8e8c8', background: '#fff', color: '#1A6B3A', cursor: 'pointer', fontWeight: 600 }}>
+                      {relinkLoading ? '…' : '🔄 Cambiar indicador'}
+                    </button>
                   </div>
+                  {relinkOptions && (
+                    <div style={{ marginTop: 8, background: '#fff', border: '1px solid #d4edda', borderRadius: 6, overflow: 'hidden' }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: '#555', padding: '6px 10px', background: '#f8fffe', borderBottom: '1px solid #e8f5e9' }}>
+                        Selecciona el indicador correcto
+                      </div>
+                      {relinkOptions.map(ind => (
+                        <button key={ind.id}
+                          onClick={() => handleSelectRelinkIndicator(ind)}
+                          style={{ display: 'block', width: '100%', textAlign: 'left', padding: '7px 10px', border: 'none', borderBottom: '1px solid #f0f8f0', background: '#fff', cursor: 'pointer', fontSize: 11, color: '#1a1a2e', lineHeight: 1.4 }}
+                          onMouseOver={e => e.currentTarget.style.background = '#f0fff4'}
+                          onMouseOut={e => e.currentTarget.style.background = '#fff'}>
+                          <span style={{ fontSize: 9, fontWeight: 700, color: '#1A6B3A', marginRight: 6 }}>
+                            {{ speaking: '🎤', listening: '🎧', reading: '📖', writing: '✍️', cognitive: '🧠', procedural: '🛠️', attitudinal: '💫', general: '📋' }[ind.skill_area || ind.dimension] || '📋'}
+                            {' '}{ind.skill_area || ind.dimension || 'indicador'}
+                          </span>
+                          {ind.text}
+                        </button>
+                      ))}
+                      <button
+                        onClick={() => setRelinkOptions(null)}
+                        style={{ display: 'block', width: '100%', padding: '6px 10px', border: 'none', background: '#f8f8f8', color: '#888', cursor: 'pointer', fontSize: 10 }}>
+                        Cancelar
+                      </button>
+                    </div>
+                  )}
                 </div>
               ) : (
                 /* ── Legacy: LearningTargetSelector ── */
@@ -1441,10 +1528,43 @@ export default function GuideEditorPage({ teacher }) {
                     }}
                   />
                   {plan?.target_id && (
-                    <div style={{ fontSize: '11px', color: '#888', margin: '-4px 0 8px', fontStyle: 'italic' }}>
+                    <div style={{ fontSize: '11px', color: '#888', margin: '-4px 0 4px', fontStyle: 'italic' }}>
                       ↑ Al vincular un logro, los campos de abajo se llenan automáticamente.
                     </div>
                   )}
+                  <div style={{ margin: '0 0 8px' }}>
+                    <button
+                      onClick={handleLoadRelinkOptions}
+                      disabled={relinkLoading}
+                      style={{ fontSize: 11, padding: '4px 12px', borderRadius: 4, border: '1px solid #b8e8c8', background: '#f0fff4', color: '#1A6B3A', cursor: 'pointer', fontWeight: 600 }}>
+                      {relinkLoading ? '…' : '🔄 Vincular al nuevo sistema de logros'}
+                    </button>
+                    {relinkOptions && (
+                      <div style={{ marginTop: 8, background: '#fff', border: '1px solid #d4edda', borderRadius: 6, overflow: 'hidden' }}>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: '#555', padding: '6px 10px', background: '#f8fffe', borderBottom: '1px solid #e8f5e9' }}>
+                          Selecciona el indicador correcto
+                        </div>
+                        {relinkOptions.map(ind => (
+                          <button key={ind.id}
+                            onClick={() => handleSelectRelinkIndicator(ind)}
+                            style={{ display: 'block', width: '100%', textAlign: 'left', padding: '7px 10px', border: 'none', borderBottom: '1px solid #f0f8f0', background: '#fff', cursor: 'pointer', fontSize: 11, color: '#1a1a2e', lineHeight: 1.4 }}
+                            onMouseOver={e => e.currentTarget.style.background = '#f0fff4'}
+                            onMouseOut={e => e.currentTarget.style.background = '#fff'}>
+                            <span style={{ fontSize: 9, fontWeight: 700, color: '#1A6B3A', marginRight: 6 }}>
+                              {{ speaking: '🎤', listening: '🎧', reading: '📖', writing: '✍️', cognitive: '🧠', procedural: '🛠️', attitudinal: '💫', general: '📋' }[ind.skill_area || ind.dimension] || '📋'}
+                              {' '}{ind.skill_area || ind.dimension || 'indicador'}
+                            </span>
+                            {ind.text}
+                          </button>
+                        ))}
+                        <button
+                          onClick={() => setRelinkOptions(null)}
+                          style={{ display: 'block', width: '100%', padding: '6px 10px', border: 'none', background: '#f8f8f8', color: '#888', cursor: 'pointer', fontSize: 10 }}>
+                          Cancelar
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </>
               )}
 
