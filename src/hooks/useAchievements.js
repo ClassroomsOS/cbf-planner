@@ -95,19 +95,39 @@ export default function useAchievements(teacher, filters = {}) {
 
   const createGoal = async (data) => {
     try {
+      // Check for existing goal with same unique key before inserting
+      const year = data.academic_year || new Date().getFullYear()
+      const { data: existing } = await supabase
+        .from('achievement_goals')
+        .select('id, status, grade')
+        .eq('teacher_id',   teacher.id)
+        .eq('subject',      data.subject)
+        .eq('grade',        data.grade)
+        .eq('period',       data.period)
+        .eq('academic_year', year)
+        .maybeSingle()
+
+      if (existing) {
+        const statusLabel = existing.status === 'published' ? 'publicado' : 'en borrador'
+        return {
+          data: null,
+          error: `Ya existe un Logro para ${data.subject} · ${data.grade} · Período ${data.period} (${statusLabel}). Búscalo en la lista y edítalo directamente.`,
+        }
+      }
+
       const { data: created, error: err } = await supabase
         .from('achievement_goals')
         .insert({
-          school_id:    teacher.school_id,
-          teacher_id:   teacher.id,
-          academic_year: data.academic_year || new Date().getFullYear(),
+          school_id:     teacher.school_id,
+          teacher_id:    teacher.id,
+          academic_year: year,
           ...data,
         })
         .select('*')
         .single()
 
       if (err) throw err
-      const normalized = { ...created, indicators: [] }  // indicators start empty on create
+      const normalized = { ...created, indicators: [] }
       setGoals(prev => [...prev, normalized])
       return { data: normalized, error: null }
     } catch (err) {
