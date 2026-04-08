@@ -37,7 +37,7 @@ function TopicFormModal({ topic, assignments, goals = [], defaultWeek, defaultPe
 
   const [form, setForm] = useState(topic || {
     subject: assignments[0]?.subject || '',
-    grade: assignments[0]?.grade || '',  // grado base sin sección
+    grade: assignments[0] ? (assignments[0].section ? `${assignments[0].grade} ${assignments[0].section}` : assignments[0].grade) : '',
     period: defaultPeriod || 1,
     week_number: defaultWeek || 1,
     topic: '',
@@ -62,7 +62,7 @@ function TopicFormModal({ topic, assignments, goals = [], defaultWeek, defaultPe
       // Al cambiar materia, auto-seleccionar el primer grado válido y limpiar indicador
       if (k === 'subject') {
         const validGrades = [...new Set(
-          assignments.filter(a => a.subject === v).map(a => a.grade)
+          assignments.filter(a => a.subject === v).map(a => a.section ? `${a.grade} ${a.section}` : a.grade)
         )].sort()
         if (validGrades.length > 0 && !validGrades.includes(f.grade)) {
           next.grade = validGrades[0]

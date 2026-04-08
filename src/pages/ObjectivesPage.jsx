@@ -90,7 +90,7 @@ function GoalFormModal({ goal, assignments, onSave, onClose }) {
   const uniqueSubjects = [...new Set(assignments.map(a => a.subject))].sort()
   const grades = assignments
     .filter(a => !form.subject || a.subject === form.subject)
-    .map(a => a.grade)  // grado base sin sección — la planeación es igual para todas las secciones
+    .map(a => a.section ? `${a.grade} ${a.section}` : a.grade)
   const uniqueGrades = [...new Set(grades)].sort()
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
@@ -141,12 +141,11 @@ function GoalFormModal({ goal, assignments, onSave, onClose }) {
             </label>
             <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13, color: '#555', fontWeight: 600 }}>
               Grado
-              <input value={form.grade} onChange={e => set('grade', e.target.value)}
-                list="grade-options" placeholder="ej. 8.°"
-                style={{ padding: '8px 10px', border: '1px solid #d0d8e8', borderRadius: 8, fontSize: 14 }} />
-              <datalist id="grade-options">
-                {uniqueGrades.map(g => <option key={g} value={g} />)}
-              </datalist>
+              <select value={form.grade} onChange={e => set('grade', e.target.value)}
+                style={{ padding: '8px 10px', border: '1px solid #d0d8e8', borderRadius: 8, fontSize: 14 }}>
+                <option value="">Seleccionar...</option>
+                {uniqueGrades.map(g => <option key={g} value={g}>{g}</option>)}
+              </select>
             </label>
           </div>
 
@@ -611,7 +610,7 @@ export default function ObjectivesPage({ teacher }) {
     [...new Set(assignments.map(a => a.subject))].sort(), [assignments]
   )
   const uniqueGrades = useMemo(() =>
-    [...new Set(assignments.map(a => a.grade))].sort(), [assignments]  // grado base sin sección
+    [...new Set(assignments.map(a => a.section ? `${a.grade} ${a.section}` : a.grade))].sort(), [assignments]
   )
 
   // ── Goal handlers ──────────────────────────────────────────────────────────
@@ -620,7 +619,7 @@ export default function ObjectivesPage({ teacher }) {
     const isEdit = !!form.id
     const payload = {
       subject:       form.subject,
-      grade:         form.grade.replace(/\s+[A-Z]$/, '').trim(), // siempre grado base
+      grade:         form.grade, // incluye sección: "8.° Blue"
       period:        form.period,
       academic_year: form.academic_year,
       text:          form.text,

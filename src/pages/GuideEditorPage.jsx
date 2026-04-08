@@ -378,7 +378,7 @@ export default function GuideEditorPage({ teacher }) {
       .select('id, topic, content_type, description, resources, indicator_id')
       .eq('teacher_id', teacher.id)
       .eq('subject', plan.subject)
-      .eq('grade', plan.grade.split(' ')[0]) // strip section ("8.° A" → "8.°")
+      .eq('grade', plan.grade)
       .eq('period', plan.period)
       .eq('week_number', plan.week_number)
       .order('created_at')
