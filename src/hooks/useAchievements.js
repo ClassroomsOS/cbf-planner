@@ -41,7 +41,7 @@ export default function useAchievements(teacher, filters = {}) {
         .from('achievement_goals')
         .select(`
           *,
-          indicators:achievement_indicators(*)
+          indicators:achievement_indicators!goal_id(*)
         `)
         .eq('school_id', teacher.school_id)
         .eq('teacher_id', teacher.id)
@@ -87,7 +87,7 @@ export default function useAchievements(teacher, filters = {}) {
           academic_year: data.academic_year || new Date().getFullYear(),
           ...data,
         })
-        .select('*, indicators:achievement_indicators(*)')
+        .select('*, indicators:achievement_indicators!goal_id(*)')
         .single()
 
       if (err) throw err
