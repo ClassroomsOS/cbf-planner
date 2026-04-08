@@ -125,7 +125,7 @@ export default function NewsPage({ teacher }) {
     await updateStatus(id, newStatus)
   }
 
-  // Returns other sections (same base grade + subject) that have no project for this period
+  // Returns other sections (same base grade + subject) — always shows for duplication
   const getAvailableSectionsForProject = (project) => {
     const thisAss = assignments.find(a =>
       a.subject === project.subject &&
@@ -136,12 +136,6 @@ export default function NewsPage({ teacher }) {
     return assignments
       .filter(a => a.grade === project.grade && a.subject === project.subject && a.section !== project.section)
       .map(a => a.section)
-      .filter(sec => !projects.some(p =>
-        p.subject === project.subject &&
-        p.grade === project.grade &&
-        p.section === sec &&
-        p.period === project.period
-      ))
   }
 
   const handleDuplicateProject = async (project, targetSection) => {

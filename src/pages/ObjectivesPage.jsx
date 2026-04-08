@@ -691,17 +691,14 @@ export default function ObjectivesPage({ teacher }) {
 
   // ── Duplicate goal for another section ────────────────────────────────────
 
-  // Returns combined grades of other sections (same base grade + subject) that
-  // don't yet have a goal for this subject+period+academic_year
+  // Returns combined grades of other sections (same base grade + subject)
+  // Always shows — multiple logros per section+period are now allowed
   const getAvailableSections = (goal) => {
     const thisAss = assignments.find(a => combinedGrade(a) === goal.grade && a.subject === goal.subject)
     if (!thisAss) return []
     return assignments
       .filter(a => a.grade === thisAss.grade && a.subject === goal.subject && combinedGrade(a) !== goal.grade)
       .map(a => combinedGrade(a))
-      .filter(g => !goals.some(eg =>
-        eg.grade === g && eg.subject === goal.subject && eg.period === goal.period
-      ))
   }
 
   const handleDuplicateGoal = async (goal, targetGrade) => {
