@@ -1,4 +1,4 @@
-# CBF PLANNER — v4.1
+# CBF PLANNER — v4.2
 ## CLAUDE.md — Documento maestro
 
 > **Principio rector:** *"Nosotros diseñamos. El docente enseña."*
@@ -39,172 +39,142 @@ CAPA 5 — INTELIGENCIA PEDAGÓGICA  ← pendiente
 
 ## 🧠 LA CASCADA PEDAGÓGICA — LEY DEL SISTEMA
 
-Todo el código debe respetar este flujo. Es la arquitectura pedagógica del sistema.
+```
+SYLLABUS TOPICS → ACHIEVEMENT GOAL → ACHIEVEMENT INDICATORS
+  → NEWS PROJECT → LESSON PLAN → CHECKPOINT → EVALUACIÓN
+```
+
+- **SYLLABUS TOPICS** — contenidos por semana, materia, grado
+- **ACHIEVEMENT GOAL** — logro de período; verbo Bloom + contenido + condición
+- **ACHIEVEMENT INDICATORS** — dimension (cognitivo/procedimental/actitudinal) + skill_area
+  - skill_area: `speaking|listening|reading|writing|general|null`
+  - Si skill_area tiene valor → NEWS hereda rubric_template automáticamente
+- **NEWS PROJECT** — indicator_id FK · rubric pre-seleccionada por skill_area
+- **LESSON PLAN** — indicator_id · syllabus_topic_id · smart_blocks (duration_minutes + eleot_items) · session_agenda auto-generada
+- **CHECKPOINT** — ¿Mayoría/algunos/pocos alcanzaron el indicador?
+- **EVALUACIÓN** — rúbrica → nota 1.0–5.0 · indicador marcado "evaluado"
+
+---
+
+## ✅ ESTADO ACTUAL — PRODUCCIÓN (Sesiones A–E completas)
 
 ```
-SYLLABUS TOPICS (contenidos por semana, por materia, por grado)
-  │ alimenta y secuencia
-  ▼
-ACHIEVEMENT GOAL — Logro de período (1 por materia/período)
-  verbo Bloom + contenido + condición de desempeño
-  │ se desagrega en 3–4
-  ▼
-ACHIEVEMENT INDICATORS — Indicadores de logro
-  ├── Cognitivo     (saber — comprende, analiza, distingue)
-  ├── Procedimental (hacer — produce, presenta, construye)
-  │   └── skill_area: speaking|listening|reading|writing|general|null
-  │       Si tiene valor → NEWS hereda plantilla de rúbrica automáticamente
-  └── Actitudinal   (ser — disposición, convivencia)
-  │ cada indicador jalona exactamente UN
-  ▼
-NEWS PROJECT — Proyecto de período (2–4 semanas)
-  indicator_id → FK al indicador · rubric pre-seleccionada por skill_area
-  │ estructura semana a semana
-  ▼
-LESSON PLAN — Guía semanal (formato CBF-G AC-01 v02)
-  news_project_id · indicator_id · syllabus_topic_id (pre-fill automático)
-  smart_blocks → duration_minutes + eleot_items · session_agenda auto-generada
-  │ al cerrar la semana
-  ▼
-CHECKPOINT — ¿Mayoría/algunos/pocos alcanzaron el indicador? → desbloquea próxima guía
-  │ al cerrar el NEWS Project
-  ▼
-EVALUACIÓN — Rúbrica aplicada → nota 1.0–5.0 automática · indicador marcado "evaluado"
+BASE ✅  Auth · perfiles · dashboard · sidebar pedagógico
+        GuideEditor: 6 secciones + auto-save + Tiptap + layouts + typography
+        Export DOCX/HTML/PDF: base64, logo, videos, CSS scoped
+        Export Virtual Campus: buildDayHtml por jornada
+        IA: generar / analizar / sugerir (claude-proxy → claude-sonnet-4-20250514)
+        NEWS: news_projects + rubric_templates + NewsProjectEditor (wizard 8 pasos)
+        Comunicación: mensajes + notificaciones (Realtime)
+        Admin: AdminTeachersPage + SettingsPage + SuperAdminPage + DirectorPage
+        Roles: teacher/co-teacher/psicopedagoga/rector/admin/superadmin
+        Checkpoints: tabla + CheckpointModal + flujo semana N→N+1
+
+SESIÓN A ✅  achievement_goals + achievement_indicators (skill_area)
+             syllabus_topics · news_projects.indicator_id
+             lesson_plans.(indicator_id, syllabus_topic_id, eleot_coverage, session_agenda)
+             checkpoints.indicator_id · learning_targets migrados
+             useAchievements.js · useSyllabus.js · useActiveNews.js
+             ObjectivesPage.jsx (/objectives) · SyllabusPage.jsx (/syllabus)
+
+SESIÓN B ✅  NewsProjectEditor: indicator_id + filtro rubric por skill_area
+             GuideEditorPage: pre-fill indicator + syllabus_topic
+             CheckpointModal: indicator_id + target_id legacy dual-write
+
+SESIÓN C ✅  eleot_domains (7) + eleot_items (28) + eleot_block_mapping + eleot_observations
+             useEleot.js — computeCoverage, domainStatus, suggestions
+             EleotCoveragePanel.jsx — semáforo tiempo real en sidebar del editor
+
+SESIÓN D ✅  16 Smart Blocks totales (9 existentes + 7 nuevos)
+             duration_minutes en todos los bloques · step 3 del modal
+             guessSmartBlock() extendido para auto-detectar los 16 tipos
+             DOCX: buildSmartBlockDocx para todos los 16 tipos
+
+SESIÓN E ✅  AgendaGenerator.js — buildSessionAgenda + auto-save session_agenda
+             ConversationalGuideModal.jsx — wizard 5 pasos (reemplaza AIGeneratorModal)
+             AIAssistant.js: analyzeGuideCoverage() + generateStudentRubric()
+             exportDocx.js: DOCX nativo para los 7 nuevos block types
+
+PRÓXIMO → SESIÓN F
 ```
 
 ---
 
-## ✅ ESTADO ACTUAL — PRODUCCIÓN
-
-```
-COMPLETADO ✅
-  Auth + perfiles + dashboard + sidebar pedagógico
-  GuideEditor: 6 secciones + auto-save localStorage + Tiptap + layouts + typography
-  Smart Blocks (6): Dictation, Quiz, Vocabulary, Workshop, Speaking, Notice
-  Export DOCX/HTML/PDF: imágenes base64, logo, videos, CSS scoped (.cbf-day)
-  Export Virtual Campus: buildDayHtml / exportDayHtml por jornada
-  IA: generar / analizar / sugerir por sección (Claude Sonnet via claude-proxy)
-  Horario real desde teacher_assignments + guías 1–2 semanas
-  NEWS System: /news UI + news_projects + 5 rubric_templates + AI autofill
-  Smart dropdowns desde teacher_assignments + Modal fixes (ESC, confirmación)
-  Sistema comunicación (4 módulos) + Mensajes + Notificaciones
-  Panel control features + aprobación docentes + AdminTeachersPage
-  Roles: admin/superadmin/rector/teacher/co-teacher/psicopedagoga
-  Edge Fn admin-create-teacher + SetPasswordPage + validación dominio email
-  SuperAdminPage + FeedbackModal + DirectorPage (3 tabs)
-  ToastContext (reemplaza window.alert) + ErrorBoundary + logger.js
-  Checkpoints: tabla + CheckpointModal + flujo semana N→N+1
-  minify: false permanente · ANTHROPIC_API_KEY en Supabase Secrets
-
-SESIÓN A ✅ (2026-04-07 · commit 6ed2f3d)
-  achievement_goals + achievement_indicators (con skill_area) en Supabase
-  syllabus_topics en Supabase
-  news_projects.indicator_id + lesson_plans.(indicator_id, syllabus_topic_id,
-    eleot_coverage, session_agenda) en Supabase
-  checkpoints.indicator_id FK en Supabase
-  learning_targets migrados → achievement_goals/indicators
-  news → news_legacy (conflicto de tablas resuelto)
-  useAchievements.js · useSyllabus.js · useActiveNews.js (lee news_projects)
-  ObjectivesPage.jsx (/objectives): logros + indicadores + barra progreso + badge skill_area
-  SyllabusPage.jsx (/syllabus): contenidos por semana
-
-SESIÓN B 🔄 PRÓXIMA
-  NewsProjectEditor: selector indicator_id + filtro rubric por skill_area del indicador
-  GuideEditorPage: pre-fill indicator + syllabus_topic desde NEWS activo
-  CheckpointModal: usar indicator_id (migrar desde target_id legacy)
-
-PENDIENTE ⏳
-  Sesión C: eleot® Engine (tablas + seed 28 ítems + useEleot + EleotCoveragePanel)
-  Sesión D: Smart Blocks nuevos (8 tipos) + duration_minutes en existentes
-  Sesión E: Exportación DOCX inteligente + IA conversacional (5 pasos)
-  Sesión F: SubjectManagerPage · GuideLibraryPage · PeriodCoverageDashboard
-```
-
----
-
-## 🗄️ BASE DE DATOS — ESTADO ACTUAL
-
-### Tablas en producción (no modificar sin revisar RLS)
+## 🗄️ BASE DE DATOS — TABLAS EN PRODUCCIÓN
 
 ```
 teachers              — RLS via get_my_school_id() SECURITY DEFINER
-schools               — instituciones + features JSONB
-teacher_assignments   — asignaciones materia/grado/sección/horario
-lesson_plans          — guías · news_project_id, news_week_number, news_criteria_focus,
-                        indicator_id, syllabus_topic_id, eleot_coverage {}, session_agenda []
-news_projects         — proyectos NEWS · indicator_id FK → achievement_indicators
+schools               — features JSONB · year_verse · logo_url · dane · resolution
+teacher_assignments   — asignaciones materia/grado/sección/horario JSONB
+lesson_plans          — content JSONB · indicator_id · syllabus_topic_id
+                        eleot_coverage {} · session_agenda [] · week_count
+news_projects         — indicator_id FK → achievement_indicators · actividades_evaluativas
 rubric_templates      — 5 plantillas institucionales sembradas
-achievement_goals     — logros · UNIQUE(teacher_id, subject, grade, period, academic_year)
-achievement_indicators— indicadores · dimension + skill_area(speaking|listening|reading|writing|general|null)
+achievement_goals     — UNIQUE(teacher_id, subject, grade, period, academic_year)
+achievement_indicators— dimension + skill_area · teacher_id (denorm. para RLS)
 syllabus_topics       — contenidos por semana · indicator_id FK
-checkpoints           — reflexiones · target_id (legacy) + indicator_id (nuevo)
+checkpoints           — target_id (legacy) + indicator_id (nuevo) · plan_id UNIQUE
+eleot_domains         — 7 dominios A–G (seed inmutable)
+eleot_items           — 28 ítems A1–G3 (seed inmutable)
+eleot_block_mapping   — block_type → item_id + weight (seed inmutable)
+eleot_observations    — historial observaciones Cognia (teacher_id + school_id RLS)
+school_monthly_principles — year_verse · month_verse · indicator_principle por mes
 learning_targets      — LEGACY (migrado — no borrar aún)
 news_legacy           — LEGACY (era tabla news — no borrar)
-error_log · activity_log
+error_log · activity_log · ai_usage · schedule_slots · school_calendar
 ```
-
-### Tablas pendientes — eleot® Engine (Sesión C)
-
-```
-eleot_domains       — 7 dominios (A–G), datos estáticos
-eleot_items         — 28 ítems (A1–G4), datos estáticos
-eleot_block_mapping — Smart Block → ítems + weight
-eleot_observations  — historial observaciones Cognia recibidas
-```
-
-El seed completo (dominios, 28 ítems, mapeo bloques) está en CLAUDE.md v4.0 en git (commit 0d906da).
 
 ---
 
-## 🧩 SMART BLOCKS
+## 🧩 SMART BLOCKS — 16 TIPOS ACTIVOS
 
-### Existentes (extender con duration_minutes + eleot_items en Sesión D)
-| Tipo | eleot® principales |
-|---|---|
-| `dictation` | D3, E3, F4 |
-| `quiz` | B2, E1, E3 |
-| `vocabulary` | D3, B2, E3 |
-| `workshop` | D3, D4, B4, C3 |
-| `speaking` | D1, B4, G3 |
-| `notice` | F4, F3 |
+| Tipo | Color | eleot® principales |
+|---|---|---|
+| `DICTATION` | 4BACC6 | D3, E3, F4 |
+| `QUIZ` | C0504D | B2, E1, E3, B4 |
+| `VOCAB` | 9BBB59 | D3, B2, E3 |
+| `WORKSHOP` | F79646 | D3, D4, B4, C3 |
+| `SPEAKING` | 8064A2 | D1, B4, D3, G3 |
+| `NOTICE` | 1F3864 | F4, F3 |
+| `READING` | 17375E | D3, B4, D2, E3 |
+| `GRAMMAR` | 375623 | B2, E3, D3, E1 |
+| `EXIT_TICKET` | C55A11 | E1, E4, B5 |
+| `WRITING` | 70AD47 | D3, B4, B3, E2 |
+| `SELF_ASSESSMENT` | E1A24A | E1, E2, E4, B5 |
+| `PEER_REVIEW` | C3785B | C3, E2, D1, C2 |
+| `DIGITAL_RESOURCE` | 4BACC6 | G1, G2, D3 |
+| `COLLABORATIVE_TASK` | 4F81BD | D4, D1, C3, A2 |
+| `REAL_LIFE_CONNECTION` | 70AD47 | D2, D3, B4 |
+| `TEACHER_NOTE` | 767171 | A1, A3 |
 
-### Nuevos — Sesión D
-| Tipo | eleot® principales |
-|---|---|
-| `reading` | D3, B4, D2, E3 |
-| `writing` | D3, B4, B3, E2 |
-| `self_assessment` | E1, E2, E4, B5 |
-| `peer_review` | C3, E2, D1, C2 |
-| `digital_resource` | G1, G2, D3 |
-| `collaborative_task` | D4, D1, C3, A2 |
-| `real_life_connection` | D2, D3, B4 |
-| `teacher_note` | A1, A3 |
-
-### Estructura JSON de un bloque
+**Estructura JSON de un bloque:**
 ```json
-{
-  "id": "uuid", "type": "workshop", "title": "...",
-  "duration_minutes": 20, "bloom_level": "create",
-  "instructions": "...", "eleot_items": ["D3","D4","B4","C3"],
-  "differentiation": { "azul": "...", "rojo": "..." },
-  "resources": [], "assessment_criteria": []
-}
+{ "id": 1234, "type": "WORKSHOP", "model": "stations",
+  "duration_minutes": 20, "data": { "stations": [...] } }
 ```
+
+**Archivos:** `src/utils/smartBlockHtml.js` (BLOCK_TYPES + preview/interactive HTML) · `src/components/SmartBlocks.jsx` (modal 3 pasos + BlockForm)
 
 ---
 
 ## 🤖 IA — Edge Function `claude-proxy`
 
-**Endpoints activos:** `generate` (guía completa) · `analyze` (sugerir por sección)
-
-**Endpoints pendientes — Sesión E:**
-- `validate_goal` → `{ is_valid, issues, suggestion, bloom_level }`
-- `suggest_rubric` → `{ rubric_criteria, student_rubric, suggested_blocks, eleot_weak_domains }`
-- `analyze_coverage` → `{ coverage_score {A-G}, missing_domains, session_agenda }`
-- `generate_guide` → modal 5 pasos con contexto pedagógico completo
-- `generate_student_rubric` → rúbrica docente → versión A2
-
+**Passthrough puro** — construye el prompt en `AIAssistant.js`, envía a `claude-sonnet-4-20250514`.
 **Modelo:** `claude-sonnet-4-20250514` — no cambiar sin avisar.
+
+| Función | Archivo | Tokens |
+|---|---|---|
+| `suggestSectionActivity()` | AIAssistant.js | 2000 |
+| `analyzeGuide()` | AIAssistant.js | 4000 |
+| `generateGuideStructure()` | AIAssistant.js | 16000 |
+| `suggestSmartBlock()` | AIAssistant.js | 1200 |
+| `generateRubric()` | AIAssistant.js | 4000 |
+| `generateIndicadores()` | AIAssistant.js | 1500–2000 |
+| `importGuideFromDocx()` | AIAssistant.js | 8000 |
+| `analyzeGuideCoverage()` ✅ Ses. E | AIAssistant.js | 1800 |
+| `generateStudentRubric()` ✅ Ses. E | AIAssistant.js | 3000 |
+
+**ConversationalGuideModal** (Ses. E) — wizard 5 pasos que llama `generateGuideStructure()` con contexto de dominios eleot® débiles + skill focus + block types preferidos.
 
 ---
 
@@ -255,57 +225,42 @@ CREATE POLICY "eleot_read_all" ON eleot_domains FOR SELECT USING (true);
 
 ## 🔗 CÓDIGO — ESTADO ACTUAL
 
-### DashboardPage.jsx — imports y rutas activas
+### DashboardPage.jsx — rutas activas
 ```javascript
-// Páginas activas
 import PlannerPage         from './PlannerPage'        // /
 import MyPlansPage         from './MyPlansPage'         // /plans
 import GuideEditorPage     from './GuideEditorPage'     // /editor/:id
 import NewsPage            from './NewsPage'             // /news
 import LearningTargetsPage from './LearningTargetsPage' // /targets (legacy — mantener)
-import ObjectivesPage      from './ObjectivesPage'      // /objectives ✅ Sesión A
-import SyllabusPage        from './SyllabusPage'        // /syllabus  ✅ Sesión A
+import ObjectivesPage      from './ObjectivesPage'      // /objectives ✅
+import SyllabusPage        from './SyllabusPage'        // /syllabus  ✅
 import AIUsagePage         from './AIUsagePage'         // /ai-usage
 import MessagesPage        from './MessagesPage'        // /messages
-// Admin: CalendarPage, NotificationsPage, AdminTeachersPage, SettingsPage, SuperAdminPage
-// Pendiente: SubjectManagerPage (/subjects), GuideLibraryPage (/library)
+// Admin: CalendarPage · NotificationsPage · AdminTeachersPage · SettingsPage · SuperAdminPage
+// Pendiente Ses. F: SubjectManagerPage (/subjects) · GuideLibraryPage (/library)
 ```
 
-### Sidebar — orden canónico (pedagógico)
-```
-PLANIFICACIÓN:
-  🎯 Objetivos  → /objectives   (logros + indicadores)
-  📚 Syllabus   → /syllabus     (contenidos por semana)
-  📋 NEWS       → /news
-  📝 Nueva Guía → /
-  📂 Mis Guías  → /plans
-
-HERRAMIENTAS: 💬 Mensajes · 🤖 Uso IA
-
-ADMIN: Docentes · Notificaciones · Calendario · Panel control · Superadmin
-```
-
-### Hooks
+### Hooks — src/hooks/
 ```javascript
-// src/hooks/
 useAchievements.js    // CRUD achievement_goals + indicators + getPeriodProgress()
 useSyllabus.js        // CRUD syllabus_topics · byWeek Map · getTopicsForWeek(week)
-useActiveNews.js      // NEWS activo desde news_projects (canónica)
-                      // Exporta: { news, loading, weekContext, buildNewsPromptContext }
+useActiveNews.js      // NEWS activo desde news_projects · buildNewsPromptContext()
+useEleot.js           // computeCoverage, domainStatus, suggestions — eleot® ✅ Ses. C
 useNewsProjects.js    // CRUD news_projects
 useRubricTemplates.js // CRUD rubric_templates (5 plantillas sembradas)
 ```
 
 ### Componentes clave
 ```javascript
-// news/:  NewsProjectEditor (3 tabs: Proyecto/Textbook/Rúbrica)
-//         NewsProjectCard · NewsTimeline · NewsWeekBadge
-// system: CheckpointModal · ProfileModal · ErrorBoundary
-// utils:  logger.js · DocxExporter.js · AIAssistant.js
-// ctx:    FeaturesContext · ToastContext
+// Editor:  GuideEditorPage · ConversationalGuideModal (✅ Ses. E) · EleotCoveragePanel (✅ Ses. C)
+// Bloques: SmartBlocks.jsx (modal + BlockForm) · smartBlockHtml.js (preview + export HTML)
+// Export:  exportDocx.js · exportHtml.js · exportRubricHtml.js · AgendaGenerator.js (✅ Ses. E)
+// NEWS:    NewsProjectEditor (wizard 8 pasos) · NewsProjectCard · NewsTimeline
+// System:  CheckpointModal · ProfileModal · ErrorBoundary · logger.js
+// AI:      AIAssistant.js · AIComponents.jsx (AISuggestButton · AIAnalyzerModal)
+// ctx:     FeaturesContext · ToastContext
 
-// NOTA: GoalCard / IndicatorList / PeriodProgress están implementados
-//       inline en ObjectivesPage.jsx — NO existen como componentes separados.
+// NOTA: GoalCard / IndicatorList / PeriodProgress están inline en ObjectivesPage.jsx
 ```
 
 ### Provider pattern — CRÍTICO (no romper)
@@ -336,36 +291,29 @@ git add . && git commit -m "feat: ..." && git push      # deploy automático ~2 
 
 ---
 
-## 🗺️ ORDEN DE EJECUCIÓN
+## 🗺️ ROADMAP — ESTADO
 
 ```
-SESIÓN A ✅ COMPLETADA (2026-04-07)
+✅ SESIÓN A — Cascada pedagógica en DB (achievement_goals/indicators, syllabus, news FK)
+✅ SESIÓN B — Conexión indicator_id en NewsProjectEditor + GuideEditor + CheckpointModal
+✅ SESIÓN C — eleot® Engine (tablas + seed + useEleot + EleotCoveragePanel)
+✅ SESIÓN D — 16 Smart Blocks + duration_minutes + DOCX para nuevos tipos
+✅ SESIÓN E — AgendaGenerator + ConversationalGuideModal + analyzeGuideCoverage + studentRubric
 
-SESIÓN B 🔄 PRÓXIMA
-  9.  NewsProjectEditor: selector indicator_id + filtro rubric_templates por skill_area
-  10. GuideEditorPage: pre-fill indicator + syllabus_topic desde NEWS activo
-  11. CheckpointModal: indicator_id reemplaza target_id
+🔜 SESIÓN F — Pendientes históricos
+  22. SubjectManagerPage — gestor de materias (admin) → /subjects
+  23. GuideLibraryPage — biblioteca de guías aprobadas → /library
+  24. PeriodCoverageDashboard — cobertura eleot® acumulada por período
+  25. ObservationLogger — registrar observaciones Cognia reales (eleot_observations)
 
-SESIÓN C — eleot® Engine
-  12. Migración: eleot_domains + eleot_items + eleot_block_mapping + eleot_observations
-  13. useEleot.js — cálculo coverage por guía y período acumulado
-  14. EleotCoveragePanel.jsx — semáforo tiempo real en GuideEditor (panel lateral)
+⏳ FASE 2 — Login/Auth completo
+  Google OAuth + validación dominio post-OAuth en App.jsx:onAuthStateChange
+  "Olvidé mi contraseña" → resetPasswordForEmail() → SetPasswordPage (ya existe)
+  Email automático al crear docente desde admin-create-teacher Edge Fn
 
-SESIÓN D — Smart Blocks nuevos (8)
-  15. Reading · Writing · SelfAssessment · PeerReview
-  16. DigitalResource · CollaborativeTask · RealLifeConnection · TeacherNote
-  17. Agregar duration_minutes a bloques existentes
-
-SESIÓN E — Exportación + IA conversacional
-  18. AgendaGenerator.js + StudentRubricGenerator.js
-  19. DocxExporter.js: agenda + rúbrica A2 + indicador + obs/adaptaciones
-  20. claude-proxy: validate_goal · suggest_rubric · analyze_coverage · generate_guide
-  21. ConversationalGuideModal.jsx — 5 pasos con contexto pedagógico completo
-
-SESIÓN F — Pendientes históricos
-  22. SubjectManagerPage — gestor de materias (admin)
-  23. GuideLibraryPage — biblioteca de guías aprobadas
-  24. PeriodCoverageDashboard + ObservationLogger
+⏳ FASE 3 — Refactoring (deuda técnica — no agravar)
+  GuideEditorPage.jsx (~1500+ lns) · NewsProjectEditor.jsx · SmartBlocks.jsx
+  CSS modular · TeacherContext (props drilling) · TypeScript gradual
 ```
 
 ---
@@ -384,4 +332,4 @@ SESIÓN F — Pendientes históricos
 ---
 
 *CBF Planner · ETA Platform · Edoardo Ortiz + Claude Sonnet · Barranquilla 2026*
-*"Nosotros diseñamos. El docente enseña." · CLAUDE.md v4.1 — Abril 7, 2026*
+*"Nosotros diseñamos. El docente enseña." · CLAUDE.md v4.2 — Abril 7, 2026*
