@@ -83,12 +83,33 @@ const CheckpointModal = memo(function CheckpointModal({ previousPlan, target, in
       target_id:    target?.id || null,
     }
 
-    // Use target_id conflict key for legacy; plan_id for new indicator-based records
-    const conflictKey = target?.id ? 'target_id,teacher_id,week_number' : 'plan_id'
+    // Check if a checkpoint already exists for this plan or target+week
+    let existingId = null
+    if (previousPlan.id) {
+      const { data: existing } = await supabase
+        .from('checkpoints')
+        .select('id')
+        .eq('plan_id', previousPlan.id)
+        .maybeSingle()
+      existingId = existing?.id || null
+    }
+    if (!existingId && target?.id) {
+      const { data: existing } = await supabase
+        .from('checkpoints')
+        .select('id')
+        .eq('target_id', target.id)
+        .eq('teacher_id', teacher.id)
+        .eq('week_number', previousPlan.week_number)
+        .maybeSingle()
+      existingId = existing?.id || null
+    }
 
-    const { error } = await supabase.from('checkpoints').upsert(payload, {
-      onConflict: conflictKey,
-    })
+    let error
+    if (existingId) {
+      ;({ error } = await supabase.from('checkpoints').update(payload).eq('id', existingId))
+    } else {
+      ;({ error } = await supabase.from('checkpoints').insert(payload))
+    }
 
     setSaving(false)
     if (error) { showToast('Error al guardar el checkpoint', 'error'); return }
