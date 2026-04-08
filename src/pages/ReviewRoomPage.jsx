@@ -8,6 +8,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import FeedbackModal from '../components/FeedbackModal'
+import VersionHistoryModal from '../components/VersionHistoryModal'
 import { canGiveFeedback } from '../utils/roles'
 import { useToast } from '../context/ToastContext'
 
@@ -50,6 +51,7 @@ export default function ReviewRoomPage({ teacher }) {
   const [expanded,       setExpanded]       = useState({})
   const [filters,        setFilters]        = useState({ status: '', subject: '', teacherId: '' })
   const [feedbackPlan,   setFeedbackPlan]   = useState(null)
+  const [versionPlan,    setVersionPlan]    = useState(null) // plan showing version history
   const [changingId,     setChangingId]     = useState(null) // plan id being status-changed
 
   useEffect(() => { load() }, [])
@@ -69,7 +71,7 @@ export default function ReviewRoomPage({ teacher }) {
     // Load all plans in school (RLS must allow admin SELECT)
     const { data: prows } = await supabase
       .from('lesson_plans')
-      .select('id, grade, subject, week_number, week_count, period, status, updated_at, teacher_id, content')
+      .select('id, grade, subject, week_number, week_count, period, status, locked, updated_at, teacher_id, content')
       .order('updated_at', { ascending: false })
       .limit(300)
 
@@ -148,6 +150,82 @@ export default function ReviewRoomPage({ teacher }) {
     } else {
       showToast('Estado actualizado', 'success')
     }
+    setChangingId(null)
+  }
+
+  // ── Publicar guía aprobada → snapshot + lock ──────────────────────────────
+  async function publishPlan(plan) {
+    setChangingId(plan.id)
+
+    // Fetch next version number
+    const { count } = await supabase
+      .from('lesson_plan_versions')
+      .select('id', { count: 'exact', head: true })
+      .eq('plan_id', plan.id)
+
+    const nextVersion = (count || 0) + 1
+
+    // Create snapshot
+    const { error: verErr } = await supabase
+      .from('lesson_plan_versions')
+      .insert({
+        plan_id:     plan.id,
+        school_id:   teacher.school_id,
+        version:     nextVersion,
+        status:      'published',
+        content:     plan.content,
+        archived_by: teacher.id,
+      })
+
+    if (verErr) {
+      showToast('Error al crear snapshot: ' + verErr.message, 'error')
+      setChangingId(null)
+      return
+    }
+
+    // Update plan: published + locked
+    const { error: planErr } = await supabase
+      .from('lesson_plans')
+      .update({ status: 'published', locked: true })
+      .eq('id', plan.id)
+
+    if (planErr) {
+      showToast('Error al publicar: ' + planErr.message, 'error')
+      setChangingId(null)
+      return
+    }
+
+    setPlans(prev => prev.map(p =>
+      p.id === plan.id ? { ...p, status: 'published', locked: true } : p
+    ))
+
+    const t = teachers[plan.teacher_id]
+    await supabase.from('notifications').insert({
+      school_id: teacher.school_id,
+      from_id:   teacher.id,
+      to_id:     plan.teacher_id,
+      to_role:   'teacher',
+      type:      'plan_published',
+      plan_id:   plan.id,
+      message:   `Tu guía "${plan.subject} — ${plan.grade}" fue publicada 📦 (v${nextVersion}) por ${teacher.full_name}.`,
+    })
+
+    showToast(`Guía publicada v${nextVersion} · ${t?.full_name?.split(' ')[0] || ''} notificado`, 'success')
+    setChangingId(null)
+  }
+
+  // ── Desbloquear guía publicada ──────────────────────────────────────────────
+  async function unlockPlan(plan) {
+    setChangingId(plan.id)
+    const { error } = await supabase
+      .from('lesson_plans')
+      .update({ locked: false, status: 'approved' })
+      .eq('id', plan.id)
+    if (error) { showToast('Error al desbloquear', 'error'); setChangingId(null); return }
+    setPlans(prev => prev.map(p =>
+      p.id === plan.id ? { ...p, locked: false, status: 'approved' } : p
+    ))
+    showToast('Guía desbloqueada — puede editarse y re-publicarse', 'info')
     setChangingId(null)
   }
 
@@ -378,17 +456,45 @@ export default function ReviewRoomPage({ teacher }) {
                         )}
 
                         {/* Reabrir approved plan */}
-                        {plan.status === 'approved' && (
+                        {plan.status === 'approved' && !plan.locked && (
+                          <>
+                            <button type="button"
+                              disabled={changingId === plan.id}
+                              onClick={() => publishPlan(plan)}
+                              style={{
+                                padding: '6px 12px', borderRadius: 7, fontSize: 12, fontWeight: 700,
+                                background: '#065F46', color: '#fff', border: 'none',
+                                cursor: changingId === plan.id ? 'default' : 'pointer',
+                                opacity: changingId === plan.id ? .6 : 1,
+                              }}>
+                              {changingId === plan.id ? '…' : '📦 Publicar'}
+                            </button>
+                            <button type="button"
+                              disabled={changingId === plan.id}
+                              onClick={() => changeStatus(plan, 'submitted')}
+                              style={{
+                                padding: '6px 12px', borderRadius: 7, fontSize: 12, fontWeight: 600,
+                                background: '#EFF6FF', color: '#1D4ED8',
+                                border: '1px solid #BFDBFE',
+                                cursor: changingId === plan.id ? 'default' : 'pointer',
+                              }}>
+                              ↩ Reabrir
+                            </button>
+                          </>
+                        )}
+
+                        {/* Publicada + bloqueada */}
+                        {plan.status === 'published' && plan.locked && (
                           <button type="button"
                             disabled={changingId === plan.id}
-                            onClick={() => changeStatus(plan, 'submitted')}
+                            onClick={() => unlockPlan(plan)}
                             style={{
                               padding: '6px 12px', borderRadius: 7, fontSize: 12, fontWeight: 600,
-                              background: '#EFF6FF', color: '#1D4ED8',
-                              border: '1px solid #BFDBFE',
+                              background: '#FEF9C3', color: '#854D0E',
+                              border: '1px solid #FDE047',
                               cursor: changingId === plan.id ? 'default' : 'pointer',
                             }}>
-                            ↩ Reabrir
+                            🔓 Desbloquear
                           </button>
                         )}
 
@@ -399,6 +505,17 @@ export default function ReviewRoomPage({ teacher }) {
                             background: '#1F3864', color: '#fff', border: 'none', cursor: 'pointer',
                           }}>
                           ✏️ Abrir
+                        </button>
+
+                        <button type="button"
+                          onClick={() => setVersionPlan(plan)}
+                          title="Ver historial de versiones"
+                          style={{
+                            padding: '6px 10px', borderRadius: 7, fontSize: 12,
+                            background: '#F8FAFC', color: '#64748B',
+                            border: '1px solid #E2E8F0', cursor: 'pointer',
+                          }}>
+                          📋
                         </button>
 
                         {canFeedback && (
@@ -432,6 +549,17 @@ export default function ReviewRoomPage({ teacher }) {
           entityTitle={`${feedbackPlan.grade} · ${feedbackPlan.subject} · Sem. ${feedbackPlan.week_number}`}
           teacher={teacher}
           onClose={() => { setFeedbackPlan(null); load() }}
+        />
+      )}
+
+      {/* Version History Modal */}
+      {versionPlan && (
+        <VersionHistoryModal
+          planId={versionPlan.id}
+          planTitle={`${versionPlan.grade} · ${versionPlan.subject} · Sem. ${versionPlan.week_number}`}
+          teacher={teacher}
+          onClose={() => setVersionPlan(null)}
+          onRestored={() => { setVersionPlan(null); load() }}
         />
       )}
     </div>

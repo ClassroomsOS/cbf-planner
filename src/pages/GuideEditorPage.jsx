@@ -187,6 +187,7 @@ export default function GuideEditorPage({ teacher }) {
   const [showPreview,     togglePreview]                                        = useToggle(true)
 
   const dirtyRef      = useRef(false)
+  const lockedRef     = useRef(false) // mirrors plan.locked — avoids stale closure in doSave
   const contentRef    = useRef(null)
   const docxInputRef  = useRef(null)
   const exportWrapRef = useRef(null)
@@ -200,6 +201,7 @@ export default function GuideEditorPage({ teacher }) {
         .from('lesson_plans').select('*').eq('id', id).single()
       if (error || !data) { navigate('/'); return }
       setPlan(data)
+      lockedRef.current = !!data.locked
       // If admin/rector is opening another teacher's guide, fetch owner name
       if (data.teacher_id !== teacher.id && canEditOthersDocs(teacher.role)) {
         const { data: ownerRow } = await supabase
@@ -648,6 +650,7 @@ export default function GuideEditorPage({ teacher }) {
   // ── Save ──
   const doSave = useCallback(async () => {
     if (!dirtyRef.current) return
+    if (lockedRef.current && !canEditOthersDocs(teacher.role)) return
     setSaveStatus('saving')
     // Build session_agenda from current smart blocks
     const { buildSessionAgenda, flattenAgendaForDb } = await import('../utils/AgendaGenerator')
@@ -941,6 +944,40 @@ export default function GuideEditorPage({ teacher }) {
         </div>
       )}
 
+      {/* ── Locked banner ──────────────────────────────────── */}
+      {plan?.locked && (
+        <div style={{
+          background: 'linear-gradient(90deg,#064E3B,#065F46)',
+          color: '#fff', padding: '8px 20px',
+          display: 'flex', alignItems: 'center', gap: 10, fontSize: 13,
+        }}>
+          <span style={{ fontSize: 18 }}>📦</span>
+          <span style={{ flex: 1 }}>
+            Guía <strong>publicada y bloqueada</strong> — versión inmutable.
+            {!canEditOthersDocs(teacher.role) && ' Contacta a coordinación para solicitar cambios.'}
+          </span>
+          {canEditOthersDocs(teacher.role) && (
+            <button type="button"
+              onClick={async () => {
+                const { error } = await supabase.from('lesson_plans')
+                  .update({ locked: false, status: 'approved' }).eq('id', id)
+                if (!error) {
+                  setPlan(p => ({ ...p, locked: false, status: 'approved' }))
+                  lockedRef.current = false
+                  showToast('Guía desbloqueada — puede editarse', 'info')
+                }
+              }}
+              style={{
+                padding: '5px 14px', borderRadius: 7, border: 'none',
+                background: 'rgba(255,255,255,.2)', color: '#fff',
+                fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0,
+              }}>
+              🔓 Desbloquear
+            </button>
+          )}
+        </div>
+      )}
+
       {/* ── Other-teacher banner ─────────────────────────────── */}
       {isOtherTeacher && ownerName && (
         <div style={{
@@ -980,7 +1017,7 @@ export default function GuideEditorPage({ teacher }) {
           </span>
           <button className="btn-primary"
             onClick={handleManualSave}
-            disabled={saveStatus === 'saving'}
+            disabled={saveStatus === 'saving' || (plan?.locked && !canEditOthersDocs(teacher.role))}
             style={isOtherTeacher ? { background: '#B05A00', borderColor: '#B05A00' } : {}}>
             {isOtherTeacher ? '💾 Guardar (con justificación)' : '💾 Guardar'}
           </button>
