@@ -124,31 +124,33 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
 
       let goalsData = []
       for (const g of gradesToTry) {
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from('achievement_goals')
           .select('id, text')
-          // Sin filtro teacher_id: RLS school_read permite ver todos los logros del colegio
+          .eq('school_id', teacher.school_id)
           .eq('subject', form.subject)
           .eq('grade', g)
           .eq('period', form.period)
+        if (error) console.error('[NewsProjectEditor] goals query error:', error)
         if (data?.length) { goalsData = data; break }
       }
 
       const goalIds = goalsData.map(g => g.id)
       if (goalIds.length === 0) { setAchievementIndicators([]); return }
 
-      const { data: indsData } = await supabase
+      const { data: indsData, error: indsErr } = await supabase
         .from('achievement_indicators')
         .select('id, goal_id, dimension, skill_area, text, student_text, weight, order_index')
         .in('goal_id', goalIds)
         .order('order_index')
+      if (indsErr) console.error('[NewsProjectEditor] indicators query error:', indsErr)
 
       const goalMap = Object.fromEntries(goalsData.map(g => [g.id, g.text]))
       setAchievementIndicators(
         (indsData || []).map(i => ({ ...i, _goalText: goalMap[i.goal_id] || '' }))
       )
     })()
-  }, [form.subject, form.grade, form.period])
+  }, [form.subject, form.grade, form.section, form.period, teacher.school_id])
 
   // ── Load learning targets when subject/grade/period change (legacy fallback) ──
   useEffect(() => {

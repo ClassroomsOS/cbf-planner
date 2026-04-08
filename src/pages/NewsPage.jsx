@@ -336,6 +336,7 @@ export default function NewsPage({ teacher }) {
       {/* Editor Modal */}
       {editorOpen && (
         <NewsProjectEditor
+          key={editingProject?.id || 'new'}
           teacher={teacher}
           school={school}
           project={editingProject}
