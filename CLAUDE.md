@@ -95,12 +95,17 @@ SESIÓN E ✅  AgendaGenerator.js — buildSessionAgenda + auto-save session_age
              AIAssistant.js: analyzeGuideCoverage() + generateStudentRubric()
              exportDocx.js: DOCX nativo para los 7 nuevos block types
 
-SESIÓN F (parcial) ✅
-             Grade+Section systemic fix: combined grade viaja en todo el sistema
+SESIÓN F ✅   Grade+Section systemic fix: combined grade viaja en todo el sistema
              — ObjectivesPage, SyllabusPage, GuideEditorPage, useAchievements, useSyllabus
              — DB migrada: achievement_goals grade base → combined grade+section
+             — Constraint UNIQUE dropped: N logros por teacher+subject+grade+period
+             — SyllabusPage: semanas dinámicas (Math.max(8, maxUsed+3)), períodos libres
+             — Duplicar para otra sección: Logros, NEWS y Guías (Option B buttons)
+             — NewsProjectEditor: fix definitivo carga indicadores (ver sección GOTCHAS)
+             — combinedGrade() helper en constants.js
+             — CLAUDE.md v4.3
 
-PRÓXIMO → SESIÓN F (continúa)
+PRÓXIMO → SESIÓN G
 ```
 
 ---
@@ -244,6 +249,53 @@ q.ilike('grade', gradeBase + '%')
 
 ---
 
+## 🐛 GOTCHAS — BUGS RESUELTOS (referencia para no repetirlos)
+
+### NewsProjectEditor: indicadores de logro no cargan (resuelto Ses. F — Abril 2026)
+
+**Síntoma:** El paso "Indicador" del wizard NEWS aparece vacío aunque existan `achievement_goals` e `achievement_indicators` en la DB.
+
+**Causa raíz (triple):**
+
+1. **`form.section` faltaba en deps del `useEffect`** que carga `achievement_indicators`.
+   El efecto tenía `[form.subject, form.grade, form.period]`. Si el usuario abre proyecto A (8.° Blue) y luego proyecto B (8.° Red) con el mismo subject+grade+period, el efecto **no se re-ejecutaba** porque ninguna dep cambió, aunque la sección sí cambió. El `gradeFull` construido en el closure seguía siendo "8.° Blue".
+
+2. **Sin `key` prop en `<NewsProjectEditor>`** dentro de `NewsPage.jsx`.
+   Sin `key={editingProject?.id}`, React reutiliza la misma instancia del componente al cambiar de proyecto. Todo el estado (`form`, `achievementIndicators`, etc.) queda del proyecto anterior. Con la `key`, React desmonta y remonta desde cero garantizando estado limpio.
+
+3. **Query sin filtro `school_id` explícito** (solo dependía de RLS).
+   En producción el RLS funciona, pero el filtro explícito es más robusto y facilita el diagnóstico.
+
+**Fix aplicado (`a6eb3aa`):**
+```jsx
+// NewsPage.jsx — fuerza remount al cambiar proyecto
+<NewsProjectEditor
+  key={editingProject?.id || 'new'}   // ← CRÍTICO
+  project={editingProject}
+  ...
+/>
+```
+```js
+// NewsProjectEditor.jsx — deps completas + filtro explícito
+useEffect(() => {
+  // ...
+  const { data, error } = await supabase
+    .from('achievement_goals')
+    .select('id, text')
+    .eq('school_id', teacher.school_id)   // ← explícito
+    .eq('subject', form.subject)
+    .eq('grade', g)
+    .eq('period', form.period)
+  // ...
+}, [form.subject, form.grade, form.section, form.period, teacher.school_id])
+//                             ^^^^^^^^^^^                ^^^^^^^^^^^^^^^^
+//                             dep faltante               dep faltante
+```
+
+**Regla general derivada:** Cualquier modal/editor que recibe una entidad por prop y carga datos secundarios basados en esa entidad **DEBE tener `key={entity.id}`** para garantizar remount limpio. Sin `key`, el ciclo de vida de React reutiliza la instancia y los `useEffect` solo disparan si sus deps cambian — lo que puede no ocurrir si el nuevo item tiene los mismos valores en esas deps.
+
+---
+
 ## 🗂 ROLES
 
 | Perfil | Rol DB | Capacidades |
@@ -336,8 +388,9 @@ git add . && git commit -m "feat: ..." && git push      # deploy automático ~2 
 ✅ SESIÓN C — eleot® Engine (tablas + seed + useEleot + EleotCoveragePanel)
 ✅ SESIÓN D — 16 Smart Blocks + duration_minutes + DOCX para nuevos tipos
 ✅ SESIÓN E — AgendaGenerator + ConversationalGuideModal + analyzeGuideCoverage + studentRubric
+✅ SESIÓN F — Grade+Section fix sistémico · N logros por período · Duplicar para sección · SyllabusPage dinámico · NewsProjectEditor fix definitivo de indicadores
 
-🔜 SESIÓN F — Pendientes históricos
+🔜 SESIÓN G — Pendientes
   22. SubjectManagerPage — gestor de materias (admin) → /subjects
   23. GuideLibraryPage — biblioteca de guías aprobadas → /library
   24. PeriodCoverageDashboard — cobertura eleot® acumulada por período
@@ -369,4 +422,4 @@ git add . && git commit -m "feat: ..." && git push      # deploy automático ~2 
 ---
 
 *CBF Planner · ETA Platform · Edoardo Ortiz + Claude Sonnet · Barranquilla 2026*
-*"Nosotros diseñamos. El docente enseña." · CLAUDE.md v4.2 — Abril 7, 2026*
+*"Nosotros diseñamos. El docente enseña." · CLAUDE.md v4.4 — Abril 8, 2026*
