@@ -32,7 +32,7 @@ const WEEKS = Array.from({ length: 16 }, (_, i) => i + 1)
 
 // ── Topic Form Modal ──────────────────────────────────────────────────────────
 
-function TopicFormModal({ topic, assignments, indicators, defaultWeek, defaultPeriod, onSave, onClose }) {
+function TopicFormModal({ topic, assignments, goals = [], defaultWeek, defaultPeriod, onSave, onClose }) {
   const subjects = [...new Set(assignments.map(a => a.subject))].sort()
 
   const [form, setForm] = useState(topic || {
@@ -59,7 +59,7 @@ function TopicFormModal({ topic, assignments, indicators, defaultWeek, defaultPe
   function set(k, v) {
     setForm(f => {
       const next = { ...f, [k]: v }
-      // Al cambiar materia, auto-seleccionar el primer grado válido para esa materia
+      // Al cambiar materia, auto-seleccionar el primer grado válido y limpiar indicador
       if (k === 'subject') {
         const validGrades = [...new Set(
           assignments.filter(a => a.subject === v).map(a => a.grade)
@@ -67,10 +67,25 @@ function TopicFormModal({ topic, assignments, indicators, defaultWeek, defaultPe
         if (validGrades.length > 0 && !validGrades.includes(f.grade)) {
           next.grade = validGrades[0]
         }
+        next.indicator_id = null  // limpiar indicador al cambiar materia
+      }
+      if (k === 'grade' || k === 'period') {
+        next.indicator_id = null  // limpiar indicador si cambia grado o período
       }
       return next
     })
   }
+
+  // Indicadores filtrados por materia, grado y período del form
+  const filteredIndicators = goals
+    .filter(g => {
+      if (g.subject !== form.subject) return false
+      if (String(g.period) !== String(form.period)) return false
+      const gBase = (g.grade || '').replace(/\s+[A-Z]$/, '').trim()
+      const fBase = (form.grade || '').replace(/\s+[A-Z]$/, '').trim()
+      return gBase === fBase || g.grade === form.grade
+    })
+    .flatMap(g => g.indicators || [])
 
   const addResource = () => {
     set('resources', [...(form.resources || []), { type: 'textbook', ref: '' }])
@@ -195,21 +210,25 @@ function TopicFormModal({ topic, assignments, indicators, defaultWeek, defaultPe
               style={{ padding: '8px 10px', border: '1px solid #d0d8e8', borderRadius: 8, fontSize: 14, resize: 'vertical', fontFamily: 'inherit' }} />
           </label>
 
-          {/* Linked indicator */}
-          {indicators.length > 0 && (
-            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13, color: '#555', fontWeight: 600 }}>
-              Indicador que jalona este contenido
+          {/* Linked indicator — filtrado por materia + grado + período */}
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13, color: '#555', fontWeight: 600 }}>
+            Indicador que jalona este contenido
+            {filteredIndicators.length === 0 ? (
+              <div style={{ fontSize: 11, color: '#aaa', fontStyle: 'italic', padding: '6px 0' }}>
+                Sin indicadores para {form.subject} · {form.grade} · Período {form.period}
+              </div>
+            ) : (
               <select value={form.indicator_id || ''} onChange={e => set('indicator_id', e.target.value || null)}
                 style={{ padding: '8px 10px', border: '1px solid #d0d8e8', borderRadius: 8, fontSize: 13 }}>
                 <option value="">Sin indicador vinculado</option>
-                {indicators.map(i => (
+                {filteredIndicators.map(i => (
                   <option key={i.id} value={i.id}>
                     [{i.dimension === 'cognitive' ? '🧠' : i.dimension === 'procedural' ? '⚒️' : '❤️'}] {i.text.slice(0, 60)}{i.text.length > 60 ? '…' : ''}
                   </option>
                 ))}
               </select>
-            </label>
-          )}
+            )}
+          </label>
 
           {/* Resources */}
           <div>
@@ -393,16 +412,10 @@ export default function SyllabusPage({ teacher }) {
     academic_year: CURRENT_YEAR,
   })
 
-  // Load achievements for indicator selector
+  // Load ALL goals (all subjects) so the modal can filter by form.subject/grade/period
   const { goals } = useAchievements(teacher, {
-    subject: filterSubject || undefined,
-    period:  filterPeriod,
     academic_year: CURRENT_YEAR,
   })
-
-  const allIndicators = useMemo(() =>
-    goals.flatMap(g => g.indicators || []),
-  [goals])
 
   // Load assignments
   useEffect(() => {
@@ -622,7 +635,7 @@ export default function SyllabusPage({ teacher }) {
         <TopicFormModal
           topic={topicModal.isNew ? null : topicModal}
           assignments={assignments}
-          indicators={allIndicators}
+          goals={goals}
           defaultWeek={topicModal.week_number}
           defaultPeriod={filterPeriod}
           onSave={handleSaveTopic}
