@@ -29,7 +29,7 @@ function ctInfo(v) {
 }
 
 const CURRENT_YEAR = new Date().getFullYear()
-const WEEKS = Array.from({ length: 16 }, (_, i) => i + 1)
+const MAX_WEEKS = 40   // máximo de semanas permitidas en el selector
 
 // ── Topic Form Modal ──────────────────────────────────────────────────────────
 
@@ -162,7 +162,7 @@ function TopicFormModal({ topic, assignments, goals = [], defaultWeek, defaultPe
               Período
               <select value={form.period} onChange={e => set('period', +e.target.value)}
                 style={{ padding: '8px 10px', border: '1px solid #d0d8e8', borderRadius: 8, fontSize: 14 }}>
-                {[1, 2, 3, 4].map(p => <option key={p} value={p}>{p}.° Período</option>)}
+                {[1, 2, 3, 4, 5, 6].map(p => <option key={p} value={p}>{p}.° Período</option>)}
               </select>
             </label>
             <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13, color: '#555', fontWeight: 600 }}>
@@ -170,7 +170,7 @@ function TopicFormModal({ topic, assignments, goals = [], defaultWeek, defaultPe
               <select value={form.week_number || ''} onChange={e => set('week_number', +e.target.value)}
                 style={{ padding: '8px 10px', border: '1px solid #d0d8e8', borderRadius: 8, fontSize: 14 }}>
                 <option value="">Sin semana</option>
-                {WEEKS.map(w => <option key={w} value={w}>Semana {w}</option>)}
+                {Array.from({ length: MAX_WEEKS }, (_, i) => i + 1).map(w => <option key={w} value={w}>Semana {w}</option>)}
               </select>
             </label>
           </div>
@@ -295,18 +295,10 @@ const PERIOD_COLORS = {
   3: { accent: '#8064A2', light: '#f4f0ff', border: '#d4c8ef' },
   4: { accent: '#C0504D', light: '#fff3f3', border: '#f0c8c8' },
 }
-function periodOfWeek(w) {
-  if (w <= 4)  return 1
-  if (w <= 8)  return 2
-  if (w <= 12) return 3
-  return 4
-}
 
 // ── Week Column ───────────────────────────────────────────────────────────────
 
-function WeekColumn({ week, topics, onNew, onEdit, onDelete, onCopy, onPaste, isCopied, hasPaste }) {
-  const period = periodOfWeek(week)
-  const pc     = PERIOD_COLORS[period]
+function WeekColumn({ week, topics, pc, onNew, onEdit, onDelete, onCopy, onPaste, isCopied, hasPaste }) {
   const accentColor = isCopied ? '#4BACC6' : pc.accent
 
   return (
@@ -576,9 +568,9 @@ export default function SyllabusPage({ teacher }) {
     if (!copiedWeek?.topics?.length) return
     const results = await Promise.all(
       copiedWeek.topics.map(t => {
-        // strip id, timestamps y campos joined (indicator) — solo columnas reales de la tabla
         const { id, week_number, created_at, updated_at, indicator, ...rest } = t
-        return createTopic({ ...rest, week_number: toWeek })
+        // override period con el período activo — el topic pertenece al período que se está viendo
+        return createTopic({ ...rest, week_number: toWeek, period: filterPeriod })
       })
     )
     const failed = results.filter(r => r.error).length
@@ -640,7 +632,7 @@ export default function SyllabusPage({ teacher }) {
         </select>
         <select value={filterPeriod} onChange={e => setFilterPeriod(+e.target.value)}
           style={{ padding: '7px 12px', border: '1px solid #d0d8e8', borderRadius: 8, fontSize: 13 }}>
-          {[1, 2, 3, 4].map(p => <option key={p} value={p}>{p}.° Período</option>)}
+          {[1, 2, 3, 4, 5, 6].map(p => <option key={p} value={p}>{p}.° Período</option>)}
         </select>
         <span style={{ fontSize: 13, color: '#888', marginLeft: 8 }}>
           {topics.length} contenido{topics.length !== 1 ? 's' : ''}
@@ -712,68 +704,36 @@ export default function SyllabusPage({ teacher }) {
                   </div>
                 )}
 
-                {/* Kanban — scroll horizontal */}
-                <div style={{
-                  overflowX: 'auto', overflowY: 'visible',
-                  paddingBottom: 16,
-                  /* scrollbar siempre visible en webkit */
-                  WebkitOverflowScrolling: 'touch',
-                }}>
-                  {/* Period groups side by side */}
-                  <div style={{ display: 'flex', gap: 0, width: 'max-content' }}>
-                    {[1, 2, 3, 4].map(p => {
-                      const pc       = PERIOD_COLORS[p]
-                      const pWeeks   = WEEKS.filter(w => periodOfWeek(w) === p)
-                      const pTopics  = pWeeks.reduce((acc, w) => acc + (byWeek[w]?.length || 0), 0)
-                      return (
-                        <div key={p} style={{
-                          display: 'flex', flexDirection: 'column',
-                          borderRight: p < 4 ? '2px dashed #e0e6f0' : 'none',
-                          paddingRight: p < 4 ? 16 : 0,
-                          marginRight: p < 4 ? 16 : 0,
-                        }}>
-                          {/* Period label */}
-                          <div style={{
-                            display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10,
-                          }}>
-                            <div style={{
-                              height: 3, width: 28, borderRadius: 2, background: pc.accent,
-                            }} />
-                            <span style={{
-                              fontSize: 11, fontWeight: 800, color: pc.accent,
-                              textTransform: 'uppercase', letterSpacing: '.6px',
-                            }}>
-                              {p}.° Período
-                            </span>
-                            <span style={{
-                              fontSize: 10, color: pc.accent + '99', fontWeight: 600,
-                            }}>
-                              · {pTopics} contenido{pTopics !== 1 ? 's' : ''}
-                            </span>
-                          </div>
-
-                          {/* Week columns for this period */}
-                          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                            {pWeeks.map(w => (
-                              <WeekColumn
-                                key={w}
-                                week={w}
-                                topics={byWeek[w] || []}
-                                onNew={openNewTopic}
-                                onEdit={t => setTopicModal(t)}
-                                onDelete={handleDeleteTopic}
-                                onCopy={handleCopyWeek}
-                                onPaste={handlePasteWeek}
-                                isCopied={copiedWeek?.fromWeek === w}
-                                hasPaste={!!copiedWeek && copiedWeek.fromWeek !== w}
-                              />
-                            ))}
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
+                {/* Kanban — scroll horizontal, semanas dinámicas */}
+                {(() => {
+                  const pc = PERIOD_COLORS[filterPeriod] || PERIOD_COLORS[1]
+                  // Calcular rango de semanas: desde 1 hasta max semana con contenido + 3 vacías (mínimo 8)
+                  const usedWeeks = Object.keys(byWeek).map(Number).filter(w => w > 0)
+                  const maxUsed = usedWeeks.length > 0 ? Math.max(...usedWeeks) : 0
+                  const visibleCount = Math.max(8, maxUsed + 3)
+                  const visibleWeeks = Array.from({ length: visibleCount }, (_, i) => i + 1)
+                  return (
+                    <div style={{ overflowX: 'auto', overflowY: 'visible', paddingBottom: 16, WebkitOverflowScrolling: 'touch' }}>
+                      <div style={{ display: 'flex', gap: 10, width: 'max-content', alignItems: 'flex-start' }}>
+                        {visibleWeeks.map(w => (
+                          <WeekColumn
+                            key={w}
+                            week={w}
+                            pc={pc}
+                            topics={byWeek[w] || []}
+                            onNew={openNewTopic}
+                            onEdit={t => setTopicModal(t)}
+                            onDelete={handleDeleteTopic}
+                            onCopy={handleCopyWeek}
+                            onPaste={handlePasteWeek}
+                            isCopied={copiedWeek?.fromWeek === w}
+                            hasPaste={!!copiedWeek && copiedWeek.fromWeek !== w}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })()}
               </>
             )}
           </>
