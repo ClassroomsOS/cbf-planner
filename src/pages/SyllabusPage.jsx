@@ -247,24 +247,48 @@ function TopicFormModal({ topic, assignments, indicators, defaultWeek, defaultPe
 
 // ── Week Column ───────────────────────────────────────────────────────────────
 
-function WeekColumn({ week, topics, onNew, onEdit, onDelete }) {
+function WeekColumn({ week, topics, onNew, onEdit, onDelete, onCopy, onPaste, isCopied, hasPaste }) {
   return (
     <div style={{
-      background: '#fff', borderRadius: 12, border: '1px solid #e0e6f0',
+      background: '#fff', borderRadius: 12, border: `1px solid ${isCopied ? '#4BACC6' : '#e0e6f0'}`,
       minWidth: 220, flexShrink: 0,
+      boxShadow: isCopied ? '0 0 0 2px #4BACC640' : 'none',
     }}>
       <div style={{
         padding: '10px 14px', borderBottom: '1px solid #f0f4fb',
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        background: '#f7f9ff', borderRadius: '12px 12px 0 0',
+        background: isCopied ? '#EBF7FC' : '#f7f9ff', borderRadius: '12px 12px 0 0',
       }}>
-        <span style={{ fontSize: 13, fontWeight: 700, color: '#2E5598' }}>Semana {week}</span>
-        <button type="button" onClick={() => onNew(week)}
-          style={{
-            width: 24, height: 24, border: 'none', borderRadius: 6,
-            background: '#2E5598', color: '#fff', cursor: 'pointer', fontSize: 14,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>+</button>
+        <span style={{ fontSize: 13, fontWeight: 700, color: isCopied ? '#4BACC6' : '#2E5598' }}>
+          Semana {week}
+        </span>
+        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+          {hasPaste && (
+            <button type="button" onClick={() => onPaste(week)}
+              title="Pegar contenidos copiados en esta semana"
+              style={{
+                padding: '2px 7px', border: '1.5px solid #4BACC6', borderRadius: 5,
+                background: '#EBF7FC', color: '#4BACC6', cursor: 'pointer', fontSize: 11, fontWeight: 700,
+              }}>⬇ Pegar</button>
+          )}
+          {topics.length > 0 && (
+            <button type="button" onClick={() => onCopy(week)}
+              title={isCopied ? 'Semana copiada' : 'Copiar todos los contenidos de esta semana'}
+              style={{
+                width: 24, height: 24, border: 'none', borderRadius: 6,
+                background: isCopied ? '#4BACC6' : '#e0e6f0',
+                color: isCopied ? '#fff' : '#666',
+                cursor: 'pointer', fontSize: 13,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>📋</button>
+          )}
+          <button type="button" onClick={() => onNew(week)}
+            style={{
+              width: 24, height: 24, border: 'none', borderRadius: 6,
+              background: '#2E5598', color: '#fff', cursor: 'pointer', fontSize: 14,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>+</button>
+        </div>
       </div>
       <div style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 6, minHeight: 80 }}>
         {topics.length === 0 && (
@@ -334,6 +358,9 @@ export default function SyllabusPage({ teacher }) {
   // Modal
   const [topicModal, setTopicModal] = useState(null)  // null | 'new' | topicObj | { week }
 
+  // Clipboard: copy/paste semanas
+  const [copiedWeek, setCopiedWeek] = useState(null)  // { fromWeek, topics[] } | null
+
   // Hooks
   const {
     topics, byWeek, loading, error, refetch,
@@ -396,6 +423,30 @@ export default function SyllabusPage({ teacher }) {
     const { error: err } = await deleteTopic(id)
     if (err) { showToast(err, 'error'); return }
     showToast('Contenido eliminado', 'success')
+  }
+
+  // ── Copy / Paste semana ────────────────────────────────────────────────────
+  const handleCopyWeek = (week) => {
+    const topics = byWeek[week] || []
+    if (!topics.length) return
+    setCopiedWeek({ fromWeek: week, topics })
+    showToast(`Semana ${week} copiada — ${topics.length} contenido${topics.length !== 1 ? 's' : ''}`, 'info')
+  }
+
+  const handlePasteWeek = async (toWeek) => {
+    if (!copiedWeek?.topics?.length) return
+    const results = await Promise.all(
+      copiedWeek.topics.map(t => {
+        const { id, week_number, created_at, updated_at, ...rest } = t
+        return createTopic({ ...rest, week_number: toWeek })
+      })
+    )
+    const failed = results.filter(r => r.error).length
+    if (failed) {
+      showToast(`${failed} contenido(s) no se pudieron pegar`, 'error')
+    } else {
+      showToast(`${copiedWeek.topics.length} contenido${copiedWeek.topics.length !== 1 ? 's' : ''} pegado${copiedWeek.topics.length !== 1 ? 's' : ''} en Semana ${toWeek}`, 'success')
+    }
   }
 
   // Topic modal with pre-filled week
@@ -506,18 +557,38 @@ export default function SyllabusPage({ teacher }) {
               </div>
             )}
             {filterSubject && (
-              <div style={{ display: 'flex', gap: 12 }}>
-                {WEEKS.map(w => (
-                  <WeekColumn
-                    key={w}
-                    week={w}
-                    topics={byWeek[w] || []}
-                    onNew={openNewTopic}
-                    onEdit={t => setTopicModal(t)}
-                    onDelete={handleDeleteTopic}
-                  />
-                ))}
-              </div>
+              <>
+                {copiedWeek && (
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    background: '#EBF7FC', border: '1px solid #4BACC6',
+                    borderRadius: 8, padding: '8px 14px', marginBottom: 12,
+                    fontSize: 13, color: '#0E6E8C',
+                  }}>
+                    <span>📋 Semana {copiedWeek.fromWeek} copiada — {copiedWeek.topics.length} contenido{copiedWeek.topics.length !== 1 ? 's' : ''}. Presiona <strong>⬇ Pegar</strong> en cualquier semana.</span>
+                    <button type="button" onClick={() => setCopiedWeek(null)}
+                      style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#4BACC6', cursor: 'pointer', fontSize: 16, lineHeight: 1 }}>
+                      ✕
+                    </button>
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: 12 }}>
+                  {WEEKS.map(w => (
+                    <WeekColumn
+                      key={w}
+                      week={w}
+                      topics={byWeek[w] || []}
+                      onNew={openNewTopic}
+                      onEdit={t => setTopicModal(t)}
+                      onDelete={handleDeleteTopic}
+                      onCopy={handleCopyWeek}
+                      onPaste={handlePasteWeek}
+                      isCopied={copiedWeek?.fromWeek === w}
+                      hasPaste={!!copiedWeek && copiedWeek.fromWeek !== w}
+                    />
+                  ))}
+                </div>
+              </>
             )}
           </>
         )}
