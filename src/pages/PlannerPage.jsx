@@ -369,7 +369,7 @@ export default function PlannerPage({ teacher }) {
         status:           'draft',
         content:          {},
         target_id:        activeTarget?.id || null,
-        indicator_id:     activeAchievementGoal?.indicators?.[0]?.id || plannerActiveNewsProject?.indicator_id || null,
+        indicator_id:     plannerActiveNewsProject?.indicator_id || activeAchievementGoal?.indicators?.[0]?.id || null,
         news_project_id:  plannerActiveNewsProject?.id || null,
       })
       .select()

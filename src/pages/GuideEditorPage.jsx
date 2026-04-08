@@ -319,55 +319,79 @@ export default function GuideEditorPage({ teacher }) {
         }
       }
 
-      // Repair: link to correct achievement_indicator for this guide's subject/grade/period.
-      // Runs when: (a) indicator_id is null, OR (b) existing indicator_id belongs to a
-      // different period (can happen when news_projects had wrong-period indicator_id).
-      if (data.subject && data.grade) {
-        const p = parseInt(data.period) || 1
+      // Repair: only when completely unlinked (no indicator_id AND no target_id).
+      // Looks for the nearest future NEWS project by date → inherits its indicator_id.
+      // Falls back to first indicator of the achievement_goal for this period.
+      if (!data.indicator_id && !data.target_id && data.subject && data.grade) {
+        const firstDay = data.monday_date || Object.keys(c.days || {}).sort()[0]
 
-        // Fetch the correct goal for this period
-        const { data: goals } = await supabase
-          .from('achievement_goals')
-          .select('id')
+        // 1. Try nearest NEWS project (same logic as PlannerPage)
+        const { data: newsProjects } = await supabase
+          .from('news_projects')
+          .select('id, indicator_id, due_date, actividades_evaluativas, skill, grade')
           .eq('school_id', teacher.school_id)
-          .eq('teacher_id', data.teacher_id)
           .eq('subject', data.subject)
-          .eq('grade', data.grade)
-          .eq('period', p)
-          .order('created_at', { ascending: false })
-          .limit(1)
+          .not('indicator_id', 'is', null)
 
-        if (goals?.length) {
-          const { data: inds } = await supabase
-            .from('achievement_indicators')
-            .select('id, text, dimension, skill_area')
-            .eq('goal_id', goals[0].id)
-            .order('order_index', { ascending: true })
+        const filtered = (newsProjects || []).filter(np =>
+          data.grade?.startsWith(np.grade || '')
+        )
+
+        let resolvedIndicatorId = null
+
+        if (filtered.length && firstDay) {
+          const dayKeys = new Set(Object.keys(c.days || {}))
+          // Priority 1: activity date falls in guide's week
+          const byActivity = filtered.find(np =>
+            (np.actividades_evaluativas || []).some(act => act.fecha && dayKeys.has(act.fecha))
+          )
+          if (byActivity) {
+            resolvedIndicatorId = byActivity.indicator_id
+          } else {
+            // Priority 2: nearest due_date >= guide's first day
+            const future = filtered
+              .filter(np => np.due_date && np.due_date >= firstDay)
+              .sort((a, b) => a.due_date.localeCompare(b.due_date))
+            if (future.length) resolvedIndicatorId = future[0].indicator_id
+          }
+        }
+
+        // 2. Fallback: first indicator of the achievement_goal for this period
+        if (!resolvedIndicatorId) {
+          const p = parseInt(data.period) || 1
+          const { data: goals } = await supabase
+            .from('achievement_goals')
+            .select('id')
+            .eq('school_id', teacher.school_id)
+            .eq('teacher_id', data.teacher_id)
+            .eq('subject', data.subject)
+            .eq('grade', data.grade)
+            .eq('period', p)
+            .order('created_at', { ascending: false })
             .limit(1)
 
-          if (inds?.length) {
-            // Only repair if there's no indicator, or the current indicator belongs
-            // to a DIFFERENT goal (i.e. wrong period)
-            let needsRepair = !data.indicator_id
-            if (!needsRepair && data.indicator_id) {
-              const { data: cur } = await supabase
-                .from('achievement_indicators')
-                .select('goal_id')
-                .eq('id', data.indicator_id)
-                .single()
-              needsRepair = cur && cur.goal_id !== goals[0].id
-            }
+          if (goals?.length) {
+            const { data: inds } = await supabase
+              .from('achievement_indicators')
+              .select('id, text')
+              .eq('goal_id', goals[0].id)
+              .order('order_index', { ascending: true })
+              .limit(1)
+            if (inds?.length) resolvedIndicatorId = inds[0].id
+          }
+        }
 
-            if (needsRepair) {
-              data.indicator_id = inds[0].id
-              await supabase.from('lesson_plans')
-                .update({ indicator_id: inds[0].id })
-                .eq('id', data.id)
-              setPlan(prev => ({ ...prev, indicator_id: inds[0].id }))
-              if (c.objetivo && !c.objetivo.general && inds[0].text) {
-                c.objetivo.indicadores = [inds[0].text]
-              }
-            }
+        if (resolvedIndicatorId) {
+          data.indicator_id = resolvedIndicatorId
+          await supabase.from('lesson_plans')
+            .update({ indicator_id: resolvedIndicatorId })
+            .eq('id', data.id)
+          setPlan(prev => ({ ...prev, indicator_id: resolvedIndicatorId }))
+          // Populate objetivo text if empty
+          if (c.objetivo && (!c.objetivo.indicadores || c.objetivo.indicadores.every(i => !getIndText(i)))) {
+            const { data: ind } = await supabase
+              .from('achievement_indicators').select('text').eq('id', resolvedIndicatorId).single()
+            if (ind?.text) c.objetivo.indicadores = [ind.text]
           }
         }
       }
