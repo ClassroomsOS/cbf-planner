@@ -97,7 +97,7 @@ function TopicFormModal({ topic, assignments, indicators, defaultWeek, defaultPe
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#888' }}>✕</button>
         </div>
 
-        <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
           {/* Subject + Grade */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -200,18 +200,20 @@ function TopicFormModal({ topic, assignments, indicators, defaultWeek, defaultPe
               </button>
             </div>
             {(form.resources || []).map((r, i) => (
-              <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6, alignItems: 'center' }}>
-                <select value={r.type} onChange={e => updateResource(i, 'type', e.target.value)}
-                  style={{ padding: '6px 8px', border: '1px solid #d0d8e8', borderRadius: 6, fontSize: 12, flexShrink: 0 }}>
-                  {RESOURCE_TYPES.map(rt => <option key={rt.value} value={rt.value}>{rt.label}</option>)}
-                </select>
+              <div key={i} style={{ marginBottom: 8, padding: '8px 10px', background: '#f7f9ff', borderRadius: 8, border: '1px solid #e0e6f0' }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
+                  <select value={r.type} onChange={e => updateResource(i, 'type', e.target.value)}
+                    style={{ flex: 1, padding: '5px 8px', border: '1px solid #d0d8e8', borderRadius: 6, fontSize: 12 }}>
+                    {RESOURCE_TYPES.map(rt => <option key={rt.value} value={rt.value}>{rt.label}</option>)}
+                  </select>
+                  <button type="button" onClick={() => removeResource(i)}
+                    style={{ padding: '4px 8px', border: 'none', background: '#ffecec', color: '#c33', borderRadius: 6, cursor: 'pointer', fontSize: 12, flexShrink: 0 }}>
+                    ✕
+                  </button>
+                </div>
                 <input value={r.ref || ''} onChange={e => updateResource(i, 'ref', e.target.value)}
-                  placeholder="ej. Cambridge One pp. 6-11"
-                  style={{ flex: 1, minWidth: 0, padding: '6px 8px', border: '1px solid #d0d8e8', borderRadius: 6, fontSize: 12 }} />
-                <button type="button" onClick={() => removeResource(i)}
-                  style={{ padding: '5px 8px', border: 'none', background: '#fff5f5', color: '#c33', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>
-                  ✕
-                </button>
+                  placeholder="ej. Cambridge One pp. 6-11 · Unidad 3"
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '5px 8px', border: '1px solid #d0d8e8', borderRadius: 6, fontSize: 12 }} />
               </div>
             ))}
             {(form.resources || []).length === 0 && (
