@@ -72,7 +72,7 @@ Deno.serve(async (req) => {
 
     const userId = authData.user.id
 
-    // 2. Build initials from full_name
+    // 3. Build initials from full_name
     const initials = full_name
       .split(' ')
       .filter((w: string) => w.length > 0)
@@ -80,7 +80,7 @@ Deno.serve(async (req) => {
       .slice(0, 2)
       .join('')
 
-    // 3. Insert teacher row
+    // 4. Insert teacher row
     const { error: dbError } = await supabaseAdmin.from('teachers').insert({
       id:        userId,
       email:     email.toLowerCase().trim(),
@@ -100,30 +100,17 @@ Deno.serve(async (req) => {
       })
     }
 
-    // 4. Generate password-recovery link (so teacher can set their own password)
+    // 5. Generate password-recovery link (so teacher can set their own password)
     const { data: linkData } = await supabaseAdmin.auth.admin.generateLink({
       type:  'recovery',
       email: email.toLowerCase().trim(),
     })
 
-    // 5. Best-effort: send recovery email via Supabase SMTP
-    const siteUrl = Deno.env.get('SITE_URL') || 'https://classroomsos.github.io/cbf-planner/'
-    let emailSent = false
-    try {
-      const { error: emailError } = await supabaseAdmin.auth.resetPasswordForEmail(
-        email.toLowerCase().trim(),
-        { redirectTo: siteUrl }
-      )
-      emailSent = !emailError
-    } catch (_) {
-      // non-fatal — admin can still share the recovery link manually
-    }
-
     return new Response(JSON.stringify({
       success:      true,
       id:           userId,
       recovery_url: linkData?.properties?.action_link ?? null,
-      email_sent:   emailSent,
+      email_sent:   false,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
