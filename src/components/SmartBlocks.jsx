@@ -118,16 +118,17 @@ export const SmartBlocksList = memo(function SmartBlocksList({ blocks = [], onCh
 
 // ── SmartBlockModal — 3-step wizard ──────────────────────────────────────────
 function SmartBlockModal({ initial, onSave, onClose }) {
-  const [step,  setStep]  = useState(initial ? 3 : 1)
-  const [type,  setType]  = useState(initial?.type  || null)
-  const [model, setModel] = useState(initial?.model || null)
-  const [data,  setData]  = useState(initial?.data  || {})
+  const [step,     setStep]     = useState(initial ? 3 : 1)
+  const [type,     setType]     = useState(initial?.type  || null)
+  const [model,    setModel]    = useState(initial?.model || null)
+  const [data,     setData]     = useState(initial?.data  || {})
+  const [duration, setDuration] = useState(initial?.duration_minutes || '')
 
   const typeDef  = type  ? BLOCK_TYPES[type]                    : null
   const modelDef = model ? typeDef?.models.find(m => m.id === model) : null
 
   function handleSave() {
-    onSave({ type, model, data })
+    onSave({ type, model, data, duration_minutes: duration ? parseInt(duration, 10) : undefined })
   }
 
   return createPortal(
@@ -185,12 +186,26 @@ function SmartBlockModal({ initial, onSave, onClose }) {
 
           {/* Step 3: Form */}
           {step === 3 && typeDef && modelDef && (
-            <BlockForm
-              type={type}
-              model={model}
-              data={data}
-              onChange={setData}
-            />
+            <div>
+              <div className="ge-field" style={{ marginBottom: '12px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>⏱️</span> Duración estimada (minutos)
+                </label>
+                <input
+                  type="number" min="1" max="120" step="5"
+                  value={duration}
+                  placeholder="ej: 15"
+                  style={{ width: '100px' }}
+                  onChange={e => setDuration(e.target.value)}
+                />
+              </div>
+              <BlockForm
+                type={type}
+                model={model}
+                data={data}
+                onChange={setData}
+              />
+            </div>
           )}
         </div>
 
@@ -217,6 +232,7 @@ function SmartBlockModal({ initial, onSave, onClose }) {
 // ── Block forms ───────────────────────────────────────────────────────────────
 function BlockForm({ type, model, data, onChange }) {
   function set(key, value) { onChange({ ...data, [key]: value }) }
+
 
   if (type === 'DICTATION') {
     const words = (data.words || []).join('\n')
@@ -655,6 +671,285 @@ function BlockForm({ type, model, data, onChange }) {
           <button style={{ marginTop: '4px', padding: '5px 12px', background: '#1F3864', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}
             onClick={() => set('statements', [...statements, ''])}>＋ Add statement</button>
         </div>
+      </div>
+    )
+  }
+
+  if (type === 'WRITING') {
+    if (model === 'guided') {
+      return (
+        <div>
+          <div className="ge-field">
+            <label>✍️ Prompt de escritura</label>
+            <textarea rows={3} value={data.prompt||''} placeholder="Write a paragraph about a time when you helped someone…"
+              onChange={e => set('prompt', e.target.value)} />
+          </div>
+          <div className="ge-field">
+            <label>🚀 Sentence Starters (uno por línea)</label>
+            <textarea rows={4} value={(data.sentence_starters||[]).join('\n')}
+              placeholder="One time, I helped…&#10;I decided to… because…&#10;As a result, I felt…"
+              onChange={e => set('sentence_starters', e.target.value.split('\n').map(s=>s.trim()).filter(Boolean))} />
+          </div>
+          <div className="ge-field">
+            <label>✅ Success Checklist (uno por línea)</label>
+            <textarea rows={3} value={(data.checklist||[]).join('\n')}
+              placeholder="I used 3 or more sentences&#10;I used past tense verbs&#10;I included a conclusion"
+              onChange={e => set('checklist', e.target.value.split('\n').map(s=>s.trim()).filter(Boolean))} />
+          </div>
+        </div>
+      )
+    }
+    return (
+      <div>
+        <div className="ge-field">
+          <label>📌 Tema / Topic</label>
+          <input type="text" value={data.topic||''} placeholder="My favorite place in Colombia…"
+            onChange={e => set('topic', e.target.value)} />
+        </div>
+        <div className="ge-grid-2">
+          <div className="ge-field">
+            <label>🔢 Conteo de palabras</label>
+            <input type="text" value={data.word_count||''} placeholder="80–100 words"
+              onChange={e => set('word_count', e.target.value)} />
+          </div>
+          <div className="ge-field">
+            <label>📌 Instrucciones adicionales</label>
+            <input type="text" value={data.instructions||''} placeholder="Use present tense"
+              onChange={e => set('instructions', e.target.value)} />
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (type === 'SELF_ASSESSMENT') {
+    if (model === 'checklist') {
+      const skills = data.skills || ['']
+      return (
+        <div className="ge-field">
+          <label>🪞 "I can…" statements (uno por línea)</label>
+          <textarea rows={5} value={skills.join('\n')}
+            placeholder="use past tense to describe events&#10;understand the main idea of a text&#10;write a coherent paragraph"
+            onChange={e => set('skills', e.target.value.split('\n').map(s=>s.trim()).filter(Boolean))} />
+        </div>
+      )
+    }
+    const questions = data.questions || ['']
+    return (
+      <div className="ge-field">
+        <label>🪞 Preguntas de reflexión (una por línea)</label>
+        <textarea rows={5} value={questions.join('\n')}
+          placeholder="What was the most challenging part of today?&#10;What strategy helped you most?&#10;What do you still need to practice?"
+          onChange={e => set('questions', e.target.value.split('\n').map(s=>s.trim()).filter(Boolean))} />
+      </div>
+    )
+  }
+
+  if (type === 'PEER_REVIEW') {
+    if (model === 'rubric') {
+      const criteria = data.criteria || [{name:'Content & Ideas',pts:'10'},{name:'Language Use',pts:'10'},{name:'Organization',pts:'10'}]
+      function updateCriterion(i, field, val) {
+        const next = [...criteria]; next[i] = { ...next[i], [field]: val }; set('criteria', next)
+      }
+      return (
+        <div className="ge-field">
+          <label>📋 Criterios de coevaluación</label>
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 28px', gap: '6px', fontSize: '10px', fontWeight: 700, color: '#666', marginBottom: '4px' }}>
+            <span>CRITERIO</span><span>PUNTOS</span><span />
+          </div>
+          {criteria.map((c, i) => (
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 28px', gap: '6px', marginBottom: '4px' }}>
+              <input type="text" value={c.name} placeholder="Criterio" onChange={e => updateCriterion(i,'name',e.target.value)} />
+              <input type="text" value={c.pts} placeholder="Pts" onChange={e => updateCriterion(i,'pts',e.target.value)} />
+              <button style={{ background:'none',border:'none',color:'#cc4444',cursor:'pointer',fontSize:'16px' }}
+                onClick={() => set('criteria', criteria.filter((_,j)=>j!==i))}>✕</button>
+            </div>
+          ))}
+          <button style={{ padding:'5px 12px',background:'#1F3864',color:'#fff',border:'none',borderRadius:'4px',fontSize:'11px',cursor:'pointer',marginTop:'6px' }}
+            onClick={() => set('criteria', [...criteria, {name:'',pts:'10'}])}>＋ Agregar criterio</button>
+        </div>
+      )
+    }
+    return (
+      <div>
+        <div className="ge-field">
+          <label>⭐ Prompt "Stars" (fortalezas)</label>
+          <input type="text" value={data.stars_prompt||'What did your peer do well?'}
+            onChange={e => set('stars_prompt', e.target.value)} />
+        </div>
+        <div className="ge-field">
+          <label>🌟 Prompt "Wishes" (mejoras)</label>
+          <input type="text" value={data.wishes_prompt||'What could your peer improve?'}
+            onChange={e => set('wishes_prompt', e.target.value)} />
+        </div>
+      </div>
+    )
+  }
+
+  if (type === 'DIGITAL_RESOURCE') {
+    if (model === 'link') {
+      return (
+        <div>
+          <div className="ge-field">
+            <label>🏷️ Título del recurso</label>
+            <input type="text" value={data.title||''} placeholder="Khan Academy — Present Perfect"
+              onChange={e => set('title', e.target.value)} />
+          </div>
+          <div className="ge-field">
+            <label>🔗 URL</label>
+            <input type="url" value={data.url||''} placeholder="https://..."
+              onChange={e => set('url', e.target.value)} />
+          </div>
+          <div className="ge-field">
+            <label>📌 Instrucciones para el estudiante</label>
+            <textarea rows={3} value={data.instructions||''} placeholder="Watch the video and take notes on the 3 main uses…"
+              onChange={e => set('instructions', e.target.value)} />
+          </div>
+        </div>
+      )
+    }
+    return (
+      <div>
+        <div className="ge-field">
+          <label>💻 Nombre de la plataforma</label>
+          <input type="text" value={data.platform_name||''} placeholder="Cambridge One / Duolingo / Quizlet…"
+            onChange={e => set('platform_name', e.target.value)} />
+        </div>
+        <div className="ge-field">
+          <label>📋 Actividad asignada</label>
+          <input type="text" value={data.activity||''} placeholder="Unit 4 — Listening Practice (15 min)"
+            onChange={e => set('activity', e.target.value)} />
+        </div>
+        <div className="ge-field">
+          <label>📌 Instrucciones adicionales</label>
+          <textarea rows={2} value={data.instructions||''} placeholder="Take a screenshot of your score when done."
+            onChange={e => set('instructions', e.target.value)} />
+        </div>
+      </div>
+    )
+  }
+
+  if (type === 'COLLABORATIVE_TASK') {
+    if (model === 'jigsaw') {
+      const groups = data.groups || [{name:'Expert Group A',topic:''},{name:'Expert Group B',topic:''},{name:'Expert Group C',topic:''}]
+      function updateGroup(i, field, val) {
+        const next = [...groups]; next[i] = { ...next[i], [field]: val }; set('groups', next)
+      }
+      return (
+        <div className="ge-field">
+          <label>👥 Grupos expertos</label>
+          {groups.map((g, i) => (
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 28px', gap: '6px', marginBottom: '6px' }}>
+              <input type="text" value={g.name} placeholder={`Group ${i+1}`} onChange={e => updateGroup(i,'name',e.target.value)} />
+              <input type="text" value={g.topic} placeholder="Topic / assigned section" onChange={e => updateGroup(i,'topic',e.target.value)} />
+              <button style={{ background:'none',border:'none',color:'#cc4444',cursor:'pointer',fontSize:'16px' }}
+                onClick={() => set('groups', groups.filter((_,j)=>j!==i))}>✕</button>
+            </div>
+          ))}
+          <button style={{ padding:'5px 12px',background:'#1F3864',color:'#fff',border:'none',borderRadius:'4px',fontSize:'11px',cursor:'pointer' }}
+            onClick={() => set('groups', [...groups, {name:`Expert Group ${String.fromCharCode(65+groups.length)}`,topic:''}])}>
+            ＋ Agregar grupo
+          </button>
+        </div>
+      )
+    }
+    return (
+      <div>
+        <div className="ge-field">
+          <label>💬 Pregunta o prompt (Think)</label>
+          <textarea rows={3} value={data.prompt||''} placeholder="Think about a time when you had to make a difficult decision…"
+            onChange={e => set('prompt', e.target.value)} />
+        </div>
+        <div className="ge-grid-2">
+          <div className="ge-field">
+            <label>⏱ Tiempo Pair</label>
+            <input type="text" value={data.pair_time||'3 min'} onChange={e => set('pair_time', e.target.value)} />
+          </div>
+          <div className="ge-field">
+            <label>📣 Tiempo Share</label>
+            <input type="text" value={data.share_time||'5 min'} onChange={e => set('share_time', e.target.value)} />
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (type === 'REAL_LIFE_CONNECTION') {
+    if (model === 'scenario') {
+      const questions = data.questions || ['']
+      return (
+        <div>
+          <div className="ge-field">
+            <label>🌍 Situación / Contexto real</label>
+            <textarea rows={3} value={data.context||''} placeholder="Imagine you are applying for a part-time job at a local café…"
+              onChange={e => set('context', e.target.value)} />
+          </div>
+          <div className="ge-field">
+            <label>❓ Preguntas de análisis (una por línea)</label>
+            <textarea rows={4} value={questions.join('\n')}
+              placeholder="What skills would you need for this job?&#10;How would you describe yourself in English?&#10;What challenges might you face?"
+              onChange={e => set('questions', e.target.value.split('\n').map(s=>s.trim()).filter(Boolean))} />
+          </div>
+        </div>
+      )
+    }
+    return (
+      <div>
+        <div className="ge-field">
+          <label>🌍 Prompt de conexión</label>
+          <textarea rows={3} value={data.prompt||''} placeholder="Think of a situation in your daily life where you use or could use the language from today's lesson…"
+            onChange={e => set('prompt', e.target.value)} />
+        </div>
+        <div className="ge-field">
+          <label>💡 Ejemplo</label>
+          <input type="text" value={data.example||''} placeholder="When I go shopping, I could say…"
+            onChange={e => set('example', e.target.value)} />
+        </div>
+      </div>
+    )
+  }
+
+  if (type === 'TEACHER_NOTE') {
+    if (model === 'observation') {
+      return (
+        <div>
+          <div className="ge-field">
+            <label>📌 Nota pedagógica</label>
+            <textarea rows={4} value={data.note||''} placeholder="Asegurarse de modelar el proceso antes de que los estudiantes trabajen en parejas. Nivel Azul puede usar el diccionario."
+              onChange={e => set('note', e.target.value)} />
+          </div>
+          <div className="ge-field">
+            <label>🎯 Aplica a</label>
+            <select value={data.for_level||'all'} onChange={e => set('for_level', e.target.value)}>
+              <option value="all">Todos</option>
+              <option value="azul">Nivel Azul</option>
+              <option value="rojo">Nivel Rojo</option>
+            </select>
+          </div>
+        </div>
+      )
+    }
+    const adaptations = data.adaptations || [{student:'',note:''}]
+    function updateAdaptation(i, field, val) {
+      const next = [...adaptations]; next[i] = { ...next[i], [field]: val }; set('adaptations', next)
+    }
+    return (
+      <div className="ge-field">
+        <label>🧩 Adaptaciones por estudiante / nivel</label>
+        {adaptations.map((a, i) => (
+          <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 28px', gap: '6px', marginBottom: '6px' }}>
+            <input type="text" value={a.student} placeholder="Nombre / nivel"
+              onChange={e => updateAdaptation(i,'student',e.target.value)} />
+            <input type="text" value={a.note} placeholder="Adaptación específica"
+              onChange={e => updateAdaptation(i,'note',e.target.value)} />
+            <button style={{ background:'none',border:'none',color:'#cc4444',cursor:'pointer',fontSize:'16px' }}
+              onClick={() => set('adaptations', adaptations.filter((_,j)=>j!==i))}>✕</button>
+          </div>
+        ))}
+        <button style={{ padding:'5px 12px',background:'#1F3864',color:'#fff',border:'none',borderRadius:'4px',fontSize:'11px',cursor:'pointer' }}
+          onClick={() => set('adaptations', [...adaptations, {student:'',note:''}])}>
+          ＋ Agregar adaptación
+        </button>
       </div>
     )
   }

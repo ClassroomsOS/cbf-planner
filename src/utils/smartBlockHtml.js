@@ -85,6 +85,69 @@ export const BLOCK_TYPES = {
       { id: 'rating',  label: 'Self-Rating 1–5',    sub: 'El estudiante califica su comprensión del 1 al 5' },
     ],
   },
+  WRITING: {
+    label: 'Writing Task', icon: '✍️',
+    desc:  'Tarea de escritura guiada o libre con checklist de éxito',
+    color: '70AD47',
+    models: [
+      { id: 'guided', label: 'Guided Writing',  sub: 'Prompt + sentence starters + checklist de éxito' },
+      { id: 'free',   label: 'Free Writing',    sub: 'Tema libre con conteo de palabras' },
+    ],
+  },
+  SELF_ASSESSMENT: {
+    label: 'Self-Assessment', icon: '🪞',
+    desc:  'El estudiante evalúa su propio aprendizaje',
+    color: 'E1A24A',
+    models: [
+      { id: 'checklist',  label: 'I Can Checklist', sub: 'Lista de habilidades: Yes / Partly / Not Yet' },
+      { id: 'reflection', label: 'Reflection',       sub: 'Preguntas de reflexión abiertas' },
+    ],
+  },
+  PEER_REVIEW: {
+    label: 'Peer Review', icon: '🤝',
+    desc:  'El estudiante evalúa el trabajo de un compañero',
+    color: 'C3785B',
+    models: [
+      { id: 'rubric', label: 'Peer Rubric',    sub: 'Criterios de evaluación entre pares con puntos' },
+      { id: 'stars',  label: 'Stars & Wishes', sub: 'Fortalezas y áreas de mejora del compañero' },
+    ],
+  },
+  DIGITAL_RESOURCE: {
+    label: 'Digital Resource', icon: '💻',
+    desc:  'Recurso o plataforma digital para investigar, practicar o crear',
+    color: '4BACC6',
+    models: [
+      { id: 'link',     label: 'Resource Link', sub: 'URL + título + instrucciones de uso' },
+      { id: 'platform', label: 'Platform Task', sub: 'Cambridge One u otra plataforma + actividad asignada' },
+    ],
+  },
+  COLLABORATIVE_TASK: {
+    label: 'Collaborative Task', icon: '👥',
+    desc:  'Actividad estructurada de trabajo en equipo',
+    color: '4F81BD',
+    models: [
+      { id: 'jigsaw',     label: 'Jigsaw',             sub: 'Grupos expertos que luego comparten con el grupo base' },
+      { id: 'think_pair', label: 'Think-Pair-Share',   sub: 'Reflexión individual → discusión en pares → plenaria' },
+    ],
+  },
+  REAL_LIFE_CONNECTION: {
+    label: 'Real-Life Connection', icon: '🌍',
+    desc:  'Vincula el contenido con situaciones auténticas de la vida real',
+    color: '70AD47',
+    models: [
+      { id: 'scenario',   label: 'Real-Life Scenario', sub: 'Situación real con preguntas de análisis' },
+      { id: 'connection', label: 'Content-to-Life',    sub: 'Prompt para que el estudiante conecte lo aprendido' },
+    ],
+  },
+  TEACHER_NOTE: {
+    label: 'Teacher Note', icon: '📌',
+    desc:  'Nota pedagógica del docente: diferenciación, adaptación, observación',
+    color: '767171',
+    models: [
+      { id: 'observation', label: 'Pedagogical Note', sub: 'Nota de observación, diferenciación o gestión de clase' },
+      { id: 'adaptation',  label: 'Adaptations',       sub: 'Adaptaciones por estudiante o nivel' },
+    ],
+  },
 }
 
 // ── Normalize VOCAB words from AI (handles alternative key names) ─────────────
@@ -105,9 +168,13 @@ export function blockPreviewHTML(b) {
   const { type, model, data } = b
   if (!data) return '<span style="color:#aaa">—</span>'
 
+  const durBadge = b.duration_minutes
+    ? `<div style="font-size:9px;color:#888;margin-bottom:6px">⏱ ${b.duration_minutes} min</div>`
+    : ''
+
   if (type === 'DICTATION') {
     if (model === 'word-grid') {
-      return `<div style="font-size:10px;color:#555;margin-bottom:6px;font-style:italic">${data.instructions||''}</div>
+      return durBadge + `<div style="font-size:10px;color:#555;margin-bottom:6px;font-style:italic">${data.instructions||''}</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px">
           ${(data.words||[]).map((w,i) => `
             <div style="display:flex;gap:6px;align-items:center;font-size:11px;border:1px solid #eee;border-radius:3px;padding:3px 6px">
@@ -117,7 +184,7 @@ export function blockPreviewHTML(b) {
             </div>`).join('')}
         </div>`
     }
-    return `<div style="font-size:10px;color:#555;margin-bottom:6px;font-style:italic">${data.instructions||''}</div>`
+    return durBadge + `<div style="font-size:10px;color:#555;margin-bottom:6px;font-style:italic">${data.instructions||''}</div>`
       + (data.words||[]).map((s,i) => `<div style="font-size:11px;border-bottom:1px solid #eee;padding:5px 0">${i+1}. ${s} <span style="display:inline-block;width:200px;border-bottom:1px solid #ccc;margin-left:8px"></span></div>`).join('')
   }
 
@@ -293,6 +360,159 @@ export function blockPreviewHTML(b) {
         <div style="display:flex;gap:6px">
           ${[1,2,3,4,5].map(n=>`<div style="width:28px;height:28px;border:2px solid #C55A11;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#C55A11">${n}</div>`).join('')}
         </div>
+      </div>`).join('')}
+    </div>`
+  }
+
+  if (type === 'WRITING') {
+    if (model === 'guided') {
+      return durBadge + `<div style="background:#f4fff0;border-left:3px solid #70AD47;padding:8px 12px;border-radius:0 4px 4px 0;font-size:11px">
+        <div style="font-weight:700;color:#3d7a20;margin-bottom:6px">✍️ Writing Task</div>
+        <div style="margin-bottom:6px;font-style:italic">${data.prompt||''}</div>
+        ${(data.sentence_starters||[]).length ? `<div style="font-size:10px;font-weight:700;color:#3d7a20;margin-bottom:4px">SENTENCE STARTERS</div>
+          ${(data.sentence_starters||[]).map(s=>`<div style="font-size:10px;padding:2px 0;color:#555">→ ${s}</div>`).join('')}` : ''}
+        ${(data.checklist||[]).length ? `<div style="font-size:10px;font-weight:700;color:#3d7a20;margin-top:6px;margin-bottom:4px">SUCCESS CHECKLIST</div>
+          ${(data.checklist||[]).map(c=>`<div style="font-size:10px;padding:2px 0">☐ ${c}</div>`).join('')}` : ''}
+      </div>`
+    }
+    return durBadge + `<div style="background:#f4fff0;border-left:3px solid #70AD47;padding:8px 12px;border-radius:0 4px 4px 0;font-size:11px">
+      <div style="font-weight:700;color:#3d7a20;margin-bottom:6px">✍️ Free Writing — ${data.word_count||''}</div>
+      <div style="font-style:italic">${data.topic||''}</div>
+      ${data.instructions ? `<div style="margin-top:6px;font-size:10px;color:#666">${data.instructions}</div>` : ''}
+    </div>`
+  }
+
+  if (type === 'SELF_ASSESSMENT') {
+    if (model === 'checklist') {
+      const skills = data.skills || []
+      return durBadge + `<div style="background:#fff9ee;border:2px solid #E1A24A;border-radius:6px;padding:10px">
+        <div style="font-weight:700;font-size:12px;color:#B87930;margin-bottom:8px">🪞 Self-Assessment</div>
+        <div style="display:grid;grid-template-columns:1fr auto auto auto;gap:4px;font-size:10px;font-weight:700;color:#888;margin-bottom:4px">
+          <span>I can…</span><span>Yes</span><span>Partly</span><span>Not yet</span>
+        </div>
+        ${skills.map(s=>`<div style="display:grid;grid-template-columns:1fr auto auto auto;gap:4px;font-size:11px;padding:4px 0;border-bottom:1px solid #ffe0a0;align-items:center">
+          <span>${s}</span>
+          <span style="text-align:center">⬜</span>
+          <span style="text-align:center">⬜</span>
+          <span style="text-align:center">⬜</span>
+        </div>`).join('')}
+      </div>`
+    }
+    const questions = data.questions || []
+    return durBadge + `<div style="background:#fff9ee;border:2px solid #E1A24A;border-radius:6px;padding:10px">
+      <div style="font-weight:700;font-size:12px;color:#B87930;margin-bottom:8px">🪞 Reflection</div>
+      ${questions.map((q,i)=>`<div style="margin-bottom:8px;font-size:11px">
+        <div style="font-weight:600;margin-bottom:4px">${i+1}. ${q}</div>
+        <div style="border-bottom:1px solid #ccc;height:18px;margin-bottom:3px"></div>
+        <div style="border-bottom:1px solid #ccc;height:18px"></div>
+      </div>`).join('')}
+    </div>`
+  }
+
+  if (type === 'PEER_REVIEW') {
+    if (model === 'rubric') {
+      const criteria = data.criteria || []
+      const total = criteria.reduce((s,c)=>s+(parseInt(c.pts)||0),0)
+      return durBadge + `<table style="width:100%;border-collapse:collapse;font-size:11px">
+        <tr style="background:#C3785B;color:#fff">
+          <th style="padding:4px 8px;text-align:left">Criterio</th>
+          <th style="padding:4px 8px;text-align:right">Pts</th>
+        </tr>
+        ${criteria.map(c=>`<tr style="border-bottom:1px solid #eee">
+          <td style="padding:4px 8px">${c.name}</td>
+          <td style="padding:4px 8px;text-align:right;font-weight:700">${c.pts}</td>
+        </tr>`).join('')}
+        <tr style="background:#f9ede8">
+          <td style="padding:4px 8px;font-weight:700">TOTAL</td>
+          <td style="padding:4px 8px;text-align:right;font-weight:700">${total}</td>
+        </tr>
+      </table>`
+    }
+    return durBadge + `<div style="background:#f9ede8;border:2px solid #C3785B;border-radius:6px;padding:10px;font-size:11px">
+      <div style="font-weight:700;color:#8a3a1f;margin-bottom:6px">🤝 Stars & Wishes</div>
+      <div style="margin-bottom:8px">
+        <div style="font-weight:600;color:#C3785B;margin-bottom:4px">⭐ Stars (strengths)</div>
+        <div style="font-size:10px;color:#666;margin-bottom:4px">${data.stars_prompt||'What did your peer do well?'}</div>
+        <div style="border-bottom:1px solid #ccc;height:18px"></div>
+      </div>
+      <div>
+        <div style="font-weight:600;color:#C3785B;margin-bottom:4px">🌟 Wishes (improvements)</div>
+        <div style="font-size:10px;color:#666;margin-bottom:4px">${data.wishes_prompt||'What could your peer improve?'}</div>
+        <div style="border-bottom:1px solid #ccc;height:18px"></div>
+      </div>
+    </div>`
+  }
+
+  if (type === 'DIGITAL_RESOURCE') {
+    if (model === 'link') {
+      return durBadge + `<div style="background:#e8f4ff;border-left:3px solid #4BACC6;padding:8px 12px;border-radius:0 4px 4px 0;font-size:11px">
+        <div style="font-weight:700;color:#1F6EA0;margin-bottom:4px">💻 ${data.title||'Digital Resource'}</div>
+        ${data.url ? `<div style="font-size:10px;color:#4BACC6;word-break:break-all;margin-bottom:6px">🔗 ${data.url}</div>` : ''}
+        ${data.instructions ? `<div style="font-size:10px;color:#555">${data.instructions}</div>` : ''}
+      </div>`
+    }
+    return durBadge + `<div style="background:#e8f4ff;border-left:3px solid #4BACC6;padding:8px 12px;border-radius:0 4px 4px 0;font-size:11px">
+      <div style="font-weight:700;color:#1F6EA0;margin-bottom:4px">💻 ${data.platform_name||'Platform'}</div>
+      ${data.activity ? `<div style="margin-bottom:6px;font-weight:600">${data.activity}</div>` : ''}
+      ${data.instructions ? `<div style="font-size:10px;color:#555">${data.instructions}</div>` : ''}
+    </div>`
+  }
+
+  if (type === 'COLLABORATIVE_TASK') {
+    if (model === 'jigsaw') {
+      const colors = ['#4F81BD','#F79646','#9BBB59','#8064A2','#C0504D']
+      return durBadge + `<div style="font-size:11px">
+        <div style="font-weight:700;color:#4F81BD;margin-bottom:6px">👥 Jigsaw Activity</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          ${(data.groups||[]).map((g,i)=>`<div style="flex:1;min-width:100px;border:2px solid ${colors[i%colors.length]};border-radius:6px;overflow:hidden">
+            <div style="background:${colors[i%colors.length]};color:#fff;padding:3px 8px;font-size:10px;font-weight:700">${g.name||`Group ${i+1}`}</div>
+            <div style="padding:6px 8px;font-size:10px">${g.topic||''}</div>
+          </div>`).join('')}
+        </div>
+      </div>`
+    }
+    return durBadge + `<div style="background:#eef3f8;border:2px solid #4F81BD;border-radius:6px;padding:10px;font-size:11px">
+      <div style="font-weight:700;color:#2E5598;margin-bottom:6px">💬 Think-Pair-Share</div>
+      <div style="margin-bottom:6px"><strong>Think:</strong> ${data.prompt||''}</div>
+      <div style="display:flex;gap:8px;font-size:10px;color:#666">
+        ${data.pair_time ? `<span>👥 Pair: ${data.pair_time}</span>` : ''}
+        ${data.share_time ? `<span>📣 Share: ${data.share_time}</span>` : ''}
+      </div>
+    </div>`
+  }
+
+  if (type === 'REAL_LIFE_CONNECTION') {
+    if (model === 'scenario') {
+      return durBadge + `<div style="background:#f0fff0;border-left:3px solid #70AD47;padding:8px 12px;border-radius:0 4px 4px 0;font-size:11px">
+        <div style="font-weight:700;color:#3d7a20;margin-bottom:6px">🌍 Real-Life Scenario</div>
+        <div style="font-style:italic;margin-bottom:8px">${data.context||''}</div>
+        ${(data.questions||[]).map((q,i)=>`<div style="font-size:11px;border-bottom:1px solid #d0ead0;padding:4px 0">${i+1}. ${q}</div>`).join('')}
+      </div>`
+    }
+    return durBadge + `<div style="background:#f0fff0;border-left:3px solid #70AD47;padding:8px 12px;border-radius:0 4px 4px 0;font-size:11px">
+      <div style="font-weight:700;color:#3d7a20;margin-bottom:6px">🌍 Connect to Your Life</div>
+      <div style="margin-bottom:6px">${data.prompt||''}</div>
+      ${data.example ? `<div style="font-size:10px;color:#555;font-style:italic">e.g. ${data.example}</div>` : ''}
+      <div style="border-bottom:1px solid #ccc;height:18px;margin-top:8px"></div>
+      <div style="border-bottom:1px solid #ccc;height:18px;margin-top:4px"></div>
+    </div>`
+  }
+
+  if (type === 'TEACHER_NOTE') {
+    const LEVEL_LABEL = { all: 'Todos', azul: 'Nivel Azul', rojo: 'Nivel Rojo' }
+    if (model === 'observation') {
+      return durBadge + `<div style="background:#f5f5f5;border-left:3px solid #767171;padding:8px 12px;border-radius:0 4px 4px 0;font-size:11px">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+          <span style="font-weight:700;color:#555">📌 Teacher Note</span>
+          ${data.for_level && data.for_level !== 'all' ? `<span style="font-size:9px;background:#767171;color:#fff;padding:1px 6px;border-radius:8px">${LEVEL_LABEL[data.for_level]||data.for_level}</span>` : ''}
+        </div>
+        <div style="color:#444;font-style:italic">${data.note||''}</div>
+      </div>`
+    }
+    return durBadge + `<div style="background:#f5f5f5;border-left:3px solid #767171;padding:8px 12px;border-radius:0 4px 4px 0;font-size:11px">
+      <div style="font-weight:700;color:#555;margin-bottom:6px">📌 Adaptations</div>
+      ${(data.adaptations||[]).map(a=>`<div style="padding:4px 0;border-bottom:1px solid #e0e0e0">
+        <strong>${a.student||''}</strong>: <span style="color:#555">${a.note||''}</span>
       </div>`).join('')}
     </div>`
   }

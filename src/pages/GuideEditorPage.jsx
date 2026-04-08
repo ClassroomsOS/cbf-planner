@@ -51,6 +51,30 @@ function guessSmartBlock(act) {
     type: 'EXIT_TICKET', model: 'can-do', section: 'closing',
     data: { skills: [act.descripcion || act.nombre] }
   }
+  if (n.includes('writ') || n.includes('escrit') || n.includes('paragraph') || n.includes('essay')) return {
+    type: 'WRITING', model: 'guided', section: 'skill',
+    data: { prompt: act.descripcion || act.nombre, sentence_starters: [], checklist: [] }
+  }
+  if (n.includes('self') || n.includes('autoe')) return {
+    type: 'SELF_ASSESSMENT', model: 'checklist', section: 'closing',
+    data: { skills: [] }
+  }
+  if (n.includes('peer') || n.includes('co-eval') || n.includes('coevalua')) return {
+    type: 'PEER_REVIEW', model: 'stars', section: 'closing',
+    data: {}
+  }
+  if (n.includes('digital') || n.includes('cambridge') || n.includes('platform') || n.includes('online')) return {
+    type: 'DIGITAL_RESOURCE', model: 'platform', section: 'activity',
+    data: { platform_name: 'Cambridge One', activity: act.descripcion || act.nombre }
+  }
+  if (n.includes('collab') || n.includes('group') || n.includes('team') || n.includes('jigsaw') || n.includes('pair')) return {
+    type: 'COLLABORATIVE_TASK', model: 'think_pair', section: 'activity',
+    data: { prompt: act.descripcion || act.nombre, pair_time: '3 min', share_time: '5 min' }
+  }
+  if (n.includes('real') || n.includes('life') || n.includes('scenario') || n.includes('connect')) return {
+    type: 'REAL_LIFE_CONNECTION', model: 'scenario', section: 'motivation',
+    data: { context: act.descripcion || act.nombre, questions: [] }
+  }
   return null
 }
 
