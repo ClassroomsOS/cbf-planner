@@ -13,7 +13,7 @@
 
 import {
   Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
-  AlignmentType, BorderStyle, WidthType, VerticalAlign,
+  AlignmentType, BorderStyle, WidthType, VerticalAlign, ImageRun, UnderlineType,
 } from 'docx'
 import { saveAs } from 'file-saver'
 
@@ -76,6 +76,16 @@ function stripHtml(html) {
     .trim()
 }
 
+// ── Fetch image as ArrayBuffer for DOCX ──────────────────────────────────────
+async function fetchImageData(url) {
+  try {
+    const res  = await fetch(url)
+    const buf  = await res.arrayBuffer()
+    const type = url.toLowerCase().includes('.png') ? 'png' : 'jpg'
+    return { data: buf, type }
+  } catch { return null }
+}
+
 // ── Section keys ordered for concatenation ───────────────────────────────────
 const SECTION_ORDER = ['subject', 'motivation', 'activity', 'skill', 'closing', 'assignment']
 
@@ -109,8 +119,126 @@ function textToParagraphs(text, opts = {}) {
   )
 }
 
+// ── Institutional header table (3 cols: logo | school info | code/version) ────
+async function buildHeaderTable(header) {
+  const h      = header || {}
+  const hCols  = [1440, 7560, 1800]  // logo | center | right (total = 10800)
+  const bGrayH = mkB('AAAAAA', 4)
+  const allBH  = b => ({ top: b, bottom: b, left: b, right: b })
+
+  // Logo cell
+  let logoCell
+  if (h.logo_url) {
+    try {
+      const logoData = await fetchImageData(h.logo_url)
+      if (logoData) {
+        logoCell = new TableCell({
+          width: { size: hCols[0], type: WidthType.DXA },
+          borders: allBH(bGrayH),
+          verticalAlign: VerticalAlign.CENTER,
+          margins: { top: 60, bottom: 60, left: 80, right: 80 },
+          children: [new Paragraph({
+            alignment: AlignmentType.CENTER,
+            spacing: { before: 0, after: 0 },
+            children: [new ImageRun({
+              data: logoData.data,
+              type: logoData.type,
+              transformation: { width: 80, height: 80 },
+            })],
+          })],
+        })
+      }
+    } catch {}
+  }
+  if (!logoCell) {
+    logoCell = new TableCell({
+      width: { size: hCols[0], type: WidthType.DXA },
+      borders: allBH(bGrayH),
+      verticalAlign: VerticalAlign.CENTER,
+      margins: { top: 60, bottom: 60, left: 80, right: 80 },
+      children: [mkP(mkR('CBF', { size: 18, color: '999999', bold: true }), AlignmentType.CENTER)],
+    })
+  }
+
+  // Center cell: school name / DANE-resolución / PROCESO (underlined) / tipo de guía
+  const schoolName = h.school  || 'COLEGIO BOSTON FLEXIBLE'
+  const daneText   = h.dane    || 'DANE: 308001800455 — RESOLUCIÓN 09685 DE 2019'
+  const procesoRaw = h.proceso || 'GESTIÓN ACADÉMICA Y CURRICULAR'
+  // Strip "PROCESO:" prefix if already present; always render it separately
+  const procesoBody = procesoRaw.replace(/^PROCESO:\s*/i, '').trim()
+
+  const centerCell = new TableCell({
+    width: { size: hCols[1], type: WidthType.DXA },
+    borders: allBH(bGrayH),
+    verticalAlign: VerticalAlign.CENTER,
+    margins: { top: 60, bottom: 60, left: 100, right: 100 },
+    children: [
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { before: 0, after: 60 },
+        children: [new TextRun({ text: schoolName, bold: true, size: 24, font: 'Arial', color: '1F3864' })],
+      }),
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { before: 0, after: 40 },
+        children: [new TextRun({ text: daneText, size: 16, font: 'Arial', color: '555555' })],
+      }),
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { before: 0, after: 40 },
+        children: [
+          new TextRun({ text: 'PROCESO: ', bold: true, size: 17, font: 'Arial', color: '222222' }),
+          new TextRun({
+            text: procesoBody, bold: true, size: 17, font: 'Arial', color: '222222',
+            underline: { type: UnderlineType.SINGLE },
+          }),
+        ],
+      }),
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { before: 0, after: 0 },
+        children: [new TextRun({ text: 'Guía de Aprendizaje Autónomo', size: 17, font: 'Arial', color: '444444' })],
+      }),
+    ],
+  })
+
+  // Right cell: código / versión / página
+  const codText = h.codigo  || 'CBF-G AC-01'
+  const verText = h.version || 'Versión 02 Febrero 2022'
+
+  const rightCell = new TableCell({
+    width: { size: hCols[2], type: WidthType.DXA },
+    borders: allBH(bGrayH),
+    verticalAlign: VerticalAlign.CENTER,
+    margins: { top: 60, bottom: 60, left: 80, right: 80 },
+    children: [
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { before: 0, after: 60 },
+        children: [new TextRun({ text: `CÓD: ${codText}`, bold: true, size: 16, font: 'Arial', color: '1F3864' })],
+      }),
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { before: 0, after: 60 },
+        children: [new TextRun({ text: verText, size: 15, font: 'Arial', color: '666666' })],
+      }),
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { before: 0, after: 0 },
+        children: [new TextRun({ text: 'Página 1', size: 15, font: 'Arial', color: '666666' })],
+      }),
+    ],
+  })
+
+  return new Table({
+    width: { size: 10800, type: WidthType.DXA },
+    columnWidths: hCols,
+    rows: [new TableRow({ children: [logoCell, centerCell, rightCell] })],
+  })
+}
+
 // ── Main builder ──────────────────────────────────────────────────────────────
-function buildLegacyDocx(content, plan) {
+async function buildLegacyDocx(content, plan) {
   const info = content.info || {}
   const obj  = content.objetivo || {}
 
@@ -218,8 +346,13 @@ function buildLegacyDocx(content, plan) {
       })
     : null
 
+  // --- Header table ---
+  const headerTable = await buildHeaderTable(content.header)
+
   // --- Assemble document ---
   const bodyChildren = [
+    headerTable,
+    blankP(),
     dateLevelP,
     ...(weeklyLabelP ? [blankP(), weeklyLabelP] : []),
     blankP(),
@@ -246,7 +379,7 @@ function buildLegacyDocx(content, plan) {
 // ── Public export function ────────────────────────────────────────────────────
 export async function exportLegacyDocx(content, plan) {
   try {
-    const doc    = buildLegacyDocx(content, plan)
+    const doc    = await buildLegacyDocx(content, plan)
     const blob   = await Packer.toBlob(doc)
     const grade  = (content?.info?.grado || plan?.grade || 'guia').replace(/[^\w°\s-]/g, '').trim()
     const week   = content?.info?.semana || plan?.week_number || ''
