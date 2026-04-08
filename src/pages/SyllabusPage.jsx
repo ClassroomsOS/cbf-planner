@@ -34,7 +34,6 @@ const WEEKS = Array.from({ length: 16 }, (_, i) => i + 1)
 
 function TopicFormModal({ topic, assignments, indicators, defaultWeek, defaultPeriod, onSave, onClose }) {
   const subjects = [...new Set(assignments.map(a => a.subject))].sort()
-  const grades   = [...new Set(assignments.map(a => a.grade))].sort() // grado base sin sección
 
   const [form, setForm] = useState(topic || {
     subject: assignments[0]?.subject || '',
@@ -49,7 +48,29 @@ function TopicFormModal({ topic, assignments, indicators, defaultWeek, defaultPe
     academic_year: CURRENT_YEAR,
   })
   const [saving, setSaving] = useState(false)
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+
+  // Grados disponibles filtrados por la materia seleccionada
+  const grades = [...new Set(
+    assignments
+      .filter(a => !form.subject || a.subject === form.subject)
+      .map(a => a.grade)
+  )].sort()
+
+  function set(k, v) {
+    setForm(f => {
+      const next = { ...f, [k]: v }
+      // Al cambiar materia, auto-seleccionar el primer grado válido para esa materia
+      if (k === 'subject') {
+        const validGrades = [...new Set(
+          assignments.filter(a => a.subject === v).map(a => a.grade)
+        )].sort()
+        if (validGrades.length > 0 && !validGrades.includes(f.grade)) {
+          next.grade = validGrades[0]
+        }
+      }
+      return next
+    })
+  }
 
   const addResource = () => {
     set('resources', [...(form.resources || []), { type: 'textbook', ref: '' }])
