@@ -718,6 +718,51 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
                       const DIM_ICONS   = { cognitive: '🧠', procedural: '🛠️', attitudinal: '💫' }
                       const DIM_LABELS  = { cognitive: 'Cognitivo', procedural: 'Procedimental', attitudinal: 'Actitudinal' }
                       const SKILL_ICONS = { speaking: '🎤', listening: '🎧', reading: '📖', writing: '✍️', general: '📋' }
+
+                      // ── Si ya viene vinculado → read-only card ──
+                      if (form.indicator_id && selectedIndicator) {
+                        return (
+                          <>
+                            {achievementIndicators[0]?._goalText && (
+                              <div style={{ fontSize: 10, color: '#3a6a3a', background: '#e4f4e4', borderRadius: 6, padding: '6px 10px', marginBottom: 10, lineHeight: 1.5, border: '1px solid #c5e0c5' }}>
+                                <strong>Logro del período:</strong> {achievementIndicators[0]._goalText}
+                              </div>
+                            )}
+                            <div style={{
+                              background: '#fff', borderRadius: 8, padding: '12px 14px',
+                              border: '2px solid #1A6B3A', display: 'flex', alignItems: 'flex-start', gap: 10,
+                            }}>
+                              <div style={{ flexShrink: 0, fontSize: 20, lineHeight: 1 }}>
+                                {SKILL_ICONS[selectedIndicator.skill_area] || DIM_ICONS[selectedIndicator.dimension] || '📌'}
+                              </div>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ display: 'flex', gap: 5, marginBottom: 6, flexWrap: 'wrap' }}>
+                                  <span style={{ fontSize: 9, fontWeight: 700, color: '#5a8a00', textTransform: 'uppercase', background: '#f0fff0', padding: '2px 6px', borderRadius: 3 }}>
+                                    {DIM_LABELS[selectedIndicator.dimension] || selectedIndicator.dimension}
+                                  </span>
+                                  {selectedIndicator.skill_area && (
+                                    <span style={{ fontSize: 9, fontWeight: 600, color: '#1A3A8F', background: '#eef2fb', padding: '2px 6px', borderRadius: 3 }}>
+                                      {SKILL_ICONS[selectedIndicator.skill_area]} {selectedIndicator.skill_area}
+                                    </span>
+                                  )}
+                                </div>
+                                <div style={{ fontSize: 12, color: '#1a1a2e', lineHeight: 1.5, fontWeight: 500 }}>{selectedIndicator.text}</div>
+                                {selectedIndicator.skill_area && (
+                                  <div style={{ marginTop: 6, fontSize: 9, color: '#1A6B3A', background: '#e8f5e8', borderRadius: 4, padding: '3px 7px', display: 'inline-block', fontWeight: 600 }}>
+                                    ✓ La rúbrica se filtrará por <strong>{selectedIndicator.skill_area}</strong> automáticamente
+                                  </div>
+                                )}
+                              </div>
+                              <div style={{ flexShrink: 0, width: 20, height: 20, borderRadius: '50%', background: '#1A6B3A', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 11, fontWeight: 800 }}>✓</div>
+                            </div>
+                            <div style={{ fontSize: 10, color: '#888', marginTop: 8, fontStyle: 'italic' }}>
+                              Indicador vinculado desde <em>Objetivos → {form.subject} · {form.grade} · Período {form.period}</em>
+                            </div>
+                          </>
+                        )
+                      }
+
+                      // ── Sin indicator_id → mostrar selector ──
                       return (
                         <>
                           {achievementIndicators[0]?._goalText && (
@@ -777,19 +822,34 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
                               )
                             })}
                           </div>
-                          {form.indicator_id && selectedIndicator?.skill_area && (
-                            <div style={{ marginTop: 8, fontSize: 9, color: '#1A6B3A', background: '#e8f5e8', borderRadius: 4, padding: '4px 8px', fontWeight: 600 }}>
-                              ✓ Skill: <strong>{selectedIndicator.skill_area}</strong> — la rúbrica se filtrará automáticamente.
-                            </div>
-                          )}
                           <div style={{ fontSize: 9, color: '#888', marginTop: 6, fontStyle: 'italic' }}>
                             💡 Los indicadores vienen de <em>Objetivos → {form.subject} · {form.grade} · Período {form.period}</em>
                           </div>
                         </>
                       )
                     })() : (
-                      /* ── Legacy fallback: learning_targets ── */
-                      <>
+                      /* ── Sin indicadores del sistema nuevo → mensaje claro ── */
+                      <div style={{ padding: '14px 16px', borderRadius: 8, background: '#F8FAFC', border: '1px solid #E2E8F0', textAlign: 'center' }}>
+                        <div style={{ fontSize: 22, marginBottom: 8 }}>🎯</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#1F3864', marginBottom: 6 }}>
+                          No hay indicadores creados aún
+                        </div>
+                        <div style={{ fontSize: 12, color: '#64748B', lineHeight: 1.6 }}>
+                          Para <strong>{form.subject} · {form.grade} · Período {form.period}</strong>,
+                          primero crea el Logro del Período y sus indicadores en{' '}
+                          <strong>Objetivos de Desempeño</strong>.
+                          Los proyectos NEWS se crean automáticamente desde ahí con el indicador ya vinculado.
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ── Legacy fallback oculto — solo si hay targets y no hay nuevo sistema ── */}
+                    {achievementIndicators.length === 0 && learningTargets.length > 0 && (
+                      <details style={{ marginTop: 12 }}>
+                        <summary style={{ fontSize: 10, color: '#94A3B8', cursor: 'pointer', userSelect: 'none' }}>
+                          Vincular con indicador anterior (sistema legado)
+                        </summary>
+                        <div style={{ marginTop: 10 }}>
                         {form.target_id && !showTargetSelector && (() => {
                           const selectedTarget = learningTargets.find(t => t.id === form.target_id)
                           if (!selectedTarget) return null
@@ -811,14 +871,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
                           <div style={{ marginBottom: 10 }}>
                             {!form.subject || !form.grade ? (
                               <div style={{ fontSize: 10, color: '#999', fontStyle: 'italic' }}>Selecciona primero Materia y Grado (paso Identificación).</div>
-                            ) : learningTargets.length === 0 ? (
-                              <div style={{ padding: '8px', borderRadius: 6, background: '#FFF9E6', border: '1px dashed #F5C300', textAlign: 'center' }}>
-                                <div style={{ fontSize: 10, color: '#8B6914', lineHeight: 1.3 }}>
-                                  No hay indicadores de logro para <strong>{form.subject} · {form.grade}</strong>.<br />
-                                  Créalos en <strong>Objetivos</strong> para usar el sistema nuevo.
-                                </div>
-                              </div>
-                            ) : (
+                            ) : learningTargets.length === 0 ? null : (
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
                                 <div style={{ fontSize: 9, fontWeight: 700, color: '#5a8a00', marginBottom: 2, textTransform: 'uppercase', letterSpacing: '0.3px' }}>
                                   Selecciona el indicador de logro (sistema anterior):
@@ -876,7 +929,8 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
                             </div>
                           )
                         })()}
-                      </>
+                        </div>
+                      </details>
                     )}
                   </div>
 
