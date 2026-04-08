@@ -37,12 +37,10 @@ export default function useAchievements(teacher, filters = {}) {
     setError(null)
 
     try {
+      // Query 1: goals
       let q = supabase
         .from('achievement_goals')
-        .select(`
-          *,
-          indicators:achievement_indicators!goal_id(*)
-        `)
+        .select('*')
         .eq('school_id', teacher.school_id)
         .eq('teacher_id', teacher.id)
         .order('period', { ascending: true })
@@ -55,13 +53,28 @@ export default function useAchievements(teacher, filters = {}) {
       if (academic_year) q = q.eq('academic_year', academic_year)
       if (status)        q = q.eq('status', status)
 
-      const { data, error: err } = await q
-      if (err) throw err
+      const { data: goalsData, error: goalsErr } = await q
+      if (goalsErr) throw goalsErr
 
-      // Sort indicators by order_index within each goal
-      const normalized = (data || []).map(g => ({
+      // Query 2: all indicators for this teacher (flat, then group by goal_id)
+      const { data: indsData, error: indsErr } = await supabase
+        .from('achievement_indicators')
+        .select('*')
+        .eq('teacher_id', teacher.id)
+        .order('order_index', { ascending: true })
+
+      if (indsErr) throw indsErr
+
+      // Group indicators by goal_id
+      const indsByGoal = (indsData || []).reduce((acc, ind) => {
+        if (!acc[ind.goal_id]) acc[ind.goal_id] = []
+        acc[ind.goal_id].push(ind)
+        return acc
+      }, {})
+
+      const normalized = (goalsData || []).map(g => ({
         ...g,
-        indicators: [...(g.indicators || [])].sort((a, b) => a.order_index - b.order_index),
+        indicators: indsByGoal[g.id] || [],
       }))
 
       setGoals(normalized)
@@ -87,11 +100,11 @@ export default function useAchievements(teacher, filters = {}) {
           academic_year: data.academic_year || new Date().getFullYear(),
           ...data,
         })
-        .select('*, indicators:achievement_indicators!goal_id(*)')
+        .select('*')
         .single()
 
       if (err) throw err
-      const normalized = { ...created, indicators: [] }
+      const normalized = { ...created, indicators: [] }  // indicators start empty on create
       setGoals(prev => [...prev, normalized])
       return { data: normalized, error: null }
     } catch (err) {
