@@ -136,7 +136,9 @@ export default function GuideEditorPage({ teacher }) {
   const [saveStatus,    setSaveStatus]    = useState('saved')
   const [loading,       setLoading]       = useState(true)
   const [draftRestore,  setDraftRestore]  = useState(null) // { content, savedAt } | null
-  const [linkedTarget,      setLinkedTarget]      = useState(null)
+  const [linkedTarget,            setLinkedTarget]            = useState(null)
+  const [linkedAchievementIndicator, setLinkedAchievementIndicator] = useState(null)
+  const [linkedSyllabusTopics,    setLinkedSyllabusTopics]    = useState([])
   const [linkedNewsProjects, setLinkedNewsProjects] = useState([])
   const [monthPrinciples, setMonthPrinciples] = useState(null)
 
@@ -213,7 +215,32 @@ export default function GuideEditorPage({ teacher }) {
         }
       }
 
-      // Auto-populate objetivo from linked target when fields are still empty
+      // Auto-populate objetivo from linked indicator (new system) when fields are empty
+      if (data.indicator_id && c.objetivo) {
+        const objetivoIsEmpty = !c.objetivo.general &&
+          (!c.objetivo.indicadores || c.objetivo.indicadores.every(i => !getIndText(i)))
+        if (objetivoIsEmpty) {
+          const { data: ind } = await supabase
+            .from('achievement_indicators')
+            .select('id, text, dimension, skill_area, goal_id')
+            .eq('id', data.indicator_id)
+            .single()
+          if (ind?.text) {
+            c.objetivo.indicadores = [ind.text]
+            // Also fetch the parent goal text as the general objective
+            if (ind.goal_id) {
+              const { data: goal } = await supabase
+                .from('achievement_goals')
+                .select('text')
+                .eq('id', ind.goal_id)
+                .single()
+              if (goal?.text) c.objetivo.general = goal.text
+            }
+          }
+        }
+      }
+
+      // Auto-populate objetivo from linked target (legacy) when fields are still empty
       if (data.target_id && c.objetivo) {
         const objetivoIsEmpty = !c.objetivo.general &&
           (!c.objetivo.indicadores || c.objetivo.indicadores.every(i => !getIndText(i)))
@@ -266,7 +293,7 @@ export default function GuideEditorPage({ teacher }) {
     load()
   }, [id])
 
-  // ── Load linked learning target ──
+  // ── Load linked learning target (legacy) ──
   useEffect(() => {
     if (!plan?.target_id) { setLinkedTarget(null); return }
     supabase
@@ -277,17 +304,73 @@ export default function GuideEditorPage({ teacher }) {
       .then(({ data }) => setLinkedTarget(data || null))
   }, [plan?.target_id])
 
-  // ── Load NEWS projects linked to the same target ──
+  // ── Load linked achievement_indicator (new system) ──
   useEffect(() => {
-    if (!plan?.target_id) { setLinkedNewsProjects([]); return }
+    if (!plan?.indicator_id) { setLinkedAchievementIndicator(null); return }
     supabase
-      .from('news_projects')
-      .select('id, title, subject, status, skill, news_model, actividades_evaluativas, biblical_principle, biblical_reflection, due_date, target_indicador, conditions, textbook_reference, competencias, operadores_intelectuales, habilidades')
-      .eq('target_id', plan.target_id)
-      .eq('school_id', teacher.school_id)
-      .limit(10)
-      .then(({ data }) => setLinkedNewsProjects(data || []))
-  }, [plan?.target_id])
+      .from('achievement_indicators')
+      .select('id, goal_id, dimension, skill_area, text, student_text, weight, order_index')
+      .eq('id', plan.indicator_id)
+      .single()
+      .then(({ data }) => setLinkedAchievementIndicator(data || null))
+  }, [plan?.indicator_id])
+
+  // ── Load syllabus topics for current week ──
+  useEffect(() => {
+    if (!plan?.subject || !plan?.grade || !plan?.period || !plan?.week_number) {
+      setLinkedSyllabusTopics([]); return
+    }
+    supabase
+      .from('syllabus_topics')
+      .select('id, topic, content_type, description, resources, indicator_id')
+      .eq('teacher_id', teacher.id)
+      .eq('subject', plan.subject)
+      .eq('grade', plan.grade.split(' ')[0]) // strip section ("8.° A" → "8.°")
+      .eq('period', plan.period)
+      .eq('week_number', plan.week_number)
+      .order('created_at')
+      .then(({ data }) => setLinkedSyllabusTopics(data || []))
+  }, [plan?.subject, plan?.grade, plan?.period, plan?.week_number, teacher.id])
+
+  // ── Load NEWS projects: direct pointer + indicator_id + legacy target_id ──
+  useEffect(() => {
+    if (!plan) return
+    const { target_id, indicator_id, news_project_id } = plan
+    if (!target_id && !indicator_id && !news_project_id) {
+      setLinkedNewsProjects([]); return
+    }
+    const SELECT = 'id, title, subject, status, skill, news_model, indicator_id, actividades_evaluativas, biblical_principle, biblical_reflection, due_date, target_indicador, conditions, textbook_reference, competencias, operadores_intelectuales, habilidades'
+    ;(async () => {
+      const seen = new Set()
+      const results = []
+
+      const push = (rows) => {
+        ;(rows || []).forEach(r => { if (!seen.has(r.id)) { seen.add(r.id); results.push(r) } })
+      }
+
+      // Priority 0: direct project pointer
+      if (news_project_id) {
+        const { data } = await supabase.from('news_projects').select(SELECT).eq('id', news_project_id).single()
+        if (data) push([data])
+      }
+
+      // Priority 1: indicator_id (new system)
+      if (indicator_id) {
+        const { data } = await supabase.from('news_projects').select(SELECT)
+          .eq('indicator_id', indicator_id).eq('school_id', teacher.school_id).limit(5)
+        push(data)
+      }
+
+      // Priority 2: target_id (legacy)
+      if (target_id) {
+        const { data } = await supabase.from('news_projects').select(SELECT)
+          .eq('target_id', target_id).eq('school_id', teacher.school_id).limit(10)
+        push(data)
+      }
+
+      setLinkedNewsProjects(results)
+    })()
+  }, [plan?.target_id, plan?.indicator_id, plan?.news_project_id, teacher.school_id])
 
   // ── Derive active NEWS project for this guide's date range ──
   // Priority 0: plan.news_project_id — set at guide creation, direct pointer
@@ -328,29 +411,37 @@ export default function GuideEditorPage({ teacher }) {
     return null
   }, [linkedNewsProjects, content?.days, plan?.news_project_id])
 
-  // ── Derive the specific indicator for this guide from the active NEWS project ──
-  // Modelo B: indicator object matched by skill (habilidad) from learning_targets.indicadores
-  // Modelo A: synthetic indicator object built from news_projects.target_indicador
+  // ── Derive the specific indicator for this guide ──
+  // Priority 0: direct achievement_indicator (new system — plan.indicator_id)
+  // Priority 1: Modelo B — matched from learning_targets.indicadores by skill
+  // Priority 2: Modelo A — synthetic from news_projects.target_indicador
   const activeIndicator = useMemo(() => {
+    // New system: direct link to achievement_indicators
+    if (linkedAchievementIndicator) {
+      return {
+        texto_en:   linkedAchievementIndicator.text,
+        dimension:  linkedAchievementIndicator.dimension,
+        skill_area: linkedAchievementIndicator.skill_area,
+      }
+    }
+    // Legacy system via NEWS project + learning target
     if (!activeNewsProject) return null
     const subject = content?.info?.asignatura || ''
     const isModeloB = linkedTarget?.news_model === 'language' || MODELO_B_SUBJECTS.includes(subject)
     if (isModeloB) {
-      // Modelo B — find the indicator object matching the project's skill
       if (!activeNewsProject.skill || !linkedTarget?.indicadores) return null
       return linkedTarget.indicadores.find(ind =>
         typeof ind === 'object' &&
         ind.habilidad?.toLowerCase() === activeNewsProject.skill.toLowerCase()
       ) || null
     } else {
-      // Modelo A — use target_indicador from the NEWS project as a synthetic indicator
       if (!activeNewsProject.target_indicador) return null
       return {
         texto_en: activeNewsProject.target_indicador,
         taxonomy: linkedTarget?.taxonomy || null,
       }
     }
-  }, [activeNewsProject, linkedTarget])
+  }, [activeNewsProject, linkedTarget, linkedAchievementIndicator])
 
   // Auto-populate principio from indicator's principio_biblico (once, only if empty)
   // Fallback: use biblical_principle from the active NEWS project
@@ -1031,39 +1122,101 @@ export default function GuideEditorPage({ teacher }) {
           {activePanel === 'objetivo' && (
             <div className="card">
               <div className="card-title"><div className="badge">2</div> Indicador de Logro</div>
-              <LearningTargetSelector
-                planId={id}
-                subject={content.info.asignatura}
-                grade={content.info.grado}
-                period={parseInt(content.info.periodo) || 1}
-                schoolId={teacher.school_id}
-                teacherId={teacher.id}
-                currentTargetId={plan?.target_id || null}
-                onChange={(targetId, target) => {
-                  setPlan(prev => ({ ...prev, target_id: targetId }))
-                  if (target) {
-                    setContentField(['objetivo', 'general'], target.description || '')
-                    const inds = target.indicadores?.length
-                      ? target.indicadores.map(ind =>
-                          typeof ind === 'object'
-                            ? (ind.texto_en || ind.habilidad || '')
-                            : (ind || '')
-                        ).filter(Boolean)
-                      : []
-                    setContentField(['objetivo', 'indicadores'],
-                      inds.length ? inds : [`El estudiante demuestra este logro cuando: ${target.description || ''}`]
-                    )
-                  }
-                }}
-              />
-              {plan?.target_id && (
-                <div style={{ fontSize: '11px', color: '#888', margin: '-4px 0 8px', fontStyle: 'italic' }}>
-                  ↑ Al vincular un logro, los campos de abajo se llenan automáticamente. Puedes editarlos para esta semana.
+
+              {/* ── New system: achievement_indicator card ── */}
+              {linkedAchievementIndicator ? (
+                <div style={{ background: '#f0fff4', border: '1px solid #b8e8c8', borderRadius: 8, padding: '10px 14px', marginBottom: 12 }}>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: '#1A6B3A', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: 6 }}>
+                    🎯 Indicador vinculado
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
+                    {linkedAchievementIndicator.dimension && (
+                      <span style={{ fontSize: 9, fontWeight: 700, color: '#5a8a00', background: '#e8f5e8', padding: '2px 7px', borderRadius: 3, textTransform: 'uppercase' }}>
+                        {{ cognitive: '🧠 Cognitivo', procedural: '🛠️ Procedimental', attitudinal: '💫 Actitudinal' }[linkedAchievementIndicator.dimension] || linkedAchievementIndicator.dimension}
+                      </span>
+                    )}
+                    {linkedAchievementIndicator.skill_area && (
+                      <span style={{ fontSize: 9, fontWeight: 600, color: '#1A3A8F', background: '#eef2fb', padding: '2px 7px', borderRadius: 3 }}>
+                        {{ speaking: '🎤', listening: '🎧', reading: '📖', writing: '✍️', general: '📋' }[linkedAchievementIndicator.skill_area]} {linkedAchievementIndicator.skill_area}
+                      </span>
+                    )}
+                    {linkedAchievementIndicator.weight && (
+                      <span style={{ fontSize: 9, color: '#888', background: '#f5f5f5', padding: '2px 7px', borderRadius: 3 }}>
+                        {linkedAchievementIndicator.weight}%
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 12, color: '#1a1a2e', lineHeight: 1.5 }}>{linkedAchievementIndicator.text}</div>
+                  {linkedAchievementIndicator.student_text && (
+                    <div style={{ fontSize: 11, color: '#666', marginTop: 6, fontStyle: 'italic', lineHeight: 1.4 }}>
+                      👩‍🎓 {linkedAchievementIndicator.student_text}
+                    </div>
+                  )}
+                  <div style={{ fontSize: 10, color: '#888', marginTop: 6 }}>
+                    Para cambiar el indicador, ve a{' '}
+                    <a href="#" onClick={e => { e.preventDefault(); navigate('/objectives') }} style={{ color: '#1A6B3A' }}>
+                      Objetivos →
+                    </a>
+                  </div>
+                </div>
+              ) : (
+                /* ── Legacy: LearningTargetSelector ── */
+                <>
+                  <LearningTargetSelector
+                    planId={id}
+                    subject={content.info.asignatura}
+                    grade={content.info.grado}
+                    period={parseInt(content.info.periodo) || 1}
+                    schoolId={teacher.school_id}
+                    teacherId={teacher.id}
+                    currentTargetId={plan?.target_id || null}
+                    onChange={(targetId, target) => {
+                      setPlan(prev => ({ ...prev, target_id: targetId }))
+                      if (target) {
+                        setContentField(['objetivo', 'general'], target.description || '')
+                        const inds = target.indicadores?.length
+                          ? target.indicadores.map(ind =>
+                              typeof ind === 'object'
+                                ? (ind.texto_en || ind.habilidad || '')
+                                : (ind || '')
+                            ).filter(Boolean)
+                          : []
+                        setContentField(['objetivo', 'indicadores'],
+                          inds.length ? inds : [`El estudiante demuestra este logro cuando: ${target.description || ''}`]
+                        )
+                      }
+                    }}
+                  />
+                  {plan?.target_id && (
+                    <div style={{ fontSize: '11px', color: '#888', margin: '-4px 0 8px', fontStyle: 'italic' }}>
+                      ↑ Al vincular un logro, los campos de abajo se llenan automáticamente.
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* ── Syllabus topics for this week ── */}
+              {linkedSyllabusTopics.length > 0 && (
+                <div style={{ background: '#f8f6ff', border: '1px solid #d4c8f0', borderRadius: 8, padding: '10px 14px', marginBottom: 12 }}>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: '#5a3a8a', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: 6 }}>
+                    📚 Contenidos del Syllabus — Semana {plan?.week_number}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {linkedSyllabusTopics.map(st => (
+                      <div key={st.id} style={{ fontSize: 12, color: '#2a1a4a', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                        <span style={{ fontSize: 10, fontWeight: 600, color: '#8a6aaa', background: '#ece8f8', padding: '1px 6px', borderRadius: 3, flexShrink: 0, marginTop: 1, textTransform: 'uppercase' }}>
+                          {st.content_type}
+                        </span>
+                        <span style={{ lineHeight: 1.4 }}>{st.topic}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
+
               {activeNewsProject && (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', margin: '0 0 12px', alignItems: 'center' }}>
-                  <span style={{ fontSize: '11px', color: '#666' }}>📋 Proyecto NEWS activo esta semana:</span>
+                  <span style={{ fontSize: '11px', color: '#666' }}>📋 Proyecto NEWS activo:</span>
                   <span style={{
                     fontSize: '11px', fontWeight: 600, padding: '3px 10px', borderRadius: '12px',
                     background: '#f0f7ff', border: '1px solid #c5d5f0', color: '#2E5598',
