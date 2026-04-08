@@ -53,7 +53,7 @@ function TopicFormModal({ topic, assignments, goals = [], defaultWeek, defaultPe
   const grades = [...new Set(
     assignments
       .filter(a => !form.subject || a.subject === form.subject)
-      .map(a => a.grade)
+      .map(a => a.section ? `${a.grade} ${a.section}` : a.grade)
   )].sort()
 
   function set(k, v) {
@@ -81,9 +81,11 @@ function TopicFormModal({ topic, assignments, goals = [], defaultWeek, defaultPe
     .filter(g => {
       if (g.subject !== form.subject) return false
       if (String(g.period) !== String(form.period)) return false
-      const gBase = (g.grade || '').replace(/\s+[A-Z]$/, '').trim()
-      const fBase = (form.grade || '').replace(/\s+[A-Z]$/, '').trim()
-      return gBase === fBase || g.grade === form.grade
+      // Exact match first; fallback: base grade match for legacy data
+      if (g.grade === form.grade) return true
+      const gBase = g.grade.replace(/\s+\S+$/, '').trim()
+      const fBase = form.grade.replace(/\s+\S+$/, '').trim()
+      return gBase === fBase
     })
     .flatMap(g => g.indicators || [])
 
@@ -538,14 +540,14 @@ export default function SyllabusPage({ teacher }) {
     [...new Set(assignments.map(a => a.subject))].sort(), [assignments]
   )
   const uniqueGrades = useMemo(() =>
-    [...new Set(assignments.map(a => a.grade))].sort(), [assignments] // grado base sin sección
+    [...new Set(assignments.map(a => a.section ? `${a.grade} ${a.section}` : a.grade))].sort(), [assignments]
   )
 
   // ── Handlers ───────────────────────────────────────────────────────────────
 
   const handleSaveTopic = async (form) => {
     const isEdit = !!form.id
-    const normalized = { ...form, grade: (form.grade || '').replace(/\s+[A-Z]$/, '').trim() }
+    const normalized = { ...form, grade: form.grade }
     const { error: err } = isEdit
       ? await updateTopic(form.id, normalized)
       : await createTopic(normalized)
