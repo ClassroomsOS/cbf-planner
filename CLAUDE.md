@@ -141,7 +141,8 @@ LIMPIEZA LEGACY ✅  Sistema learning_targets eliminado del frontend (Abril 8, 2
              — AIGeneratorModal gate: !activeIndicator && !achievementGoal (sin learningTarget)
              — DB: checkpoints.target_id NOT NULL constraint eliminada;
                orphaned rows (plan_id IS NULL) eliminados
-             — learning_targets y news_legacy siguen en DB (LEGACY — no borrar aún)
+             — learning_targets: ELIMINADA de DB (tabla + 3 columnas target_id)
+             — news_legacy sigue en DB (datos históricos — no borrar)
              — CLAUDE.md v4.5
 
 PRÓXIMO → SESIÓN I
@@ -171,7 +172,6 @@ school_monthly_principles — year_verse · month_verse · indicator_principle p
 weekly_agendas        — grade · section · week_start · content JSONB · status
 schedule_slots        — franjas del horario institucional por nivel
 school_calendar       — días hábiles · is_school_day · affects_planning
-learning_targets      — LEGACY (no borrar — datos históricos)
 news_legacy           — LEGACY (era tabla news — no borrar)
 error_log · activity_log · ai_usage
 ```
@@ -261,7 +261,7 @@ CREATE POLICY "eleot_read_all" ON eleot_domains FOR SELECT USING (true);
 6. Modelo IA: claude-sonnet-4-20250514 — no cambiar sin avisar
 7. Migraciones: numeradas cronológicamente, nunca editar una ya ejecutada en prod
 8. Nunca borrar datos de producción sin backup explícito
-9. learning_targets y news_legacy: LEGACY — no borrar hasta confirmar todo migrado
+9. news_legacy: LEGACY — no borrar (datos históricos de proyectos)
 10. NUNCA usar window.alert — usar showToast() del ToastContext
 11. Grade SIEMPRE combined: ver sección "GRADE+SECTION — CONVENCIÓN" abajo
 ```
