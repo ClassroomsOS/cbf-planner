@@ -87,7 +87,7 @@ function VideoList({ videos = [], onChange }) {
 
 // ── DayPanel ─────────────────────────────────────────────────────────────────
 
-export default function DayPanel({ iso, day, setContentField, toggleDayActive, openSections, toggleSection, planId, grade, subject, objective, learningTarget, principles }) {
+export default function DayPanel({ iso, day, setContentField, toggleDayActive, openSections, toggleSection, planId, grade, subject, objective, principles }) {
   const { features } = useFeatures()
   const base = ['days', iso]
   const [layoutModal,    setLayoutModal]    = useState(null)
@@ -275,7 +275,6 @@ export default function DayPanel({ iso, day, setContentField, toggleDayActive, o
                         dayName={getDayName(iso)}
                         existingContent={section.content}
                         onInsert={val => setContentField([...base,'sections',s.key,'content'], val)}
-                        learningTarget={learningTarget}
                         principles={principles}
                       />}
 
@@ -302,7 +301,6 @@ export default function DayPanel({ iso, day, setContentField, toggleDayActive, o
                             unit:            day.unit,
                             dayName:         getDayName(iso),
                             existingContent: section.content,
-                            learningTarget,
                             principles,
                           }}
                         />

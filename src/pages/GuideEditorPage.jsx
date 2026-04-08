@@ -14,7 +14,6 @@ import SectionPreview from '../components/SectionPreview'
 import { useFeatures } from '../context/FeaturesContext'
 import CorrectionRequestModal from '../components/CorrectionRequestModal'
 import LayoutSelectorModal, { LAYOUT_ELIGIBLE } from '../components/LayoutSelectorModal'
-import LearningTargetSelector from '../components/LearningTargetSelector'
 import { useToast } from '../context/ToastContext'
 import { logError } from '../utils/logger'
 import { SECTIONS, RICH_SECTIONS, MODELO_B_SUBJECTS } from '../utils/constants'
@@ -164,7 +163,6 @@ export default function GuideEditorPage({ teacher }) {
   const [saveStatus,    setSaveStatus]    = useState('saved')
   const [loading,       setLoading]       = useState(true)
   const [draftRestore,  setDraftRestore]  = useState(null) // { content, savedAt } | null
-  const [linkedTarget,            setLinkedTarget]            = useState(null)
   const [linkedAchievementIndicator, setLinkedAchievementIndicator] = useState(null)
   const [linkedAchievementGoal, setLinkedAchievementGoal] = useState(null) // full goal + all indicators
   const [relinkLoading, setRelinkLoading] = useState(false)
@@ -296,34 +294,10 @@ export default function GuideEditorPage({ teacher }) {
         }
       }
 
-      // Auto-populate objetivo from linked target (legacy) when fields are still empty
-      if (data.target_id && c.objetivo) {
-        const objetivoIsEmpty = !c.objetivo.general &&
-          (!c.objetivo.indicadores || c.objetivo.indicadores.every(i => !getIndText(i)))
-        if (objetivoIsEmpty) {
-          const { data: target } = await supabase
-            .from('learning_targets')
-            .select('id, description, indicadores, news_model, tematica_names')
-            .eq('id', data.target_id)
-            .single()
-          if (target) {
-            if (target.description) c.objetivo.general = target.description
-            if (target.indicadores?.length) {
-              c.objetivo.indicadores = target.indicadores.map(ind =>
-                typeof ind === 'object'
-                  ? (ind.texto_en || ind.habilidad || '')
-                  : (ind || '')
-              ).filter(Boolean)
-              if (!c.objetivo.indicadores.length) c.objetivo.indicadores = ['']
-            }
-          }
-        }
-      }
-
-      // Repair: only when completely unlinked (no indicator_id AND no target_id).
+      // Repair: only when no indicator_id is linked.
       // Looks for the nearest future NEWS project by date → inherits its indicator_id.
       // Falls back to first indicator of the achievement_goal for this period.
-      if (!data.indicator_id && !data.target_id && data.subject && data.grade) {
+      if (!data.indicator_id && data.subject && data.grade) {
         const firstDay = data.monday_date || Object.keys(c.days || {}).sort()[0]
 
         // 1. Try nearest NEWS project (same logic as PlannerPage)
@@ -425,18 +399,7 @@ export default function GuideEditorPage({ teacher }) {
     load()
   }, [id])
 
-  // ── Load linked learning target (legacy) ──
-  useEffect(() => {
-    if (!plan?.target_id) { setLinkedTarget(null); return }
-    supabase
-      .from('learning_targets')
-      .select('id, description, taxonomy, group_name, prerequisite_ids, indicadores, news_model, tematica_names')
-      .eq('id', plan.target_id)
-      .single()
-      .then(({ data }) => setLinkedTarget(data || null))
-  }, [plan?.target_id])
-
-  // ── Load linked achievement_indicator (new system) ──
+  // ── Load linked achievement_indicator ──
   useEffect(() => {
     if (!plan?.indicator_id) { setLinkedAchievementIndicator(null); return }
     supabase
@@ -483,11 +446,11 @@ export default function GuideEditorPage({ teacher }) {
       .then(({ data }) => setLinkedSyllabusTopics(data || []))
   }, [plan?.subject, plan?.grade, plan?.period, plan?.week_number, teacher.id])
 
-  // ── Load NEWS projects: direct pointer + indicator_id + legacy target_id ──
+  // ── Load NEWS projects: direct pointer + indicator_id ──
   useEffect(() => {
     if (!plan) return
-    const { target_id, indicator_id, news_project_id } = plan
-    if (!target_id && !indicator_id && !news_project_id) {
+    const { indicator_id, news_project_id } = plan
+    if (!indicator_id && !news_project_id) {
       setLinkedNewsProjects([]); return
     }
     const SELECT = 'id, title, subject, status, skill, news_model, indicator_id, actividades_evaluativas, biblical_principle, biblical_reflection, due_date, target_indicador, conditions, textbook_reference, competencias, operadores_intelectuales, habilidades'
@@ -505,23 +468,16 @@ export default function GuideEditorPage({ teacher }) {
         if (data) push([data])
       }
 
-      // Priority 1: indicator_id (new system)
+      // Priority 1: indicator_id
       if (indicator_id) {
         const { data } = await supabase.from('news_projects').select(SELECT)
           .eq('indicator_id', indicator_id).eq('school_id', teacher.school_id).limit(5)
         push(data)
       }
 
-      // Priority 2: target_id (legacy)
-      if (target_id) {
-        const { data } = await supabase.from('news_projects').select(SELECT)
-          .eq('target_id', target_id).eq('school_id', teacher.school_id).limit(10)
-        push(data)
-      }
-
       setLinkedNewsProjects(results)
     })()
-  }, [plan?.target_id, plan?.indicator_id, plan?.news_project_id, teacher.school_id])
+  }, [plan?.indicator_id, plan?.news_project_id, teacher.school_id])
 
   // ── Derive active NEWS project for this guide's date range ──
   // Priority 0: plan.news_project_id — set at guide creation, direct pointer
@@ -566,36 +522,15 @@ export default function GuideEditorPage({ teacher }) {
   }, [linkedNewsProjects, content?.days, plan?.news_project_id])
 
   // ── Derive the specific indicator for this guide ──
-  // Priority 0: direct achievement_indicator (new system — plan.indicator_id)
-  // Priority 1: Modelo B — matched from learning_targets.indicadores by skill
-  // Priority 2: Modelo A — synthetic from news_projects.target_indicador
+  // Direct link to achievement_indicators via plan.indicator_id
   const activeIndicator = useMemo(() => {
-    // New system: direct link to achievement_indicators
-    if (linkedAchievementIndicator) {
-      return {
-        texto_en:   linkedAchievementIndicator.text,
-        dimension:  linkedAchievementIndicator.dimension,
-        skill_area: linkedAchievementIndicator.skill_area,
-      }
+    if (!linkedAchievementIndicator) return null
+    return {
+      texto_en:   linkedAchievementIndicator.text,
+      dimension:  linkedAchievementIndicator.dimension,
+      skill_area: linkedAchievementIndicator.skill_area,
     }
-    // Legacy system via NEWS project + learning target
-    if (!activeNewsProject) return null
-    const subject = content?.info?.asignatura || ''
-    const isModeloB = linkedTarget?.news_model === 'language' || MODELO_B_SUBJECTS.includes(subject)
-    if (isModeloB) {
-      if (!activeNewsProject.skill || !linkedTarget?.indicadores) return null
-      return linkedTarget.indicadores.find(ind =>
-        typeof ind === 'object' &&
-        ind.habilidad?.toLowerCase() === activeNewsProject.skill.toLowerCase()
-      ) || null
-    } else {
-      if (!activeNewsProject.target_indicador) return null
-      return {
-        texto_en: activeNewsProject.target_indicador,
-        taxonomy: linkedTarget?.taxonomy || null,
-      }
-    }
-  }, [activeNewsProject, linkedTarget, linkedAchievementIndicator])
+  }, [linkedAchievementIndicator])
 
   // Auto-populate principio from indicator's principio_biblico (once, only if empty)
   // Fallback: use biblical_principle from the active NEWS project
@@ -1558,72 +1493,49 @@ export default function GuideEditorPage({ teacher }) {
                   )}
                 </div>
               ) : (
-                /* ── Legacy: LearningTargetSelector ── */
-                <>
-                  <LearningTargetSelector
-                    planId={id}
-                    subject={content.info.asignatura}
-                    grade={content.info.grado}
-                    period={parseInt(content.info.periodo) || 1}
-                    schoolId={teacher.school_id}
-                    teacherId={teacher.id}
-                    currentTargetId={plan?.target_id || null}
-                    onChange={(targetId, target) => {
-                      setPlan(prev => ({ ...prev, target_id: targetId }))
-                      if (target) {
-                        setContentField(['objetivo', 'general'], target.description || '')
-                        const inds = target.indicadores?.length
-                          ? target.indicadores.map(ind =>
-                              typeof ind === 'object'
-                                ? (ind.texto_en || ind.habilidad || '')
-                                : (ind || '')
-                            ).filter(Boolean)
-                          : []
-                        setContentField(['objetivo', 'indicadores'],
-                          inds.length ? inds : [`El estudiante demuestra este logro cuando: ${target.description || ''}`]
-                        )
-                      }
-                    }}
-                  />
-                  {plan?.target_id && (
-                    <div style={{ fontSize: '11px', color: '#888', margin: '-4px 0 4px', fontStyle: 'italic' }}>
-                      ↑ Al vincular un logro, los campos de abajo se llenan automáticamente.
-                    </div>
-                  )}
-                  <div style={{ margin: '0 0 8px' }}>
+                <div style={{ background: '#fffbea', border: '1px solid #f5c842', borderRadius: 8, padding: '12px 14px', marginBottom: 12 }}>
+                  <div style={{ fontSize: 12, color: '#7a5c00', marginBottom: 8 }}>
+                    ⚠️ Esta guía no tiene un indicador de logro vinculado.
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     <button
                       onClick={handleLoadRelinkOptions}
                       disabled={relinkLoading}
                       style={{ fontSize: 11, padding: '4px 12px', borderRadius: 4, border: '1px solid #b8e8c8', background: '#f0fff4', color: '#1A6B3A', cursor: 'pointer', fontWeight: 600 }}>
-                      {relinkLoading ? '…' : '🔄 Vincular al nuevo sistema de logros'}
+                      {relinkLoading ? '…' : '🔄 Vincular indicador'}
                     </button>
-                    {relinkOptions && (
-                      <div style={{ marginTop: 8, background: '#fff', border: '1px solid #d4edda', borderRadius: 6, overflow: 'hidden' }}>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: '#555', padding: '6px 10px', background: '#f8fffe', borderBottom: '1px solid #e8f5e9' }}>
-                          Selecciona el indicador correcto
-                        </div>
-                        {relinkOptions.map(ind => (
-                          <button key={ind.id}
-                            onClick={() => handleSelectRelinkIndicator(ind)}
-                            style={{ display: 'block', width: '100%', textAlign: 'left', padding: '7px 10px', border: 'none', borderBottom: '1px solid #f0f8f0', background: '#fff', cursor: 'pointer', fontSize: 11, color: '#1a1a2e', lineHeight: 1.4 }}
-                            onMouseOver={e => e.currentTarget.style.background = '#f0fff4'}
-                            onMouseOut={e => e.currentTarget.style.background = '#fff'}>
-                            <span style={{ fontSize: 9, fontWeight: 700, color: '#1A6B3A', marginRight: 6 }}>
-                              {{ speaking: '🎤', listening: '🎧', reading: '📖', writing: '✍️', cognitive: '🧠', procedural: '🛠️', attitudinal: '💫', general: '📋' }[ind.skill_area || ind.dimension] || '📋'}
-                              {' '}{ind.skill_area || ind.dimension || 'indicador'}
-                            </span>
-                            {ind.text}
-                          </button>
-                        ))}
-                        <button
-                          onClick={() => setRelinkOptions(null)}
-                          style={{ display: 'block', width: '100%', padding: '6px 10px', border: 'none', background: '#f8f8f8', color: '#888', cursor: 'pointer', fontSize: 10 }}>
-                          Cancelar
-                        </button>
-                      </div>
-                    )}
+                    <button
+                      onClick={() => navigate('/objectives')}
+                      style={{ fontSize: 11, padding: '4px 12px', borderRadius: 4, border: '1px solid #c5d5f0', background: '#fff', color: '#2E5598', cursor: 'pointer' }}>
+                      Ir a Objetivos →
+                    </button>
                   </div>
-                </>
+                  {relinkOptions && (
+                    <div style={{ marginTop: 8, background: '#fff', border: '1px solid #d4edda', borderRadius: 6, overflow: 'hidden' }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: '#555', padding: '6px 10px', background: '#f8fffe', borderBottom: '1px solid #e8f5e9' }}>
+                        Selecciona el indicador
+                      </div>
+                      {relinkOptions.map(ind => (
+                        <button key={ind.id}
+                          onClick={() => handleSelectRelinkIndicator(ind)}
+                          style={{ display: 'block', width: '100%', textAlign: 'left', padding: '7px 10px', border: 'none', borderBottom: '1px solid #f0f8f0', background: '#fff', cursor: 'pointer', fontSize: 11, color: '#1a1a2e', lineHeight: 1.4 }}
+                          onMouseOver={e => e.currentTarget.style.background = '#f0fff4'}
+                          onMouseOut={e => e.currentTarget.style.background = '#fff'}>
+                          <span style={{ fontSize: 9, fontWeight: 700, color: '#1A6B3A', marginRight: 6 }}>
+                            {{ speaking: '🎤', listening: '🎧', reading: '📖', writing: '✍️', cognitive: '🧠', procedural: '🛠️', attitudinal: '💫', general: '📋' }[ind.skill_area || ind.dimension] || '📋'}
+                            {' '}{ind.skill_area || ind.dimension || 'indicador'}
+                          </span>
+                          {ind.text}
+                        </button>
+                      ))}
+                      <button
+                        onClick={() => setRelinkOptions(null)}
+                        style={{ display: 'block', width: '100%', padding: '6px 10px', border: 'none', background: '#f8f8f8', color: '#888', cursor: 'pointer', fontSize: 10 }}>
+                        Cancelar
+                      </button>
+                    </div>
+                  )}
+                </div>
               )}
 
               {/* ── Syllabus topics for this week ── */}
@@ -1682,8 +1594,8 @@ export default function GuideEditorPage({ teacher }) {
                 })()}
                 <div style={{ fontSize: '11px', color: '#999', marginTop: '4px' }}>
                   Para editar los indicadores ve a{' '}
-                  <a href="#" onClick={e => { e.preventDefault(); navigate('/targets') }} style={{ color: '#2E5598' }}>
-                    Indicadores de Logro →
+                  <a href="#" onClick={e => { e.preventDefault(); navigate('/objectives') }} style={{ color: '#2E5598' }}>
+                    Objetivos →
                   </a>
                 </div>
               </div>
@@ -1737,7 +1649,6 @@ export default function GuideEditorPage({ teacher }) {
               grade={content.info.grado}
               subject={content.info.asignatura}
               objective={content.objetivo.general}
-              learningTarget={linkedTarget}
               principles={principles}
             />
           )}
@@ -1841,7 +1752,6 @@ export default function GuideEditorPage({ teacher }) {
           activeDays={activeDays}
           indicator={linkedAchievementIndicator}
           achievementGoal={linkedAchievementGoal}
-          learningTarget={linkedTarget}
           activeNewsProject={activeNewsProject}
           currentContent={contentRef.current}
           principles={principles}

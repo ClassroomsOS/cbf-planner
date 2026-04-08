@@ -21,7 +21,6 @@ export default function NewsPage({ teacher }) {
   const [editingProject, setEditingProject] = useState(null)
   const [filterSubject,     setFilterSubject]     = useState('')
   const [monthPrinciple,    setMonthPrinciple]    = useState(null)
-  const [hasTargets,        setHasTargets]        = useState(null)
   const [assignments,       setAssignments]       = useState([])
   const [duplicatingProject, setDuplicatingProject] = useState(null)
 
@@ -33,15 +32,6 @@ export default function NewsPage({ teacher }) {
       .eq('school_id', teacher.school_id)
       .then(({ data }) => setAssignments(data || []))
   }, [teacher.id])
-
-  // Check if there are any learning targets for this school (prerequisite for NEWS)
-  useEffect(() => {
-    supabase
-      .from('learning_targets')
-      .select('id', { count: 'exact', head: true })
-      .eq('school_id', teacher.school_id)
-      .then(({ count }) => setHasTargets(count > 0))
-  }, [teacher.school_id])
 
   useEffect(() => {
     // Load principles based on project start_date (if editing) or current month (if new)
@@ -184,31 +174,10 @@ export default function NewsPage({ teacher }) {
         </div>
         <button
           onClick={handleNew}
-          disabled={!hasTargets}
-          title={!hasTargets ? 'Primero debes crear los Indicadores de Logro' : ''}
-          style={{ ...styles.btnPrimary, ...(!hasTargets ? { opacity: 0.45, cursor: 'not-allowed' } : {}) }}>
+          style={styles.btnPrimary}>
           + Nuevo Proyecto NEWS
         </button>
       </div>
-
-      {hasTargets === false && (
-        <div style={{
-          background: '#fff8e1', border: '1px solid #f5c842', borderRadius: 10,
-          padding: '14px 18px', marginBottom: 24, display: 'flex', gap: 12, alignItems: 'flex-start'
-        }}>
-          <span style={{ fontSize: 22 }}>🎯</span>
-          <div>
-            <div style={{ fontWeight: 800, fontSize: 14, color: '#7a5c00', marginBottom: 4 }}>
-              Paso previo requerido: Indicadores de Logro
-            </div>
-            <div style={{ fontSize: 13, color: '#7a5c00', lineHeight: 1.6 }}>
-              Antes de crear proyectos NEWS debes definir los <strong>Indicadores de Logro</strong> del período.
-              Los proyectos NEWS se generan automáticamente al crear cada indicador.
-              <br />Ve a <strong>🎯 Indicadores de Logro</strong> en el menú lateral para comenzar.
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Period tabs + filters */}
       <div style={{

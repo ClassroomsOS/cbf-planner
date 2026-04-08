@@ -7,7 +7,7 @@ import { MODELO_B_SUBJECTS } from '../utils/constants'
 // ══════════════════════════════════════════════════════════════
 // PUNTO 1 — AISuggestButton (inline en cada sección)
 // ══════════════════════════════════════════════════════════════
-export const AISuggestButton = memo(function AISuggestButton({ section, grade, subject, objective, unit, dayName, existingContent, onInsert, learningTarget, principles }) {
+export const AISuggestButton = memo(function AISuggestButton({ section, grade, subject, objective, unit, dayName, existingContent, onInsert, principles }) {
   const { showToast } = useToast()
   const [loading,     setLoading]     = useState(false)
   const [suggestion,  setSuggestion]  = useState(null)
@@ -18,7 +18,7 @@ export const AISuggestButton = memo(function AISuggestButton({ section, grade, s
     setLoading(true); setError(null); setSuggestion(null); setOpen(true)
     try {
       const result = await suggestSectionActivity({
-        section, grade, subject, objective, unit, dayName, existingContent, learningTarget, principles
+        section, grade, subject, objective, unit, dayName, existingContent, principles
       })
       setSuggestion(result)
     } catch (e) {
@@ -27,7 +27,7 @@ export const AISuggestButton = memo(function AISuggestButton({ section, grade, s
       showToast(errorMsg, 'error')
     }
     setLoading(false)
-  }, [section, grade, subject, objective, unit, dayName, existingContent, learningTarget, principles, showToast])
+  }, [section, grade, subject, objective, unit, dayName, existingContent, principles, showToast])
 
   const handleInsert = useCallback(() => {
     if (suggestion) {
@@ -218,10 +218,10 @@ export const AIAnalyzerModal = memo(function AIAnalyzerModal({ content, onClose,
 const SKILL_COLORS = { Speaking: '#8064A2', Listening: '#4BACC6', Reading: '#F79646', Writing: '#9BBB59' }
 const SKILL_ICONS  = { Speaking: '🎤', Listening: '🎧', Reading: '📖', Writing: '✍️' }
 
-export const AIGeneratorModal = memo(function AIGeneratorModal({ grade, subject, period, activeDays, currentContent, onApply, onClose, learningTarget, achievementGoal, activeIndicator, activeNewsProject, principles }) {
+export const AIGeneratorModal = memo(function AIGeneratorModal({ grade, subject, period, activeDays, currentContent, onApply, onClose, achievementGoal, activeIndicator, activeNewsProject, principles }) {
   const { showToast } = useToast()
 
-  const isModeloB = learningTarget?.news_model === 'language' || MODELO_B_SUBJECTS.includes(subject)
+  const isModeloB = MODELO_B_SUBJECTS.includes(subject)
   const [selectedSkill,   setSelectedSkill]   = useState(activeIndicator?.habilidad || null)
   const [unit,            setUnit]            = useState('')
   const [loading,   setLoading]   = useState(false)
@@ -270,18 +270,15 @@ export const AIGeneratorModal = memo(function AIGeneratorModal({ grade, subject,
   }
 
   const handleGenerate = useCallback(async () => {
-    // Derive objective from the source of truth — never from editable user input
-    const resolvedInd = activeIndicator || (selectedSkill
-      ? (learningTarget?.indicadores || []).find(i => typeof i === 'object' && i.habilidad?.toLowerCase() === selectedSkill.toLowerCase())
-      : null)
-    const objective = resolvedInd
-      ? (resolvedInd.texto_en || resolvedInd.habilidad || '')
-      : (learningTarget?.description || '')
+    // Derive objective from activeIndicator or achievementGoal
+    const objective = activeIndicator
+      ? (activeIndicator.texto_en || activeIndicator.habilidad || '')
+      : (achievementGoal?.text || '')
     if (!objective.trim()) return
     setLoading(true); setError(null); setPreview(null)
     try {
       const result = await generateGuideStructure({
-        grade, subject, period, objective, unit, activeDays, learningTarget, achievementGoal, activeNewsProject, principles
+        grade, subject, period, objective, unit, activeDays, achievementGoal, activeNewsProject, principles
       })
       setPreview(result)
     } catch (e) {
@@ -290,7 +287,7 @@ export const AIGeneratorModal = memo(function AIGeneratorModal({ grade, subject,
       showToast(errorMsg, 'error')
     }
     setLoading(false)
-  }, [grade, subject, period, unit, activeDays, activeIndicator, selectedSkill, learningTarget, principles, showToast])
+  }, [grade, subject, period, unit, activeDays, activeIndicator, achievementGoal, principles, showToast])
 
   const handleApply = useCallback(() => {
     if (!preview) return
@@ -301,7 +298,7 @@ export const AIGeneratorModal = memo(function AIGeneratorModal({ grade, subject,
       return
     }
     // GuideEditorPage: merge preview into existing content
-    // objetivo.general e indicadores NO se sobreescriben — vienen de learning_targets (read-only)
+    // objetivo.general e indicadores NO se sobreescriben — vienen de achievement_indicators (read-only)
     var base = JSON.parse(JSON.stringify(currentContent))
     if (preview.days) {
       var dKeys = Object.keys(preview.days)
@@ -345,8 +342,8 @@ export const AIGeneratorModal = memo(function AIGeneratorModal({ grade, subject,
         <div className="sb-modal-body">
           {!preview && (
             <>
-              {/* Sin ningún indicador (ni nuevo ni legacy): bloqueado */}
-              {!learningTarget && !activeIndicator && !achievementGoal ? (
+              {/* Sin ningún indicador vinculado: bloqueado */}
+              {!activeIndicator && !achievementGoal ? (
                 <div style={{ background: '#fff8e1', border: '1px solid #f5c842', borderRadius: '8px', padding: '14px 16px', fontSize: '13px', color: '#7a5c00', lineHeight: 1.6 }}>
                   <div style={{ fontWeight: 700, marginBottom: '6px' }}>⚠️ No hay un Indicador de Logro vinculado</div>
                   La IA necesita el indicador para generar contenido alineado. Ve al panel <strong>1 · Indicador</strong> (barra izquierda) y vincula el indicador antes de generar.
@@ -358,8 +355,8 @@ export const AIGeneratorModal = memo(function AIGeneratorModal({ grade, subject,
                 </div>
               )}
 
-              {/* Resto del formulario si hay indicador (nuevo o legacy) */}
-              {(learningTarget || activeIndicator || achievementGoal) && <>
+              {/* Formulario si hay indicador */}
+              {(activeIndicator || achievementGoal) && <>
 
               {/* Modelo B sin indicador auto-detectado: selector de skill */}
               {isModeloB && !activeIndicator && (
@@ -369,10 +366,11 @@ export const AIGeneratorModal = memo(function AIGeneratorModal({ grade, subject,
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     {['Speaking', 'Listening', 'Reading', 'Writing'].map(skill => {
-                      const ind = (learningTarget?.indicadores || []).find(
-                        i => typeof i === 'object' && i.habilidad?.toLowerCase() === skill.toLowerCase()
-                      )
                       const isActive = selectedSkill === skill
+                      // Find indicator text from achievementGoal if available
+                      const ind = (achievementGoal?.indicators || []).find(
+                        i => i.skill_area?.toLowerCase() === skill.toLowerCase()
+                      )
                       return (
                         <button
                           key={skill}
@@ -389,9 +387,9 @@ export const AIGeneratorModal = memo(function AIGeneratorModal({ grade, subject,
                           <span style={{ color: isActive ? '#fff' : SKILL_COLORS[skill] }}>
                             {SKILL_ICONS[skill]} {skill}
                           </span>
-                          {ind?.texto_en && (
+                          {ind?.text && (
                             <span style={{ fontSize: '11px', fontWeight: 400, opacity: 0.85, lineHeight: 1.4 }}>
-                              {ind.texto_en}
+                              {ind.text}
                             </span>
                           )}
                         </button>
@@ -401,37 +399,24 @@ export const AIGeneratorModal = memo(function AIGeneratorModal({ grade, subject,
                 </div>
               )}
 
-              {/* Indicador resuelto (auto-detectado o seleccionado manualmente) */}
-              {(() => {
-                const resolved = activeIndicator || (selectedSkill
-                  ? (learningTarget?.indicadores || []).find(i => typeof i === 'object' && i.habilidad?.toLowerCase() === selectedSkill.toLowerCase())
-                  : null)
-                const fallbackDesc = !isModeloB && learningTarget?.description
-                if (!resolved && !fallbackDesc) return null
-                const tax = resolved?.taxonomy || learningTarget?.taxonomy
-                const taxLabel = tax === 'recognize' ? '👁️ Reconocer' : tax === 'apply' ? '🛠️ Aplicar' : '✨ Producir'
-                const skillColor = resolved ? (SKILL_COLORS[resolved.habilidad] || '#2d7a2d') : '#2d7a2d'
-                return (
-                  <div style={{
-                    background: '#f0f7f0', border: `1px solid ${skillColor}40`, borderRadius: '8px',
-                    padding: '12px 14px', marginBottom: '16px',
-                    display: 'flex', alignItems: 'flex-start', gap: '10px',
-                  }}>
-                    <span style={{ fontSize: '18px' }}>{resolved ? (SKILL_ICONS[resolved.habilidad] || '🎯') : '🎯'}</span>
-                    <div>
-                      <div style={{ fontSize: '11px', fontWeight: 700, color: skillColor, marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                        {resolved?.habilidad ? `Indicador — ${resolved.habilidad}` : 'Indicador de logro vinculado'}
-                      </div>
-                      <div style={{ fontSize: '13px', color: '#1a5c1a', lineHeight: 1.5 }}>
-                        {resolved ? (resolved.texto_en || resolved.habilidad) : fallbackDesc}
-                      </div>
-                      <div style={{ fontSize: '11px', color: '#888', marginTop: '4px' }}>
-                        Nivel: {taxLabel} — El AI generará contenido alineado a este indicador.
-                      </div>
+              {/* Indicador activo */}
+              {activeIndicator && (
+                <div style={{
+                  background: '#f0f7f0', border: '1px solid #2d7a2d40', borderRadius: '8px',
+                  padding: '12px 14px', marginBottom: '16px',
+                  display: 'flex', alignItems: 'flex-start', gap: '10px',
+                }}>
+                  <span style={{ fontSize: '18px' }}>{SKILL_ICONS[activeIndicator.skill_area] || '🎯'}</span>
+                  <div>
+                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#2d7a2d', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      {activeIndicator.skill_area ? `Indicador — ${activeIndicator.skill_area}` : 'Indicador de logro vinculado'}
+                    </div>
+                    <div style={{ fontSize: '13px', color: '#1a5c1a', lineHeight: 1.5 }}>
+                      {activeIndicator.texto_en || activeIndicator.habilidad}
                     </div>
                   </div>
-                )
-              })()}
+                </div>
+              )}
 
               <div className="ge-field">
                 <label>📖 Unidad / Tema / Libro (opcional)</label>

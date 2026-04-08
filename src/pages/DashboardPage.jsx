@@ -11,7 +11,6 @@ import GuideEditorPage     from './GuideEditorPage'
 import MessagesPage        from './MessagesPage'
 import SettingsPage        from './SettingsPage'
 import SuperAdminPage      from './SuperAdminPage'
-import LearningTargetsPage      from './LearningTargetsPage'
 import ObjectivesPage           from './ObjectivesPage'
 import SyllabusPage             from './SyllabusPage'
 import NewsPage                 from './NewsPage'
@@ -375,7 +374,6 @@ function DashboardInner({ session, teacher, setTeacher }) {
           <Route path="/plans"       element={<MyPlansPage          teacher={teacher} />} />
           <Route path="/editor/:id"  element={<GuideEditorPage      teacher={teacher} />} />
           <Route path="/news"        element={<NewsPage             teacher={teacher} />} />
-          <Route path="/targets"     element={<LearningTargetsPage  teacher={teacher} />} />
           <Route path="/objectives"  element={<ObjectivesPage      teacher={teacher} />} />
           <Route path="/syllabus"    element={<SyllabusPage        teacher={teacher} />} />
           <Route path="/principles"  element={<PrinciplesPage       teacher={teacher} />} />

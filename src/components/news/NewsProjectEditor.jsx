@@ -6,7 +6,6 @@ import { useFocusTrap } from '../../hooks/useFocusTrap'
 import { generateRubric } from '../../utils/AIAssistant'
 import { exportRubricHtml } from '../../utils/exportRubricHtml'
 import { MODELO_B_SUBJECTS } from '../../utils/constants'
-import { getIndText } from '../../pages/LearningTargetsPage'
 import ImageUploader from '../ImageUploader'
 
 const MODELO_B_COMPETENCIAS = ['Sociolingüística', 'Lingüística', 'Pragmática', 'Intercultural']
@@ -57,7 +56,6 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
     due_date: '',
     status: 'draft',
     sequence: 1,
-    target_id: null,
     target_indicador: '',
     indicator_id: null,
     news_model: 'standard',
@@ -75,7 +73,6 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
   const [activeStep, setActiveStep] = useState('identify')
   const [principlesExpanded, setPrinciplesExpanded] = useState(false)
   const [tagInput, setTagInput] = useState({ grammar: '', vocabulary: '', units: '' })
-  const [showTargetSelector, setShowTargetSelector] = useState(false)
   const [newActividad, setNewActividad] = useState({ nombre: '', descripcion: '', porcentaje: '', fecha: '' })
   const [holidays, setHolidays] = useState({}) // { 'YYYY-MM-DD': { name } }
 
@@ -96,7 +93,6 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
 
   // ── Load teacher assignments for smart dropdowns ──
   const [assignments, setAssignments] = useState([])
-  const [learningTargets, setLearningTargets] = useState([])
   const [achievementIndicators, setAchievementIndicators] = useState([])
 
   useEffect(() => {
@@ -151,31 +147,6 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
       )
     })()
   }, [form.subject, form.grade, form.section, form.period, teacher.school_id])
-
-  // ── Load learning targets when subject/grade/period change (legacy fallback) ──
-  useEffect(() => {
-    if (!form.subject || !form.grade || !form.period) {
-      setLearningTargets([])
-      return
-    }
-    supabase
-      .from('learning_targets')
-      .select('id, description, taxonomy, grade, group_name, indicadores')
-      .eq('school_id', teacher.school_id)
-      .eq('subject', form.subject)
-      .or('is_active.eq.true,is_active.is.null')
-      .then(({ data }) => {
-        const filtered = (data || []).filter(t => {
-          if (t.grade === form.grade) return true
-          if (form.grade.startsWith(t.grade)) {
-            if (t.group_name) return form.grade.includes(t.group_name)
-            return true
-          }
-          return false
-        })
-        setLearningTargets(filtered)
-      })
-  }, [form.subject, form.grade, form.period, teacher.school_id])
 
   // ── Sync target_indicador + auto-select rubric template when indicator_id or indicators change ──
   useEffect(() => {
@@ -255,7 +226,6 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
         due_date: project.due_date || '',
         status: project.status || 'draft',
         sequence: project.sequence || 1,
-        target_id: project.target_id || null,
         target_indicador: project.target_indicador || '',
         indicator_id: project.indicator_id || null,
         news_model: project.news_model || (MODELO_B_SUBJECTS.includes(project.subject) ? 'language' : 'standard'),
@@ -367,15 +337,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
     setGeneratingRubric(true)
     try {
       // Nuevo sistema: usar achievement_indicators del goal
-      // Legacy: usar indicadores[] del learning_target
-      let indicadoresTexto = []
-      if (achievementIndicators.length > 0) {
-        indicadoresTexto = achievementIndicators.map(i => i.text).filter(Boolean)
-      } else {
-        const selectedTarget = learningTargets.find(t => t.id === form.target_id)
-        const rawInds = selectedTarget?.indicadores || []
-        indicadoresTexto = rawInds.map(i => getIndText(i)).filter(Boolean)
-      }
+      const indicadoresTexto = achievementIndicators.map(i => i.text).filter(Boolean)
       const result = await generateRubric({
         projectTitle: form.title,
         projectDescription: form.description || achievementIndicators[0]?._goalText || '',
@@ -427,7 +389,6 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
       due_date: form.due_date,
       status: form.status,
       sequence: form.sequence,
-      target_id: form.target_id,
       target_indicador: form.target_indicador.trim() || null,
       indicator_id: form.indicator_id,
       news_model: form.news_model,
@@ -456,7 +417,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
       },
       {
         key: 'logro', icon: '🎯', label: 'Indicador',
-        isDone: !!(form.indicator_id || form.target_id)
+        isDone: !!form.indicator_id
       },
       ...(form.news_model === 'language' ? [{
         key: 'marco', icon: '🌐', label: 'Marco',
@@ -490,7 +451,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
       },
     ]
     return base
-  }, [form.subject, form.grade, form.section, form.indicator_id, form.target_id, form.news_model,
+  }, [form.subject, form.grade, form.section, form.indicator_id, form.news_model,
       form.habilidades.length, form.title, form.description, form.due_date,
       form.textbook_reference?.book, form.actividades_evaluativas.length, form.rubric.length])
 
@@ -901,93 +862,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
                           </div>
                         </>
                       )
-                    })() : learningTargets.length > 0 ? (
-                      /* ── Sin indicadores nuevos pero hay targets legacy → mostrar directamente ── */
-                      <div>
-                        <div style={{ fontSize: 10, color: '#4a7c1f', background: '#f0fff0', borderRadius: 6, padding: '6px 10px', marginBottom: 10, border: '1px solid #c5e0c5' }}>
-                          Indicadores de logro creados anteriormente · {form.subject} · {form.grade} · Período {form.period}
-                        </div>
-                        {form.target_id && !showTargetSelector && (() => {
-                          const selectedTarget = learningTargets.find(t => t.id === form.target_id)
-                          if (!selectedTarget) return null
-                          const TAXONOMY_EMOJI = { recognize: '👁️', apply: '🛠️', produce: '✨' }
-                          return (
-                            <div style={{ background: '#fff', borderRadius: 6, padding: '8px 10px', border: '1px solid #E8F0E8', marginBottom: 10 }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                                <span style={{ fontSize: 14 }}>{TAXONOMY_EMOJI[selectedTarget.taxonomy]}</span>
-                                <div style={{ fontSize: 12, color: '#1a1a2e', lineHeight: 1.4 }}>{selectedTarget.description}</div>
-                              </div>
-                              <button onClick={() => setShowTargetSelector(true)} style={{ fontSize: 10, padding: '4px 8px', borderRadius: 4, border: '1px solid #9BBB59', background: 'transparent', color: '#5a8a00', cursor: 'pointer', fontWeight: 600 }}>
-                                Cambiar
-                              </button>
-                            </div>
-                          )
-                        })()}
-
-                        {(!form.target_id || showTargetSelector) && (
-                          <div style={{ marginBottom: 10 }}>
-                            {!form.subject || !form.grade ? (
-                              <div style={{ fontSize: 10, color: '#999', fontStyle: 'italic' }}>Selecciona primero Materia y Grado (paso Identificación).</div>
-                            ) : learningTargets.length === 0 ? null : (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
-                                <div style={{ fontSize: 9, fontWeight: 700, color: '#5a8a00', marginBottom: 2, textTransform: 'uppercase', letterSpacing: '0.3px' }}>
-                                  Selecciona el indicador de logro (sistema anterior):
-                                </div>
-                                {learningTargets.map(t => {
-                                  const TAXONOMY_EMOJI = { recognize: '👁️', apply: '🛠️', produce: '✨' }
-                                  return (
-                                    <button key={t.id} onClick={() => { updateForm('target_id', t.id); updateForm('target_indicador', ''); setShowTargetSelector(false) }}
-                                      style={{ padding: '8px', borderRadius: 5, textAlign: 'left', border: form.target_id === t.id ? '2px solid #9BBB59' : '1px solid #ddd', background: form.target_id === t.id ? '#f6fff0' : '#fff', cursor: 'pointer', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                                      <span style={{ fontSize: 14, flexShrink: 0 }}>{TAXONOMY_EMOJI[t.taxonomy]}</span>
-                                      <div style={{ flex: 1, minWidth: 0 }}>
-                                        <div style={{ fontSize: 11, color: '#1a1a2e', lineHeight: 1.3 }}>{t.description}</div>
-                                        {t.group_name && <div style={{ fontSize: 9, color: '#888', marginTop: 4 }}>Grupo: {t.group_name}</div>}
-                                      </div>
-                                    </button>
-                                  )
-                                })}
-                              </div>
-                            )}
-                            {showTargetSelector && (
-                              <button onClick={() => setShowTargetSelector(false)} style={{ fontSize: 10, padding: '6px 10px', borderRadius: 4, border: '1px solid #ddd', background: '#fff', color: '#666', cursor: 'pointer', marginTop: 8 }}>
-                                Cancelar
-                              </button>
-                            )}
-                          </div>
-                        )}
-
-                        {form.target_id && !showTargetSelector && (() => {
-                          const selectedTarget = learningTargets.find(t => t.id === form.target_id)
-                          const indicadores = selectedTarget?.indicadores || []
-                          if (indicadores.length === 0) return null
-                          return (
-                            <div>
-                              <div style={{ fontSize: 9, fontWeight: 700, color: '#1A5C1A', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.3px' }}>📌 Indicador que este proyecto demuestra:</div>
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
-                                {indicadores.map((ind, idx) => {
-                                  const indText   = getIndText(ind)
-                                  const isObj     = typeof ind === 'object' && ind !== null
-                                  const habilidad = isObj ? ind.habilidad : null
-                                  const HICONS    = { Speaking: '🎤', Listening: '🎧', Reading: '📖', Writing: '✍️' }
-                                  const isSelected = form.target_indicador === indText
-                                  return (
-                                    <button key={idx} onClick={() => updateForm('target_indicador', indText)}
-                                      style={{ padding: '8px', borderRadius: 5, textAlign: 'left', border: isSelected ? '2px solid #9BBB59' : '1px solid #ddd', background: isSelected ? '#f6fff0' : '#fafafa', cursor: 'pointer', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                                      <div style={{ flex: 1, minWidth: 0 }}>
-                                        <div style={{ fontSize: 9, fontWeight: 700, color: '#5a8a00', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.2px' }}>
-                                          {habilidad ? `${HICONS[habilidad] || ''} ${habilidad}` : `Indicador ${idx + 1}`}
-                                        </div>
-                                        <div style={{ fontSize: 11, color: '#1a1a2e', lineHeight: 1.3 }}>{indText}</div>
-                                      </div>
-                                    </button>
-                                  )
-                                })}
-                              </div>
-                            </div>
-                          )
-                        })()}
-                      </div>
-                    ) : (
+                    })() : (
                       /* ── Sin indicadores en ningún sistema → aviso ── */
                       <div style={{ padding: '16px', borderRadius: 10, background: '#FFF8EC', border: '1px solid #F79646' }}>
                         <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 12 }}>

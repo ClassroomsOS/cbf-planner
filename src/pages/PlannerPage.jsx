@@ -50,10 +50,8 @@ export default function PlannerPage({ teacher }) {
 
   // ── Checkpoint state ──
   const [checkpointData, setCheckpointData] = useState(null)
-  // checkpointData = { previousPlan, target, pendingAction } | null
-  // ── Active learning target for this grade/subject ──
-  const [activeTarget, setActiveTarget] = useState(null)
-  // ── Active achievement_goal + indicators for this grade/subject/period (new system) ──
+  // checkpointData = { previousPlan, indicator, pendingAction } | null
+  // ── Active achievement_goal + indicators for this grade/subject/period ──
   const [activeAchievementGoal, setActiveAchievementGoal] = useState(null)
   // ── Whether any NEWS projects exist for this grade+subject ──
   const [hasNews, setHasNews] = useState(null) // null = not checked yet
@@ -77,33 +75,7 @@ export default function PlannerPage({ teacher }) {
       .then(({ data }) => { if (data) setMonthPrinciple(data) })
   }, [teacher.school_id])
 
-  // Fetch active target when grade/subject change
-  useEffect(() => {
-    if (!grade || !subject) { setActiveTarget(null); return }
-    async function fetchTarget() {
-      const { data } = await supabase
-        .from('learning_targets')
-        .select('id, description, taxonomy, grade, group_name, indicadores, news_model')
-        .eq('school_id', teacher.school_id)
-        .eq('subject', subject)
-        .eq('is_active', true)
-        .order('created_at', { ascending: false })
-
-      // Flexible grade match (same logic as LearningTargetSelector)
-      const match = (data || []).find(t => {
-        if (t.grade === grade) return true
-        if (grade.startsWith(t.grade)) {
-          if (t.group_name) return grade.includes(t.group_name)
-          return true
-        }
-        return false
-      })
-      setActiveTarget(match || null)
-    }
-    fetchTarget()
-  }, [grade, subject])
-
-  // Fetch active achievement_goal + indicators for subject/grade/period (new system)
+  // Fetch active achievement_goal + indicators for subject/grade/period
   useEffect(() => {
     if (!grade || !subject || !period) { setActiveAchievementGoal(null); return }
     const p = parseInt(period) || 1
@@ -191,14 +163,6 @@ export default function PlannerPage({ teacher }) {
     return withSkill[0] || plannerNewsProjects[0] || null
   }, [plannerNewsProjects, monday, weekCount])
 
-  const plannerActiveIndicator = useMemo(() => {
-    if (!plannerActiveNewsProject || !activeTarget) return null
-    return (activeTarget.indicadores || []).find(
-      i => typeof i === 'object' &&
-           i.habilidad?.toLowerCase() === plannerActiveNewsProject.skill?.toLowerCase()
-    ) || null
-  }, [plannerActiveNewsProject, activeTarget])
-
   // Fetch existing plan for current grade/subject/week selection
   useEffect(() => {
     if (!grade || !subject) { setExistingPlan(null); return }
@@ -274,62 +238,37 @@ export default function PlannerPage({ teacher }) {
     const prevWeek = weekNumber - 1
     if (prevWeek < 1) return null
 
-    // Find previous week's plan for the same grade/subject (supports both systems)
+    // Find previous week's plan with an indicator linked
     const { data: prevPlan } = await supabase
       .from('lesson_plans')
-      .select('id, week_number, grade, subject, section, target_id, indicator_id')
+      .select('id, week_number, grade, subject, section, indicator_id')
       .eq('teacher_id', teacher.id)
       .eq('grade', grade)
       .eq('subject', subject)
       .eq('week_number', prevWeek)
-      .or('target_id.not.is.null,indicator_id.not.is.null')
+      .not('indicator_id', 'is', null)
       .maybeSingle()
 
     if (!prevPlan) return null
 
-    // Check if checkpoint already exists (try indicator_id first, fallback to target_id)
-    let existingCheckpoint = null
-    if (prevPlan.indicator_id) {
-      const { data } = await supabase.from('checkpoints').select('id')
-        .eq('indicator_id', prevPlan.indicator_id)
-        .eq('teacher_id', teacher.id)
-        .eq('week_number', prevWeek)
-        .maybeSingle()
-      existingCheckpoint = data
-    } else if (prevPlan.target_id) {
-      const { data } = await supabase.from('checkpoints').select('id')
-        .eq('target_id', prevPlan.target_id)
-        .eq('teacher_id', teacher.id)
-        .eq('week_number', prevWeek)
-        .maybeSingle()
-      existingCheckpoint = data
-    }
+    // Check if checkpoint already exists
+    const { data: existingCheckpoint } = await supabase.from('checkpoints').select('id')
+      .eq('indicator_id', prevPlan.indicator_id)
+      .eq('teacher_id', teacher.id)
+      .eq('week_number', prevWeek)
+      .maybeSingle()
 
     if (existingCheckpoint) return null
 
-    // Fetch indicator (new system) or target (legacy)
-    let indicator = null
-    let target = null
+    const { data: indicator } = await supabase
+      .from('achievement_indicators')
+      .select('id, text, dimension, skill_area')
+      .eq('id', prevPlan.indicator_id)
+      .single()
 
-    if (prevPlan.indicator_id) {
-      const { data } = await supabase
-        .from('achievement_indicators')
-        .select('id, text, dimension, skill_area')
-        .eq('id', prevPlan.indicator_id)
-        .single()
-      indicator = data
-    } else if (prevPlan.target_id) {
-      const { data } = await supabase
-        .from('learning_targets')
-        .select('id, description, taxonomy')
-        .eq('id', prevPlan.target_id)
-        .single()
-      target = data
-    }
+    if (!indicator) return null
 
-    if (!indicator && !target) return null
-
-    return { previousPlan: prevPlan, indicator, target, pendingAction: action }
+    return { previousPlan: prevPlan, indicator, pendingAction: action }
   }
 
   // ── Core guide creation / navigation ──
@@ -368,7 +307,6 @@ export default function PlannerPage({ teacher }) {
         date_range:       dateRange,
         status:           'draft',
         content:          {},
-        target_id:        activeTarget?.id || null,
         indicator_id:     plannerActiveNewsProject?.indicator_id || activeAchievementGoal?.indicators?.[0]?.id || null,
         news_project_id:  plannerActiveNewsProject?.id || null,
       })
@@ -474,22 +412,6 @@ export default function PlannerPage({ teacher }) {
               </div>
             </div>
           )}
-          {/* Logro vinculado — sistema legacy (learning_targets) */}
-          {!activeAchievementGoal && activeTarget && grade && subject && (
-            <div className="planner-linked-target">
-              <span className="plt-icon">🎯</span>
-              <div className="plt-content">
-                <div className="plt-label">Logro de desempeño vinculado</div>
-                <div className="plt-text">{activeTarget.description}</div>
-              </div>
-              <span className="plt-tax">
-                {activeTarget.taxonomy === 'recognize' ? '👁 Reconocer'
-                  : activeTarget.taxonomy === 'apply' ? '🛠 Aplicar'
-                  : '✨ Producir'}
-              </span>
-            </div>
-          )}
-
           {/* Hitos NEWS esta semana */}
           {weeklyNewsHitos.length > 0 && (
             <div className="planner-news-hitos">
@@ -690,11 +612,10 @@ export default function PlannerPage({ teacher }) {
           subject={subject}
           period={period}
           activeDays={activeDays.map(d => toISO(d))}
-          learningTarget={activeTarget}
           achievementGoal={activeAchievementGoal}
-          activeIndicator={plannerActiveIndicator || (activeAchievementGoal?.indicators?.[0]
+          activeIndicator={activeAchievementGoal?.indicators?.[0]
             ? { texto_en: activeAchievementGoal.indicators[0].text, dimension: activeAchievementGoal.indicators[0].dimension, skill_area: activeAchievementGoal.indicators[0].skill_area }
-            : null)}
+            : null}
           principles={{
             yearVerse:          { text: school.year_verse || '', ref: school.year_verse_ref || '' },
             monthVerse:         { text: monthPrinciple?.month_verse || '', ref: monthPrinciple?.month_verse_ref || '' },
@@ -734,7 +655,6 @@ export default function PlannerPage({ teacher }) {
                   date_range:       dateRange,
                   status:           'draft',
                   content:          {},
-                  target_id:        activeTarget?.id || null,
                   indicator_id:     plannerActiveNewsProject?.indicator_id || null,
                   news_project_id:  plannerActiveNewsProject?.id || null,
                 })
@@ -807,7 +727,6 @@ export default function PlannerPage({ teacher }) {
       {checkpointData && (
         <CheckpointModal
           previousPlan={checkpointData.previousPlan}
-          target={checkpointData.target}
           indicator={checkpointData.indicator}
           teacher={teacher}
           onComplete={() => {

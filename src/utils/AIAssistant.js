@@ -166,7 +166,7 @@ ${specificInstruction}`
 
 // ── Punto 1: Sugerir actividad para una sección ───────────────────────────────
 export async function suggestSectionActivity({
-  section, grade, subject, objective, unit, dayName, existingContent, planId, learningTarget, principles
+  section, grade, subject, objective, unit, dayName, existingContent, planId, principles
 }) {
   const SECTION_LIMITS = {
     'SUBJECT TO BE WORKED': '1 oración. Enuncia el tema o habilidad del día.',
@@ -185,10 +185,6 @@ Generas sugerencias de actividades para guías de aprendizaje autónomo (CBF).
 Respondes SIEMPRE en español, con actividades concretas, prácticas y apropiadas para el nivel.
 Formato: texto corrido, listo para pegar en la guía. Sin listas, sin viñetas, sin markdown.
 LÍMITE ESTRICTO para esta sección: ${limit}
-${learningTarget ? `
-IMPORTANTE: Esta guía tiene un OBJETIVO DE DESEMPEÑO vinculado. Tu sugerencia DEBE estar alineada
-a este desempeño observable. No generes actividades genéricas — genera actividades que lleven
-al estudiante a demostrar este desempeño específico.` : ''}
 ${biblicalBlock(principles, isClosing
   ? 'La sección CLOSING SIEMPRE debe cerrar con una pregunta o reflexión que conecte lo aprendido con este principio bíblico. Es el momento de integración fe-aprendizaje.'
   : 'Ten presente este principio al diseñar la actividad. Cuando sea natural y auténtico, intégralo. No lo fuerces artificialmente, pero nunca lo ignores.'
@@ -203,7 +199,6 @@ ${biblicalBlock(principles, isClosing
   const safeUnit = sanitizeAIInput(unit || '')
   const safeObjective = sanitizeAIInput(objective || '')
   const safeExisting = existingContent ? sanitizeAIInput(existingContent.replace(/<[^>]+>/g,' ').slice(0,200)) : ''
-  const safeLTDesc = learningTarget?.description ? sanitizeAIInput(learningTarget.description) : ''
 
   const message = `Estoy escribiendo la sección "${section.label}" de una guía de aprendizaje.
 
@@ -214,11 +209,6 @@ Contexto:
 - Unidad/Tema: ${safeUnit || 'No especificado'}
 - Objetivo de la semana: ${safeObjective || 'No especificado'}
 - Tiempo estimado de esta sección: ${section.time}
-${learningTarget ? `
-🎯 OBJETIVO DE DESEMPEÑO VINCULADO:
-- Desempeño: ${safeLTDesc}
-- Nivel taxonómico: ${TAXONOMY_DESC[learningTarget.taxonomy] || learningTarget.taxonomy}
-- La actividad debe contribuir directamente a que el estudiante logre este desempeño.` : ''}
 ${existingContent ? `- Lo que ya tengo escrito: "${safeExisting}"` : ''}
 
 Sugiere una actividad para "${section.label}". Respeta el límite: ${limit}`
@@ -229,10 +219,8 @@ Sugiere una actividad para "${section.label}". Respeta el límite: ${limit}`
 // ── Punto 1b: Sugerir SmartBlock para una sección ────────────────────────────
 export async function suggestSmartBlock({
   sectionMeta, grade, subject, objective, unit, dayName,
-  existingContent, existingBlocks, learningTarget, planId, principles
+  existingContent, existingBlocks, planId, principles
 }) {
-  const TAXONOMY_DESC = { recognize: 'Reconocer', apply: 'Aplicar', produce: 'Producir' }
-
   const blockTypes = `Usa EXACTAMENTE esta estructura JSON según el tipo. NO inventes campos nuevos.
 
 VOCAB cards: {"type":"VOCAB","model":"cards","data":{"words":[{"w":"habitat","d":"natural home of organism","e":"Bears live in forest habitats"},{"w":"ecosystem","d":"community of living things","e":"A pond is a small ecosystem"}]}}
@@ -262,21 +250,11 @@ REAL_LIFE_CONNECTION connection: {"type":"REAL_LIFE_CONNECTION","model":"connect
 TEACHER_NOTE observation: {"type":"TEACHER_NOTE","model":"observation","data":{"note":"Model the process before students work in pairs. Nivel Azul may use dictionary.","for_level":"all"}}
 TEACHER_NOTE adaptation: {"type":"TEACHER_NOTE","model":"adaptation","data":{"adaptations":[{"student":"Nivel Azul","note":"Use bilingual dictionary and sentence frames"},{"student":"Nivel Rojo","note":"Extension: write a second paragraph"}]}}`
 
-  const taxonomy = learningTarget?.taxonomy
-  const taxHint = taxonomy === 'recognize'
-    ? 'Nivel RECONOCER: prefiere VOCAB matching, QUIZ topic-card, READING true-false, SELF_ASSESSMENT checklist.'
-    : taxonomy === 'apply'
-    ? 'Nivel APLICAR: prefiere DICTATION, GRAMMAR fill-blank, WORKSHOP stations, READING comprehension, COLLABORATIVE_TASK, REAL_LIFE_CONNECTION.'
-    : taxonomy === 'produce'
-    ? 'Nivel PRODUCIR: prefiere SPEAKING rubric, WRITING guided, PEER_REVIEW rubric, EXIT_TICKET can-do, WORKSHOP roles.'
-    : ''
-
   const system = `Eres un experto pedagógico para colegios bilingües colombianos (metodología CBF).
 Tu tarea: sugerir UN SmartBlock apropiado para una sección de guía.
 Responde SOLO con JSON válido. Sin markdown, sin texto adicional.
 Estructura exacta: {"type":"...","model":"...","data":{...}}
 Los datos deben estar en inglés (colegio bilingüe) y ser realistas y listos para usar.
-${taxHint}
 ${biblicalBlock(principles,
   'Cuando el tipo de bloque lo permita de manera natural (especialmente READING, EXIT_TICKET, SPEAKING, NOTICE), el contenido puede reflejar o conectar con el principio bíblico del período. No lo fuerces en todos los bloques — solo cuando enriquezca genuinamente la actividad.'
 )}`
@@ -287,7 +265,6 @@ ${biblicalBlock(principles,
   const safeDayName = sanitizeAIInput(dayName || '')
   const safeUnit = sanitizeAIInput(unit || '')
   const safeObjective = sanitizeAIInput(objective || '')
-  const safeLTDesc = learningTarget?.description ? sanitizeAIInput(learningTarget.description) : ''
   const safeExisting = existingContent ? sanitizeAIInput(existingContent.replace(/<[^>]+>/g,' ').slice(0,200)) : '(vacío)'
 
   const ALL_TYPES = [
@@ -306,7 +283,6 @@ ${biblicalBlock(principles,
 Grado: ${safeGrade} | Materia: ${safeSubject} | Día: ${safeDayName || ''}
 Unidad: ${safeUnit || 'no especificada'}
 Objetivo semanal: ${safeObjective || 'no especificado'}
-${learningTarget ? `Desempeño observable: ${safeLTDesc} (${TAXONOMY_DESC[learningTarget.taxonomy] || ''})` : ''}
 Contenido ya escrito: ${safeExisting}
 ${noRepeatRule}
 
@@ -400,7 +376,7 @@ Dame un análisis pedagógico completo. En la sección 🙏 evalúa específicam
 
 // ── Punto 3: Generar estructura completa desde objetivo ───────────────────────
 export async function generateGuideStructure({
-  grade, subject, objective, unit, activeDays, period, planId, learningTarget, achievementGoal, activeNewsProject, principles
+  grade, subject, objective, unit, activeDays, period, planId, achievementGoal, activeNewsProject, principles
 }) {
   const TAXONOMY_DESC = { recognize: 'Reconocer (identificar, recordar, nombrar)', apply: 'Aplicar (usar, demostrar, resolver)', produce: 'Producir (crear, diseñar, componer)' }
   const v = fmtVerse(principles?.monthVerse) || fmtVerse(principles?.yearVerse)
@@ -437,15 +413,6 @@ Secciones por día:
 5. CLOSING (~8 min): cierre con reflexión bíblica — SIEMPRE conecta con los principios rectores
 6. ASSIGNMENT (~5 min): tarea o extensión
 ${pBlock}
-${learningTarget ? `
-PRINCIPIO PEDAGÓGICO CENTRAL:
-Esta guía tiene un OBJETIVO DE DESEMPEÑO específico vinculado. Todo el contenido que generes
-debe estar diseñado para que el estudiante progrese hacia ese desempeño observable.
-Nivel taxonómico del objetivo: ${TAXONOMY_DESC[learningTarget.taxonomy] || learningTarget.taxonomy}.
-- Si el nivel es "Reconocer": enfoca las actividades en identificación, clasificación, y recuerdo activo.
-- Si el nivel es "Aplicar": enfoca en práctica guiada, resolución de problemas, y uso contextualizado.
-- Si el nivel es "Producir": enfoca en creación, composición, y producción autónoma.
-Las actividades deben progresar durante la semana HACIA el desempeño, no solo "cubrir el tema".` : ''}
 
 Respondes ÚNICAMENTE con JSON válido, sin texto adicional, sin markdown.
 El JSON debe tener exactamente esta estructura:
@@ -496,9 +463,8 @@ Usa inglés en los datos del bloque (colegio bilingüe). Si no hay un bloque cla
   const safePeriod = sanitizeAIInput(period || '')
   const safeUnit = sanitizeAIInput(unit || '')
   const safeObjective = sanitizeAIInput(objective || '')
-  const safeLTDesc = learningTarget?.description ? sanitizeAIInput(learningTarget.description) : ''
 
-  // Build achievement_goal context block (new system)
+  // Build achievement_goal context block
   const achievementBlock = achievementGoal ? (() => {
     const lines = []
     if (achievementGoal.text) lines.push(`- Logro del período: "${sanitizeAIInput(achievementGoal.text)}"`)
@@ -556,12 +522,6 @@ Usa inglés en los datos del bloque (colegio bilingüe). Si no hay un bloque cla
 - Objetivo del docente: ${safeObjective}
 - Días de clase ${activeDays.length > 5 ? 'estas dos semanas' : 'esta semana'}: ${daysStr}
 ${achievementBlock}
-${!achievementBlock && learningTarget ? `
-🎯 OBJETIVO DE DESEMPEÑO VINCULADO:
-- Desempeño observable: ${safeLTDesc}
-- Nivel taxonómico: ${TAXONOMY_DESC[learningTarget.taxonomy] || learningTarget.taxonomy}
-- TODA la semana debe construir hacia este desempeño. El viernes (o último día), el estudiante
-  debería estar en capacidad de demostrar este desempeño.` : ''}
 ${newsBlock}
 
 Genera contenido específico, concreto y apropiado para el nivel.

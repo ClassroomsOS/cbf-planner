@@ -6,6 +6,7 @@ import { useFocusTrap } from '../hooks/useFocusTrap'
 import { BLOCK_TYPES } from '../utils/smartBlockHtml'
 import { ELEOT_DOMAINS, domainStatus } from '../hooks/useEleot'
 import { buildSessionAgenda, totalMinutes } from '../utils/AgendaGenerator'
+import { MODELO_B_SUBJECTS } from '../utils/constants'
 
 // ── ConversationalGuideModal ──────────────────────────────────────────────────
 // 5-step wizard for AI guide generation with full pedagogical context.
@@ -14,7 +15,7 @@ import { buildSessionAgenda, totalMinutes } from '../utils/AgendaGenerator'
 // Props:
 //   grade, subject, period, activeDays
 //   indicator        — achievement_indicator row { text, skill_area, dimension }
-//   learningTarget   — legacy learning_targets row
+//   achievementGoal  — full goal with indicators[]
 //   activeNewsProject
 //   currentContent   — existing lesson_plan.content (for eleot coverage preview)
 //   principles       — { yearVerse, monthVerse, indicatorPrinciple }
@@ -48,7 +49,7 @@ const PROGRESS_STEPS = [
 
 export const ConversationalGuideModal = memo(function ConversationalGuideModal({
   grade, subject, period, activeDays,
-  indicator, achievementGoal, learningTarget, activeNewsProject,
+  indicator, achievementGoal, activeNewsProject,
   currentContent, principles, eleotCoverage,
   onApply, onClose,
 }) {
@@ -76,9 +77,9 @@ export const ConversationalGuideModal = memo(function ConversationalGuideModal({
   // Derive objective
   const objective = indicator
     ? (indicator.text || indicator.texto_en || indicator.habilidad || '')
-    : (learningTarget?.description || '')
+    : (achievementGoal?.text || '')
 
-  const isModeloB = learningTarget?.news_model === 'language'
+  const isModeloB = MODELO_B_SUBJECTS.includes(subject)
 
   // ── Progress bar animation ────────────────────────────────────────────────
   useEffect(() => {
@@ -119,9 +120,6 @@ export const ConversationalGuideModal = memo(function ConversationalGuideModal({
 
       const result = await generateGuideStructure({
         grade, subject, objective, unit, period, activeDays,
-        learningTarget: indicator
-          ? { description: objective, taxonomy: learningTarget?.taxonomy || 'apply', news_model: learningTarget?.news_model }
-          : learningTarget,
         achievementGoal,
         activeNewsProject, principles,
         _focusHints: focusHints,
@@ -138,7 +136,7 @@ export const ConversationalGuideModal = memo(function ConversationalGuideModal({
       showToast(msg, 'error')
     }
     setLoading(false)
-  }, [grade, subject, objective, unit, period, activeDays, eleotFocus, focusSkill, selectedBlocks, indicator, learningTarget, activeNewsProject, principles, showToast])
+  }, [grade, subject, objective, unit, period, activeDays, eleotFocus, focusSkill, selectedBlocks, indicator, achievementGoal, activeNewsProject, principles, showToast])
 
   // ── Apply ─────────────────────────────────────────────────────────────────
   const handleApply = useCallback(() => {

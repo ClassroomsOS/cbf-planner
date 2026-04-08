@@ -8,9 +8,8 @@ import { useToast } from '../context/ToastContext'
 // linked indicator/target without a checkpoint recorded.
 //
 // Props:
-//   previousPlan    – { id, week_number, grade, subject, target_id?, indicator_id? }
-//   target          – { id, description, taxonomy }  ← legacy (learning_targets)
-//   indicator       – { id, text, dimension, skill_area? }  ← new (achievement_indicators)
+//   previousPlan    – { id, week_number, grade, subject, indicator_id? }
+//   indicator       – { id, text, dimension, skill_area? }  ← achievement_indicators
 //   teacher         – teacher object
 //   onComplete      – callback() after checkpoint is saved
 //   onSkip          – callback() if teacher skips
@@ -46,19 +45,13 @@ const LEVELS = [
   },
 ]
 
-const TAXONOMY_LABELS = {
-  recognize: '👁️ Reconocer',
-  apply: '🛠️ Aplicar',
-  produce: '✨ Producir',
-}
-
 const DIM_LABELS = {
   cognitive: '🧠 Cognitivo',
   procedural: '🛠️ Procedimental',
   attitudinal: '💫 Actitudinal',
 }
 
-const CheckpointModal = memo(function CheckpointModal({ previousPlan, target, indicator, teacher, onComplete, onSkip, onClose }) {
+const CheckpointModal = memo(function CheckpointModal({ previousPlan, indicator, teacher, onComplete, onSkip, onClose }) {
   const { showToast } = useToast()
   const [selected, setSelected] = useState(null)
   const [notes, setNotes]       = useState('')
@@ -80,26 +73,15 @@ const CheckpointModal = memo(function CheckpointModal({ previousPlan, target, in
       achievement:  selected,
       notes:        notes.trim() || null,
       indicator_id: indicator?.id || null,
-      target_id:    target?.id || null,
     }
 
-    // Check if a checkpoint already exists for this plan or target+week
+    // Check if a checkpoint already exists for this plan
     let existingId = null
     if (previousPlan.id) {
       const { data: existing } = await supabase
         .from('checkpoints')
         .select('id')
         .eq('plan_id', previousPlan.id)
-        .maybeSingle()
-      existingId = existing?.id || null
-    }
-    if (!existingId && target?.id) {
-      const { data: existing } = await supabase
-        .from('checkpoints')
-        .select('id')
-        .eq('target_id', target.id)
-        .eq('teacher_id', teacher.id)
-        .eq('week_number', previousPlan.week_number)
         .maybeSingle()
       existingId = existing?.id || null
     }
@@ -114,7 +96,7 @@ const CheckpointModal = memo(function CheckpointModal({ previousPlan, target, in
     setSaving(false)
     if (error) { showToast('Error al guardar el checkpoint', 'error'); return }
     onComplete()
-  }, [selected, notes, indicator, target, previousPlan, teacher, onComplete, showToast])
+  }, [selected, notes, indicator, previousPlan, teacher, onComplete, showToast])
 
   return (
     <div
@@ -174,17 +156,14 @@ const CheckpointModal = memo(function CheckpointModal({ previousPlan, target, in
               fontSize: '11px', fontWeight: 700, color: '#888', marginBottom: '6px',
               textTransform: 'uppercase', letterSpacing: '0.5px',
             }}>
-              {indicator ? 'Indicador de la semana' : 'Logro de la semana'} {previousPlan.week_number}
+              Indicador de la semana {previousPlan.week_number}
             </div>
             <div style={{ fontSize: '14px', color: '#333', lineHeight: 1.5, fontWeight: 500 }}>
-              {indicator ? indicator.text : target?.description}
+              {indicator?.text}
             </div>
             <div style={{ fontSize: '11px', color: '#999', marginTop: '6px' }}>
               {previousPlan.grade} · {previousPlan.subject}
-              {indicator
-                ? ` · ${DIM_LABELS[indicator.dimension] || indicator.dimension}`
-                : target?.taxonomy ? ` · ${TAXONOMY_LABELS[target.taxonomy] || target.taxonomy}` : ''
-              }
+              {indicator ? ` · ${DIM_LABELS[indicator.dimension] || indicator.dimension}` : ''}
             </div>
           </div>
 
