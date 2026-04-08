@@ -159,7 +159,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
       .select('id, description, taxonomy, grade, group_name, indicadores')
       .eq('school_id', teacher.school_id)
       .eq('subject', form.subject)
-      .eq('is_active', true)
+      .or('is_active.eq.true,is_active.is.null')
       .then(({ data }) => {
         const filtered = (data || []).filter(t => {
           if (t.grade === form.grade) return true
@@ -838,53 +838,12 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
                           </div>
                         </>
                       )
-                    })() : (
-                      /* ── Sin indicadores del sistema nuevo → mensaje claro ── */
-                      <div style={{ padding: '16px', borderRadius: 10, background: '#FFF8EC', border: '1px solid #F79646' }}>
-                        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 12 }}>
-                          <span style={{ fontSize: 24, flexShrink: 0 }}>🎯</span>
-                          <div>
-                            <div style={{ fontSize: 13, fontWeight: 700, color: '#7C3A00', marginBottom: 4 }}>
-                              Primero crea los Indicadores de Logro en Objetivos
-                            </div>
-                            <div style={{ fontSize: 12, color: '#7C5200', lineHeight: 1.7 }}>
-                              Este proyecto NEWS aún no tiene indicadores vinculados para{' '}
-                              <strong>{form.subject} · {form.grade} · Período {form.period}</strong>.
-                              Sin indicador, <strong>la rúbrica tampoco se puede generar</strong>.
-                            </div>
-                          </div>
+                    })() : learningTargets.length > 0 ? (
+                      /* ── Sin indicadores nuevos pero hay targets legacy → mostrar directamente ── */
+                      <div>
+                        <div style={{ fontSize: 10, color: '#4a7c1f', background: '#f0fff0', borderRadius: 6, padding: '6px 10px', marginBottom: 10, border: '1px solid #c5e0c5' }}>
+                          Indicadores de logro creados anteriormente · {form.subject} · {form.grade} · Período {form.period}
                         </div>
-                        <div style={{ fontSize: 12, color: '#5C3A00', lineHeight: 1.6, marginBottom: 14, paddingLeft: 34 }}>
-                          El flujo correcto es:
-                          <ol style={{ margin: '6px 0 0', paddingLeft: 16 }}>
-                            <li>Ir a <strong>Objetivos de Desempeño</strong> → crear el Logro del Período</li>
-                            <li>Los proyectos NEWS se crean automáticamente con el indicador ya vinculado</li>
-                            <li>Volver aquí para completar textbook, actividades y rúbrica</li>
-                          </ol>
-                        </div>
-                        <div style={{ paddingLeft: 34 }}>
-                          <button
-                            type="button"
-                            onClick={() => { onClose(); navigate('/objectives') }}
-                            style={{
-                              padding: '8px 16px', borderRadius: 8, border: 'none',
-                              background: '#F79646', color: '#fff',
-                              fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                            }}
-                          >
-                            Ir a Objetivos de Desempeño →
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* ── Legacy fallback oculto — solo si hay targets y no hay nuevo sistema ── */}
-                    {achievementIndicators.length === 0 && learningTargets.length > 0 && (
-                      <details style={{ marginTop: 12 }}>
-                        <summary style={{ fontSize: 10, color: '#94A3B8', cursor: 'pointer', userSelect: 'none' }}>
-                          Vincular con indicador anterior (sistema legado)
-                        </summary>
-                        <div style={{ marginTop: 10 }}>
                         {form.target_id && !showTargetSelector && (() => {
                           const selectedTarget = learningTargets.find(t => t.id === form.target_id)
                           if (!selectedTarget) return null
@@ -964,8 +923,41 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
                             </div>
                           )
                         })()}
+                      </div>
+                    ) : (
+                      /* ── Sin indicadores en ningún sistema → aviso ── */
+                      <div style={{ padding: '16px', borderRadius: 10, background: '#FFF8EC', border: '1px solid #F79646' }}>
+                        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 12 }}>
+                          <span style={{ fontSize: 24, flexShrink: 0 }}>🎯</span>
+                          <div>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: '#7C3A00', marginBottom: 4 }}>
+                              Primero crea los Indicadores de Logro en Objetivos
+                            </div>
+                            <div style={{ fontSize: 12, color: '#7C5200', lineHeight: 1.7 }}>
+                              Este proyecto NEWS aún no tiene indicadores vinculados para{' '}
+                              <strong>{form.subject} · {form.grade} · Período {form.period}</strong>.
+                              Sin indicador, <strong>la rúbrica tampoco se puede generar</strong>.
+                            </div>
+                          </div>
                         </div>
-                      </details>
+                        <div style={{ fontSize: 12, color: '#5C3A00', lineHeight: 1.6, marginBottom: 14, paddingLeft: 34 }}>
+                          El flujo correcto es:
+                          <ol style={{ margin: '6px 0 0', paddingLeft: 16 }}>
+                            <li>Ir a <strong>Objetivos de Desempeño</strong> → crear el Logro del Período</li>
+                            <li>Los proyectos NEWS se crean automáticamente con el indicador ya vinculado</li>
+                            <li>Volver aquí para completar textbook, actividades y rúbrica</li>
+                          </ol>
+                        </div>
+                        <div style={{ paddingLeft: 34 }}>
+                          <button
+                            type="button"
+                            onClick={() => { onClose(); navigate('/objectives') }}
+                            style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: '#F79646', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+                          >
+                            Ir a Objetivos de Desempeño →
+                          </button>
+                        </div>
+                      </div>
                     )}
                   </div>
 
