@@ -115,15 +115,24 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
       return
     }
     ;(async () => {
-      const { data: goalsData } = await supabase
-        .from('achievement_goals')
-        .select('id, text')
-        .eq('teacher_id', teacher.id)
-        .eq('subject', form.subject)
-        .eq('grade', form.grade)
-        .eq('period', form.period)
+      // form.grade puede ser "8.° A" (con sección) pero achievement_goals guarda "8.°"
+      // Intentamos con el grado exacto primero y luego con el grado base (sin sección)
+      const gradeBase = form.grade.replace(/\s+[A-Z]$/, '').trim()
+      const gradesToTry = [...new Set([form.grade, gradeBase])]
 
-      const goalIds = (goalsData || []).map(g => g.id)
+      let goalsData = []
+      for (const g of gradesToTry) {
+        const { data } = await supabase
+          .from('achievement_goals')
+          .select('id, text')
+          // Sin filtro teacher_id: RLS school_read permite ver todos los logros del colegio
+          .eq('subject', form.subject)
+          .eq('grade', g)
+          .eq('period', form.period)
+        if (data?.length) { goalsData = data; break }
+      }
+
+      const goalIds = goalsData.map(g => g.id)
       if (goalIds.length === 0) { setAchievementIndicators([]); return }
 
       const { data: indsData } = await supabase
@@ -132,12 +141,12 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
         .in('goal_id', goalIds)
         .order('order_index')
 
-      const goalMap = Object.fromEntries((goalsData || []).map(g => [g.id, g.text]))
+      const goalMap = Object.fromEntries(goalsData.map(g => [g.id, g.text]))
       setAchievementIndicators(
         (indsData || []).map(i => ({ ...i, _goalText: goalMap[i.goal_id] || '' }))
       )
     })()
-  }, [form.subject, form.grade, form.period, teacher.id])
+  }, [form.subject, form.grade, form.period])
 
   // ── Load learning targets when subject/grade/period change (legacy fallback) ──
   useEffect(() => {
