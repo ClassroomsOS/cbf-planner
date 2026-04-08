@@ -28,6 +28,12 @@ export default function PlannerPage({ teacher }) {
 
   // Derive class labels and subjects from assignments
   const classLabels = [...new Set(assignments.map(a => `${a.grade} ${a.section}`))]
+    .sort((a, b) => {
+      const numA = parseInt(a) || 0
+      const numB = parseInt(b) || 0
+      if (numA !== numB) return numA - numB
+      return a.localeCompare(b)
+    })
 
   const [grade,     setGrade]     = useState(teacher.default_class   || '')
   const [subject,   setSubject]   = useState(teacher.default_subject || '')
