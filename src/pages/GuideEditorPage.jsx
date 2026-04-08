@@ -1704,6 +1704,23 @@ export default function GuideEditorPage({ teacher }) {
                 El versículo del año es declarado por el Pastor y se gestiona desde{' '}
                 <strong>Principios Rectores</strong>.
               </p>
+
+              {/* Principio del indicador institucional */}
+              <div style={{ marginTop: 18, borderTop: '1px solid #e8e0cc', paddingTop: 14 }}>
+                <div style={{ fontSize: 11, fontWeight: 800, color: '#7a5c00', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8 }}>
+                  ✨ Principio del Indicador Institucional
+                </div>
+                <textarea
+                  value={content.objetivo?.principio || ''}
+                  onChange={e => setContentField(['objetivo', 'principio'], e.target.value)}
+                  placeholder={principles?.indicatorPrinciple || 'Escribe el principio bíblico o institucional que orienta este indicador de logro…'}
+                  rows={3}
+                  style={{ width: '100%', fontSize: 13, padding: '10px 12px', borderRadius: 8, border: '1px solid #e8d8a0', background: '#fffdf0', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5, boxSizing: 'border-box' }}
+                />
+                <p style={{ fontSize: 11, color: '#bbb', marginTop: 6 }}>
+                  Se auto-rellena desde el indicador activo. Puedes editarlo aquí o en el panel <strong>1 · Indicador</strong>.
+                </p>
+              </div>
             </div>
           )}
 
