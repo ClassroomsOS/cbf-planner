@@ -115,10 +115,12 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
       return
     }
     ;(async () => {
-      // form.grade puede ser "8.° A" (con sección) pero achievement_goals guarda "8.°"
-      // Intentamos con el grado exacto primero y luego con el grado base (sin sección)
+      // achievement_goals puede guardar el grado como "8.°", "8.° A" o "8.° Blue"
+      // news_projects guarda grade="8.°" y section="Blue" por separado
+      // → probar las tres combinaciones posibles
       const gradeBase = form.grade.replace(/\s+[A-Z]$/, '').trim()
-      const gradesToTry = [...new Set([form.grade, gradeBase])]
+      const gradeFull = form.section ? `${gradeBase} ${form.section}`.trim() : form.grade
+      const gradesToTry = [...new Set([gradeFull, form.grade, gradeBase])]
 
       let goalsData = []
       for (const g of gradesToTry) {
