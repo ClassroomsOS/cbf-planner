@@ -108,12 +108,12 @@ function GoalFormModal({ goal, assignments, onSave, onClose }) {
     <div style={{
       position: 'fixed', inset: 0, background: 'rgba(30,40,60,.5)',
       display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20,
-    }} onClick={onClose}>
+    }}>
       <div style={{
         background: '#fff', borderRadius: 16, width: '100%', maxWidth: 560,
         maxHeight: '90vh', display: 'flex', flexDirection: 'column',
         boxShadow: '0 20px 60px rgba(0,0,0,.2)', overflow: 'hidden',
-      }} onClick={e => e.stopPropagation()}>
+      }}>
         {/* Header */}
         <div style={{
           padding: '16px 24px', borderBottom: '1px solid #e0e6f0',
@@ -242,12 +242,12 @@ function IndicatorFormModal({ indicator, goalId, onSave, onClose }) {
     <div style={{
       position: 'fixed', inset: 0, background: 'rgba(30,40,60,.5)',
       display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1001, padding: 20,
-    }} onClick={onClose}>
+    }}>
       <div style={{
         background: '#fff', borderRadius: 16, width: '100%', maxWidth: 520,
         maxHeight: '90vh', display: 'flex', flexDirection: 'column',
         boxShadow: '0 20px 60px rgba(0,0,0,.2)', overflow: 'hidden',
-      }} onClick={e => e.stopPropagation()}>
+      }}>
         <div style={{
           padding: '16px 24px', borderBottom: '1px solid #e0e6f0',
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
