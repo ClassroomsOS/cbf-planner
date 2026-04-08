@@ -5,11 +5,12 @@ import { useToast } from '../context/ToastContext'
 
 // ── CheckpointModal ─────────────────────────────────────────────────────────
 // Appears before creating a new guide when the previous week had a
-// linked learning target without a checkpoint recorded.
+// linked indicator/target without a checkpoint recorded.
 //
 // Props:
-//   previousPlan    – { id, week_number, grade, subject, target_id }
-//   target          – { id, description, taxonomy }
+//   previousPlan    – { id, week_number, grade, subject, target_id?, indicator_id? }
+//   target          – { id, description, taxonomy }  ← legacy (learning_targets)
+//   indicator       – { id, text, dimension, skill_area? }  ← new (achievement_indicators)
 //   teacher         – teacher object
 //   onComplete      – callback() after checkpoint is saved
 //   onSkip          – callback() if teacher skips
@@ -51,7 +52,13 @@ const TAXONOMY_LABELS = {
   produce: '✨ Producir',
 }
 
-const CheckpointModal = memo(function CheckpointModal({ previousPlan, target, teacher, onComplete, onSkip, onClose }) {
+const DIM_LABELS = {
+  cognitive: '🧠 Cognitivo',
+  procedural: '🛠️ Procedimental',
+  attitudinal: '💫 Actitudinal',
+}
+
+const CheckpointModal = memo(function CheckpointModal({ previousPlan, target, indicator, teacher, onComplete, onSkip, onClose }) {
   const { showToast } = useToast()
   const [selected, setSelected] = useState(null)
   const [notes, setNotes]       = useState('')
@@ -63,24 +70,30 @@ const CheckpointModal = memo(function CheckpointModal({ previousPlan, target, te
     if (!selected) return
     setSaving(true)
 
-    const { error } = await supabase.from('checkpoints').upsert({
-      target_id:   target.id,
-      plan_id:     previousPlan.id,
-      teacher_id:  teacher.id,
-      school_id:   teacher.school_id,
-      grade:       previousPlan.grade,
-      subject:     previousPlan.subject,
-      week_number: previousPlan.week_number,
-      achievement: selected,
-      notes:       notes.trim() || null,
-    }, {
-      onConflict: 'target_id,teacher_id,week_number',
+    const payload = {
+      plan_id:      previousPlan.id,
+      teacher_id:   teacher.id,
+      school_id:    teacher.school_id,
+      grade:        previousPlan.grade,
+      subject:      previousPlan.subject,
+      week_number:  previousPlan.week_number,
+      achievement:  selected,
+      notes:        notes.trim() || null,
+      indicator_id: indicator?.id || null,
+      target_id:    target?.id || null,
+    }
+
+    // Use target_id conflict key for legacy; plan_id for new indicator-based records
+    const conflictKey = target?.id ? 'target_id,teacher_id,week_number' : 'plan_id'
+
+    const { error } = await supabase.from('checkpoints').upsert(payload, {
+      onConflict: conflictKey,
     })
 
     setSaving(false)
     if (error) { showToast('Error al guardar el checkpoint', 'error'); return }
     onComplete()
-  }, [selected, notes, target.id, previousPlan, teacher, onComplete, showToast])
+  }, [selected, notes, indicator, target, previousPlan, teacher, onComplete, showToast])
 
   return (
     <div
@@ -131,7 +144,7 @@ const CheckpointModal = memo(function CheckpointModal({ previousPlan, target, te
             Esta información le permite al sistema ayudarte a planear mejor.
           </div>
 
-          {/* Target being evaluated */}
+          {/* Indicator / Target being evaluated */}
           <div style={{
             background: '#f8f8f8', border: '1px solid #e5e5e5', borderRadius: '10px',
             padding: '14px 16px', marginBottom: '20px',
@@ -140,13 +153,17 @@ const CheckpointModal = memo(function CheckpointModal({ previousPlan, target, te
               fontSize: '11px', fontWeight: 700, color: '#888', marginBottom: '6px',
               textTransform: 'uppercase', letterSpacing: '0.5px',
             }}>
-              Logro de la semana {previousPlan.week_number}
+              {indicator ? 'Indicador de la semana' : 'Logro de la semana'} {previousPlan.week_number}
             </div>
             <div style={{ fontSize: '14px', color: '#333', lineHeight: 1.5, fontWeight: 500 }}>
-              {target.description}
+              {indicator ? indicator.text : target?.description}
             </div>
             <div style={{ fontSize: '11px', color: '#999', marginTop: '6px' }}>
-              {previousPlan.grade} · {previousPlan.subject} · {TAXONOMY_LABELS[target.taxonomy] || target.taxonomy}
+              {previousPlan.grade} · {previousPlan.subject}
+              {indicator
+                ? ` · ${DIM_LABELS[indicator.dimension] || indicator.dimension}`
+                : target?.taxonomy ? ` · ${TAXONOMY_LABELS[target.taxonomy] || target.taxonomy}` : ''
+              }
             </div>
           </div>
 

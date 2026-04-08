@@ -57,6 +57,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
     sequence: 1,
     target_id: null,
     target_indicador: '',
+    indicator_id: null,
     news_model: 'standard',
     competencias: [],
     operadores_intelectuales: [],
@@ -94,6 +95,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
   // ── Load teacher assignments for smart dropdowns ──
   const [assignments, setAssignments] = useState([])
   const [learningTargets, setLearningTargets] = useState([])
+  const [achievementIndicators, setAchievementIndicators] = useState([])
 
   useEffect(() => {
     supabase
@@ -104,7 +106,38 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
       .then(({ data }) => setAssignments(data || []))
   }, [teacher.id])
 
-  // ── Load learning targets when subject/grade/period change ──
+  // ── Load achievement indicators (new system) when subject/grade/period change ──
+  useEffect(() => {
+    if (!form.subject || !form.grade || !form.period) {
+      setAchievementIndicators([])
+      return
+    }
+    ;(async () => {
+      const { data: goalsData } = await supabase
+        .from('achievement_goals')
+        .select('id, text')
+        .eq('teacher_id', teacher.id)
+        .eq('subject', form.subject)
+        .eq('grade', form.grade)
+        .eq('period', form.period)
+
+      const goalIds = (goalsData || []).map(g => g.id)
+      if (goalIds.length === 0) { setAchievementIndicators([]); return }
+
+      const { data: indsData } = await supabase
+        .from('achievement_indicators')
+        .select('id, goal_id, dimension, skill_area, text, student_text, weight, order_index')
+        .in('goal_id', goalIds)
+        .order('order_index')
+
+      const goalMap = Object.fromEntries((goalsData || []).map(g => [g.id, g.text]))
+      setAchievementIndicators(
+        (indsData || []).map(i => ({ ...i, _goalText: goalMap[i.goal_id] || '' }))
+      )
+    })()
+  }, [form.subject, form.grade, form.period, teacher.id])
+
+  // ── Load learning targets when subject/grade/period change (legacy fallback) ──
   useEffect(() => {
     if (!form.subject || !form.grade || !form.period) {
       setLearningTargets([])
@@ -128,6 +161,15 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
         setLearningTargets(filtered)
       })
   }, [form.subject, form.grade, form.period, teacher.school_id])
+
+  // ── Auto-select rubric template when indicator_id changes ──
+  useEffect(() => {
+    if (!form.indicator_id || form.rubric.length > 0) return
+    const ind = achievementIndicators.find(i => i.id === form.indicator_id)
+    if (!ind?.skill_area) return
+    const match = templates.find(t => t.skill === ind.skill_area)
+    if (match) loadTemplate(match.id)
+  }, [form.indicator_id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // AI Rubric generation step progression
   useEffect(() => {
@@ -193,6 +235,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
         sequence: project.sequence || 1,
         target_id: project.target_id || null,
         target_indicador: project.target_indicador || '',
+        indicator_id: project.indicator_id || null,
         news_model: project.news_model || (MODELO_B_SUBJECTS.includes(project.subject) ? 'language' : 'standard'),
         competencias: project.competencias || [],
         operadores_intelectuales: project.operadores_intelectuales || [],
@@ -325,8 +368,11 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
     }
   }
 
+  const selectedIndicator = achievementIndicators.find(i => i.id === form.indicator_id)
+  const effectiveSkill = selectedIndicator?.skill_area || form.skill || null
+
   const matchingTemplates = templates.filter(t =>
-    !form.skill || t.skill === form.skill || t.skill === 'general'
+    !effectiveSkill || t.skill === effectiveSkill || t.skill === 'general'
   )
 
   const handleSubmit = useCallback(async () => {
@@ -352,6 +398,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
       sequence: form.sequence,
       target_id: form.target_id,
       target_indicador: form.target_indicador.trim() || null,
+      indicator_id: form.indicator_id,
       news_model: form.news_model,
       competencias: form.competencias,
       operadores_intelectuales: form.operadores_intelectuales,
@@ -378,7 +425,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
       },
       {
         key: 'logro', icon: '🎯', label: 'Indicador',
-        isDone: !!form.target_id
+        isDone: !!(form.indicator_id || form.target_id)
       },
       ...(form.news_model === 'language' ? [{
         key: 'marco', icon: '🌐', label: 'Marco',
@@ -412,7 +459,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
       },
     ]
     return base
-  }, [form.subject, form.grade, form.section, form.target_id, form.news_model,
+  }, [form.subject, form.grade, form.section, form.indicator_id, form.target_id, form.news_model,
       form.habilidades.length, form.title, form.description, form.due_date,
       form.textbook_reference?.book, form.actividades_evaluativas.length, form.rubric.length])
 
@@ -664,115 +711,173 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
                   </div>
 
                   <div style={{ background: '#F0F7F0', borderRadius: 12, padding: 16, border: '1px solid #E8F0E8' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                      <h4 style={{ fontSize: 11, fontWeight: 800, color: '#1A5C1A', margin: 0, textTransform: 'uppercase', letterSpacing: '0.3px' }}>🎯 Indicador de Logro Vinculado</h4>
-                      {form.target_id && (
-                        <button onClick={() => setShowTargetSelector(true)} style={{ fontSize: 10, padding: '4px 8px', borderRadius: 4, border: '1px solid #9BBB59', background: 'transparent', color: '#5a8a00', cursor: 'pointer', fontWeight: 600 }}>
-                          Cambiar
-                        </button>
-                      )}
-                    </div>
+                    <h4 style={{ fontSize: 11, fontWeight: 800, color: '#1A5C1A', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.3px' }}>🎯 Indicador de Logro Vinculado</h4>
 
-                    {form.target_id && (() => {
-                      const selectedTarget = learningTargets.find(t => t.id === form.target_id)
-                      if (!selectedTarget) return null
-                      const TAXONOMY_EMOJI = { recognize: '👁️', apply: '🛠️', produce: '✨' }
-                      const TAXONOMY_LABELS = { recognize: 'Reconocer', apply: 'Aplicar', produce: 'Producir' }
+                    {/* ── New system: achievement_indicators ── */}
+                    {achievementIndicators.length > 0 ? (() => {
+                      const DIM_ICONS   = { cognitive: '🧠', procedural: '🛠️', attitudinal: '💫' }
+                      const DIM_LABELS  = { cognitive: 'Cognitivo', procedural: 'Procedimental', attitudinal: 'Actitudinal' }
+                      const SKILL_ICONS = { speaking: '🎤', listening: '🎧', reading: '📖', writing: '✍️', general: '📋' }
                       return (
-                        <div style={{ background: '#fff', borderRadius: 6, padding: '8px 10px', border: '1px solid #E8F0E8', marginBottom: 10 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                            <span style={{ fontSize: 14 }}>{TAXONOMY_EMOJI[selectedTarget.taxonomy]}</span>
-                            <span style={{ fontSize: 9, fontWeight: 700, color: '#5a8a00', textTransform: 'uppercase', background: '#f6fff0', padding: '3px 7px', borderRadius: 3 }}>
-                              {TAXONOMY_LABELS[selectedTarget.taxonomy]}
-                            </span>
-                            {selectedTarget.group_name && (
-                              <span style={{ fontSize: 9, color: '#888', background: '#f5f5f5', padding: '3px 7px', borderRadius: 3 }}>{selectedTarget.group_name}</span>
+                        <>
+                          {achievementIndicators[0]?._goalText && (
+                            <div style={{ fontSize: 10, color: '#3a6a3a', background: '#e4f4e4', borderRadius: 6, padding: '6px 10px', marginBottom: 10, lineHeight: 1.5, border: '1px solid #c5e0c5' }}>
+                              <strong>Logro del período:</strong> {achievementIndicators[0]._goalText}
+                            </div>
+                          )}
+                          <div style={{ fontSize: 9, fontWeight: 700, color: '#5a8a00', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.3px' }}>
+                            Selecciona el indicador que este proyecto evalúa:
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 260, overflowY: 'auto' }}>
+                            {achievementIndicators.map(ind => {
+                              const isSelected = form.indicator_id === ind.id
+                              return (
+                                <button
+                                  key={ind.id}
+                                  type="button"
+                                  onClick={() => updateForm('indicator_id', ind.id)}
+                                  style={{
+                                    padding: '10px 12px', borderRadius: 8, textAlign: 'left',
+                                    border: isSelected ? '2px solid #1A6B3A' : '1px solid #ddd',
+                                    background: isSelected ? '#f0fff4' : '#fff',
+                                    cursor: 'pointer', display: 'flex', alignItems: 'flex-start', gap: 10,
+                                    boxShadow: isSelected ? '0 2px 8px rgba(26,107,58,0.15)' : 'none'
+                                  }}
+                                >
+                                  <div style={{ flexShrink: 0, fontSize: 18, lineHeight: 1 }}>
+                                    {SKILL_ICONS[ind.skill_area] || DIM_ICONS[ind.dimension] || '📌'}
+                                  </div>
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ display: 'flex', gap: 5, marginBottom: 4, flexWrap: 'wrap' }}>
+                                      <span style={{ fontSize: 9, fontWeight: 700, color: '#5a8a00', textTransform: 'uppercase', background: '#f0fff0', padding: '2px 6px', borderRadius: 3 }}>
+                                        {DIM_LABELS[ind.dimension] || ind.dimension}
+                                      </span>
+                                      {ind.skill_area && (
+                                        <span style={{ fontSize: 9, fontWeight: 600, color: '#1A3A8F', background: '#eef2fb', padding: '2px 6px', borderRadius: 3 }}>
+                                          {SKILL_ICONS[ind.skill_area]} {ind.skill_area}
+                                        </span>
+                                      )}
+                                      {ind.weight && (
+                                        <span style={{ fontSize: 9, color: '#888', background: '#f5f5f5', padding: '2px 6px', borderRadius: 3 }}>
+                                          {ind.weight}%
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div style={{ fontSize: 11, color: '#1a1a2e', lineHeight: 1.4 }}>{ind.text}</div>
+                                    {ind.student_text && (
+                                      <div style={{ fontSize: 10, color: '#666', marginTop: 4, fontStyle: 'italic', lineHeight: 1.3 }}>
+                                        {ind.student_text.length > 90 ? ind.student_text.slice(0, 90) + '…' : ind.student_text}
+                                      </div>
+                                    )}
+                                  </div>
+                                  {isSelected && (
+                                    <div style={{ flexShrink: 0, width: 18, height: 18, borderRadius: '50%', background: '#1A6B3A', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 10, fontWeight: 800 }}>✓</div>
+                                  )}
+                                </button>
+                              )
+                            })}
+                          </div>
+                          {form.indicator_id && selectedIndicator?.skill_area && (
+                            <div style={{ marginTop: 8, fontSize: 9, color: '#1A6B3A', background: '#e8f5e8', borderRadius: 4, padding: '4px 8px', fontWeight: 600 }}>
+                              ✓ Skill: <strong>{selectedIndicator.skill_area}</strong> — la rúbrica se filtrará automáticamente.
+                            </div>
+                          )}
+                          <div style={{ fontSize: 9, color: '#888', marginTop: 6, fontStyle: 'italic' }}>
+                            💡 Los indicadores vienen de <em>Objetivos → {form.subject} · {form.grade} · Período {form.period}</em>
+                          </div>
+                        </>
+                      )
+                    })() : (
+                      /* ── Legacy fallback: learning_targets ── */
+                      <>
+                        {form.target_id && !showTargetSelector && (() => {
+                          const selectedTarget = learningTargets.find(t => t.id === form.target_id)
+                          if (!selectedTarget) return null
+                          const TAXONOMY_EMOJI = { recognize: '👁️', apply: '🛠️', produce: '✨' }
+                          return (
+                            <div style={{ background: '#fff', borderRadius: 6, padding: '8px 10px', border: '1px solid #E8F0E8', marginBottom: 10 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                                <span style={{ fontSize: 14 }}>{TAXONOMY_EMOJI[selectedTarget.taxonomy]}</span>
+                                <div style={{ fontSize: 12, color: '#1a1a2e', lineHeight: 1.4 }}>{selectedTarget.description}</div>
+                              </div>
+                              <button onClick={() => setShowTargetSelector(true)} style={{ fontSize: 10, padding: '4px 8px', borderRadius: 4, border: '1px solid #9BBB59', background: 'transparent', color: '#5a8a00', cursor: 'pointer', fontWeight: 600 }}>
+                                Cambiar
+                              </button>
+                            </div>
+                          )
+                        })()}
+
+                        {(!form.target_id || showTargetSelector) && (
+                          <div style={{ marginBottom: 10 }}>
+                            {!form.subject || !form.grade ? (
+                              <div style={{ fontSize: 10, color: '#999', fontStyle: 'italic' }}>Selecciona primero Materia y Grado (paso Identificación).</div>
+                            ) : learningTargets.length === 0 ? (
+                              <div style={{ padding: '8px', borderRadius: 6, background: '#FFF9E6', border: '1px dashed #F5C300', textAlign: 'center' }}>
+                                <div style={{ fontSize: 10, color: '#8B6914', lineHeight: 1.3 }}>
+                                  No hay indicadores de logro para <strong>{form.subject} · {form.grade}</strong>.<br />
+                                  Créalos en <strong>Objetivos</strong> para usar el sistema nuevo.
+                                </div>
+                              </div>
+                            ) : (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
+                                <div style={{ fontSize: 9, fontWeight: 700, color: '#5a8a00', marginBottom: 2, textTransform: 'uppercase', letterSpacing: '0.3px' }}>
+                                  Selecciona el indicador de logro (sistema anterior):
+                                </div>
+                                {learningTargets.map(t => {
+                                  const TAXONOMY_EMOJI = { recognize: '👁️', apply: '🛠️', produce: '✨' }
+                                  return (
+                                    <button key={t.id} onClick={() => { updateForm('target_id', t.id); updateForm('target_indicador', ''); setShowTargetSelector(false) }}
+                                      style={{ padding: '8px', borderRadius: 5, textAlign: 'left', border: form.target_id === t.id ? '2px solid #9BBB59' : '1px solid #ddd', background: form.target_id === t.id ? '#f6fff0' : '#fff', cursor: 'pointer', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                                      <span style={{ fontSize: 14, flexShrink: 0 }}>{TAXONOMY_EMOJI[t.taxonomy]}</span>
+                                      <div style={{ flex: 1, minWidth: 0 }}>
+                                        <div style={{ fontSize: 11, color: '#1a1a2e', lineHeight: 1.3 }}>{t.description}</div>
+                                        {t.group_name && <div style={{ fontSize: 9, color: '#888', marginTop: 4 }}>Grupo: {t.group_name}</div>}
+                                      </div>
+                                    </button>
+                                  )
+                                })}
+                              </div>
+                            )}
+                            {showTargetSelector && (
+                              <button onClick={() => setShowTargetSelector(false)} style={{ fontSize: 10, padding: '6px 10px', borderRadius: 4, border: '1px solid #ddd', background: '#fff', color: '#666', cursor: 'pointer', marginTop: 8 }}>
+                                Cancelar
+                              </button>
                             )}
                           </div>
-                          <div style={{ fontSize: 12, color: '#1a1a2e', lineHeight: 1.4 }}>{selectedTarget.description}</div>
-                        </div>
-                      )
-                    })()}
+                        )}
 
-                    {(!form.target_id || showTargetSelector) && (
-                      <div style={{ marginBottom: 10 }}>
-                        {learningTargets.length === 0 && form.subject && form.grade ? (
-                          <div style={{ padding: '8px', borderRadius: 6, background: '#FFF9E6', border: '1px dashed #F5C300', textAlign: 'center' }}>
-                            <div style={{ fontSize: 10, color: '#8B6914', lineHeight: 1.3 }}>
-                              No hay indicadores de logro activos para <strong>{form.subject} · {form.grade}</strong>.<br />Crea uno primero en "Indicadores de Logro".
+                        {form.target_id && !showTargetSelector && (() => {
+                          const selectedTarget = learningTargets.find(t => t.id === form.target_id)
+                          const indicadores = selectedTarget?.indicadores || []
+                          if (indicadores.length === 0) return null
+                          return (
+                            <div>
+                              <div style={{ fontSize: 9, fontWeight: 700, color: '#1A5C1A', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.3px' }}>📌 Indicador que este proyecto demuestra:</div>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
+                                {indicadores.map((ind, idx) => {
+                                  const indText   = getIndText(ind)
+                                  const isObj     = typeof ind === 'object' && ind !== null
+                                  const habilidad = isObj ? ind.habilidad : null
+                                  const HICONS    = { Speaking: '🎤', Listening: '🎧', Reading: '📖', Writing: '✍️' }
+                                  const isSelected = form.target_indicador === indText
+                                  return (
+                                    <button key={idx} onClick={() => updateForm('target_indicador', indText)}
+                                      style={{ padding: '8px', borderRadius: 5, textAlign: 'left', border: isSelected ? '2px solid #9BBB59' : '1px solid #ddd', background: isSelected ? '#f6fff0' : '#fafafa', cursor: 'pointer', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                                      <div style={{ flex: 1, minWidth: 0 }}>
+                                        <div style={{ fontSize: 9, fontWeight: 700, color: '#5a8a00', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.2px' }}>
+                                          {habilidad ? `${HICONS[habilidad] || ''} ${habilidad}` : `Indicador ${idx + 1}`}
+                                        </div>
+                                        <div style={{ fontSize: 11, color: '#1a1a2e', lineHeight: 1.3 }}>{indText}</div>
+                                      </div>
+                                    </button>
+                                  )
+                                })}
+                              </div>
                             </div>
-                          </div>
-                        ) : learningTargets.length > 0 ? (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
-                            <div style={{ fontSize: 9, fontWeight: 700, color: '#5a8a00', marginBottom: 2, textTransform: 'uppercase', letterSpacing: '0.3px' }}>
-                              Selecciona el indicador de logro que este proyecto evalúa:
-                            </div>
-                            {learningTargets.map(t => {
-                              const TAXONOMY_EMOJI = { recognize: '👁️', apply: '🛠️', produce: '✨' }
-                              return (
-                                <button key={t.id} onClick={() => { updateForm('target_id', t.id); updateForm('target_indicador', ''); setShowTargetSelector(false) }}
-                                  style={{ padding: '8px', borderRadius: 5, textAlign: 'left', border: form.target_id === t.id ? '2px solid #9BBB59' : '1px solid #ddd', background: form.target_id === t.id ? '#f6fff0' : '#fff', cursor: 'pointer', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                                  <span style={{ fontSize: 14, flexShrink: 0 }}>{TAXONOMY_EMOJI[t.taxonomy]}</span>
-                                  <div style={{ flex: 1, minWidth: 0 }}>
-                                    <div style={{ fontSize: 11, color: '#1a1a2e', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{t.description}</div>
-                                    {t.group_name && <div style={{ fontSize: 9, color: '#888', marginTop: 4 }}>Grupo: {t.group_name}</div>}
-                                  </div>
-                                </button>
-                              )
-                            })}
-                          </div>
-                        ) : (
-                          <div style={{ fontSize: 10, color: '#999', fontStyle: 'italic' }}>Selecciona primero Materia y Grado (paso Identificación) para ver los logros disponibles.</div>
-                        )}
-                        {showTargetSelector && (
-                          <button onClick={() => setShowTargetSelector(false)} style={{ fontSize: 10, padding: '6px 10px', borderRadius: 4, border: '1px solid #ddd', background: '#fff', color: '#666', cursor: 'pointer', marginTop: 8 }}>
-                            Cancelar
-                          </button>
-                        )}
-                      </div>
+                          )
+                        })()}
+                      </>
                     )}
-
-                    {form.target_id && !showTargetSelector && (() => {
-                      const selectedTarget = learningTargets.find(t => t.id === form.target_id)
-                      const indicadores = selectedTarget?.indicadores || []
-                      if (indicadores.length === 0) return (
-                        <div style={{ padding: '8px', borderRadius: 5, background: '#FFF9E6', border: '1px dashed #F5C300', fontSize: 10, color: '#8B6914', fontStyle: 'italic', textAlign: 'center' }}>
-                          Este logro aún no tiene indicadores configurados.
-                        </div>
-                      )
-                      return (
-                        <div>
-                          <div style={{ fontSize: 9, fontWeight: 700, color: '#1A5C1A', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.3px' }}>📌 Indicador que este proyecto demuestra:</div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
-                            {indicadores.map((ind, idx) => {
-                              const indText  = getIndText(ind)
-                              const isObj    = typeof ind === 'object' && ind !== null
-                              const habilidad = isObj ? ind.habilidad : null
-                              const HICONS   = { Speaking: '🎤', Listening: '🎧', Reading: '📖', Writing: '✍️' }
-                              const isSelected = form.target_indicador === indText
-                              return (
-                                <button key={idx} onClick={() => updateForm('target_indicador', indText)}
-                                  style={{ padding: '8px', borderRadius: 5, textAlign: 'left', border: isSelected ? '2px solid #9BBB59' : '1px solid #ddd', background: isSelected ? '#fff' : '#fafafa', cursor: 'pointer', display: 'flex', alignItems: 'flex-start', gap: 8, boxShadow: isSelected ? '0 2px 4px rgba(155,187,89,0.2)' : 'none' }}>
-                                  <div style={{ width: 14, height: 14, borderRadius: '50%', border: isSelected ? '2px solid #9BBB59' : '2px solid #ddd', background: isSelected ? '#9BBB59' : '#fff', flexShrink: 0, marginTop: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                    {isSelected && <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#fff' }} />}
-                                  </div>
-                                  <div style={{ flex: 1, minWidth: 0 }}>
-                                    <div style={{ fontSize: 9, fontWeight: 700, color: '#5a8a00', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.2px' }}>
-                                      {habilidad ? `${HICONS[habilidad] || ''} ${habilidad}` : `Indicador ${idx + 1}`}
-                                    </div>
-                                    <div style={{ fontSize: 11, color: '#1a1a2e', lineHeight: 1.3 }}>{indText}</div>
-                                    {isObj && ind.texto_en && <div style={{ fontSize: 10, color: '#888', marginTop: 2, fontStyle: 'italic', lineHeight: 1.3 }}>{ind.texto_en.length > 80 ? ind.texto_en.slice(0, 80) + '…' : ind.texto_en}</div>}
-                                  </div>
-                                </button>
-                              )
-                            })}
-                          </div>
-                          <div style={{ fontSize: 9, color: '#666', marginTop: 8, fontStyle: 'italic', padding: '4px 6px', background: '#f8f8f8', borderRadius: 4, lineHeight: 1.3 }}>
-                            💡 El estudiante demuestra el logro al cumplir este indicador.
-                          </div>
-                        </div>
-                      )
-                    })()}
                   </div>
 
                   <button onClick={() => setActiveStep(form.news_model === 'language' ? 'marco' : 'content')} style={styles.btnNext}>

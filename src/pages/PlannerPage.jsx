@@ -243,40 +243,62 @@ export default function PlannerPage({ teacher }) {
     const prevWeek = weekNumber - 1
     if (prevWeek < 1) return null
 
-    // Find previous week's plan for the same grade/subject
+    // Find previous week's plan for the same grade/subject (supports both systems)
     const { data: prevPlan } = await supabase
       .from('lesson_plans')
-      .select('id, week_number, grade, subject, section, target_id')
+      .select('id, week_number, grade, subject, section, target_id, indicator_id')
       .eq('teacher_id', teacher.id)
       .eq('grade', grade)
       .eq('subject', subject)
       .eq('week_number', prevWeek)
-      .not('target_id', 'is', null)
+      .or('target_id.not.is.null,indicator_id.not.is.null')
       .maybeSingle()
 
     if (!prevPlan) return null
 
-    // Check if checkpoint already exists
-    const { data: existingCheckpoint } = await supabase
-      .from('checkpoints')
-      .select('id')
-      .eq('target_id', prevPlan.target_id)
-      .eq('teacher_id', teacher.id)
-      .eq('week_number', prevWeek)
-      .maybeSingle()
+    // Check if checkpoint already exists (try indicator_id first, fallback to target_id)
+    let existingCheckpoint = null
+    if (prevPlan.indicator_id) {
+      const { data } = await supabase.from('checkpoints').select('id')
+        .eq('indicator_id', prevPlan.indicator_id)
+        .eq('teacher_id', teacher.id)
+        .eq('week_number', prevWeek)
+        .maybeSingle()
+      existingCheckpoint = data
+    } else if (prevPlan.target_id) {
+      const { data } = await supabase.from('checkpoints').select('id')
+        .eq('target_id', prevPlan.target_id)
+        .eq('teacher_id', teacher.id)
+        .eq('week_number', prevWeek)
+        .maybeSingle()
+      existingCheckpoint = data
+    }
 
     if (existingCheckpoint) return null
 
-    // Fetch the target details
-    const { data: target } = await supabase
-      .from('learning_targets')
-      .select('id, description, taxonomy')
-      .eq('id', prevPlan.target_id)
-      .single()
+    // Fetch indicator (new system) or target (legacy)
+    let indicator = null
+    let target = null
 
-    if (!target) return null
+    if (prevPlan.indicator_id) {
+      const { data } = await supabase
+        .from('achievement_indicators')
+        .select('id, text, dimension, skill_area')
+        .eq('id', prevPlan.indicator_id)
+        .single()
+      indicator = data
+    } else if (prevPlan.target_id) {
+      const { data } = await supabase
+        .from('learning_targets')
+        .select('id, description, taxonomy')
+        .eq('id', prevPlan.target_id)
+        .single()
+      target = data
+    }
 
-    return { previousPlan: prevPlan, target, pendingAction: action }
+    if (!indicator && !target) return null
+
+    return { previousPlan: prevPlan, indicator, target, pendingAction: action }
   }
 
   // ── Core guide creation / navigation ──
@@ -316,6 +338,7 @@ export default function PlannerPage({ teacher }) {
         status:           'draft',
         content:          {},
         target_id:        activeTarget?.id || null,
+        indicator_id:     plannerActiveNewsProject?.indicator_id || null,
         news_project_id:  plannerActiveNewsProject?.id || null,
       })
       .select()
@@ -659,6 +682,7 @@ export default function PlannerPage({ teacher }) {
                   status:           'draft',
                   content:          {},
                   target_id:        activeTarget?.id || null,
+                  indicator_id:     plannerActiveNewsProject?.indicator_id || null,
                   news_project_id:  plannerActiveNewsProject?.id || null,
                 })
                 .select().single()
@@ -731,6 +755,7 @@ export default function PlannerPage({ teacher }) {
         <CheckpointModal
           previousPlan={checkpointData.previousPlan}
           target={checkpointData.target}
+          indicator={checkpointData.indicator}
           teacher={teacher}
           onComplete={() => {
             const action = checkpointData.pendingAction
