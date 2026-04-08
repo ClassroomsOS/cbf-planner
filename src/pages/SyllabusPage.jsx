@@ -82,7 +82,7 @@ function TopicFormModal({ topic, assignments, indicators, defaultWeek, defaultPe
       display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20,
     }} onClick={onClose}>
       <div style={{
-        background: '#fff', borderRadius: 16, width: '100%', maxWidth: 560,
+        background: '#fff', borderRadius: 16, width: '100%', maxWidth: 680,
         maxHeight: '92vh', display: 'flex', flexDirection: 'column',
         boxShadow: '0 20px 60px rgba(0,0,0,.2)', overflow: 'hidden',
       }} onClick={e => e.stopPropagation()}>
@@ -209,7 +209,7 @@ function TopicFormModal({ topic, assignments, indicators, defaultWeek, defaultPe
                 </select>
                 <input value={r.ref || ''} onChange={e => updateResource(i, 'ref', e.target.value)}
                   placeholder="ej. Cambridge One pp. 6-11"
-                  style={{ flex: 1, padding: '6px 8px', border: '1px solid #d0d8e8', borderRadius: 6, fontSize: 12 }} />
+                  style={{ flex: 1, minWidth: 0, padding: '6px 8px', border: '1px solid #d0d8e8', borderRadius: 6, fontSize: 12 }} />
                 <button type="button" onClick={() => removeResource(i)}
                   style={{ padding: '5px 8px', border: 'none', background: '#fff5f5', color: '#c33', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>
                   ✕
