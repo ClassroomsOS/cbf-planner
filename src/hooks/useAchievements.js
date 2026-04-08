@@ -152,6 +152,7 @@ export default function useAchievements(teacher, filters = {}) {
         .from('achievement_indicators')
         .insert({
           goal_id:     goalId,
+          teacher_id:  teacher.id,
           order_index: maxOrder + 1,
           ...data,
         })
