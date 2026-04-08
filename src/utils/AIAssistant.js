@@ -246,15 +246,29 @@ READING true-false: {"type":"READING","model":"true-false","data":{"passage":"Ra
 EXIT_TICKET can-do: {"type":"EXIT_TICKET","model":"can-do","data":{"skills":["I can identify producers and consumers","I can explain the food chain","I can use ecosystem vocabulary"]}}
 WORKSHOP stations: {"type":"WORKSHOP","model":"stations","data":{"stations":[{"name":"Reading","time":"10 min","desc":"Read the text and highlight key terms"},{"name":"Writing","time":"10 min","desc":"Answer the comprehension questions"}]}}
 SPEAKING rubric: {"type":"SPEAKING","model":"rubric","data":{"criteria":[{"name":"Pronunciation","pts":10},{"name":"Fluency","pts":10},{"name":"Content","pts":10}]}}
-NOTICE banner: {"type":"NOTICE","model":"banner","data":{"title":"Important","message":"Bring your textbook tomorrow","icon":"📢","priority":"info"}}`
+NOTICE banner: {"type":"NOTICE","model":"banner","data":{"title":"Important","message":"Bring your textbook tomorrow","icon":"📢","priority":"info"}}
+WRITING guided: {"type":"WRITING","model":"guided","data":{"prompt":"Write a paragraph about a time you helped someone.","sentence_starters":["One time, I helped…","I decided to… because…"],"checklist":["I used past tense","I included a conclusion"]}}
+WRITING free: {"type":"WRITING","model":"free","data":{"topic":"My favorite place in Colombia","word_count":"80–100 words","instructions":"Use present tense"}}
+SELF_ASSESSMENT checklist: {"type":"SELF_ASSESSMENT","model":"checklist","data":{"skills":["use past tense to describe events","understand the main idea of a text","write a coherent paragraph"]}}
+SELF_ASSESSMENT reflection: {"type":"SELF_ASSESSMENT","model":"reflection","data":{"questions":["What was the most challenging part of today?","What strategy helped you most?"]}}
+PEER_REVIEW rubric: {"type":"PEER_REVIEW","model":"rubric","data":{"criteria":[{"name":"Content & Ideas","pts":"10"},{"name":"Language Use","pts":"10"},{"name":"Organization","pts":"10"}]}}
+PEER_REVIEW stars: {"type":"PEER_REVIEW","model":"stars","data":{"stars_prompt":"What did your peer do well?","wishes_prompt":"What could your peer improve?"}}
+DIGITAL_RESOURCE link: {"type":"DIGITAL_RESOURCE","model":"link","data":{"title":"Khan Academy — Present Perfect","url":"https://www.khanacademy.org","instructions":"Watch the video and take notes on the 3 main uses."}}
+DIGITAL_RESOURCE platform: {"type":"DIGITAL_RESOURCE","model":"platform","data":{"platform_name":"Cambridge One","activity":"Unit 4 — Listening Practice (15 min)","instructions":"Take a screenshot of your score when done."}}
+COLLABORATIVE_TASK jigsaw: {"type":"COLLABORATIVE_TASK","model":"jigsaw","data":{"groups":[{"name":"Expert Group A","topic":"Causes of climate change"},{"name":"Expert Group B","topic":"Effects on ecosystems"},{"name":"Expert Group C","topic":"Possible solutions"}]}}
+COLLABORATIVE_TASK think_pair: {"type":"COLLABORATIVE_TASK","model":"think_pair","data":{"prompt":"Think of a situation in your daily life where you use English.","pair_time":"3 min","share_time":"5 min"}}
+REAL_LIFE_CONNECTION scenario: {"type":"REAL_LIFE_CONNECTION","model":"scenario","data":{"context":"Imagine you are applying for a part-time job at a local café.","questions":["What skills would you need?","How would you describe yourself in English?"]}}
+REAL_LIFE_CONNECTION connection: {"type":"REAL_LIFE_CONNECTION","model":"connection","data":{"prompt":"Think of a situation in your daily life where you could use today's grammar.","example":"When I go shopping, I could say…"}}
+TEACHER_NOTE observation: {"type":"TEACHER_NOTE","model":"observation","data":{"note":"Model the process before students work in pairs. Nivel Azul may use dictionary.","for_level":"all"}}
+TEACHER_NOTE adaptation: {"type":"TEACHER_NOTE","model":"adaptation","data":{"adaptations":[{"student":"Nivel Azul","note":"Use bilingual dictionary and sentence frames"},{"student":"Nivel Rojo","note":"Extension: write a second paragraph"}]}}`
 
   const taxonomy = learningTarget?.taxonomy
   const taxHint = taxonomy === 'recognize'
-    ? 'Nivel RECONOCER: prefiere VOCAB matching, QUIZ topic-card, READING true-false.'
+    ? 'Nivel RECONOCER: prefiere VOCAB matching, QUIZ topic-card, READING true-false, SELF_ASSESSMENT checklist.'
     : taxonomy === 'apply'
-    ? 'Nivel APLICAR: prefiere DICTATION, GRAMMAR fill-blank, WORKSHOP stations, READING comprehension.'
+    ? 'Nivel APLICAR: prefiere DICTATION, GRAMMAR fill-blank, WORKSHOP stations, READING comprehension, COLLABORATIVE_TASK, REAL_LIFE_CONNECTION.'
     : taxonomy === 'produce'
-    ? 'Nivel PRODUCIR: prefiere SPEAKING rubric, WORKSHOP roles, EXIT_TICKET can-do.'
+    ? 'Nivel PRODUCIR: prefiere SPEAKING rubric, WRITING guided, PEER_REVIEW rubric, EXIT_TICKET can-do, WORKSHOP roles.'
     : ''
 
   const system = `Eres un experto pedagógico para colegios bilingües colombianos (metodología CBF).
@@ -276,7 +290,12 @@ ${biblicalBlock(principles,
   const safeLTDesc = learningTarget?.description ? sanitizeAIInput(learningTarget.description) : ''
   const safeExisting = existingContent ? sanitizeAIInput(existingContent.replace(/<[^>]+>/g,' ').slice(0,200)) : '(vacío)'
 
-  const ALL_TYPES = ['DICTATION','QUIZ','VOCAB','WORKSHOP','SPEAKING','NOTICE','READING','GRAMMAR','EXIT_TICKET']
+  const ALL_TYPES = [
+    'DICTATION','QUIZ','VOCAB','WORKSHOP','SPEAKING','NOTICE',
+    'READING','GRAMMAR','EXIT_TICKET',
+    'WRITING','SELF_ASSESSMENT','PEER_REVIEW','DIGITAL_RESOURCE',
+    'COLLABORATIVE_TASK','REAL_LIFE_CONNECTION','TEACHER_NOTE',
+  ]
   const existingTypes = new Set((existingBlocks || []).map(b => b.type))
   const availableTypes = ALL_TYPES.filter(t => !existingTypes.has(t))
   const noRepeatRule = existingTypes.size
