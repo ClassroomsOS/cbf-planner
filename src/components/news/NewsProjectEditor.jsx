@@ -177,14 +177,21 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
       })
   }, [form.subject, form.grade, form.period, teacher.school_id])
 
-  // ── Auto-select rubric template when indicator_id changes ──
+  // ── Sync target_indicador + auto-select rubric template when indicator_id or indicators change ──
   useEffect(() => {
-    if (!form.indicator_id || form.rubric.length > 0) return
+    if (!form.indicator_id || achievementIndicators.length === 0) return
     const ind = achievementIndicators.find(i => i.id === form.indicator_id)
-    if (!ind?.skill_area) return
-    const match = templates.find(t => t.skill === ind.skill_area)
-    if (match) loadTemplate(match.id)
-  }, [form.indicator_id]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (!ind) return
+    // Sync target_indicador so the AI rubric button stays enabled
+    if (!form.target_indicador && ind.text) {
+      updateForm('target_indicador', ind.text)
+    }
+    // Auto-load matching rubric template by skill_area (only if rubric is empty)
+    if (ind.skill_area && form.rubric.length === 0) {
+      const match = templates.find(t => t.skill === ind.skill_area)
+      if (match) loadTemplate(match.id)
+    }
+  }, [form.indicator_id, achievementIndicators]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // AI Rubric generation step progression
   useEffect(() => {
@@ -845,7 +852,10 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
                                     const isSelected = form.indicator_id === ind.id
                                     return renderIndicatorBtn(
                                       ind, isSelected,
-                                      readOnly ? undefined : () => updateForm('indicator_id', ind.id)
+                                      readOnly ? undefined : () => {
+                                        updateForm('indicator_id', ind.id)
+                                        updateForm('target_indicador', ind.text || '')
+                                      }
                                     )
                                   })}
                                 </div>
