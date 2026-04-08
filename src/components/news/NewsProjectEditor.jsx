@@ -743,109 +743,149 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
                       const DIM_LABELS  = { cognitive: 'Cognitivo', procedural: 'Procedimental', attitudinal: 'Actitudinal' }
                       const SKILL_ICONS = { speaking: '🎤', listening: '🎧', reading: '📖', writing: '✍️', general: '📋' }
 
-                      // ── Si ya viene vinculado → read-only card ──
+                      // Agrupar indicadores por logro (_goalText) preservando orden de aparición
+                      const goalGroups = []
+                      const seenGoals = {}
+                      achievementIndicators.forEach(ind => {
+                        const key = ind._goalText || '—'
+                        if (!seenGoals[key]) {
+                          seenGoals[key] = true
+                          goalGroups.push({ goalText: key, indicators: [] })
+                        }
+                        goalGroups[goalGroups.length - 1].indicators.push(ind)
+                      })
+                      // Corregir agrupación — usar goal_id como clave real
+                      const groupsByGoal = {}
+                      const goalOrder = []
+                      achievementIndicators.forEach(ind => {
+                        if (!groupsByGoal[ind.goal_id]) {
+                          groupsByGoal[ind.goal_id] = { goalText: ind._goalText || '—', indicators: [] }
+                          goalOrder.push(ind.goal_id)
+                        }
+                        groupsByGoal[ind.goal_id].indicators.push(ind)
+                      })
+
+                      // ── Render de un indicador (botón seleccionable o card) ──
+                      const renderIndicatorBtn = (ind, isSelected, onClick) => (
+                        <button
+                          key={ind.id}
+                          type="button"
+                          onClick={onClick}
+                          style={{
+                            padding: '10px 12px', borderRadius: 8, textAlign: 'left',
+                            border: isSelected ? '2px solid #1A6B3A' : '1px solid #ddd',
+                            background: isSelected ? '#f0fff4' : '#fff',
+                            cursor: 'pointer', display: 'flex', alignItems: 'flex-start', gap: 10,
+                            boxShadow: isSelected ? '0 2px 8px rgba(26,107,58,0.15)' : 'none',
+                            width: '100%'
+                          }}
+                        >
+                          <div style={{ flexShrink: 0, fontSize: 18, lineHeight: 1 }}>
+                            {SKILL_ICONS[ind.skill_area] || DIM_ICONS[ind.dimension] || '📌'}
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', gap: 5, marginBottom: 4, flexWrap: 'wrap' }}>
+                              <span style={{ fontSize: 9, fontWeight: 700, color: '#5a8a00', textTransform: 'uppercase', background: '#f0fff0', padding: '2px 6px', borderRadius: 3 }}>
+                                {DIM_LABELS[ind.dimension] || ind.dimension}
+                              </span>
+                              {ind.skill_area && (
+                                <span style={{ fontSize: 9, fontWeight: 600, color: '#1A3A8F', background: '#eef2fb', padding: '2px 6px', borderRadius: 3 }}>
+                                  {SKILL_ICONS[ind.skill_area]} {ind.skill_area}
+                                </span>
+                              )}
+                              {ind.weight && (
+                                <span style={{ fontSize: 9, color: '#888', background: '#f5f5f5', padding: '2px 6px', borderRadius: 3 }}>
+                                  {ind.weight}%
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ fontSize: 11, color: '#1a1a2e', lineHeight: 1.4 }}>{ind.text}</div>
+                            {ind.student_text && (
+                              <div style={{ fontSize: 10, color: '#666', marginTop: 4, fontStyle: 'italic', lineHeight: 1.3 }}>
+                                {ind.student_text.length > 90 ? ind.student_text.slice(0, 90) + '…' : ind.student_text}
+                              </div>
+                            )}
+                            {isSelected && ind.skill_area && (
+                              <div style={{ marginTop: 5, fontSize: 9, color: '#1A6B3A', background: '#e8f5e8', borderRadius: 4, padding: '3px 7px', display: 'inline-block', fontWeight: 600 }}>
+                                ✓ La rúbrica se filtrará por <strong>{ind.skill_area}</strong> automáticamente
+                              </div>
+                            )}
+                          </div>
+                          {isSelected && (
+                            <div style={{ flexShrink: 0, width: 18, height: 18, borderRadius: '50%', background: '#1A6B3A', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 10, fontWeight: 800 }}>✓</div>
+                          )}
+                        </button>
+                      )
+
+                      // ── Render agrupado por logro ──
+                      const renderGroupedSelector = (readOnly = false) => (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, maxHeight: readOnly ? 'none' : 320, overflowY: readOnly ? 'visible' : 'auto' }}>
+                          {goalOrder.map((goalId, gi) => {
+                            const group = groupsByGoal[goalId]
+                            return (
+                              <div key={goalId}>
+                                {/* Cabecera del logro */}
+                                <div style={{
+                                  fontSize: 10, fontWeight: 800, color: '#1A5C1A',
+                                  background: '#e4f4e4', borderRadius: '6px 6px 0 0',
+                                  padding: '6px 10px', lineHeight: 1.5, border: '1px solid #c5e0c5',
+                                  borderBottom: 'none'
+                                }}>
+                                  <span style={{ opacity: 0.6, marginRight: 4 }}>Logro {gi + 1}:</span>
+                                  {group.goalText}
+                                </div>
+                                {/* Indicadores de este logro */}
+                                <div style={{
+                                  border: '1px solid #c5e0c5', borderTop: 'none',
+                                  borderRadius: '0 0 6px 6px', padding: '6px',
+                                  display: 'flex', flexDirection: 'column', gap: 5,
+                                  background: '#fafff8'
+                                }}>
+                                  {group.indicators.map(ind => {
+                                    const isSelected = form.indicator_id === ind.id
+                                    return renderIndicatorBtn(
+                                      ind, isSelected,
+                                      readOnly ? undefined : () => updateForm('indicator_id', ind.id)
+                                    )
+                                  })}
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )
+
+                      // ── Si ya viene vinculado → mostrar todos los logros, resaltando el seleccionado ──
                       if (form.indicator_id && selectedIndicator) {
                         return (
                           <>
-                            {achievementIndicators[0]?._goalText && (
-                              <div style={{ fontSize: 10, color: '#3a6a3a', background: '#e4f4e4', borderRadius: 6, padding: '6px 10px', marginBottom: 10, lineHeight: 1.5, border: '1px solid #c5e0c5' }}>
-                                <strong>Logro del período:</strong> {achievementIndicators[0]._goalText}
-                              </div>
-                            )}
-                            <div style={{
-                              background: '#fff', borderRadius: 8, padding: '12px 14px',
-                              border: '2px solid #1A6B3A', display: 'flex', alignItems: 'flex-start', gap: 10,
-                            }}>
-                              <div style={{ flexShrink: 0, fontSize: 20, lineHeight: 1 }}>
-                                {SKILL_ICONS[selectedIndicator.skill_area] || DIM_ICONS[selectedIndicator.dimension] || '📌'}
-                              </div>
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ display: 'flex', gap: 5, marginBottom: 6, flexWrap: 'wrap' }}>
-                                  <span style={{ fontSize: 9, fontWeight: 700, color: '#5a8a00', textTransform: 'uppercase', background: '#f0fff0', padding: '2px 6px', borderRadius: 3 }}>
-                                    {DIM_LABELS[selectedIndicator.dimension] || selectedIndicator.dimension}
-                                  </span>
-                                  {selectedIndicator.skill_area && (
-                                    <span style={{ fontSize: 9, fontWeight: 600, color: '#1A3A8F', background: '#eef2fb', padding: '2px 6px', borderRadius: 3 }}>
-                                      {SKILL_ICONS[selectedIndicator.skill_area]} {selectedIndicator.skill_area}
-                                    </span>
-                                  )}
-                                </div>
-                                <div style={{ fontSize: 12, color: '#1a1a2e', lineHeight: 1.5, fontWeight: 500 }}>{selectedIndicator.text}</div>
-                                {selectedIndicator.skill_area && (
-                                  <div style={{ marginTop: 6, fontSize: 9, color: '#1A6B3A', background: '#e8f5e8', borderRadius: 4, padding: '3px 7px', display: 'inline-block', fontWeight: 600 }}>
-                                    ✓ La rúbrica se filtrará por <strong>{selectedIndicator.skill_area}</strong> automáticamente
-                                  </div>
-                                )}
-                              </div>
-                              <div style={{ flexShrink: 0, width: 20, height: 20, borderRadius: '50%', background: '#1A6B3A', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 11, fontWeight: 800 }}>✓</div>
+                            <div style={{ fontSize: 9, fontWeight: 700, color: '#5a8a00', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.3px' }}>
+                              Indicador vinculado — todos los logros del período:
                             </div>
-                            <div style={{ fontSize: 10, color: '#888', marginTop: 8, fontStyle: 'italic' }}>
-                              Indicador vinculado desde <em>Objetivos → {form.subject} · {form.grade} · Período {form.period}</em>
+                            {renderGroupedSelector(false)}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+                              <div style={{ fontSize: 9, color: '#888', fontStyle: 'italic' }}>
+                                Indicador vinculado desde <em>Objetivos → {form.subject} · {form.grade} · Período {form.period}</em>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => updateForm('indicator_id', null)}
+                                style={{ fontSize: 10, color: '#CC4E10', background: 'none', border: '1px solid #CC4E10', borderRadius: 5, padding: '3px 8px', cursor: 'pointer', fontWeight: 700 }}
+                              >
+                                Desvincular
+                              </button>
                             </div>
                           </>
                         )
                       }
 
-                      // ── Sin indicator_id → mostrar selector ──
+                      // ── Sin indicator_id → mostrar selector agrupado ──
                       return (
                         <>
-                          {achievementIndicators[0]?._goalText && (
-                            <div style={{ fontSize: 10, color: '#3a6a3a', background: '#e4f4e4', borderRadius: 6, padding: '6px 10px', marginBottom: 10, lineHeight: 1.5, border: '1px solid #c5e0c5' }}>
-                              <strong>Logro del período:</strong> {achievementIndicators[0]._goalText}
-                            </div>
-                          )}
-                          <div style={{ fontSize: 9, fontWeight: 700, color: '#5a8a00', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.3px' }}>
+                          <div style={{ fontSize: 9, fontWeight: 700, color: '#5a8a00', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.3px' }}>
                             Selecciona el indicador que este proyecto evalúa:
                           </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 260, overflowY: 'auto' }}>
-                            {achievementIndicators.map(ind => {
-                              const isSelected = form.indicator_id === ind.id
-                              return (
-                                <button
-                                  key={ind.id}
-                                  type="button"
-                                  onClick={() => updateForm('indicator_id', ind.id)}
-                                  style={{
-                                    padding: '10px 12px', borderRadius: 8, textAlign: 'left',
-                                    border: isSelected ? '2px solid #1A6B3A' : '1px solid #ddd',
-                                    background: isSelected ? '#f0fff4' : '#fff',
-                                    cursor: 'pointer', display: 'flex', alignItems: 'flex-start', gap: 10,
-                                    boxShadow: isSelected ? '0 2px 8px rgba(26,107,58,0.15)' : 'none'
-                                  }}
-                                >
-                                  <div style={{ flexShrink: 0, fontSize: 18, lineHeight: 1 }}>
-                                    {SKILL_ICONS[ind.skill_area] || DIM_ICONS[ind.dimension] || '📌'}
-                                  </div>
-                                  <div style={{ flex: 1, minWidth: 0 }}>
-                                    <div style={{ display: 'flex', gap: 5, marginBottom: 4, flexWrap: 'wrap' }}>
-                                      <span style={{ fontSize: 9, fontWeight: 700, color: '#5a8a00', textTransform: 'uppercase', background: '#f0fff0', padding: '2px 6px', borderRadius: 3 }}>
-                                        {DIM_LABELS[ind.dimension] || ind.dimension}
-                                      </span>
-                                      {ind.skill_area && (
-                                        <span style={{ fontSize: 9, fontWeight: 600, color: '#1A3A8F', background: '#eef2fb', padding: '2px 6px', borderRadius: 3 }}>
-                                          {SKILL_ICONS[ind.skill_area]} {ind.skill_area}
-                                        </span>
-                                      )}
-                                      {ind.weight && (
-                                        <span style={{ fontSize: 9, color: '#888', background: '#f5f5f5', padding: '2px 6px', borderRadius: 3 }}>
-                                          {ind.weight}%
-                                        </span>
-                                      )}
-                                    </div>
-                                    <div style={{ fontSize: 11, color: '#1a1a2e', lineHeight: 1.4 }}>{ind.text}</div>
-                                    {ind.student_text && (
-                                      <div style={{ fontSize: 10, color: '#666', marginTop: 4, fontStyle: 'italic', lineHeight: 1.3 }}>
-                                        {ind.student_text.length > 90 ? ind.student_text.slice(0, 90) + '…' : ind.student_text}
-                                      </div>
-                                    )}
-                                  </div>
-                                  {isSelected && (
-                                    <div style={{ flexShrink: 0, width: 18, height: 18, borderRadius: '50%', background: '#1A6B3A', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 10, fontWeight: 800 }}>✓</div>
-                                  )}
-                                </button>
-                              )
-                            })}
-                          </div>
+                          {renderGroupedSelector(false)}
                           <div style={{ fontSize: 9, color: '#888', marginTop: 6, fontStyle: 'italic' }}>
                             💡 Los indicadores vienen de <em>Objetivos → {form.subject} · {form.grade} · Período {form.period}</em>
                           </div>
