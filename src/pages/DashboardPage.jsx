@@ -404,9 +404,6 @@ function DashboardInner({ session, teacher, setTeacher }) {
               <Route path="/curriculum"      element={<CurriculumPage          teacher={teacher} />} />
               <Route path="/sala-revision" element={<ReviewRoomPage          teacher={teacher} />} />
               <Route path="/subjects"      element={<SubjectManagerPage      teacher={teacher} />} />
-              <Route path="/library"      element={<GuideLibraryPage        teacher={teacher} />} />
-              <Route path="/coverage"     element={<PeriodCoverageDashboard teacher={teacher} />} />
-              <Route path="/observations" element={<ObservationLoggerPage   teacher={teacher} />} />
               <Route path="/notifications" element={<NotificationsPage teacher={teacher} onRead={() => setUnread(0)} />} />
               <Route path="/teachers"      element={<AdminTeachersPage teacher={teacher} />} />
               <Route path="/settings"      element={<SettingsPage      teacher={teacher} />} />

@@ -10,6 +10,9 @@ import { canReadAllPlans } from '../utils/roles'
 
 const STATUS_COLORS = {
   draft:     { bg: '#FFF8E1', color: '#7A6200', label: 'Borrador' },
+  complete:  { bg: '#EFF6FF', color: '#1D4ED8', label: 'Completa' },
+  submitted: { bg: '#EEF2FF', color: '#4338CA', label: 'Enviada' },
+  approved:  { bg: '#F0FDF4', color: '#15803D', label: 'Aprobada' },
   published: { bg: '#E8F5E9', color: '#1B5E20', label: 'Publicada' },
   archived:  { bg: '#F5F5F5', color: '#757575', label: 'Archivada' },
 }
@@ -37,7 +40,7 @@ export default function GuideLibraryPage({ teacher }) {
   const [teachers, setTeachers] = useState({})
   const [loading,  setLoading]  = useState(true)
   const [search,   setSearch]   = useState('')
-  const [filters,  setFilters]  = useState({ grade: '', subject: '', period: '' })
+  const [filters,  setFilters]  = useState({ grade: '', subject: '', period: '', status: '' })
   const [page,     setPage]     = useState(0)
   const PAGE_SIZE = 20
 
@@ -88,6 +91,7 @@ export default function GuideLibraryPage({ teacher }) {
     if (filters.grade   && p.grade   !== filters.grade)   return false
     if (filters.subject && p.subject !== filters.subject) return false
     if (filters.period  && String(p.period) !== String(filters.period)) return false
+    if (filters.status  && p.status  !== filters.status)  return false
     if (search) {
       const t = teachers[p.teacher_id]
       const hay = [p.grade, p.subject, t?.full_name, p.week_number].join(' ').toLowerCase()
@@ -147,6 +151,8 @@ export default function GuideLibraryPage({ teacher }) {
           { key: 'grade',   label: 'Grado',   opts: grades },
           { key: 'subject', label: 'Materia',  opts: subjects },
           { key: 'period',  label: 'Período',  opts: periods },
+          { key: 'status',  label: 'Estado',
+            opts: Object.entries(STATUS_COLORS).map(([val, s]) => ({ val, label: s.label })) },
         ].map(({ key, label, opts }) => (
           <select
             key={key}
@@ -158,12 +164,15 @@ export default function GuideLibraryPage({ teacher }) {
             }}
           >
             <option value="">Todos los {label.toLowerCase()}s</option>
-            {opts.map(o => <option key={o} value={o}>{o}</option>)}
+            {opts.map(o => typeof o === 'string'
+              ? <option key={o} value={o}>{o}</option>
+              : <option key={o.val} value={o.val}>{o.label}</option>
+            )}
           </select>
         ))}
         {(search || Object.values(filters).some(Boolean)) && (
           <button
-            onClick={() => { setSearch(''); setFilters({ grade: '', subject: '', period: '' }); setPage(0) }}
+            onClick={() => { setSearch(''); setFilters({ grade: '', subject: '', period: '', status: '' }); setPage(0) }}
             style={{
               padding: '7px 12px', borderRadius: 8, border: '1px solid #FCA5A5',
               background: '#FEF2F2', color: '#DC2626', fontSize: 12, cursor: 'pointer',
