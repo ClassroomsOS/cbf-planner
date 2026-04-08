@@ -9,6 +9,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import FeedbackModal from '../components/FeedbackModal'
 import { canGiveFeedback } from '../utils/roles'
+import { useToast } from '../context/ToastContext'
 
 const STATUS_META = {
   draft:     { label: 'Borrador',    bg: '#FFF8E1', color: '#7A6200', dot: '#F59E0B' },
@@ -39,15 +40,17 @@ function formatDate(d) {
 
 export default function ReviewRoomPage({ teacher }) {
   const navigate       = useNavigate()
+  const { showToast }  = useToast()
   const canFeedback    = canGiveFeedback(teacher.role)
 
-  const [plans,        setPlans]        = useState([])
-  const [teachers,     setTeachers]     = useState({})
+  const [plans,          setPlans]          = useState([])
+  const [teachers,       setTeachers]       = useState({})
   const [feedbackCounts, setFeedbackCounts] = useState({})
-  const [loading,      setLoading]      = useState(true)
-  const [expanded,     setExpanded]     = useState({})
-  const [filters,      setFilters]      = useState({ status: '', subject: '', teacherId: '' })
-  const [feedbackPlan, setFeedbackPlan] = useState(null) // plan being reviewed
+  const [loading,        setLoading]        = useState(true)
+  const [expanded,       setExpanded]       = useState({})
+  const [filters,        setFilters]        = useState({ status: '', subject: '', teacherId: '' })
+  const [feedbackPlan,   setFeedbackPlan]   = useState(null)
+  const [changingId,     setChangingId]     = useState(null) // plan id being status-changed
 
   useEffect(() => { load() }, [])
 
@@ -97,6 +100,55 @@ export default function ReviewRoomPage({ teacher }) {
     }
 
     setLoading(false)
+  }
+
+  // ── Status transitions (admin actions) ────────────────────────────────────
+  // submitted → approved : Aprobar (notifies teacher)
+  // submitted → complete  : Devolver (notifies teacher with feedback prompt)
+  // approved  → submitted : Reabrir (rare — admin re-opens for revision)
+  async function changeStatus(plan, newStatus) {
+    setChangingId(plan.id)
+    const { error } = await supabase
+      .from('lesson_plans')
+      .update({ status: newStatus })
+      .eq('id', plan.id)
+    if (error) {
+      showToast('Error al cambiar el estado: ' + error.message, 'error')
+      setChangingId(null)
+      return
+    }
+    // Optimistic update
+    setPlans(prev => prev.map(p => p.id === plan.id ? { ...p, status: newStatus } : p))
+
+    const planTitle = `${plan.subject} — ${plan.grade}, Sem. ${plan.week_number}`
+    const t = teachers[plan.teacher_id]
+
+    if (newStatus === 'approved') {
+      await supabase.from('notifications').insert({
+        school_id: teacher.school_id,
+        from_id:   teacher.id,
+        to_id:     plan.teacher_id,
+        to_role:   'teacher',
+        type:      'plan_approved',
+        plan_id:   plan.id,
+        message:   `Tu guía "${planTitle}" fue aprobada ✅ por ${teacher.full_name}.`,
+      })
+      showToast(`Guía aprobada · ${t?.full_name?.split(' ')[0] || ''} fue notificado`, 'success')
+    } else if (newStatus === 'complete') {
+      await supabase.from('notifications').insert({
+        school_id: teacher.school_id,
+        from_id:   teacher.id,
+        to_id:     plan.teacher_id,
+        to_role:   'teacher',
+        type:      'plan_returned',
+        plan_id:   plan.id,
+        message:   `Tu guía "${planTitle}" fue devuelta para correcciones por ${teacher.full_name}. Revisa el feedback.`,
+      })
+      showToast(`Guía devuelta · ${t?.full_name?.split(' ')[0] || ''} fue notificado`, 'info')
+    } else {
+      showToast('Estado actualizado', 'success')
+    }
+    setChangingId(null)
   }
 
   // Filter
@@ -294,20 +346,63 @@ export default function ReviewRoomPage({ teacher }) {
                       </div>
 
                       {/* Actions */}
-                      <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                        <button
-                          type="button"
+                      <div style={{ display: 'flex', gap: 6, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+
+                        {/* Status action buttons — submitted plans */}
+                        {plan.status === 'submitted' && (
+                          <>
+                            <button type="button"
+                              disabled={changingId === plan.id}
+                              onClick={() => changeStatus(plan, 'approved')}
+                              style={{
+                                padding: '6px 12px', borderRadius: 7, fontSize: 12, fontWeight: 700,
+                                background: '#15803D', color: '#fff', border: 'none',
+                                cursor: changingId === plan.id ? 'default' : 'pointer',
+                                opacity: changingId === plan.id ? .6 : 1,
+                              }}>
+                              {changingId === plan.id ? '…' : '✓ Aprobar'}
+                            </button>
+                            <button type="button"
+                              disabled={changingId === plan.id}
+                              onClick={() => { setFeedbackPlan(plan); changeStatus(plan, 'complete') }}
+                              style={{
+                                padding: '6px 12px', borderRadius: 7, fontSize: 12, fontWeight: 700,
+                                background: '#FEF2F2', color: '#DC2626',
+                                border: '1px solid #FCA5A5',
+                                cursor: changingId === plan.id ? 'default' : 'pointer',
+                                opacity: changingId === plan.id ? .6 : 1,
+                              }}>
+                              ↩ Devolver
+                            </button>
+                          </>
+                        )}
+
+                        {/* Reabrir approved plan */}
+                        {plan.status === 'approved' && (
+                          <button type="button"
+                            disabled={changingId === plan.id}
+                            onClick={() => changeStatus(plan, 'submitted')}
+                            style={{
+                              padding: '6px 12px', borderRadius: 7, fontSize: 12, fontWeight: 600,
+                              background: '#EFF6FF', color: '#1D4ED8',
+                              border: '1px solid #BFDBFE',
+                              cursor: changingId === plan.id ? 'default' : 'pointer',
+                            }}>
+                            ↩ Reabrir
+                          </button>
+                        )}
+
+                        <button type="button"
                           onClick={() => openEditor(plan)}
                           style={{
                             padding: '6px 12px', borderRadius: 7, fontSize: 12, fontWeight: 600,
                             background: '#1F3864', color: '#fff', border: 'none', cursor: 'pointer',
-                          }}
-                        >
+                          }}>
                           ✏️ Abrir
                         </button>
+
                         {canFeedback && (
-                          <button
-                            type="button"
+                          <button type="button"
                             onClick={() => setFeedbackPlan(plan)}
                             style={{
                               padding: '6px 12px', borderRadius: 7, fontSize: 12, fontWeight: 600,
@@ -315,8 +410,7 @@ export default function ReviewRoomPage({ teacher }) {
                               color: fb?.open > 0 ? '#DC2626' : '#374151',
                               border: `1px solid ${fb?.open > 0 ? '#FCA5A5' : '#E2E8F0'}`,
                               cursor: 'pointer',
-                            }}
-                          >
+                            }}>
                             💬 Feedback
                           </button>
                         )}

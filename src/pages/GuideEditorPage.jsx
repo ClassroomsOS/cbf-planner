@@ -1044,6 +1044,35 @@ export default function GuideEditorPage({ teacher }) {
                   </>
                 )}
                 <hr style={{ margin: '4px 0', border: 'none', borderTop: '1px solid #e0e6f0' }} />
+                {/* Enviar para revisión — solo docente dueño, no admin editando ajeno */}
+                {!isOtherTeacher && plan?.status !== 'approved' && (
+                  <button onClick={async () => {
+                    closeExport()
+                    const nextStatus = plan?.status === 'submitted' ? 'complete' : 'submitted'
+                    const { error } = await supabase.from('lesson_plans').update({ status: nextStatus }).eq('id', id)
+                    if (!error) {
+                      setPlan(p => ({ ...p, status: nextStatus }))
+                      if (nextStatus === 'submitted') {
+                        await supabase.from('notifications').insert({
+                          school_id: teacher.school_id, from_id: teacher.id, to_role: 'admin',
+                          type: 'plan_submitted', plan_id: id,
+                          message: `${teacher.full_name} envió la guía de ${content?.info?.asignatura} — ${content?.info?.grado}, Sem. ${content?.info?.semana}`,
+                        })
+                        showToast('Guía enviada para revisión 📤', 'success')
+                      } else {
+                        showToast('Guía marcada como Completa', 'success')
+                      }
+                    }
+                  }} style={{ color: plan?.status === 'submitted' ? '#374151' : '#1D4ED8', fontWeight: 600 }}>
+                    {plan?.status === 'submitted' ? '↩ Marcar como Completa' : '📤 Enviar para revisión'}
+                  </button>
+                )}
+                {plan?.status === 'approved' && !isOtherTeacher && (
+                  <button disabled style={{ color: '#9BBB59', fontWeight: 700, cursor: 'default' }}>
+                    ✅ Aprobada por coordinación
+                  </button>
+                )}
+                <hr style={{ margin: '4px 0', border: 'none', borderTop: '1px solid #e0e6f0' }} />
                 <div style={{ padding: '4px 12px 6px', fontSize: '10px', fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '.5px' }}>
                   Inteligencia Artificial
                 </div>
