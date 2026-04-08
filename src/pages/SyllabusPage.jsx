@@ -110,12 +110,10 @@ function TopicFormModal({ topic, assignments, indicators, defaultWeek, defaultPe
             </label>
             <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13, color: '#555', fontWeight: 600 }}>
               Grado
-              <input value={form.grade} onChange={e => set('grade', e.target.value)}
-                list="syl-grade-options" placeholder="ej. 8.° A"
-                style={{ padding: '8px 10px', border: '1px solid #d0d8e8', borderRadius: 8, fontSize: 14 }} />
-              <datalist id="syl-grade-options">
-                {grades.map(g => <option key={g} value={g} />)}
-              </datalist>
+              <select value={form.grade} onChange={e => set('grade', e.target.value)}
+                style={{ padding: '8px 10px', border: '1px solid #d0d8e8', borderRadius: 8, fontSize: 14 }}>
+                {grades.map(g => <option key={g} value={g}>{g}</option>)}
+              </select>
             </label>
           </div>
 
