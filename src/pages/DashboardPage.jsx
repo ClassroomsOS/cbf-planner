@@ -11,10 +11,14 @@ import GuideEditorPage     from './GuideEditorPage'
 import MessagesPage        from './MessagesPage'
 import SettingsPage        from './SettingsPage'
 import SuperAdminPage      from './SuperAdminPage'
-import LearningTargetsPage from './LearningTargetsPage'
-import ObjectivesPage     from './ObjectivesPage'
-import SyllabusPage       from './SyllabusPage'
-import NewsPage            from './NewsPage'
+import LearningTargetsPage      from './LearningTargetsPage'
+import ObjectivesPage           from './ObjectivesPage'
+import SyllabusPage             from './SyllabusPage'
+import NewsPage                 from './NewsPage'
+import SubjectManagerPage       from './SubjectManagerPage'
+import GuideLibraryPage         from './GuideLibraryPage'
+import PeriodCoverageDashboard  from './PeriodCoverageDashboard'
+import ObservationLoggerPage    from './ObservationLoggerPage'
 import PrinciplesPage      from './PrinciplesPage'
 import DirectorPage        from './DirectorPage'
 import SchedulePage        from './SchedulePage'
@@ -214,6 +218,10 @@ function DashboardInner({ session, teacher, setTeacher }) {
             </NavLink>
           )}
 
+          <NavLink to="/library" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
+            <span className="dot" style={{ background: '#9BBB59' }} />
+            📚 Biblioteca de Guías
+          </NavLink>
           <NavLink to="/ai-usage" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
             <span className="dot" style={{ background: '#8064A2' }} />
             Uso de IA
@@ -297,6 +305,26 @@ function DashboardInner({ session, teacher, setTeacher }) {
                 📊 Malla Curricular
                 <span className="sb-admin-badge">Admin</span>
               </NavLink>
+              <NavLink to="/subjects" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
+                <span className="dot" style={{ background: '#F79646' }} />
+                📋 Materias
+                <span className="sb-admin-badge">Admin</span>
+              </NavLink>
+              <NavLink to="/library" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
+                <span className="dot" style={{ background: '#9BBB59' }} />
+                📚 Biblioteca
+                <span className="sb-admin-badge">Admin</span>
+              </NavLink>
+              <NavLink to="/coverage" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
+                <span className="dot" style={{ background: '#8064A2' }} />
+                🔭 Cobertura eleot®
+                <span className="sb-admin-badge">Admin</span>
+              </NavLink>
+              <NavLink to="/observations" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
+                <span className="dot" style={{ background: '#C0504D' }} />
+                🔎 Observaciones
+                <span className="sb-admin-badge">Admin</span>
+              </NavLink>
               <NavLink to="/settings" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
                 <span className="dot" style={{ background: '#555' }} />
                 ⚙️ Panel de control
@@ -345,7 +373,10 @@ function DashboardInner({ session, teacher, setTeacher }) {
           <Route path="/objectives"  element={<ObjectivesPage      teacher={teacher} />} />
           <Route path="/syllabus"    element={<SyllabusPage        teacher={teacher} />} />
           <Route path="/principles"  element={<PrinciplesPage       teacher={teacher} />} />
-          <Route path="/ai-usage"   element={<AIUsagePage          teacher={teacher} />} />
+          <Route path="/ai-usage"    element={<AIUsagePage          teacher={teacher} />} />
+          <Route path="/library"     element={<GuideLibraryPage        teacher={teacher} />} />
+          <Route path="/coverage"    element={<PeriodCoverageDashboard teacher={teacher} />} />
+          <Route path="/observations" element={<ObservationLoggerPage  teacher={teacher} />} />
           <Route path="/messages"   element={<MessagesPage         teacher={teacher} onUpdate={fetchUnreadMessages} />} />
           {hasDirectorView && (
             <Route path="/director" element={<DirectorPage teacher={teacher} />} />
@@ -364,7 +395,11 @@ function DashboardInner({ session, teacher, setTeacher }) {
               <Route path="/calendar"      element={<CalendarPage      teacher={teacher} />} />
               <Route path="/schedule"      element={<SchedulePage      teacher={teacher} />} />
               <Route path="/agenda"      element={<AgendaPage      teacher={teacher} />} />
-              <Route path="/curriculum"  element={<CurriculumPage  teacher={teacher} />} />
+              <Route path="/curriculum"    element={<CurriculumPage          teacher={teacher} />} />
+              <Route path="/subjects"     element={<SubjectManagerPage      teacher={teacher} />} />
+              <Route path="/library"      element={<GuideLibraryPage        teacher={teacher} />} />
+              <Route path="/coverage"     element={<PeriodCoverageDashboard teacher={teacher} />} />
+              <Route path="/observations" element={<ObservationLoggerPage   teacher={teacher} />} />
               <Route path="/notifications" element={<NotificationsPage teacher={teacher} onRead={() => setUnread(0)} />} />
               <Route path="/teachers"      element={<AdminTeachersPage teacher={teacher} />} />
               <Route path="/settings"      element={<SettingsPage      teacher={teacher} />} />
