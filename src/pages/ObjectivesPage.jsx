@@ -90,7 +90,7 @@ function GoalFormModal({ goal, assignments, onSave, onClose }) {
   const uniqueSubjects = [...new Set(assignments.map(a => a.subject))].sort()
   const grades = assignments
     .filter(a => !form.subject || a.subject === form.subject)
-    .map(a => `${a.grade} ${a.section}`.trim())
+    .map(a => a.grade)  // grado base sin sección — la planeación es igual para todas las secciones
   const uniqueGrades = [...new Set(grades)].sort()
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
@@ -611,7 +611,7 @@ export default function ObjectivesPage({ teacher }) {
     [...new Set(assignments.map(a => a.subject))].sort(), [assignments]
   )
   const uniqueGrades = useMemo(() =>
-    [...new Set(assignments.map(a => `${a.grade} ${a.section}`.trim()))].sort(), [assignments]
+    [...new Set(assignments.map(a => a.grade))].sort(), [assignments]  // grado base sin sección
   )
 
   // ── Goal handlers ──────────────────────────────────────────────────────────
@@ -620,7 +620,7 @@ export default function ObjectivesPage({ teacher }) {
     const isEdit = !!form.id
     const payload = {
       subject:       form.subject,
-      grade:         form.grade,
+      grade:         form.grade.replace(/\s+[A-Z]$/, '').trim(), // siempre grado base
       period:        form.period,
       academic_year: form.academic_year,
       text:          form.text,

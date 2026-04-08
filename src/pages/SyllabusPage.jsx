@@ -34,11 +34,11 @@ const WEEKS = Array.from({ length: 16 }, (_, i) => i + 1)
 
 function TopicFormModal({ topic, assignments, indicators, defaultWeek, defaultPeriod, onSave, onClose }) {
   const subjects = [...new Set(assignments.map(a => a.subject))].sort()
-  const grades   = [...new Set(assignments.map(a => `${a.grade} ${a.section}`.trim()))].sort()
+  const grades   = [...new Set(assignments.map(a => a.grade))].sort() // grado base sin sección
 
   const [form, setForm] = useState(topic || {
     subject: assignments[0]?.subject || '',
-    grade: `${assignments[0]?.grade || ''} ${assignments[0]?.section || ''}`.trim(),
+    grade: assignments[0]?.grade || '',  // grado base sin sección
     period: defaultPeriod || 1,
     week_number: defaultWeek || 1,
     topic: '',
@@ -395,7 +395,7 @@ export default function SyllabusPage({ teacher }) {
         const rows = data || []
         setAssignments(rows)
         if (!filterSubject && rows.length > 0) setFilterSubject(rows[0].subject)
-        if (!filterGrade   && rows.length > 0) setFilterGrade(`${rows[0].grade} ${rows[0].section}`.trim())
+        if (!filterGrade   && rows.length > 0) setFilterGrade(rows[0].grade) // grado base sin sección
       })
   }, [teacher?.id])
 
@@ -403,16 +403,17 @@ export default function SyllabusPage({ teacher }) {
     [...new Set(assignments.map(a => a.subject))].sort(), [assignments]
   )
   const uniqueGrades = useMemo(() =>
-    [...new Set(assignments.map(a => `${a.grade} ${a.section}`.trim()))].sort(), [assignments]
+    [...new Set(assignments.map(a => a.grade))].sort(), [assignments] // grado base sin sección
   )
 
   // ── Handlers ───────────────────────────────────────────────────────────────
 
   const handleSaveTopic = async (form) => {
     const isEdit = !!form.id
+    const normalized = { ...form, grade: (form.grade || '').replace(/\s+[A-Z]$/, '').trim() }
     const { error: err } = isEdit
-      ? await updateTopic(form.id, form)
-      : await createTopic(form)
+      ? await updateTopic(form.id, normalized)
+      : await createTopic(normalized)
     if (err) { showToast(err, 'error'); return }
     showToast(isEdit ? 'Contenido actualizado' : 'Contenido agregado', 'success')
     setTopicModal(null)
