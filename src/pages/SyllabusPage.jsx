@@ -285,54 +285,119 @@ function TopicFormModal({ topic, assignments, goals = [], defaultWeek, defaultPe
   )
 }
 
+// ── Period color palette ──────────────────────────────────────────────────────
+const PERIOD_COLORS = {
+  1: { accent: '#2E5598', light: '#eef3ff', border: '#c5d5f0' },
+  2: { accent: '#1A6B3A', light: '#edfaf3', border: '#b8e4cc' },
+  3: { accent: '#8064A2', light: '#f4f0ff', border: '#d4c8ef' },
+  4: { accent: '#C0504D', light: '#fff3f3', border: '#f0c8c8' },
+}
+function periodOfWeek(w) {
+  if (w <= 4)  return 1
+  if (w <= 8)  return 2
+  if (w <= 12) return 3
+  return 4
+}
+
 // ── Week Column ───────────────────────────────────────────────────────────────
 
 function WeekColumn({ week, topics, onNew, onEdit, onDelete, onCopy, onPaste, isCopied, hasPaste }) {
+  const period = periodOfWeek(week)
+  const pc     = PERIOD_COLORS[period]
+  const accentColor = isCopied ? '#4BACC6' : pc.accent
+
   return (
     <div style={{
-      background: '#fff', borderRadius: 12, border: `1px solid ${isCopied ? '#4BACC6' : '#e0e6f0'}`,
-      minWidth: 220, flexShrink: 0,
-      boxShadow: isCopied ? '0 0 0 2px #4BACC640' : 'none',
+      background: '#fff',
+      borderRadius: 12,
+      border: `1px solid ${isCopied ? '#4BACC6' : pc.border}`,
+      width: 260,
+      minWidth: 260,
+      flexShrink: 0,
+      display: 'flex',
+      flexDirection: 'column',
+      boxShadow: isCopied
+        ? '0 0 0 2px #4BACC640'
+        : '0 1px 4px rgba(30,40,80,.06)',
     }}>
+
+      {/* ── Header ── */}
       <div style={{
-        padding: '10px 14px', borderBottom: '1px solid #f0f4fb',
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        background: isCopied ? '#EBF7FC' : '#f7f9ff', borderRadius: '12px 12px 0 0',
+        padding: '9px 12px 8px',
+        borderBottom: `2px solid ${accentColor}`,
+        background: isCopied ? '#EBF7FC' : pc.light,
+        borderRadius: '12px 12px 0 0',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        gap: 6,
       }}>
-        <span style={{ fontSize: 13, fontWeight: 700, color: isCopied ? '#4BACC6' : '#2E5598' }}>
-          Semana {week}
-        </span>
-        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
+          {/* Week badge */}
+          <div style={{
+            width: 28, height: 28, borderRadius: 8,
+            background: accentColor, color: '#fff',
+            fontSize: 12, fontWeight: 800,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            flexShrink: 0,
+          }}>
+            {week}
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: accentColor, lineHeight: 1.1 }}>
+              Semana {week}
+            </div>
+            <div style={{ fontSize: 9, color: accentColor + 'AA', fontWeight: 600, lineHeight: 1 }}>
+              {topics.length > 0 ? `${topics.length} contenido${topics.length !== 1 ? 's' : ''}` : 'Sin contenidos'}
+            </div>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexShrink: 0 }}>
           {hasPaste && (
             <button type="button" onClick={() => onPaste(week)}
-              title="Pegar contenidos copiados en esta semana"
+              title="Pegar contenidos copiados"
               style={{
-                padding: '2px 7px', border: '1.5px solid #4BACC6', borderRadius: 5,
-                background: '#EBF7FC', color: '#4BACC6', cursor: 'pointer', fontSize: 11, fontWeight: 700,
+                padding: '3px 8px', border: `1.5px solid #4BACC6`, borderRadius: 6,
+                background: '#EBF7FC', color: '#4BACC6', cursor: 'pointer',
+                fontSize: 10, fontWeight: 700, whiteSpace: 'nowrap',
               }}>⬇ Pegar</button>
           )}
           {topics.length > 0 && (
             <button type="button" onClick={() => onCopy(week)}
-              title={isCopied ? 'Semana copiada' : 'Copiar todos los contenidos de esta semana'}
+              title={isCopied ? 'Semana copiada' : 'Copiar semana'}
               style={{
                 width: 24, height: 24, border: 'none', borderRadius: 6,
-                background: isCopied ? '#4BACC6' : '#e0e6f0',
-                color: isCopied ? '#fff' : '#666',
-                cursor: 'pointer', fontSize: 13,
+                background: isCopied ? '#4BACC6' : accentColor + '20',
+                color: isCopied ? '#fff' : accentColor,
+                cursor: 'pointer', fontSize: 12,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>📋</button>
           )}
           <button type="button" onClick={() => onNew(week)}
+            title="Agregar contenido"
             style={{
               width: 24, height: 24, border: 'none', borderRadius: 6,
-              background: '#2E5598', color: '#fff', cursor: 'pointer', fontSize: 14,
+              background: accentColor, color: '#fff',
+              cursor: 'pointer', fontSize: 16, lineHeight: 1,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontWeight: 700,
             }}>+</button>
         </div>
       </div>
-      <div style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 6, minHeight: 80 }}>
+
+      {/* ── Topics ── */}
+      <div style={{
+        padding: '8px', display: 'flex', flexDirection: 'column', gap: 6,
+        flex: 1, minHeight: 72,
+      }}>
         {topics.length === 0 && (
-          <div style={{ fontSize: 12, color: '#ccc', fontStyle: 'italic', padding: '4px 2px' }}>
+          <div style={{
+            flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 11, color: '#ccc', fontStyle: 'italic', textAlign: 'center',
+            padding: '12px 4px',
+          }}>
             Sin contenidos
           </div>
         )}
@@ -341,38 +406,74 @@ function WeekColumn({ week, topics, onNew, onEdit, onDelete, onCopy, onPaste, is
           return (
             <div key={t.id} style={{
               padding: '8px 10px', borderRadius: 8,
-              background: ct.color + '12', border: `1px solid ${ct.color}25`,
+              background: ct.color + '0E',
+              border: `1px solid ${ct.color}30`,
+              position: 'relative',
             }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 4, alignItems: 'flex-start' }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: ct.color, marginBottom: 2 }}>
-                    {ct.icon} {ct.label}
-                  </div>
-                  <div style={{ fontSize: 12, color: '#1F3864', fontWeight: 500, lineHeight: 1.3 }}>{t.topic}</div>
-                  {t.description && (
-                    <div style={{ fontSize: 11, color: '#888', marginTop: 2, lineHeight: 1.3 }}>{t.description}</div>
-                  )}
+              {/* Type badge */}
+              <div style={{
+                display: 'inline-flex', alignItems: 'center', gap: 3,
+                fontSize: 9, fontWeight: 700, color: ct.color,
+                background: ct.color + '18', borderRadius: 4, padding: '1px 5px',
+                marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.3px',
+              }}>
+                {ct.icon} {ct.label}
+              </div>
+
+              {/* Topic name */}
+              <div style={{
+                fontSize: 12, color: '#1a2340', fontWeight: 600,
+                lineHeight: 1.35, marginBottom: 2,
+                overflow: 'hidden', display: '-webkit-box',
+                WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+              }}>
+                {t.topic}
+              </div>
+
+              {/* Description */}
+              {t.description && (
+                <div style={{
+                  fontSize: 11, color: '#666', lineHeight: 1.3, marginTop: 2,
+                  overflow: 'hidden', display: '-webkit-box',
+                  WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+                }}>
+                  {t.description}
+                </div>
+              )}
+
+              {/* Footer chips */}
+              {(t.resources?.length > 0 || t.indicator) && (
+                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 5 }}>
                   {t.resources?.length > 0 && (
-                    <div style={{ fontSize: 10, color: '#4BACC6', marginTop: 4 }}>
+                    <span style={{ fontSize: 9, color: '#4BACC6', background: '#e8f7fb', borderRadius: 4, padding: '1px 5px', fontWeight: 600 }}>
                       📎 {t.resources.length} recurso{t.resources.length > 1 ? 's' : ''}
-                    </div>
+                    </span>
                   )}
                   {t.indicator && (
-                    <div style={{ fontSize: 10, color: '#8064A2', marginTop: 2 }}>
-                      🎯 {t.indicator.text?.slice(0, 40)}…
-                    </div>
+                    <span style={{ fontSize: 9, color: '#8064A2', background: '#f4f0ff', borderRadius: 4, padding: '1px 5px', fontWeight: 600 }}>
+                      🎯 Indicador
+                    </span>
                   )}
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flexShrink: 0 }}>
-                  <button type="button" onClick={() => onEdit(t)}
-                    style={{ padding: '3px 6px', border: '1px solid #d0d8e8', borderRadius: 4, background: '#fff', cursor: 'pointer', fontSize: 11 }}>
-                    ✎
-                  </button>
-                  <button type="button" onClick={() => onDelete(t.id)}
-                    style={{ padding: '3px 6px', border: '1px solid #ffcdd2', borderRadius: 4, background: '#fff5f5', cursor: 'pointer', fontSize: 11, color: '#c33' }}>
-                    ✕
-                  </button>
-                </div>
+              )}
+
+              {/* Edit / Delete */}
+              <div style={{
+                position: 'absolute', top: 6, right: 6,
+                display: 'flex', flexDirection: 'column', gap: 2,
+              }}>
+                <button type="button" onClick={() => onEdit(t)}
+                  style={{
+                    width: 20, height: 20, border: '1px solid #d0d8e8', borderRadius: 4,
+                    background: '#fff', cursor: 'pointer', fontSize: 10,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#555',
+                  }}>✎</button>
+                <button type="button" onClick={() => onDelete(t.id)}
+                  style={{
+                    width: 20, height: 20, border: '1px solid #ffcdd2', borderRadius: 4,
+                    background: '#fff5f5', cursor: 'pointer', fontSize: 10,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#c33',
+                  }}>✕</button>
               </div>
             </div>
           )
@@ -594,35 +695,81 @@ export default function SyllabusPage({ teacher }) {
             )}
             {filterSubject && (
               <>
+                {/* Copy banner */}
                 {copiedWeek && (
                   <div style={{
                     display: 'flex', alignItems: 'center', gap: 10,
                     background: '#EBF7FC', border: '1px solid #4BACC6',
-                    borderRadius: 8, padding: '8px 14px', marginBottom: 12,
+                    borderRadius: 8, padding: '8px 14px', marginBottom: 14,
                     fontSize: 13, color: '#0E6E8C',
                   }}>
                     <span>📋 Semana {copiedWeek.fromWeek} copiada — {copiedWeek.topics.length} contenido{copiedWeek.topics.length !== 1 ? 's' : ''}. Presiona <strong>⬇ Pegar</strong> en cualquier semana.</span>
                     <button type="button" onClick={() => setCopiedWeek(null)}
-                      style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#4BACC6', cursor: 'pointer', fontSize: 16, lineHeight: 1 }}>
-                      ✕
-                    </button>
+                      style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#4BACC6', cursor: 'pointer', fontSize: 16, lineHeight: 1 }}>✕</button>
                   </div>
                 )}
-                <div style={{ display: 'flex', gap: 12 }}>
-                  {WEEKS.map(w => (
-                    <WeekColumn
-                      key={w}
-                      week={w}
-                      topics={byWeek[w] || []}
-                      onNew={openNewTopic}
-                      onEdit={t => setTopicModal(t)}
-                      onDelete={handleDeleteTopic}
-                      onCopy={handleCopyWeek}
-                      onPaste={handlePasteWeek}
-                      isCopied={copiedWeek?.fromWeek === w}
-                      hasPaste={!!copiedWeek && copiedWeek.fromWeek !== w}
-                    />
-                  ))}
+
+                {/* Kanban — scroll horizontal */}
+                <div style={{
+                  overflowX: 'auto', overflowY: 'visible',
+                  paddingBottom: 16,
+                  /* scrollbar siempre visible en webkit */
+                  WebkitOverflowScrolling: 'touch',
+                }}>
+                  {/* Period groups side by side */}
+                  <div style={{ display: 'flex', gap: 0, width: 'max-content' }}>
+                    {[1, 2, 3, 4].map(p => {
+                      const pc       = PERIOD_COLORS[p]
+                      const pWeeks   = WEEKS.filter(w => periodOfWeek(w) === p)
+                      const pTopics  = pWeeks.reduce((acc, w) => acc + (byWeek[w]?.length || 0), 0)
+                      return (
+                        <div key={p} style={{
+                          display: 'flex', flexDirection: 'column',
+                          borderRight: p < 4 ? '2px dashed #e0e6f0' : 'none',
+                          paddingRight: p < 4 ? 16 : 0,
+                          marginRight: p < 4 ? 16 : 0,
+                        }}>
+                          {/* Period label */}
+                          <div style={{
+                            display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10,
+                          }}>
+                            <div style={{
+                              height: 3, width: 28, borderRadius: 2, background: pc.accent,
+                            }} />
+                            <span style={{
+                              fontSize: 11, fontWeight: 800, color: pc.accent,
+                              textTransform: 'uppercase', letterSpacing: '.6px',
+                            }}>
+                              {p}.° Período
+                            </span>
+                            <span style={{
+                              fontSize: 10, color: pc.accent + '99', fontWeight: 600,
+                            }}>
+                              · {pTopics} contenido{pTopics !== 1 ? 's' : ''}
+                            </span>
+                          </div>
+
+                          {/* Week columns for this period */}
+                          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                            {pWeeks.map(w => (
+                              <WeekColumn
+                                key={w}
+                                week={w}
+                                topics={byWeek[w] || []}
+                                onNew={openNewTopic}
+                                onEdit={t => setTopicModal(t)}
+                                onDelete={handleDeleteTopic}
+                                onCopy={handleCopyWeek}
+                                onPaste={handlePasteWeek}
+                                isCopied={copiedWeek?.fromWeek === w}
+                                hasPaste={!!copiedWeek && copiedWeek.fromWeek !== w}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
               </>
             )}
