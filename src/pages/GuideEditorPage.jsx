@@ -6,7 +6,8 @@ import { exportGuideDocx } from '../utils/exportDocx'
 import { exportHtml, exportPdf, exportDayHtml, getActiveDays } from '../utils/exportHtml'
 import ImageUploader from '../components/ImageUploader'
 import { SmartBlocksList } from '../components/SmartBlocks'
-import { AISuggestButton, AIAnalyzerModal, AIGeneratorModal } from '../components/AIComponents'
+import { AISuggestButton, AIAnalyzerModal } from '../components/AIComponents'
+import ConversationalGuideModal from '../components/ConversationalGuideModal'
 import CommentsPanel from '../components/CommentsPanel'
 import SectionPreview from '../components/SectionPreview'
 import { useFeatures } from '../context/FeaturesContext'
@@ -23,6 +24,7 @@ import { importGuideFromDocx } from '../utils/AIAssistant'
 import DayPanel from '../components/editor/DayPanel'
 import { buildEmptySection, buildEmptyDay } from '../utils/guideEditorUtils'
 import EleotCoveragePanel from '../components/EleotCoveragePanel'
+import useEleot from '../hooks/useEleot'
 
 // ── Map activity name → SmartBlock stub ──────────────────────────────────────
 function guessSmartBlock(act) {
@@ -404,6 +406,9 @@ export default function GuideEditorPage({ teacher }) {
   //   this guide is building toward. A guide never looks at a NEWS whose
   //   due_date is before the guide's own date.
   // Priority 3: any linked project without due_date (teacher hasn't scheduled yet)
+  // eleot® coverage — used by ConversationalGuideModal to pre-select weak domains
+  const { coverage } = useEleot(content)
+
   const activeNewsProject = useMemo(() => {
     if (!linkedNewsProjects.length || !content) return null
     const dayKeys = new Set(Object.keys(content.days || {}))
@@ -631,9 +636,13 @@ export default function GuideEditorPage({ teacher }) {
   const doSave = useCallback(async () => {
     if (!dirtyRef.current) return
     setSaveStatus('saving')
+    // Build session_agenda from current smart blocks
+    const { buildSessionAgenda, flattenAgendaForDb } = await import('../utils/AgendaGenerator')
+    const agendaByDay = buildSessionAgenda(contentRef.current)
+    const session_agenda = flattenAgendaForDb(agendaByDay)
     const { error } = await supabase
       .from('lesson_plans')
-      .update({ content: contentRef.current, updated_at: new Date().toISOString() })
+      .update({ content: contentRef.current, session_agenda, updated_at: new Date().toISOString() })
       .eq('id', id)
     if (error) {
       setSaveStatus('error')
@@ -1367,18 +1376,19 @@ export default function GuideEditorPage({ teacher }) {
       )}
 
       {showGenerator && (
-        <AIGeneratorModal
+        <ConversationalGuideModal
           grade={content.info.grado}
           subject={content.info.asignatura}
           period={content.info.periodo}
           activeDays={activeDays}
+          indicator={linkedAchievementIndicator}
+          learningTarget={linkedTarget}
+          activeNewsProject={activeNewsProject}
           currentContent={contentRef.current}
+          principles={principles}
+          eleotCoverage={coverage}
           onApply={handleApplyGenerated}
           onClose={closeGenerator}
-          learningTarget={linkedTarget}
-          activeIndicator={activeIndicator}
-          activeNewsProject={activeNewsProject}
-          principles={principles}
         />
       )}
 

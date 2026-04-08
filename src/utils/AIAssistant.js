@@ -842,3 +842,82 @@ ${safeText}`
   if (!parsed || typeof parsed !== 'object') throw new Error('No se pudo parsear el documento. Verifica que sea una guía de aprendizaje CBF.')
   return parsed
 }
+
+// ── Punto 8: Análisis de cobertura eleot® + agenda de sesión ─────────────────
+// Returns: text analysis (markdown-like)
+export async function analyzeGuideCoverage({ content, indicator, principles }) {
+  const system = `Eres un asesor pedagógico experto en el marco de observación eleot® (Cognia).
+Analizas guías de aprendizaje autónomo y determines qué dominios eleot® están bien cubiertos y cuáles necesitan atención.
+Respondes en español con análisis concreto y accionable.
+${biblicalBlock(principles, 'Incorpora la perspectiva cristiana en el análisis, especialmente en la dimensión actitudinal (dominios A y C).')}
+Estructura tu respuesta con estas secciones:
+📊 COBERTURA eleot®
+⚠️ DOMINIOS DÉBILES
+💡 SUGERENCIAS DE BLOQUES
+📋 AGENDA SUGERIDA`
+
+  const allBlocks = []
+  if (content?.days) {
+    for (const day of Object.values(content.days)) {
+      if (day?.active === false) continue
+      for (const sec of Object.values(day?.sections || {})) {
+        allBlocks.push(...(sec.smartBlocks || []))
+      }
+    }
+  }
+  const blockSummary = allBlocks.length
+    ? allBlocks.map(b => `${b.type}/${b.model}`).join(', ')
+    : 'Ningún Smart Block aún'
+
+  const safeIndicator = indicator ? sanitizeAIInput(
+    typeof indicator === 'string' ? indicator : (indicator.text || indicator.texto_en || '')
+  ) : 'No especificado'
+
+  const message = `Analiza la cobertura eleot® de esta guía:
+
+INDICADOR DE LOGRO: ${safeIndicator}
+SMART BLOCKS EN LA GUÍA: ${blockSummary}
+DÍAS ACTIVOS: ${Object.keys(content?.days || {}).filter(k => content.days[k]?.active !== false).length}
+
+Dominios eleot®:
+A. Equitable Learning  B. High Expectations  C. Supportive Learning
+D. Active Learning     E. Progress Monitoring  F. Well-Managed Learning  G. Digital Learning
+
+Con los bloques presentes, identifica:
+1. Qué dominios están bien cubiertos
+2. Qué dominios están débiles o ausentes
+3. Qué 2-3 bloques adicionales mejorarían la cobertura (de: WRITING, SELF_ASSESSMENT, PEER_REVIEW, DIGITAL_RESOURCE, COLLABORATIVE_TASK, REAL_LIFE_CONNECTION, TEACHER_NOTE, EXIT_TICKET, SPEAKING)
+4. Una agenda típica de 84 minutos con estos bloques`
+
+  return callClaude({ type: 'analyze_coverage', system, message, maxTokens: 1800 })
+}
+
+// ── Punto 9: Generar rúbrica versión estudiante (A2) ─────────────────────────
+export async function generateStudentRubric({ rubric, projectTitle, grade, subject, principles }) {
+  if (!rubric?.length) throw new Error('No hay rúbrica para convertir.')
+
+  const system = `Eres un experto en diseño de instrumentos de evaluación para colegios bilingües colombianos.
+Tu tarea: convertir una rúbrica de docente (técnica) en una versión para estudiantes — lenguaje A2, claro, amigable y accionable.
+El estudiante debe poder leer la rúbrica y entender exactamente qué necesita hacer para obtener cada nivel.
+Responde con HTML simple: tablas, <strong>, <p>. Sin CSS en línea.
+${biblicalBlock(principles, 'Incluye una sección breve de motivación antes de la rúbrica que recuerde al estudiante que su esfuerzo tiene propósito más allá de la nota.')}`
+
+  const criteriaText = rubric.slice(0, 8).map((c, i) =>
+    `${i+1}. ${sanitizeAIInput(c.criterion || c.name || '')}: ${(c.levels || []).map((l, li) => `Nivel ${5-li}: ${sanitizeAIInput(l.description || '')}`).join(' | ')}`
+  ).join('\n')
+
+  const message = `Convierte esta rúbrica en versión para estudiantes:
+
+Proyecto: ${sanitizeAIInput(projectTitle || '')}
+Materia: ${sanitizeAIInput(subject || '')} | Grado: ${sanitizeAIInput(grade || '')}
+
+CRITERIOS:
+${criteriaText}
+
+Crea una tabla clara donde el estudiante pueda:
+1. Entender qué se espera en cada nivel (lenguaje sencillo A2)
+2. Autoevaluarse antes de entregar`
+
+  return callClaude({ type: 'student_rubric', system, message, maxTokens: 3000 })
+}
+

@@ -176,13 +176,24 @@ function buildSmartBlockDocx(block) {
   if (!data) return []
 
   const COLORS = {
-    DICTATION: '4BACC6', QUIZ: 'C0504D', VOCAB: '9BBB59',
-    WORKSHOP: 'F79646', SPEAKING: '8064A2', NOTICE: '1F3864',
+    DICTATION:            '4BACC6', QUIZ:                 'C0504D',
+    VOCAB:                '9BBB59', WORKSHOP:             'F79646',
+    SPEAKING:             '8064A2', NOTICE:               '1F3864',
+    READING:              '17375E', GRAMMAR:              '375623',
+    EXIT_TICKET:          'C55A11', WRITING:              '70AD47',
+    SELF_ASSESSMENT:      'E1A24A', PEER_REVIEW:          'C3785B',
+    DIGITAL_RESOURCE:     '4BACC6', COLLABORATIVE_TASK:   '4F81BD',
+    REAL_LIFE_CONNECTION: '70AD47', TEACHER_NOTE:         '767171',
   }
   const LABELS = {
-    DICTATION: 'Dictation / Listening', QUIZ: 'Quiz / Evaluación',
-    VOCAB: 'Vocabulary List',           WORKSHOP: 'Workshop / Stations',
-    SPEAKING: 'Speaking Project',       NOTICE: 'Announcement / Notice',
+    DICTATION:            'Dictation / Listening',    QUIZ:                 'Quiz / Evaluación',
+    VOCAB:                'Vocabulary List',           WORKSHOP:             'Workshop / Stations',
+    SPEAKING:             'Speaking Project',          NOTICE:               'Announcement / Notice',
+    READING:              'Reading Comprehension',     GRAMMAR:              'Grammar Practice',
+    EXIT_TICKET:          'Exit Ticket',               WRITING:              'Writing Task',
+    SELF_ASSESSMENT:      'Self-Assessment',           PEER_REVIEW:          'Peer Review',
+    DIGITAL_RESOURCE:     'Digital Resource',          COLLABORATIVE_TASK:   'Collaborative Task',
+    REAL_LIFE_CONNECTION: 'Real-Life Connection',      TEACHER_NOTE:         'Teacher Note',
   }
   const color = COLORS[type] || '333333'
   const label = LABELS[type] || type
@@ -437,6 +448,135 @@ function buildSmartBlockDocx(block) {
         mkR(s, { size: 16 }),
       ])))
       if (data.date) elements.push(mkP(mkR(`📅 ${data.date}`, { size: 14, color: '888888', italic: true })))
+    }
+  }
+
+  // ── New block types (Sesión D) ────────────────────────────────────────────
+  else if (type === 'WRITING') {
+    if (model === 'guided') {
+      if (data.prompt) elements.push(mkP(mkR(data.prompt, { size: 17, italic: true })))
+      if (data.sentence_starters?.length) {
+        elements.push(mkP(mkR('SENTENCE STARTERS', { bold: true, size: 15, color: '3d7a20' })))
+        data.sentence_starters.forEach(s => elements.push(mkP([mkR('→ ', { bold: true, size: 15, color: '70AD47' }), mkR(s, { size: 15 })])))
+      }
+      if (data.checklist?.length) {
+        elements.push(emptyPara())
+        elements.push(mkP(mkR('SUCCESS CHECKLIST', { bold: true, size: 15, color: '3d7a20' })))
+        data.checklist.forEach(c => elements.push(mkP([mkR('☐ ', { size: 15, color: '70AD47' }), mkR(c, { size: 15 })])))
+      }
+    } else {
+      if (data.topic) elements.push(mkP(mkR(data.topic, { size: 17, italic: true })))
+      if (data.word_count) elements.push(mkP(mkR(`Word count: ${data.word_count}`, { size: 15, color: '666666' })))
+      if (data.instructions) elements.push(mkP(mkR(data.instructions, { size: 15, color: '555555' })))
+    }
+  }
+
+  else if (type === 'SELF_ASSESSMENT') {
+    if (model === 'checklist') {
+      elements.push(mkNested([
+        new TableRow({ children: [
+          mkNestedCell([mkP(mkR('I can…', { bold: true, size: 16, color: 'FFFFFF' }))],  { fill: 'E1A24A', borders: allB(mkB('E1A24A')), pct: 60 }),
+          mkNestedCell([mkP(mkR('Yes',    { bold: true, size: 15, color: 'FFFFFF' }), AlignmentType.CENTER)], { fill: 'E1A24A', borders: allB(mkB('E1A24A')), pct: 13 }),
+          mkNestedCell([mkP(mkR('Partly', { bold: true, size: 15, color: 'FFFFFF' }), AlignmentType.CENTER)], { fill: 'E1A24A', borders: allB(mkB('E1A24A')), pct: 14 }),
+          mkNestedCell([mkP(mkR('Not yet',{ bold: true, size: 15, color: 'FFFFFF' }), AlignmentType.CENTER)], { fill: 'E1A24A', borders: allB(mkB('E1A24A')), pct: 13 }),
+        ]}),
+        ...(data.skills || []).map(s => new TableRow({ children: [
+          mkNestedCell([mkP(mkR(s, { size: 16 }))], { fill: 'FFF9EE', pct: 60 }),
+          mkNestedCell([mkP(mkR('⬜', { size: 16 }), AlignmentType.CENTER)], { fill: 'FFF9EE', pct: 13 }),
+          mkNestedCell([mkP(mkR('⬜', { size: 16 }), AlignmentType.CENTER)], { fill: 'FFF9EE', pct: 14 }),
+          mkNestedCell([mkP(mkR('⬜', { size: 16 }), AlignmentType.CENTER)], { fill: 'FFF9EE', pct: 13 }),
+        ]})),
+      ]))
+    } else {
+      ;(data.questions || []).forEach((q, i) => {
+        elements.push(mkP([mkR(`${i+1}. `, { bold: true, size: 16, color: 'E1A24A' }), mkR(q, { size: 16 })]))
+        for (let l = 0; l < 2; l++) {
+          elements.push(new Paragraph({ spacing: { before: 0, after: 60 }, border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: 'CCCCCC' } }, children: [mkR('', { size: 16 })] }))
+        }
+      })
+    }
+  }
+
+  else if (type === 'PEER_REVIEW') {
+    if (model === 'rubric') {
+      const criteria = data.criteria || []
+      const total = criteria.reduce((s, c) => s + (parseInt(c.pts) || 0), 0)
+      elements.push(mkNested([
+        new TableRow({ children: [
+          mkNestedCell([mkP(mkR('CRITERION', { bold: true, size: 16, color: 'FFFFFF' }))], { fill: 'C3785B', borders: allB(mkB('C3785B')), pct: 80 }),
+          mkNestedCell([mkP(mkR('PTS', { bold: true, size: 16, color: 'FFFFFF' }), AlignmentType.RIGHT)], { fill: 'C3785B', borders: allB(mkB('C3785B')), pct: 20 }),
+        ]}),
+        ...criteria.map(c => new TableRow({ children: [
+          mkNestedCell([mkP(mkR(c.name, { size: 16 }))], { pct: 80 }),
+          mkNestedCell([mkP(mkR(c.pts || '', { bold: true, size: 16 }), AlignmentType.RIGHT)], { pct: 20 }),
+        ]})),
+        new TableRow({ children: [
+          mkNestedCell([mkP(mkR('TOTAL', { bold: true, size: 16 }))], { fill: 'F9EDE8', pct: 80 }),
+          mkNestedCell([mkP(mkR(String(total), { bold: true, size: 16 }), AlignmentType.RIGHT)], { fill: 'F9EDE8', pct: 20 }),
+        ]}),
+      ]))
+    } else {
+      elements.push(mkP(mkR(`⭐ Stars: ${data.stars_prompt || 'What did your peer do well?'}`, { size: 16, bold: true, color: 'C3785B' })))
+      elements.push(new Paragraph({ spacing: { before: 0, after: 60 }, border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: 'CCCCCC' } }, children: [mkR('', { size: 16 })] }))
+      elements.push(mkP(mkR(`🌟 Wishes: ${data.wishes_prompt || 'What could your peer improve?'}`, { size: 16, bold: true, color: 'C3785B' })))
+      elements.push(new Paragraph({ spacing: { before: 0, after: 60 }, border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: 'CCCCCC' } }, children: [mkR('', { size: 16 })] }))
+    }
+  }
+
+  else if (type === 'DIGITAL_RESOURCE') {
+    if (data.title) elements.push(mkP(mkR(data.title, { bold: true, size: 17 })))
+    if (data.url) elements.push(mkP(mkR(`🔗 ${data.url}`, { size: 15, color: '4BACC6' })))
+    if (data.platform_name) elements.push(mkP(mkR(`Platform: ${data.platform_name}`, { bold: true, size: 16 })))
+    if (data.activity) elements.push(mkP(mkR(data.activity, { size: 16 })))
+    if (data.instructions) elements.push(mkP(mkR(data.instructions, { size: 15, color: '555555', italic: true })))
+  }
+
+  else if (type === 'COLLABORATIVE_TASK') {
+    if (model === 'jigsaw') {
+      const stColors = ['4F81BD','F79646','9BBB59','8064A2','C0504D']
+      elements.push(mkNested((data.groups || []).map((g, i) => {
+        const c = stColors[i % stColors.length]
+        return new TableRow({ children: [
+          mkNestedCell([
+            mkP(mkR(g.name || `Group ${i+1}`, { bold: true, size: 16, color: 'FFFFFF' })),
+            mkP(mkR(g.topic || '',              { size: 15, color: 'FFFFFF' })),
+          ], { fill: c, borders: allB(mkB(c)) }),
+        ]})
+      })))
+    } else {
+      if (data.prompt) elements.push(mkP(mkR(data.prompt, { size: 16, italic: true })))
+      if (data.pair_time || data.share_time) {
+        elements.push(mkP([
+          mkR('Pair: ', { bold: true, size: 15, color: '4F81BD' }),
+          mkR(data.pair_time || '3 min', { size: 15 }),
+          mkR('   Share: ', { bold: true, size: 15, color: '4F81BD' }),
+          mkR(data.share_time || '5 min', { size: 15 }),
+        ]))
+      }
+    }
+  }
+
+  else if (type === 'REAL_LIFE_CONNECTION') {
+    if (data.context) elements.push(mkP(mkR(data.context, { size: 16, italic: true })))
+    ;(data.questions || []).forEach((q, i) =>
+      elements.push(mkP([mkR(`${i+1}. `, { bold: true, size: 16, color: '3d7a20' }), mkR(q, { size: 16 })]))
+    )
+    if (data.prompt) elements.push(mkP(mkR(data.prompt, { size: 16 })))
+    if (data.example) elements.push(mkP(mkR(`e.g. ${data.example}`, { size: 15, color: '666666', italic: true })))
+  }
+
+  else if (type === 'TEACHER_NOTE') {
+    if (model === 'observation') {
+      const levelText = data.for_level && data.for_level !== 'all' ? ` [${data.for_level}]` : ''
+      elements.push(mkP(mkR(`📌 Nota pedagógica${levelText}`, { bold: true, size: 16, color: '767171' })))
+      if (data.note) elements.push(mkP(mkR(data.note, { size: 16, italic: true, color: '555555' })))
+    } else {
+      ;(data.adaptations || []).forEach(a =>
+        elements.push(mkP([
+          mkR(a.student ? `${a.student}: ` : '', { bold: true, size: 16, color: '767171' }),
+          mkR(a.note || '', { size: 16, italic: true }),
+        ]))
+      )
     }
   }
 
