@@ -438,7 +438,8 @@ export default function SyllabusPage({ teacher }) {
     if (!copiedWeek?.topics?.length) return
     const results = await Promise.all(
       copiedWeek.topics.map(t => {
-        const { id, week_number, created_at, updated_at, ...rest } = t
+        // strip id, timestamps y campos joined (indicator) — solo columnas reales de la tabla
+        const { id, week_number, created_at, updated_at, indicator, ...rest } = t
         return createTopic({ ...rest, week_number: toWeek })
       })
     )
