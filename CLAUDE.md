@@ -2,7 +2,7 @@
 ## CLAUDE.md — Documento maestro
 
 > **Principio rector:** *"Nosotros diseñamos. El docente enseña."*
-> Léelo completo antes de escribir código. · Última actualización: Abril 8, 2026
+> Léelo completo antes de escribir código. · Última actualización: Abril 9, 2026
 
 ---
 
@@ -159,6 +159,8 @@ teacher_assignments   — asignaciones materia/grado/sección/horario JSONB
 lesson_plans          — content JSONB · indicator_id · syllabus_topic_id
                         eleot_coverage {} · session_agenda [] · week_count · status
 news_projects         — indicator_id FK → achievement_indicators · actividades_evaluativas
+                        biblical_principle (texto principio) · indicator_verse_ref (ref bíblica)
+                        biblical_reflection (reflexión estudiante)
 rubric_templates      — 5 plantillas institucionales sembradas
 achievement_goals     — UNIQUE(teacher_id, subject, grade, period, academic_year)
 achievement_indicators— dimension + skill_area · teacher_id (denorm. para RLS)
@@ -462,7 +464,7 @@ const { data: newsProjects } = await supabase
 ### DashboardPage.jsx — rutas activas
 ```javascript
 // ── FLUJO PEDAGÓGICO (todos los roles) ──
-/principles       PrinciplesPage           Versículos + principio del indicador por mes
+/principles       PrinciplesPage           Versículo del Año + Versículo del Mes (solo estos dos)
 /objectives       ObjectivesPage           CRUD achievement_goals + indicators
 /syllabus         SyllabusPage             CRUD syllabus_topics por semana
 /news             NewsPage                 Listado + wizard 8 pasos NewsProjectEditor
@@ -587,6 +589,11 @@ git add . && git commit -m "feat: ..." && git push      # deploy automático ~2 
   29. PeriodCoverageDashboard — datos reales desde eleot_observations + lesson_plans
   30. ObservationLoggerPage — CRUD real de eleot_observations (hoy es scaffold)
   31. CurriculumPage — malla curricular completa con indicadores por grado/período
+  32. Pipeline de imágenes del libro → IA: subir fotos textbook en NEWS → Storage →
+      URLs firmadas → generateGuideStructure() como bloque "📖 PÁGINAS DEL LIBRO"
+      (Claude multimodal las lee y genera actividades alineadas al contenido real)
+      Arquitectura: guide-images/textbook/{school_id}/{news_id}/page_n.webp
+      compressImage() ya existe · ImageUploader ya existe · claude-proxy ya es passthrough
 
 ⏳ FASE 2 — Login/Auth completo
   Google OAuth + validación dominio post-OAuth en App.jsx:onAuthStateChange
@@ -614,4 +621,4 @@ git add . && git commit -m "feat: ..." && git push      # deploy automático ~2 
 ---
 
 *CBF Planner · ETA Platform · Edoardo Ortiz + Claude Sonnet · Barranquilla 2026*
-*"Nosotros diseñamos. El docente enseña." · CLAUDE.md v4.5 — Abril 8, 2026*
+*"Nosotros diseñamos. El docente enseña." · CLAUDE.md v4.6 — Abril 9, 2026*

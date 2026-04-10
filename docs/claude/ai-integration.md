@@ -44,16 +44,23 @@ El modal (`src/components/AIComponents.jsx`) nunca pide al docente que reescriba
 
 ## Principios Rectores Institucionales
 
-CBF es una **escuela cristiana confesional**. Los tres principios son el norte de toda planificación, IA y evaluación. Son no negociables.
+CBF es una **escuela cristiana confesional**. Los principios son el norte de toda planificación, IA y evaluación.
 
 | Principio | Quién lo establece | Dónde vive | Ciclo |
 |---|---|---|---|
 | **Versículo del Año** | Capellán (hoy: cualquier docente) | `schools.year_verse` + `year_verse_ref` | Anual |
 | **Versículo del Mes** | Capellán (hoy: cualquier docente) | `school_monthly_principles.month_verse` + `month_verse_ref` | Mensual |
-| **Principio del Indicador** | Docentes | `school_monthly_principles.indicator_principle` | Mensual |
+| **Principio del Indicador** | Docente por proyecto | `news_projects.biblical_principle` + `indicator_verse_ref` | Por proyecto NEWS |
 
-**Página:** `/principles` — `PrinciplesPage.jsx`. Accesible desde el sidebar (primer ítem). Gestión por mes del año en curso.
+**Página institucional:** `/principles` — `PrinciplesPage.jsx`. Gestiona solo Versículo del Año y Versículo del Mes. El Principio del Indicador fue movido a la UI de NEWS.
 
-**Flujo en IA:** Todas las funciones de `AIAssistant.js` reciben un objeto `principles: { yearVerse, monthVerse, indicatorPrinciple }` y lo inyectan via `biblicalBlock()`. En `GuideEditorPage`, los principios se cargan automáticamente según el mes de la primera jornada activa de la guía.
+**Dónde se ingresa el Principio del Indicador:** `NewsProjectEditor` → step **"Fechas" → sección "✝️ Principio del Indicador"**. Campos:
+- `biblical_principle` (textarea) — el texto del principio
+- `indicator_verse_ref` (input) — la referencia bíblica (ej. "1 Juan 2:17 NVI")
+- `biblical_reflection` (input) — reflexión / aplicación esperada del estudiante
 
-**Futuros roles:** Cuando exista el perfil de Capellán, podrá editar `year_verse` y `month_verse`. Los docentes siempre controlan `indicator_principle`.
+**Flujo en IA:** Las funciones de `AIAssistant.js` reciben `principles: { yearVerse, monthVerse, indicatorPrinciple, indicatorVerseRef }`. En `GuideEditorPage`, yearVerse/monthVerse se cargan por mes. En `handleGenerateRubric` de `NewsProjectEditor`, `indicatorPrinciple` y `indicatorVerseRef` vienen del form del proyecto activo.
+
+**LEGACY:** `school_monthly_principles.indicator_principle` sigue en la DB pero ya no se edita desde `PrinciplesPage`. No borrar hasta confirmar que ningún prompt depende de él.
+
+**Futuros roles:** Cuando exista el perfil de Capellán, podrá editar `year_verse` y `month_verse`.
