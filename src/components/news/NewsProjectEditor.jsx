@@ -4,7 +4,7 @@ import { supabase } from '../../supabase'
 import { useToast } from '../../context/ToastContext'
 import { useFocusTrap } from '../../hooks/useFocusTrap'
 import { generateRubric } from '../../utils/AIAssistant'
-import { exportRubricHtml } from '../../utils/exportRubricHtml'
+import { exportRubricHtml, downloadRubricHtml } from '../../utils/exportRubricHtml'
 import { MODELO_B_SUBJECTS } from '../../utils/constants'
 import ImageUploader from '../ImageUploader'
 
@@ -1472,13 +1472,20 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
                   </div>
 
                   {form.rubric.length > 0 && (
-                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, flexWrap: 'wrap' }}>
                       <button
                         type="button"
                         onClick={() => exportRubricHtml(form, principles, school)}
                         style={{ padding: '9px 18px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg, #1A3A8F 0%, #0d2260 100%)', color: 'white', fontSize: 12, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 7, boxShadow: '0 2px 8px rgba(26,58,143,0.25)' }}
                       >
                         <span>📊</span> Abrir rúbrica interactiva
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => downloadRubricHtml(form, principles, school)}
+                        style={{ padding: '9px 18px', borderRadius: 8, border: '1.5px solid #1A3A8F', background: 'white', color: '#1A3A8F', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 7 }}
+                      >
+                        <span>⬇️</span> Descargar HTML
                       </button>
                     </div>
                   )}

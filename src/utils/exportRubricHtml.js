@@ -11,7 +11,7 @@ const SKILL_ICONS = {
   writing:   '✍️',
 }
 
-export function exportRubricHtml(project, principles, school) {
+function buildRubricHtml(project, principles, school) {
   const {
     title = 'Proyecto',
     subject = '',
@@ -656,8 +656,31 @@ document.getElementById('eval-date').addEventListener('input', e => {
 </body>
 </html>`
 
+  return html
+}
+
+// Opens the rubric in a new browser tab (existing behavior)
+export function exportRubricHtml(project, principles, school) {
+  const html = buildRubricHtml(project, principles, school)
+  if (!html) return
   const win = window.open('', '_blank')
   if (!win) return
   win.document.write(html)
   win.document.close()
+}
+
+// Downloads the rubric as a self-contained .html file
+export function downloadRubricHtml(project, principles, school) {
+  const html = buildRubricHtml(project, principles, school)
+  if (!html) return
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
+  const url  = URL.createObjectURL(blob)
+  const a    = document.createElement('a')
+  const grade   = (project.grade || '').replace(/[^\w°\s]/g, '').trim()
+  const subject = (project.subject || '').replace(/[^\w\s]/g, '').trim()
+  const title   = (project.title || 'Rubrica').replace(/[^\w\s]/g, '').trim().slice(0, 40)
+  a.href     = url
+  a.download = `Rubrica_${grade}_${subject}_${title}.html`.replace(/\s+/g, '_')
+  a.click()
+  URL.revokeObjectURL(url)
 }
