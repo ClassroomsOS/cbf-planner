@@ -594,6 +594,7 @@ async function fetchImageData(url) {
   } catch { return null }
 }
 
+// Returns [headerRow, contentRow] — header is a full-width colored banner with the section name
 async function buildSectionRow(s, sectionData) {
   const text        = sectionData?.content      || ''
   const time        = sectionData?.time         || s.time
@@ -605,19 +606,26 @@ async function buildSectionRow(s, sectionData) {
     (sectionData?.layout_mode === 'side' ? 'right' : 'below')
   const layout = images.length > 0 ? rawLayout : 'below'
 
-  const LABEL_W   = 1760
-  const CONTENT_W = 9040
-  const TEXT_W    = Math.round(CONTENT_W * 0.62)  // 5605
-  const IMG_W     = CONTENT_W - TEXT_W             // 3435
+  // Table is 2-column: [TEXT_COL, IMG_COL] = [7200, 3600] = 10800 total
+  const TOTAL_W = 10800
+  const TEXT_COL = 7200
+  const IMG_COL  = 3600
 
-  const labelCell = mkCell([
-    mkP(mkR(s.label, { bold: true, size: 17, color: 'FFFFFF' })),
-    mkP(mkR(time,    { size: 15,   color: 'FFFFFF', italic: true })),
-  ], LABEL_W, {
-    fill:    s.hex,
-    borders: allB(bGray),
-    va:      VerticalAlign.TOP,
-    margins: { top: 100, bottom: 80, left: 100, right: 80 },
+  // ── Row 1: Section header banner (full-width, colored) ────────────────────
+  const headerRow = new TableRow({
+    children: [
+      mkCell([
+        mkP([
+          mkR(s.label, { bold: true, size: 24, color: 'FFFFFF' }),
+          mkR(`   ·   ${time}`, { size: 18, color: 'DDDDFF', italic: true }),
+        ]),
+      ], TOTAL_W, {
+        fill:    s.hex,
+        borders: allB(mkB(s.hex)),
+        span:    2,
+        margins: { top: 80, bottom: 80, left: 160, right: 160 },
+      }),
+    ],
   })
 
   const contentParas = htmlToParas(text, 18)
@@ -629,115 +637,111 @@ async function buildSectionRow(s, sectionData) {
     if (d) imgDataList.push(d)
   }
 
-  // Build image paragraphs sized by count and layout
+  // Build image paragraphs sized for each layout
+  // Below layout — full content width (TOTAL_W = 10800 DXA ≈ 7.5in ≈ 720px at 96dpi)
+  // Side layout  — image column (IMG_COL = 3600 DXA ≈ 2.5in ≈ 240px at 96dpi)
   function makeImageParas(isVertical) {
     if (!imgDataList.length) return []
     const n = imgDataList.length
 
     if (isVertical) {
-      // 1-2: stacked column (~228px wide), 3+: 2 per row (~100px each)
+      // image column ~240px wide — 1-2 stacked (220px), 3+ two per row (106px)
       if (n <= 2) {
-        const w = 200, h = Math.round(w * 3 / 4)
+        const w = 220, h = Math.round(w * 3 / 4)
         return imgDataList.map(d => new Paragraph({
           spacing: { before: 40, after: 40 },
           children: [new ImageRun({ data: d.data, type: d.type, transformation: { width: w, height: h } })],
         }))
       }
-      const w = 100, h = 100
       const rows = []
       for (let i = 0; i < imgDataList.length; i += 2) {
         rows.push(new Paragraph({
           spacing: { before: 30, after: 30 },
           children: imgDataList.slice(i, i + 2).map(d =>
-            new ImageRun({ data: d.data, type: d.type, transformation: { width: w, height: h } })
+            new ImageRun({ data: d.data, type: d.type, transformation: { width: 106, height: 106 } })
           ),
         }))
       }
       return rows
     }
 
-    // Below layout widths by count
-    // 1→520, 2→255, 3→168, 4→255(2×2), 5→168(3+2), 6→168(3×2)
+    // Below layout — full width: 1→640, 2→310, 3→202, 4→310(2×2), 5-6→202(3×2)
     if (n === 1) {
       return [new Paragraph({
         spacing: { before: 80, after: 40 },
-        children: [new ImageRun({ data: imgDataList[0].data, type: imgDataList[0].type, transformation: { width: 520, height: Math.round(520 * 9/16) } })],
+        children: [new ImageRun({ data: imgDataList[0].data, type: imgDataList[0].type, transformation: { width: 640, height: Math.round(640 * 9/16) } })],
       })]
     }
     if (n <= 3) {
-      const w = n === 2 ? 255 : 168, h = Math.round(w * 3 / 4)
+      const w = n === 2 ? 310 : 202, h = Math.round(w * 3 / 4)
       return [new Paragraph({
         spacing: { before: 80, after: 40 },
         children: imgDataList.map(d => new ImageRun({ data: d.data, type: d.type, transformation: { width: w, height: h } })),
       })]
     }
-    // 4: 2 rows of 2
+    const w4 = 310, h4 = Math.round(w4 * 3 / 4)
+    const w6 = 202, h6 = Math.round(w6 * 3 / 4)
     if (n === 4) {
-      const w = 255, h = Math.round(w * 3 / 4)
       return [
-        new Paragraph({ spacing: { before: 80, after: 4 }, children: imgDataList.slice(0, 2).map(d => new ImageRun({ data: d.data, type: d.type, transformation: { width: w, height: h } })) }),
-        new Paragraph({ spacing: { before: 4, after: 40 }, children: imgDataList.slice(2, 4).map(d => new ImageRun({ data: d.data, type: d.type, transformation: { width: w, height: h } })) }),
+        new Paragraph({ spacing: { before: 80, after: 4 }, children: imgDataList.slice(0, 2).map(d => new ImageRun({ data: d.data, type: d.type, transformation: { width: w4, height: h4 } })) }),
+        new Paragraph({ spacing: { before: 4, after: 40 }, children: imgDataList.slice(2, 4).map(d => new ImageRun({ data: d.data, type: d.type, transformation: { width: w4, height: h4 } })) }),
       ]
     }
-    // 5: row of 3 + row of 2
-    if (n === 5) {
-      const w = 168, h = Math.round(w * 2 / 3)
-      return [
-        new Paragraph({ spacing: { before: 80, after: 4 }, children: imgDataList.slice(0, 3).map(d => new ImageRun({ data: d.data, type: d.type, transformation: { width: w, height: h } })) }),
-        new Paragraph({ spacing: { before: 4, after: 40 }, children: imgDataList.slice(3, 5).map(d => new ImageRun({ data: d.data, type: d.type, transformation: { width: w, height: h } })) }),
-      ]
-    }
-    // 6: 2 rows of 3
-    const w = 168, h = Math.round(w * 2 / 3)
     return [
-      new Paragraph({ spacing: { before: 80, after: 4 }, children: imgDataList.slice(0, 3).map(d => new ImageRun({ data: d.data, type: d.type, transformation: { width: w, height: h } })) }),
-      new Paragraph({ spacing: { before: 4, after: 40 }, children: imgDataList.slice(3, 6).map(d => new ImageRun({ data: d.data, type: d.type, transformation: { width: w, height: h } })) }),
+      new Paragraph({ spacing: { before: 80, after: 4 }, children: imgDataList.slice(0, 3).map(d => new ImageRun({ data: d.data, type: d.type, transformation: { width: w6, height: h6 } })) }),
+      new Paragraph({ spacing: { before: 4, after: 40 }, children: imgDataList.slice(3, Math.min(n, 6)).map(d => new ImageRun({ data: d.data, type: d.type, transformation: { width: w6, height: h6 } })) }),
     ]
   }
 
-  const isVertical = layout === 'right' || layout === 'left'
-  const imgParas   = makeImageParas(isVertical)
-
-  // Smart block elements always go in the text/content column
+  const isVertical  = layout === 'right' || layout === 'left'
+  const imgParas    = makeImageParas(isVertical)
   const smartElements = smartBlocks.flatMap(b => buildSmartBlockDocx(b))
 
+  // ── Row 2: Content ─────────────────────────────────────────────────────────
+  let contentRow
   if (!isVertical || !imgDataList.length) {
-    // Below layout (or no images) — content cell spans columns 2+3
-    const contentCell = mkCell([...contentParas, ...imgParas, ...smartElements], CONTENT_W, {
-      borders: allB(bGray), va: VerticalAlign.TOP,
-      margins: { top: 100, bottom: 80, left: 140, right: 120 },
-      span: 2,
+    // Below layout — content spans both columns
+    contentRow = new TableRow({
+      cantSplit: true,
+      children: [
+        mkCell([...contentParas, ...imgParas, ...smartElements], TOTAL_W, {
+          borders: allB(bGray), va: VerticalAlign.TOP,
+          margins: { top: 100, bottom: 100, left: 160, right: 160 },
+          span: 2,
+        }),
+      ],
     })
-    return new TableRow({ cantSplit: true, children: [labelCell, contentCell] })
+  } else {
+    // Side layout: text col | image col
+    const textCell = mkCell([...contentParas, ...smartElements], TEXT_COL, {
+      borders: allB(bGray), va: VerticalAlign.TOP,
+      margins: { top: 100, bottom: 100, left: 160, right: 100 },
+    })
+    const imgCell = mkCell(imgParas.length ? imgParas : [mkP(mkR(''))], IMG_COL, {
+      borders: allB(bGray), va: VerticalAlign.TOP,
+      margins: { top: 100, bottom: 100, left: 100, right: 160 },
+    })
+    contentRow = new TableRow({
+      cantSplit: true,
+      children: layout === 'left' ? [imgCell, textCell] : [textCell, imgCell],
+    })
   }
 
-  // Side layout: 3-column row [label | text | images]
-  const textCell = mkCell([...contentParas, ...smartElements], TEXT_W, {
-    borders: allB(bGray), va: VerticalAlign.TOP,
-    margins: { top: 100, bottom: 80, left: 140, right: 80 },
-  })
-  const imgCell = mkCell(imgParas.length ? imgParas : [mkP(mkR(''))], IMG_W, {
-    borders: allB(bGray), va: VerticalAlign.TOP,
-    margins: { top: 100, bottom: 80, left: 80, right: 120 },
-  })
-
-  if (layout === 'left') {
-    return new TableRow({ cantSplit: true, children: [labelCell, imgCell, textCell] })
-  }
-  return new TableRow({ cantSplit: true, children: [labelCell, textCell, imgCell] })
+  return [headerRow, contentRow]
 }
 
 // ── Day table builder ─────────────────────────────────────────────────────────
 
 async function buildDayTable(iso, day) {
-  const dCols  = [1760, 5605, 3435]
+  // 2-column layout: [text/content col, image col] — section names shown as full-width banners
+  const dCols  = [7200, 3600]
   const dTotal = 10800
 
   const dayName  = day.date_label || iso
   const periods  = day.class_periods || ''
   const unit     = day.unit || ''
 
-  // Day header row
+  // Day header row (spans both columns)
   const headerRow = new TableRow({
     children: [
       mkCell([
@@ -748,13 +752,13 @@ async function buildDayTable(iso, day) {
       ], dTotal, {
         fill:    '1F3864',
         borders: allB(bBlue),
-        span:    3,
+        span:    2,
         margins: { top: 100, bottom: 100, left: 160, right: 160 },
       }),
     ],
   })
 
-  // Unit subheader
+  // Unit subheader (spans both columns)
   const unitRow = new TableRow({
     children: [
       mkCell([
@@ -762,20 +766,21 @@ async function buildDayTable(iso, day) {
       ], dTotal, {
         fill:    'D6E4F0',
         borders: allB(bBlue),
-        span:    3,
+        span:    2,
         margins: { top: 60, bottom: 60, left: 160, right: 160 },
       }),
     ],
   })
 
-  // Section rows (async — fetch images)
-  const sectionRows = await Promise.all(
+  // Section rows: each buildSectionRow returns [headerRow, contentRow] — flatten them
+  const sectionRowPairs = await Promise.all(
     SECTIONS.map(s => buildSectionRow(s, day.sections?.[s.key]))
   )
+  const sectionRows = sectionRowPairs.flat()
 
   return new Table({
     width:        { size: dTotal, type: WidthType.DXA },
-    columnWidths: [dCols[0], dCols[1], dCols[2]],
+    columnWidths: dCols,
     rows:         [headerRow, unitRow, ...sectionRows],
   })
 }
