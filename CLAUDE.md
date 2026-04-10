@@ -1,8 +1,8 @@
-# CBF PLANNER — v4.6
+# CBF PLANNER — v4.7
 ## CLAUDE.md — Documento maestro
 
 > **Principio rector:** *"Nosotros diseñamos. El docente enseña."*
-> Léelo completo antes de escribir código. · Última actualización: Abril 9, 2026
+> Léelo completo antes de escribir código. · Última actualización: Abril 10, 2026
 
 ---
 
@@ -156,14 +156,28 @@ SESIÓN I (parcial) ✅  IA de sugerencias por sección enriquecida + export DOC
                borraba el estado sin regenerar)
              — maxTokens 2000 → 2500 para respuestas más ricas
              — Cadena de props: GuideEditorPage → DayPanel → AISuggestButton → suggestSectionActivity
-             — Export DOCX: secciones como banners completos (2 filas por sección)
-               · Row 1: banner ancho completo, fondo color de sección, label 12pt negrita blanca
-               · Row 2: contenido a todo el ancho (o split texto|imagen para side layout)
-               · Elimina la columna lateral estrecha (1760 DXA, ilegible) del diseño anterior
-               · Tabla 2 columnas [7200, 3600] — header y unit subheader con span=2
-               · Imágenes "below" redimensionadas: 1→640px, 2→310px, 3-6→202px
-               · Imágenes "side": columna 240px, 1-2→220px apiladas, 3+→106px en pares
-             — CLAUDE.md v4.6
+             — Export DOCX CBF: tabla single-column (PW = 10800 DXA) — fix definitivo de
+               secciones e imágenes invisibles causado por columnSpan en tabla 2 columnas
+               · Row 1 por sección: banner full-width, fondo color de sección, label bold blanco
+               · Row 2 por sección: contenido a todo el ancho; side-layout usa nested Table [7200|3600]
+               · fetchImageData: WebP re-declarado como 'png' + check res.ok
+             — Export Legacy DOCX: secciones con label bold plain (sin color) + imágenes
+               · dayContentParas() async reemplaza dayContentText() — label + texto + imágenes
+               · Columna Date con fondo #D7E3BC (igual al template Word CBF manual)
+               · Imágenes: 2 por fila a 190px, sola a 380px
+             — Preview modal antes de descargar (todos los formatos):
+               · openExportPreview() — inlineImages() + buildHtml() + spinner + modal full-screen
+               · iframe srcDoc — preview autocontenido con imágenes base64
+               · Formatos: PDF/Print · Word CBF · Legacy DOCX · HTML · Campus Virtual por día
+               · DOCX muestra nota "Vista previa HTML — el Word puede variar levemente"
+               · PDF: iframe.contentWindow.print() desde el botón del header
+               · return(<>…</>) con Fragment — fix build JSX (portales fuera del div raíz)
+             — exportRubricHtml.js refactorizado:
+               · buildRubricHtml() privada devuelve string HTML
+               · exportRubricHtml() abre en nueva pestaña (comportamiento existente)
+               · downloadRubricHtml() descarga como .html con nombre automático
+               · Botón "⬇️ Descargar HTML" en paso Rúbrica de NewsProjectEditor
+             — CLAUDE.md v4.7
 
 PRÓXIMO → SESIÓN I (continuación)
 ```
@@ -610,7 +624,7 @@ git add . && git commit -m "feat: ..." && git push      # deploy automático ~2 
 ✅ SESIÓN G — Cascada indicator_id funcional en guías · repair automático al abrir · botón 🔄 re-vincular · AIGeneratorModal desbloqueado con nuevo sistema · achievementGoal en prompt IA · Principio del indicador · CheckpointModal check-then-write
 ✅ SESIÓN H — SubjectManagerPage · GuideLibraryPage · PeriodCoverageDashboard · ObservationLoggerPage · ReviewRoomPage · CurriculumPage · AgendaPage · PrinciplesPage
 ✅ LIMPIEZA LEGACY — Sistema learning_targets eliminado del frontend · LearningTargetsPage/LearningTargetSelector/learningTarget prop eliminados · isModeloB derivado de MODELO_B_SUBJECTS · checkpoints.target_id NOT NULL eliminado
-✅ SESIÓN I (parcial) — suggestSectionActivity enriquecida (contexto libro, lengua, arquetipos, variantSeed) · botón "Otra sugerencia" regenera de verdad · DOCX secciones como banners completos
+✅ SESIÓN I (parcial) — suggestSectionActivity enriquecida · DOCX CBF fix single-column · Legacy DOCX secciones+imágenes+color · Preview modal todos los formatos · downloadRubricHtml
 
 🔜 SESIÓN I — Pendientes de profundización
   26. SubjectManagerPage — completar funcionalidad CRUD real de materias

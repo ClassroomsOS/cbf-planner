@@ -99,40 +99,57 @@ DOCX day tables use **3 columns** `[1760, 5605, 3435]` DXA. Header and unit rows
 |---|---|---|
 | `src/utils/exportHtml.js` | `exportHtml(content, newsProject?)`, `exportPdf(content, newsProject?)`, `buildHtml(content, newsProject?)` | Imports `blockPreviewHTML` + `BLOCK_TYPES` from SmartBlocks.jsx. Tabla indicadores: **full-width una columna**. Objetos Modelo B normalizados. Bloque `📋 Proyecto NEWS` entre indicadores y versículo. |
 | `src/utils/exportHtml.js` | `buildDayHtml(content, dayKey, newsProject?)`, `exportDayHtml(content, dayKey, newsProject?)`, `getActiveDays(content)` | Export por jornada para Virtual Campus. CSS 100% scoped a `.cbf-day` — no contamina el layout del campus. Incluye encabezado compacto, indicador, versículo y la jornada completa con SmartBlocks interactivos. |
-| `src/utils/exportDocx.js` | `exportGuideDocx()` | `buildSmartBlockDocx(block)` handles all 16 block types. Tabla indicadores: **full-width una columna**, header `INDICADORES DE LOGRO`. Solo renderiza si hay indicadores. Cada sección genera 2 `TableRow`: (1) banner ancho completo con nombre de sección en negrita sobre fondo de color; (2) fila de contenido a todo el ancho. Tabla de día usa 2 columnas `[7200, 3600]` DXA. |
-| `src/utils/exportRubricHtml.js` | `exportRubricHtml(project, principles, school)` | HTML interactivo para evaluar proyectos NEWS. Clickear celda → calcula nota (1.0–5.0 Boston Flex). Abre en `window.open('', '_blank')`. |
+| `src/utils/exportDocx.js` | `exportGuideDocx()` | `buildSmartBlockDocx(block)` handles all 16 block types. Cada sección genera 2 `TableRow`: (1) banner full-width con nombre de sección en negrita blanca sobre fondo de color; (2) fila de contenido. Tabla single-column `[PW]` — NO usar columnSpan, evita fallos de renderizado en Word. |
+| `src/utils/exportLegacyDocx.js` | `exportLegacyDocx(content, plan)` | Formato Word plain sin colores. Columna Date con fondo `#D7E3BC`. Cada sección: label bold plain + texto + imágenes. `dayContentParas()` async. |
+| `src/utils/exportRubricHtml.js` | `exportRubricHtml()`, `downloadRubricHtml()` | `buildRubricHtml()` privada genera el HTML. `exportRubricHtml` abre en nueva pestaña. `downloadRubricHtml` descarga como `.html`. Botón en paso Rúbrica de NewsProjectEditor. |
 
 Both exports render: text content, images (with layout), videos (HTML only — iframes), and SmartBlocks.
 
 **Shared image inlining (`inlineImages(content)` in `exportHtml.js`):**
-- Called by `exportHtml`, `exportPdf`, and `exportDayHtml` before building any HTML
+- `export async function inlineImages(content)` — exportada para uso en preview modal
+- Called by `exportHtml`, `exportPdf`, `exportDayHtml`, and `openExportPreview` in GuideEditorPage
 - Deep-clones content, fetches logo + all section images in parallel via `fetchBase64(url)`
 - Replaces every `img.url` and `header.logo_url` with a `data:image/...;base64,...` URI
 - Result: all HTML exports are **fully self-contained** — no external requests, zero CORS issues
 - Fallback: if a fetch fails (network error, CORS), the original URL is kept silently
+
+**Preview modal antes de descargar (`openExportPreview` en `GuideEditorPage`):**
+- Todos los formatos muestran un preview HTML full-screen antes de descargar/imprimir
+- `openExportPreview({ title, buildFn, onConfirm, confirmLabel, note, isForPrint })`
+- `buildFn`: async function que devuelve el HTML con imágenes inlineadas
+- Renderiza en `<iframe srcDoc>` via `createPortal(…, document.body)` con loading overlay
+- PDF: `iframe.contentWindow.print()` desde el botón del header del modal
+- DOCX: muestra nota "Vista previa HTML — el Word puede variar levemente en tipografía"
+- CSS classes: `.ep-overlay`, `.ep-modal`, `.ep-header`, `.ep-frame`, `.ep-spinner`, `.ep-loading-overlay`
 
 **Virtual Campus export (`buildDayHtml`) specifics:**
 - CSS scoped to `.cbf-day` — safe to paste as raw HTML snippet into any CMS/LMS without breaking its layout
 - All `<button>` elements have `type="button"` explicitly — prevents accidental form submit inside virtual campus forms
 - Images embedded as base64 (via `inlineImages`) — works fully offline, no CORS
 - SmartBlocks fully interactive: matching, fill-blank, grammar choose, true/false, exit ticket
-- Menu: `⋯ Más opciones` → `🏫 Campus Virtual — por jornada` → click a day → spinner while fetching → downloads `{grade}_{subject}_{date}.html`
+- Menu: `⋯ Más opciones` → `🏫 Campus Virtual — por jornada` → click a day → preview modal → descarga
 
 **HTML export specifics:**
 - `verse.text` is rendered as raw HTML (not escaped) since it comes from RichEditor
 - Each day uses `<details>/<summary>` accordion — first day `open`, rest collapsed with `▸ clic para expandir`
 - Each section `<tr>` has `break-inside: avoid; page-break-inside: avoid` for clean PDF printing
 - The exported HTML includes a **floating red "🖨️ Guardar como PDF" button** (`.pdf-fab`) that calls `window.print()` — hidden in `@media print`.
-- `exportPdf()` opens a new window, writes the HTML, and calls `window.print()` after 900ms.
 
-**DOCX export specifics:**
-- Each section produces 2 rows: a full-width colored banner (section name + time, white bold text) followed by a content row
-- Day table column layout: `[7200, 3600]` DXA — day header, unit subheader, and section banner rows use `columnSpan: 2`
-- Side-image layout uses the 2-column split: text (7200 DXA) + image (3600 DXA)
+**DOCX CBF export specifics (`exportDocx.js`):**
+- **Single-column table** `columnWidths: [PW]` — NUNCA usar 2-column con columnSpan en todas las filas (causa rows invisibles en Word)
+- Each section produces 2 rows: colored banner + content row
+- Side-image layout: nested `Table` `[7200, 3600]` dentro de la celda de contenido
 - Image widths for "below" layout: 1→640px, 2→310px, 3-6→202px
-- Image widths for "side" layout (image column ~240px): 1-2→220px stacked, 3+→106px two per row
+- Image widths for "side" layout: 1-2→220px stacked, 3+→106px two per row
 - All content `TableRow`s have `cantSplit: true` — Word will not split a section row across pages
 - `buildSectionRow()` returns `TableRow[]`; `buildDayTable()` uses `.flat()` to expand them
+- `fetchImageData`: WebP re-declarado como `'png'` + check `res.ok` antes de leer buffer
+
+**Legacy DOCX export specifics (`exportLegacyDocx.js`):**
+- Plain format sin colores de sección ni Smart Blocks
+- Columna Date: fondo `#D7E3BC` (constante `DATE_FILL`) — coincide con template Word CBF manual
+- `dayContentParas(day)` async: por cada sección → label bold + párrafos de texto + imágenes 2-por-fila
+- Imágenes: par a 190px cada una, sola a 380px
 
 ## Key Supabase tables
 
