@@ -51,6 +51,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
     rubric: [],
     rubric_template_id: null,
     biblical_principle: '',
+    indicator_verse_ref: '',
     biblical_reflection: '',
     start_date: '',
     due_date: '',
@@ -221,6 +222,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
         rubric: project.rubric || [],
         rubric_template_id: project.rubric_template_id || null,
         biblical_principle: project.biblical_principle || '',
+        indicator_verse_ref: project.indicator_verse_ref || '',
         biblical_reflection: project.biblical_reflection || '',
         start_date: project.start_date || '',
         due_date: project.due_date || '',
@@ -345,7 +347,11 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
         grade: `${form.grade}${form.section ? ` ${form.section}` : ''}`,
         skill: effectiveSkill || form.skill,
         indicadores: indicadoresTexto,
-        principles: principles
+        principles: {
+          ...principles,
+          indicatorPrinciple: form.biblical_principle || '',
+          indicatorVerseRef:  form.indicator_verse_ref || '',
+        }
       })
       if (result && Array.isArray(result) && result.length > 0) {
         updateForm('rubric', result)
@@ -384,6 +390,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
       rubric: form.rubric,
       rubric_template_id: form.rubric_template_id,
       biblical_principle: form.biblical_principle.trim() || null,
+      indicator_verse_ref: form.indicator_verse_ref.trim() || null,
       biblical_reflection: form.biblical_reflection.trim() || null,
       start_date: form.start_date || null,
       due_date: form.due_date,
@@ -1086,24 +1093,40 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
                     </div>
                   </div>
 
-                  <div style={{ background: '#F0F4FF', borderRadius: 12, padding: '12px 16px', border: '1px solid #D0DCFF' }}>
-                    <h4 style={{ fontSize: 11, fontWeight: 800, color: '#1A3A8F', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.3px' }}>✝️ Integración Bíblica</h4>
+                  <div style={{ background: '#F0F4FF', borderRadius: 12, padding: '14px 16px', border: '1px solid #D0DCFF' }}>
+                    <h4 style={{ fontSize: 11, fontWeight: 800, color: '#1A3A8F', margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.3px' }}>✝️ Principio del Indicador</h4>
+                    <p style={{ fontSize: 11, color: '#5a6a9a', margin: '0 0 12px', lineHeight: 1.5 }}>
+                      El principio bíblico que guía este proyecto y el versículo que lo sustenta.
+                    </p>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                       <div style={styles.field}>
-                        <label style={styles.label}>Principio / Versículo</label>
-                        <input value={form.biblical_principle} onChange={e => updateForm('biblical_principle', e.target.value)} placeholder="1 John 2:17" style={styles.input} />
+                        <label style={styles.label}>Principio del Indicador</label>
+                        <textarea
+                          value={form.biblical_principle}
+                          onChange={e => updateForm('biblical_principle', e.target.value)}
+                          placeholder="El mundo y sus malos deseos pasarán, pero el que hace la voluntad de Dios vivirá para siempre."
+                          style={{ ...styles.input, minHeight: 70, resize: 'vertical' }}
+                        />
                       </div>
                       <div style={styles.field}>
-                        <label style={styles.label}>Reflexión requerida</label>
-                        <input value={form.biblical_reflection} onChange={e => updateForm('biblical_reflection', e.target.value)} placeholder="Explicar cómo enfrentar el cambio..." style={styles.input} />
+                        <label style={styles.label}>Versículo que lo rige</label>
+                        <input
+                          value={form.indicator_verse_ref}
+                          onChange={e => updateForm('indicator_verse_ref', e.target.value)}
+                          placeholder="1 Juan 2:17 (NVI)"
+                          style={styles.input}
+                        />
+                      </div>
+                      <div style={styles.field}>
+                        <label style={styles.label}>Reflexión / aplicación del estudiante</label>
+                        <input
+                          value={form.biblical_reflection}
+                          onChange={e => updateForm('biblical_reflection', e.target.value)}
+                          placeholder="Explica cómo este principio se conecta con tu proyecto..."
+                          style={styles.input}
+                        />
                       </div>
                     </div>
-                    {principles?.indicatorPrinciple && (
-                      <div style={{ background: '#E8EEFF', borderRadius: 6, padding: '6px 12px', border: '1px solid #C5D5F0', marginTop: 8 }}>
-                        <span style={{ fontSize: 9, fontWeight: 700, color: '#1A3A8F', textTransform: 'uppercase', letterSpacing: '0.3px' }}>📖 Principio del indicador (mes): </span>
-                        <span style={{ fontSize: 11, color: '#1A3A8F', lineHeight: 1.4, fontStyle: 'italic' }}>"{principles.indicatorPrinciple}"</span>
-                      </div>
-                    )}
                   </div>
 
                   <button onClick={() => setActiveStep('textbook')} style={styles.btnNext}>

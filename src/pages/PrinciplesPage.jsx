@@ -1,8 +1,9 @@
 // ── PrinciplesPage.jsx ────────────────────────────────────────────────────────
-// Gestión de los tres principios rectores institucionales:
+// Gestión de los principios rectores institucionales:
 //   1. Versículo del Año  (schools.year_verse — anual)
 //   2. Versículo del Mes  (school_monthly_principles — mensual)
-//   3. Principio del Indicador (school_monthly_principles — mensual, lo definen los docentes)
+// NOTA: El Principio del Indicador se ingresa por proyecto en NewsProjectEditor
+//       (step "Fechas") → fields biblical_principle + indicator_verse_ref
 
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
@@ -74,9 +75,8 @@ export default function PrinciplesPage({ teacher }) {
     const row = monthly[key] || {}
     setEditing(key)
     setEditForm({
-      month_verse:         row.month_verse         || '',
-      month_verse_ref:     row.month_verse_ref     || '',
-      indicator_principle: row.indicator_principle || '',
+      month_verse:     row.month_verse     || '',
+      month_verse_ref: row.month_verse_ref || '',
     })
   }
 
@@ -86,24 +86,21 @@ export default function PrinciplesPage({ teacher }) {
     const [y, m] = editing.split('-').map(Number)
     const existing = monthly[editing] || {}
 
-    // Protect: don't allow clearing a field that was already set
-    const wouldClearVerse = existing.month_verse?.trim() && !editForm.month_verse.trim()
-    const wouldClearPrinciple = existing.indicator_principle?.trim() && !editForm.indicator_principle.trim()
-    if (wouldClearVerse || wouldClearPrinciple) {
-      showToast('Los principios ya configurados no pueden borrarse accidentalmente.', 'warning')
+    // Protect: don't allow clearing a verse that was already set
+    if (existing.month_verse?.trim() && !editForm.month_verse.trim()) {
+      showToast('El versículo del mes ya configurado no puede borrarse accidentalmente.', 'warning')
       return
     }
 
     setSavingMonth(true)
     const payload = {
-      school_id:           teacher.school_id,
-      year:                y,
-      month:               m,
-      month_verse:         editForm.month_verse.trim(),
-      month_verse_ref:     editForm.month_verse_ref.trim(),
-      indicator_principle: editForm.indicator_principle.trim(),
-      updated_by:          teacher.id,
-      updated_at:          new Date().toISOString(),
+      school_id:       teacher.school_id,
+      year:            y,
+      month:           m,
+      month_verse:     editForm.month_verse.trim(),
+      month_verse_ref: editForm.month_verse_ref.trim(),
+      updated_by:      teacher.id,
+      updated_at:      new Date().toISOString(),
     }
     const { error } = await supabase
       .from('school_monthly_principles')
@@ -124,7 +121,7 @@ export default function PrinciplesPage({ teacher }) {
 
   function hasData(month) {
     const d = monthly[monthKey(month)]
-    return d && (d.month_verse || d.indicator_principle)
+    return d && !!d.month_verse
   }
 
   return (
@@ -145,8 +142,9 @@ export default function PrinciplesPage({ teacher }) {
           background: '#fffbf0', border: '1px solid #C9A84C', borderRadius: '10px',
           padding: '14px 18px', marginBottom: '24px', fontSize: '13px', color: '#5a4000', lineHeight: 1.6,
         }}>
-          Estos tres principios son el norte de toda planificación, evaluación y actividad de la institución.
-          La IA los usará en cada guía, NEWS y logro que genere.
+          Estos dos principios son el norte institucional de toda planificación y actividad.
+          La IA los usará en cada guía y logro que genere.
+          El <strong>Principio del Indicador</strong> se define por proyecto directamente en <em>NEWS → Fechas</em>.
         </div>
 
         {/* ── 1. Versículo del Año ── */}
@@ -191,11 +189,10 @@ export default function PrinciplesPage({ teacher }) {
         {/* ── 2 & 3. Principios Mensuales ── */}
         <div className="card">
           <div className="card-title" style={{ color: '#2E5598' }}>
-            🗓 Versículo del Mes & Principio del Indicador — {thisYear}
+            🗓 Versículo del Mes — {thisYear}
           </div>
           <p style={{ fontSize: '12px', color: '#888', marginBottom: '16px' }}>
-            El Versículo del Mes lo establece el Capellán. El Principio del Indicador lo definen los docentes
-            según su planeación. Selecciona un mes para editarlo.
+            Lo establece el Capellán cada mes. Selecciona un mes para editarlo.
           </p>
 
           {/* Month grid */}
@@ -264,21 +261,6 @@ export default function PrinciplesPage({ teacher }) {
                   className="ge-input"
                   placeholder="Jonah 4:6 (NIV)"
                 />
-              </div>
-
-              <div className="ge-field">
-                <label>Principio del Indicador</label>
-                <textarea
-                  value={editForm.indicator_principle}
-                  onChange={e => setEditForm(f => ({ ...f, indicator_principle: e.target.value }))}
-                  rows={2}
-                  className="ge-input"
-                  placeholder="El mundo y sus malos deseos pasarán, pero el que hace la voluntad de Dios vivirá para siempre."
-                  style={{ resize: 'vertical' }}
-                />
-                <span style={{ fontSize: '11px', color: '#999', marginTop: '4px', display: 'block' }}>
-                  Lo establecen los docentes según su planeación. Sirve de principio formativo en los indicadores de logro.
-                </span>
               </div>
 
               <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
