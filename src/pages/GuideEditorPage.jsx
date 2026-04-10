@@ -1034,6 +1034,7 @@ export default function GuideEditorPage({ teacher }) {
   }
 
   return (
+    <>
     <div className="ge-wrap">
 
       {/* ── Draft restore banner ── */}
@@ -1914,5 +1915,6 @@ export default function GuideEditorPage({ teacher }) {
       </div>,
       document.body
     )}
+    </>
   )
 }
