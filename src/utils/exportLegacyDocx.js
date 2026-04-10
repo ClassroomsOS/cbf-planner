@@ -79,25 +79,69 @@ function stripHtml(html) {
 // ── Fetch image as ArrayBuffer for DOCX ──────────────────────────────────────
 async function fetchImageData(url) {
   try {
-    const res  = await fetch(url)
-    const buf  = await res.arrayBuffer()
-    const type = url.toLowerCase().includes('.png') ? 'png' : 'jpg'
+    const res   = await fetch(url)
+    if (!res.ok) return null
+    const buf   = await res.arrayBuffer()
+    const lower = url.toLowerCase().split('?')[0]
+    const type  = lower.endsWith('.png') ? 'png'
+      : lower.endsWith('.webp') ? 'png'   // Word doesn't support webp — treat as png
+      : 'jpg'
     return { data: buf, type }
   } catch { return null }
 }
 
-// ── Section keys ordered for concatenation ───────────────────────────────────
+// ── Section keys + labels ─────────────────────────────────────────────────────
 const SECTION_ORDER = ['subject', 'motivation', 'activity', 'skill', 'closing', 'assignment']
+const SECTION_LABELS = {
+  subject:    'SUBJECT TO BE WORKED',
+  motivation: 'MOTIVATION',
+  activity:   'ACTIVITY',
+  skill:      'SKILL DEVELOPMENT',
+  closing:    'CLOSING',
+  assignment: 'ASSIGNMENT',
+}
 
-function dayContentText(day) {
-  const lines = []
+// Builds paragraph array for one day: section label (bold) + text + images, per section
+async function dayContentParas(day) {
+  const paras = []
+
   for (const key of SECTION_ORDER) {
-    const sec = day.sections?.[key]
+    const sec    = day.sections?.[key]
     if (!sec) continue
-    const text = stripHtml(sec.content || '')
-    if (text) lines.push(text)
+    const text   = stripHtml(sec.content || '')
+    const images = (sec.images || []).slice(0, 6)
+    if (!text && !images.length) continue
+
+    // Section label — plain bold, no color
+    paras.push(mkP(mkR(SECTION_LABELS[key], { bold: true, size: 19 })))
+
+    // Text content
+    if (text) {
+      for (const line of text.split('\n')) {
+        paras.push(mkP(mkR(line)))
+      }
+    }
+
+    // Images — two per row at 190px, single image at 380px
+    const imgList = []
+    for (const img of images) {
+      const d = await fetchImageData(img.url)
+      if (d) imgList.push(d)
+    }
+    for (let i = 0; i < imgList.length; i += 2) {
+      const pair = imgList.slice(i, i + 2)
+      const w = pair.length === 1 ? 380 : 190
+      const h = Math.round(w * 3 / 4)
+      paras.push(new Paragraph({
+        spacing: { before: 40, after: 40 },
+        children: pair.map(d => new ImageRun({ data: d.data, type: d.type, transformation: { width: w, height: h } })),
+      }))
+    }
+
+    paras.push(blankP())
   }
-  return lines.join('\n\n')
+
+  return paras.length ? paras : [blankP()]
 }
 
 // ── Date label helpers ────────────────────────────────────────────────────────
@@ -316,12 +360,9 @@ async function buildLegacyDocx(content, plan) {
     ],
   })
 
-  const dayRows = activeDays.map(([iso, day]) => {
-    const dateLabel = day.date_label || formatLegacyDate(iso)
-    const text      = dayContentText(day)
-    const textParas = text
-      ? text.split('\n').map(line => mkP(mkR(line)))
-      : [blankP()]
+  const dayRows = await Promise.all(activeDays.map(async ([iso, day]) => {
+    const dateLabel    = day.date_label || formatLegacyDate(iso)
+    const contentParas = await dayContentParas(day)
 
     return new TableRow({
       children: [
@@ -331,13 +372,13 @@ async function buildLegacyDocx(content, plan) {
           { va: VerticalAlign.TOP, borders: allB(bGray) }
         ),
         mkCell(
-          textParas,
+          contentParas,
           Math.round(PW * 0.78),
           { va: VerticalAlign.TOP, borders: allB(bGray) }
         ),
       ],
     })
-  })
+  }))
 
   const daysTable = activeDays.length > 0
     ? new Table({
