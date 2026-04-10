@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import RichEditor from '../components/RichEditor'
 import { exportGuideDocx } from '../utils/exportDocx'
 import { exportLegacyDocx } from '../utils/exportLegacyDocx'
-import { exportHtml, exportPdf, exportDayHtml, getActiveDays } from '../utils/exportHtml'
+import { exportHtml, exportPdf, exportDayHtml, getActiveDays, buildHtml, buildDayHtml, inlineImages } from '../utils/exportHtml'
 import ImageUploader from '../components/ImageUploader'
 import { SmartBlocksList } from '../components/SmartBlocks'
 import { AISuggestButton, AIAnalyzerModal } from '../components/AIComponents'
@@ -182,6 +183,9 @@ export default function GuideEditorPage({ teacher }) {
   const [exportOpen,      toggleExport,      openExport,      closeExport]      = useToggle(false)
   const [dayPickerOpen,   setDayPickerOpen]  = useState(false)
   const [exportingDay,    setExportingDay]   = useState(false)
+  const [exportPreview,   setExportPreview]  = useState(null)
+  // exportPreview: { html, title, onConfirm, confirmLabel, note, isForPrint }
+  const [previewLoading,  setPreviewLoading] = useState(false)
   const [showAnalyzer,    toggleAnalyzer,    openAnalyzer,    closeAnalyzer]    = useToggle(false)
   const [showGenerator,   toggleGenerator,   openGenerator,   closeGenerator]   = useToggle(false)
   const [showComments,    toggleComments,    openComments,    closeComments]    = useToggle(false)
@@ -773,6 +777,24 @@ export default function GuideEditorPage({ teacher }) {
 
   useEffect(() => { return () => { if (dirtyRef.current) doSave() } }, [doSave])
 
+  // ── Export preview helper ──────────────────────────────────
+  // Opens a full-screen preview modal before any download.
+  // buildFn: async () => string (HTML)
+  // onConfirm: async () => void (actual download/print action)
+  async function openExportPreview({ title, buildFn, onConfirm, confirmLabel, note, isForPrint }) {
+    closeExport()
+    setPreviewLoading(true)
+    try {
+      await doSave()
+      const html = await buildFn()
+      setExportPreview({ html, title, onConfirm, confirmLabel, note, isForPrint })
+    } catch (e) {
+      showToast('Error generando vista previa', 'error')
+    } finally {
+      setPreviewLoading(false)
+    }
+  }
+
   // ── Click-outside closes export dropdown ──────────────────
   useEffect(() => {
     if (!exportOpen) return
@@ -1142,8 +1164,13 @@ export default function GuideEditorPage({ teacher }) {
           )}
           {/* Botón principal: Imprimir / PDF */}
           <button className="ge-print-btn"
-            onClick={async () => { doSave(); await exportPdf(contentRef.current, activeNewsProject) }}
-            title="Guardar e imprimir como PDF">
+            onClick={() => openExportPreview({
+              title: 'Vista previa — PDF',
+              buildFn: async () => { const inlined = await inlineImages(contentRef.current); return buildHtml(inlined, activeNewsProject) },
+              confirmLabel: '🖨️ Imprimir / Guardar PDF',
+              isForPrint: true,
+            })}
+            title="Vista previa antes de imprimir">
             🖨️ <span className="ge-print-label">Imprimir / PDF</span>
           </button>
 
@@ -1158,18 +1185,33 @@ export default function GuideEditorPage({ teacher }) {
                 <div style={{ padding: '4px 12px 6px', fontSize: '10px', fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '.5px' }}>
                   Exportar como
                 </div>
-                <button onClick={async () => { closeExport(); await doSave(); exportGuideDocx(contentRef.current) }}>
+                <button onClick={() => openExportPreview({
+                  title: 'Vista previa — Word CBF (.docx)',
+                  buildFn: async () => { const inlined = await inlineImages(contentRef.current); return buildHtml(inlined, activeNewsProject) },
+                  onConfirm: () => exportGuideDocx(contentRef.current),
+                  confirmLabel: '⬇️ Descargar Word',
+                  note: 'Vista previa HTML — el archivo Word puede variar levemente en tipografía.',
+                })}>
                   📄 Word (.docx) — formato CBF
                 </button>
-                <button onClick={async () => {
-                  closeExport()
-                  await doSave()
-                  const planWithLegacy = { ...plan, weekly_label: weeklyLabelRef.current || null, weekly_biblical_principle: weeklyBiblicalRef.current || null }
-                  await exportLegacyDocx(contentRef.current, planWithLegacy)
-                }}>
+                <button onClick={() => openExportPreview({
+                  title: 'Vista previa — Legacy Format (.docx)',
+                  buildFn: async () => { const inlined = await inlineImages(contentRef.current); return buildHtml(inlined, activeNewsProject) },
+                  onConfirm: async () => {
+                    const planWithLegacy = { ...plan, weekly_label: weeklyLabelRef.current || null, weekly_biblical_principle: weeklyBiblicalRef.current || null }
+                    await exportLegacyDocx(contentRef.current, planWithLegacy)
+                  },
+                  confirmLabel: '⬇️ Descargar Legacy',
+                  note: 'Vista previa HTML — el archivo Word puede variar levemente en tipografía.',
+                })}>
                   📋 Legacy Format (.docx)
                 </button>
-                <button onClick={async () => { closeExport(); await exportHtml(contentRef.current, activeNewsProject) }}>
+                <button onClick={() => openExportPreview({
+                  title: 'Vista previa — HTML',
+                  buildFn: async () => { const inlined = await inlineImages(contentRef.current); return buildHtml(inlined, activeNewsProject) },
+                  onConfirm: () => exportHtml(contentRef.current, activeNewsProject),
+                  confirmLabel: '⬇️ Descargar HTML',
+                })}>
                   🌐 HTML — archivo web
                 </button>
                 <button onClick={() => setDayPickerOpen(v => !v)}>
@@ -1179,14 +1221,17 @@ export default function GuideEditorPage({ teacher }) {
                   <>
                     {getActiveDays(contentRef.current).map(({ key, label }) => (
                       <button key={key}
-                        style={{ paddingLeft: '24px', color: exportingDay ? '#aaa' : '#2E5598', fontWeight: 600 }}
-                        disabled={exportingDay}
+                        style={{ paddingLeft: '24px', color: '#2E5598', fontWeight: 600 }}
                         onClick={() => {
                           setDayPickerOpen(false)
-                          closeExport()
-                          exportDayHtml(contentRef.current, key, activeNewsProject)
+                          openExportPreview({
+                            title: `Vista previa — Campus Virtual: ${label}`,
+                            buildFn: async () => { const inlined = await inlineImages(contentRef.current); return buildDayHtml(inlined, key, activeNewsProject) },
+                            onConfirm: () => exportDayHtml(contentRef.current, key, activeNewsProject),
+                            confirmLabel: '⬇️ Descargar HTML Campus',
+                          })
                         }}>
-                        {exportingDay ? '⏳ Generando…' : `📅 ${label}`}
+                        📅 {label}
                       </button>
                     ))}
                   </>
@@ -1821,5 +1866,53 @@ export default function GuideEditorPage({ teacher }) {
       )}
 
     </div>
+
+    {/* ── Export preview loading overlay ──────────────────────────────── */}
+    {previewLoading && createPortal(
+      <div className="ep-loading-overlay">
+        <div className="ep-spinner" />
+        <p>Generando vista previa…</p>
+      </div>,
+      document.body
+    )}
+
+    {/* ── Export preview modal ─────────────────────────────────────────── */}
+    {exportPreview && createPortal(
+      <div className="ep-overlay">
+        <div className="ep-modal">
+          <div className="ep-header">
+            <div className="ep-header-left">
+              <span className="ep-title">{exportPreview.title}</span>
+              {exportPreview.note && (
+                <span className="ep-note">⚠️ {exportPreview.note}</span>
+              )}
+            </div>
+            <div className="ep-actions">
+              <button className="ep-btn-confirm"
+                onClick={async () => {
+                  if (exportPreview.isForPrint) {
+                    document.getElementById('ep-frame')?.contentWindow?.print()
+                  } else {
+                    setExportPreview(null)
+                    await exportPreview.onConfirm()
+                  }
+                }}>
+                {exportPreview.confirmLabel}
+              </button>
+              <button className="ep-btn-close" onClick={() => setExportPreview(null)}>
+                ✕ Cerrar
+              </button>
+            </div>
+          </div>
+          <iframe
+            id="ep-frame"
+            srcDoc={exportPreview.html}
+            title="Vista previa del documento"
+            className="ep-frame"
+          />
+        </div>
+      </div>,
+      document.body
+    )}
   )
 }

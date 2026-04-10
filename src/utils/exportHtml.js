@@ -33,7 +33,7 @@ async function fetchBase64(url) {
 }
 
 // Returns a deep-cloned content object with all image src replaced by data URIs
-async function inlineImages(content) {
+export async function inlineImages(content) {
   const c = JSON.parse(JSON.stringify(content))
   const jobs = []
 
