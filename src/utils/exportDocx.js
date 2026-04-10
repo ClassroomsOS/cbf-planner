@@ -588,13 +588,19 @@ function buildSmartBlockDocx(block) {
 async function fetchImageData(url) {
   try {
     const res  = await fetch(url)
+    if (!res.ok) return null
     const buf  = await res.arrayBuffer()
-    const type = url.toLowerCase().endsWith('.png') ? 'png' : 'jpg'
+    const lower = url.toLowerCase().split('?')[0]  // strip query params before checking ext
+    const type = lower.endsWith('.png') ? 'png'
+      : lower.endsWith('.webp') ? 'png'  // docx doesn't support webp — re-declare as png; Word renders it
+      : 'jpg'
     return { data: buf, type }
   } catch { return null }
 }
 
-// Returns [headerRow, contentRow] — header is a full-width colored banner with the section name
+// Returns [bannerRow, contentRow] — banner is full-width colored header, content holds text + images
+// Uses a single-column outer table (PW wide) to avoid Word column-span rendering issues.
+// Side layout uses a nested 2-column table inside the content cell.
 async function buildSectionRow(s, sectionData) {
   const text        = sectionData?.content      || ''
   const time        = sectionData?.time         || s.time
@@ -604,48 +610,42 @@ async function buildSectionRow(s, sectionData) {
   // Resolve layout
   const rawLayout = sectionData?.image_layout ||
     (sectionData?.layout_mode === 'side' ? 'right' : 'below')
-  const layout = images.length > 0 ? rawLayout : 'below'
+  const layout    = images.length > 0 ? rawLayout : 'below'
+  const isVertical = layout === 'right' || layout === 'left'
 
-  // Table is 2-column: [TEXT_COL, IMG_COL] = [7200, 3600] = 10800 total
-  const TOTAL_W = 10800
-  const TEXT_COL = 7200
-  const IMG_COL  = 3600
-
-  // ── Row 1: Section header banner (full-width, colored) ────────────────────
-  const headerRow = new TableRow({
+  // ── Row 1: Section banner (full-width, colored) ──────────────────────────
+  const bannerRow = new TableRow({
     children: [
       mkCell([
         mkP([
-          mkR(s.label, { bold: true, size: 24, color: 'FFFFFF' }),
-          mkR(`   ·   ${time}`, { size: 18, color: 'DDDDFF', italic: true }),
+          mkR(s.label, { bold: true, size: 22, color: 'FFFFFF' }),
+          mkR(`   ·   ${time}`, { size: 17, color: 'DDEEFF', italic: true }),
         ]),
-      ], TOTAL_W, {
+      ], PW, {
         fill:    s.hex,
         borders: allB(mkB(s.hex)),
-        span:    2,
         margins: { top: 80, bottom: 80, left: 160, right: 160 },
       }),
     ],
   })
 
-  const contentParas = htmlToParas(text, 18)
+  // ── Parse content & fetch images ─────────────────────────────────────────
+  const contentParas  = htmlToParas(text, 18)
+  const smartElements = smartBlocks.flatMap(b => buildSmartBlockDocx(b))
 
-  // Fetch all images
   const imgDataList = []
   for (const img of images) {
     const d = await fetchImageData(img.url)
     if (d) imgDataList.push(d)
   }
 
-  // Build image paragraphs sized for each layout
-  // Below layout — full content width (TOTAL_W = 10800 DXA ≈ 7.5in ≈ 720px at 96dpi)
-  // Side layout  — image column (IMG_COL = 3600 DXA ≈ 2.5in ≈ 240px at 96dpi)
-  function makeImageParas(isVertical) {
+  // Build image paragraphs
+  function makeImageParas(isVert) {
     if (!imgDataList.length) return []
     const n = imgDataList.length
 
-    if (isVertical) {
-      // image column ~240px wide — 1-2 stacked (220px), 3+ two per row (106px)
+    if (isVert) {
+      // Image column ~240px: 1-2 stacked (220px), 3+ two per row (106px)
       if (n <= 2) {
         const w = 220, h = Math.round(w * 3 / 4)
         return imgDataList.map(d => new Paragraph({
@@ -665,11 +665,11 @@ async function buildSectionRow(s, sectionData) {
       return rows
     }
 
-    // Below layout — full width: 1→640, 2→310, 3→202, 4→310(2×2), 5-6→202(3×2)
+    // Below layout: 1→640, 2→310, 3→202, 4→2×2 (310), 5-6→3×2 (202)
     if (n === 1) {
       return [new Paragraph({
         spacing: { before: 80, after: 40 },
-        children: [new ImageRun({ data: imgDataList[0].data, type: imgDataList[0].type, transformation: { width: 640, height: Math.round(640 * 9/16) } })],
+        children: [new ImageRun({ data: imgDataList[0].data, type: imgDataList[0].type, transformation: { width: 640, height: Math.round(640 * 9 / 16) } })],
       })]
     }
     if (n <= 3) {
@@ -684,64 +684,73 @@ async function buildSectionRow(s, sectionData) {
     if (n === 4) {
       return [
         new Paragraph({ spacing: { before: 80, after: 4 }, children: imgDataList.slice(0, 2).map(d => new ImageRun({ data: d.data, type: d.type, transformation: { width: w4, height: h4 } })) }),
-        new Paragraph({ spacing: { before: 4, after: 40 }, children: imgDataList.slice(2, 4).map(d => new ImageRun({ data: d.data, type: d.type, transformation: { width: w4, height: h4 } })) }),
+        new Paragraph({ spacing: { before: 4,  after: 40 }, children: imgDataList.slice(2, 4).map(d => new ImageRun({ data: d.data, type: d.type, transformation: { width: w4, height: h4 } })) }),
       ]
     }
     return [
       new Paragraph({ spacing: { before: 80, after: 4 }, children: imgDataList.slice(0, 3).map(d => new ImageRun({ data: d.data, type: d.type, transformation: { width: w6, height: h6 } })) }),
-      new Paragraph({ spacing: { before: 4, after: 40 }, children: imgDataList.slice(3, Math.min(n, 6)).map(d => new ImageRun({ data: d.data, type: d.type, transformation: { width: w6, height: h6 } })) }),
+      new Paragraph({ spacing: { before: 4,  after: 40 }, children: imgDataList.slice(3, Math.min(n, 6)).map(d => new ImageRun({ data: d.data, type: d.type, transformation: { width: w6, height: h6 } })) }),
     ]
   }
 
-  const isVertical  = layout === 'right' || layout === 'left'
-  const imgParas    = makeImageParas(isVertical)
-  const smartElements = smartBlocks.flatMap(b => buildSmartBlockDocx(b))
+  const imgParas = makeImageParas(isVertical)
 
-  // ── Row 2: Content ─────────────────────────────────────────────────────────
+  // ── Row 2: Content ────────────────────────────────────────────────────────
   let contentRow
-  if (!isVertical || !imgDataList.length) {
-    // Below layout — content spans both columns
+
+  if (isVertical && imgDataList.length) {
+    // Side layout: nested table [text 7200 | images 3600] inside a full-width outer cell
+    const TEXT_W = 7200
+    const IMG_W  = 3600
+    const textCell = mkCell([...contentParas, ...smartElements], TEXT_W, {
+      borders: allB(noB), va: VerticalAlign.TOP,
+      margins: { top: 80, bottom: 80, left: 120, right: 80 },
+    })
+    const imgCell = mkCell(imgParas.length ? imgParas : [mkP(mkR(''))], IMG_W, {
+      borders: allB(noB), va: VerticalAlign.TOP,
+      margins: { top: 80, bottom: 80, left: 80, right: 120 },
+    })
+    const nestedTable = new Table({
+      width:        { size: PW, type: WidthType.DXA },
+      columnWidths: layout === 'left' ? [IMG_W, TEXT_W] : [TEXT_W, IMG_W],
+      rows: [new TableRow({
+        children: layout === 'left' ? [imgCell, textCell] : [textCell, imgCell],
+      })],
+    })
     contentRow = new TableRow({
       cantSplit: true,
       children: [
-        mkCell([...contentParas, ...imgParas, ...smartElements], TOTAL_W, {
-          borders: allB(bGray), va: VerticalAlign.TOP,
-          margins: { top: 100, bottom: 100, left: 160, right: 160 },
-          span: 2,
+        mkCell([nestedTable], PW, {
+          borders: allB(bGray),
+          margins: { top: 0, bottom: 0, left: 0, right: 0 },
         }),
       ],
     })
   } else {
-    // Side layout: text col | image col
-    const textCell = mkCell([...contentParas, ...smartElements], TEXT_COL, {
-      borders: allB(bGray), va: VerticalAlign.TOP,
-      margins: { top: 100, bottom: 100, left: 160, right: 100 },
-    })
-    const imgCell = mkCell(imgParas.length ? imgParas : [mkP(mkR(''))], IMG_COL, {
-      borders: allB(bGray), va: VerticalAlign.TOP,
-      margins: { top: 100, bottom: 100, left: 100, right: 160 },
-    })
+    // Below layout (or side layout with no images): all content in one full-width cell
     contentRow = new TableRow({
       cantSplit: true,
-      children: layout === 'left' ? [imgCell, textCell] : [textCell, imgCell],
+      children: [
+        mkCell([...contentParas, ...imgParas, ...smartElements], PW, {
+          borders: allB(bGray), va: VerticalAlign.TOP,
+          margins: { top: 100, bottom: 100, left: 160, right: 160 },
+        }),
+      ],
     })
   }
 
-  return [headerRow, contentRow]
+  return [bannerRow, contentRow]
 }
 
 // ── Day table builder ─────────────────────────────────────────────────────────
 
 async function buildDayTable(iso, day) {
-  // 2-column layout: [text/content col, image col] — section names shown as full-width banners
-  const dCols  = [7200, 3600]
-  const dTotal = 10800
+  // Single-column table (PW wide) — no column spans needed, avoids Word compat issues
+  const dayName = day.date_label || iso
+  const periods = day.class_periods || ''
+  const unit    = day.unit || ''
 
-  const dayName  = day.date_label || iso
-  const periods  = day.class_periods || ''
-  const unit     = day.unit || ''
-
-  // Day header row (spans both columns)
+  // Day header row
   const headerRow = new TableRow({
     children: [
       mkCell([
@@ -749,38 +758,36 @@ async function buildDayTable(iso, day) {
           mkR(`📅 ${dayName}`, { bold: true, size: 22, color: 'FFFFFF' }),
           ...(periods ? [mkR(`  ·  ${periods}`, { size: 18, color: 'BBCCEE' })] : []),
         ], AlignmentType.LEFT),
-      ], dTotal, {
+      ], PW, {
         fill:    '1F3864',
         borders: allB(bBlue),
-        span:    2,
         margins: { top: 100, bottom: 100, left: 160, right: 160 },
       }),
     ],
   })
 
-  // Unit subheader (spans both columns)
+  // Unit subheader
   const unitRow = new TableRow({
     children: [
       mkCell([
         mkP(mkR(unit ? `📚 ${unit}` : '', { size: 18, color: '1F3864', bold: true })),
-      ], dTotal, {
+      ], PW, {
         fill:    'D6E4F0',
         borders: allB(bBlue),
-        span:    2,
         margins: { top: 60, bottom: 60, left: 160, right: 160 },
       }),
     ],
   })
 
-  // Section rows: each buildSectionRow returns [headerRow, contentRow] — flatten them
+  // Section rows: each buildSectionRow returns [bannerRow, contentRow]
   const sectionRowPairs = await Promise.all(
     SECTIONS.map(s => buildSectionRow(s, day.sections?.[s.key]))
   )
   const sectionRows = sectionRowPairs.flat()
 
   return new Table({
-    width:        { size: dTotal, type: WidthType.DXA },
-    columnWidths: dCols,
+    width:        { size: PW, type: WidthType.DXA },
+    columnWidths: [PW],
     rows:         [headerRow, unitRow, ...sectionRows],
   })
 }
