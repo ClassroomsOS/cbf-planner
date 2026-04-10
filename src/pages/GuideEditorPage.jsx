@@ -1650,6 +1650,7 @@ export default function GuideEditorPage({ teacher }) {
               subject={content.info.asignatura}
               objective={content.objetivo.general}
               principles={principles}
+              activeNewsProject={activeNewsProject}
             />
           )}
 

@@ -166,31 +166,51 @@ ${specificInstruction}`
 
 // ── Punto 1: Sugerir actividad para una sección ───────────────────────────────
 export async function suggestSectionActivity({
-  section, grade, subject, objective, unit, dayName, existingContent, planId, principles
+  section, grade, subject, objective, unit, dayName, existingContent, planId, principles, newsProject
 }) {
+  const isModeloB = MODELO_B_SUBJECTS.includes(subject)
+
   const SECTION_LIMITS = {
-    'SUBJECT TO BE WORKED': '1 oración. Enuncia el tema o habilidad del día.',
-    'MOTIVATION':           '1-2 oraciones. Describe la actividad de enganche (pregunta, juego corto, imagen, reto).',
-    'ACTIVITY':             '2-3 oraciones. Instrucción clara de la actividad práctica con un ejemplo concreto.',
-    'SKILL DEVELOPMENT':    '3-4 oraciones. Paso a paso de la actividad principal. Esta es la sección más importante.',
-    'CLOSING':              '1 oración. Pregunta de reflexión que conecte el aprendizaje del día con el principio bíblico del período.',
-    'ASSIGNMENT':           '1 oración. Tarea específica y alcanzable.',
+    'SUBJECT TO BE WORKED': isModeloB
+      ? '1 sentence. State the specific language skill or grammar/vocabulary topic of the day.'
+      : '1 oración. Enuncia el tema o habilidad del día.',
+    'MOTIVATION': isModeloB
+      ? '2-3 sentences. Describe an engaging hook: a question, a short game, a visual stimulus, a real-life scenario, or a challenge that activates prior knowledge.'
+      : '2-3 oraciones. Describe la actividad de enganche (pregunta, juego corto, imagen, reto).',
+    'ACTIVITY': isModeloB
+      ? '3-5 sentences. Describe a concrete, interactive practice activity using the specific grammar or vocabulary of the week. Include a clear example or model sentence.'
+      : '3-4 oraciones. Instrucción clara de la actividad práctica con un ejemplo concreto.',
+    'SKILL DEVELOPMENT': isModeloB
+      ? '4-6 sentences. Describe the main skill-development task in detail — step by step. Make it specific to the grammar point, vocabulary set, or textbook unit. Suggest at least one pair/group dynamic and one concrete language production task.'
+      : '4-5 oraciones. Paso a paso de la actividad principal. Esta es la sección más importante.',
+    'CLOSING': isModeloB
+      ? '2 sentences. Pose a reflection question that connects today\'s language skill to the biblical principle. Then ask students to share one thing they learned today in English.'
+      : '1-2 oraciones. Pregunta de reflexión que conecte el aprendizaje del día con el principio bíblico del período.',
+    'ASSIGNMENT': isModeloB
+      ? '2 sentences. Give a specific, achievable homework task using the studied language. It must produce written or spoken output (e.g. write 5 sentences, record a voice note, complete p.XX of the textbook).'
+      : '1-2 oraciones. Tarea específica y alcanzable.',
   }
-  const limit = SECTION_LIMITS[section.label] || '2-3 oraciones.'
+  const limit = SECTION_LIMITS[section.label] || (isModeloB ? '2-4 sentences.' : '2-3 oraciones.')
 
   const isClosing = section.label === 'CLOSING'
+  const langInstruction = isModeloB
+    ? 'You respond ALWAYS in English. This is a bilingual school where language subjects are fully taught in English.'
+    : 'Respondes SIEMPRE en español.'
 
-  const system = `Eres un asistente pedagógico experto para colegios bilingües colombianos.
-Generas sugerencias de actividades para guías de aprendizaje autónomo (CBF).
-Respondes SIEMPRE en español, con actividades concretas, prácticas y apropiadas para el nivel.
+  const system = `Eres un asistente pedagógico experto para colegios bilingües colombianos (CBF — Colegio Boston Flexible).
+Generas sugerencias de actividades para guías de aprendizaje autónomo, concretas, variadas y apropiadas para el nivel y la materia.
+${langInstruction}
 Formato: texto corrido, listo para pegar en la guía. Sin listas, sin viñetas, sin markdown.
-LÍMITE ESTRICTO para esta sección: ${limit}
+Sé específico: menciona el tema gramatical, vocabulario o unidad del libro cuando esté disponible.
+LÍMITE para esta sección: ${limit}
 ${biblicalBlock(principles, isClosing
-  ? 'La sección CLOSING SIEMPRE debe cerrar con una pregunta o reflexión que conecte lo aprendido con este principio bíblico. Es el momento de integración fe-aprendizaje.'
-  : 'Ten presente este principio al diseñar la actividad. Cuando sea natural y auténtico, intégralo. No lo fuerces artificialmente, pero nunca lo ignores.'
+  ? (isModeloB
+    ? 'The CLOSING section ALWAYS ends with a question or reflection connecting today\'s learning to this biblical principle. This is the faith-learning integration moment.'
+    : 'La sección CLOSING SIEMPRE debe cerrar con una pregunta o reflexión que conecte lo aprendido con este principio bíblico. Es el momento de integración fe-aprendizaje.')
+  : (isModeloB
+    ? 'Keep this principle in mind when designing the activity. When it feels natural and authentic, weave it in. Never force it artificially, but never ignore it.'
+    : 'Ten presente este principio al diseñar la actividad. Cuando sea natural y auténtico, intégralo. No lo fuerces artificialmente, pero nunca lo ignores.')
 )}`
-
-  const TAXONOMY_DESC = { recognize: 'Reconocer (identificar, recordar, nombrar)', apply: 'Aplicar (usar, demostrar, resolver)', produce: 'Producir (crear, diseñar, componer)' }
 
   // Sanitize user inputs to prevent prompt injection
   const safeGrade = sanitizeAIInput(grade || '')
@@ -198,22 +218,48 @@ ${biblicalBlock(principles, isClosing
   const safeDayName = sanitizeAIInput(dayName || '')
   const safeUnit = sanitizeAIInput(unit || '')
   const safeObjective = sanitizeAIInput(objective || '')
-  const safeExisting = existingContent ? sanitizeAIInput(existingContent.replace(/<[^>]+>/g,' ').slice(0,200)) : ''
+  const safeExisting = existingContent ? sanitizeAIInput(existingContent.replace(/<[^>]+>/g,' ').slice(0,300)) : ''
 
-  const message = `Estoy escribiendo la sección "${section.label}" de una guía de aprendizaje.
+  // Build textbook/NEWS context block if available
+  let textbookBlock = ''
+  if (newsProject) {
+    const tb = newsProject.textbook_reference || {}
+    const lines = []
+    if (tb.book)                     lines.push(`- Book: ${sanitizeAIInput(tb.book)}`)
+    if (tb.units?.length)            lines.push(`- Units: ${tb.units.map(u => sanitizeAIInput(String(u))).join(', ')}`)
+    if (tb.grammar?.length)          lines.push(`- Grammar points: ${tb.grammar.map(g => sanitizeAIInput(String(g))).join(' · ')}`)
+    if (tb.vocabulary?.length)       lines.push(`- Vocabulary: ${tb.vocabulary.map(v => sanitizeAIInput(String(v))).join(' · ')}`)
+    if (newsProject.title)           lines.push(`- NEWS Project: ${sanitizeAIInput(newsProject.title)}`)
+    if (newsProject.description)     lines.push(`- Project description: ${sanitizeAIInput(newsProject.description.slice(0,200))}`)
+    if (newsProject.skill)           lines.push(`- Focus skill: ${sanitizeAIInput(newsProject.skill)}`)
+    if (lines.length) {
+      textbookBlock = isModeloB
+        ? `\n📚 TEXTBOOK & PROJECT CONTEXT (use this to make your suggestion specific and relevant):\n${lines.join('\n')}`
+        : `\n📚 CONTEXTO DEL LIBRO Y PROYECTO (úsalo para hacer la sugerencia específica y relevante):\n${lines.join('\n')}`
+    }
+  }
 
-Contexto:
-- Grado: ${safeGrade}
-- Materia: ${safeSubject}
-- Día: ${safeDayName}
-- Unidad/Tema: ${safeUnit || 'No especificado'}
-- Objetivo de la semana: ${safeObjective || 'No especificado'}
-- Tiempo estimado de esta sección: ${section.time}
-${existingContent ? `- Lo que ya tengo escrito: "${safeExisting}"` : ''}
+  const intro = isModeloB
+    ? `I am writing the "${section.label}" section of a weekly learning guide.`
+    : `Estoy escribiendo la sección "${section.label}" de una guía de aprendizaje.`
 
-Sugiere una actividad para "${section.label}". Respeta el límite: ${limit}`
+  const message = `${intro}
+${textbookBlock}
+${isModeloB ? 'Context' : 'Contexto'}:
+- ${isModeloB ? 'Grade' : 'Grado'}: ${safeGrade}
+- ${isModeloB ? 'Subject' : 'Materia'}: ${safeSubject}
+- ${isModeloB ? 'Day' : 'Día'}: ${safeDayName}
+- ${isModeloB ? 'Unit/Topic' : 'Unidad/Tema'}: ${safeUnit || (isModeloB ? 'Not specified' : 'No especificado')}
+- ${isModeloB ? 'Weekly objective' : 'Objetivo de la semana'}: ${safeObjective || (isModeloB ? 'Not specified' : 'No especificado')}
+- ${isModeloB ? 'Estimated time for this section' : 'Tiempo estimado de esta sección'}: ${section.time}
+${existingContent ? `- ${isModeloB ? 'What I already have' : 'Lo que ya tengo escrito'}: "${safeExisting}"` : ''}
 
-  return callClaude({ type: 'suggest', system, message, planId })
+${isModeloB
+  ? `Suggest a specific, engaging activity for "${section.label}". Be concrete — use the grammar points, vocabulary, and textbook unit listed above. Respect the length limit: ${limit}`
+  : `Sugiere una actividad para "${section.label}". Respeta el límite: ${limit}`
+}`
+
+  return callClaude({ type: 'suggest', system, message, planId, maxTokens: 2500 })
 }
 
 // ── Punto 1b: Sugerir SmartBlock para una sección ────────────────────────────

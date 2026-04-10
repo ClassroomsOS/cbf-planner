@@ -87,7 +87,7 @@ function VideoList({ videos = [], onChange }) {
 
 // ── DayPanel ─────────────────────────────────────────────────────────────────
 
-export default function DayPanel({ iso, day, setContentField, toggleDayActive, openSections, toggleSection, planId, grade, subject, objective, principles }) {
+export default function DayPanel({ iso, day, setContentField, toggleDayActive, openSections, toggleSection, planId, grade, subject, objective, principles, activeNewsProject }) {
   const { features } = useFeatures()
   const base = ['days', iso]
   const [layoutModal,    setLayoutModal]    = useState(null)
@@ -276,6 +276,7 @@ export default function DayPanel({ iso, day, setContentField, toggleDayActive, o
                         existingContent={section.content}
                         onInsert={val => setContentField([...base,'sections',s.key,'content'], val)}
                         principles={principles}
+                        newsProject={activeNewsProject}
                       />}
 
                       <div className="ge-field">

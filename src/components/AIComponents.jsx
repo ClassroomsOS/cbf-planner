@@ -7,7 +7,7 @@ import { MODELO_B_SUBJECTS } from '../utils/constants'
 // ══════════════════════════════════════════════════════════════
 // PUNTO 1 — AISuggestButton (inline en cada sección)
 // ══════════════════════════════════════════════════════════════
-export const AISuggestButton = memo(function AISuggestButton({ section, grade, subject, objective, unit, dayName, existingContent, onInsert, principles }) {
+export const AISuggestButton = memo(function AISuggestButton({ section, grade, subject, objective, unit, dayName, existingContent, onInsert, principles, newsProject }) {
   const { showToast } = useToast()
   const [loading,     setLoading]     = useState(false)
   const [suggestion,  setSuggestion]  = useState(null)
@@ -18,7 +18,7 @@ export const AISuggestButton = memo(function AISuggestButton({ section, grade, s
     setLoading(true); setError(null); setSuggestion(null); setOpen(true)
     try {
       const result = await suggestSectionActivity({
-        section, grade, subject, objective, unit, dayName, existingContent, principles
+        section, grade, subject, objective, unit, dayName, existingContent, principles, newsProject
       })
       setSuggestion(result)
     } catch (e) {
@@ -27,7 +27,7 @@ export const AISuggestButton = memo(function AISuggestButton({ section, grade, s
       showToast(errorMsg, 'error')
     }
     setLoading(false)
-  }, [section, grade, subject, objective, unit, dayName, existingContent, principles, showToast])
+  }, [section, grade, subject, objective, unit, dayName, existingContent, principles, newsProject, showToast])
 
   const handleInsert = useCallback(() => {
     if (suggestion) {
