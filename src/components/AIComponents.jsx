@@ -14,11 +14,13 @@ export const AISuggestButton = memo(function AISuggestButton({ section, grade, s
   const [error,       setError]       = useState(null)
   const [open,        setOpen]        = useState(false)
 
-  const handleSuggest = useCallback(async () => {
+  // Generates a fresh suggestion with a random variant seed — always a new call to AI
+  async function handleSuggest() {
+    const variantSeed = Math.floor(Math.random() * 10000)
     setLoading(true); setError(null); setSuggestion(null); setOpen(true)
     try {
       const result = await suggestSectionActivity({
-        section, grade, subject, objective, unit, dayName, existingContent, principles, newsProject
+        section, grade, subject, objective, unit, dayName, existingContent, principles, newsProject, variantSeed
       })
       setSuggestion(result)
     } catch (e) {
@@ -27,7 +29,7 @@ export const AISuggestButton = memo(function AISuggestButton({ section, grade, s
       showToast(errorMsg, 'error')
     }
     setLoading(false)
-  }, [section, grade, subject, objective, unit, dayName, existingContent, principles, newsProject, showToast])
+  }
 
   const handleInsert = useCallback(() => {
     if (suggestion) {
@@ -62,8 +64,8 @@ export const AISuggestButton = memo(function AISuggestButton({ section, grade, s
             <>
               <div className="ai-suggest-content">{suggestion}</div>
               <div className="ai-suggest-footer">
-                <button className="btn-secondary" onClick={() => setSuggestion(null)}>
-                  🔄 Regenerar
+                <button className="btn-secondary" onClick={handleSuggest} disabled={loading}>
+                  🔄 Otra sugerencia
                 </button>
                 <button className="btn-primary btn-save" onClick={handleInsert}>
                   ✅ Insertar en la sección

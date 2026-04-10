@@ -164,11 +164,137 @@ ${lines.join('\n')}
 ${specificInstruction}`
 }
 
+// ── Activity archetypes per section — used to force variety on each call ──────
+const ACTIVITY_ARCHETYPES = {
+  // English / Modelo B
+  en: {
+    'MOTIVATION': [
+      'a provocative real-life question or "Would you rather?" dilemma',
+      'a short image/headline prediction activity',
+      'a word association chain or brainstorm web',
+      'a mystery object or realia reveal',
+      'a personal anecdote prompt ("Tell your partner about a time when...")',
+      'a quick class poll with hands-up voting and brief justification',
+      'a short song lyric or poem excerpt with a guiding question',
+      'a "what do you notice?" visual stimulus (photo, infographic, meme)',
+      'a true/false warm-up quiz about the topic',
+      'a "complete the sentence" prediction game',
+    ],
+    'ACTIVITY': [
+      'a sentence transformation drill (pairs, then share)',
+      'a timed grammar race (teams rewrite sentences correctly)',
+      'a peer correction activity with deliberate error cards',
+      'an information gap — each partner has half the data',
+      'a matching or sorting activity using vocabulary/grammar cards',
+      'a dictation race (teacher dictates, pairs reconstruct)',
+      'a "grammar auction" — vote if each sentence is correct',
+      'a jumbled-sentence reconstruction challenge',
+      'a "find someone who" class survey using the target structure',
+      'a controlled substitution drill with cue cards',
+    ],
+    'SKILL DEVELOPMENT': [
+      'a hot seat roleplay (one student in character, others interview)',
+      'a four corners debate using opinion phrases and target grammar',
+      'a jigsaw reading where groups reconstruct a story and report back',
+      'a collaborative storytelling chain using required vocabulary',
+      'an alibi roleplay (pairs create and defend their alibi)',
+      'a gallery walk where students annotate posters with grammar structures',
+      'a structured debate with argument frames and rebuttal turns',
+      'a think-pair-share using sentence starters from the unit',
+      'a news broadcast simulation (anchor, reporter, eyewitness roles)',
+      'a dictogloss (teacher reads twice; pairs reconstruct the text)',
+      'a "speed dating" conversation rotation with a new topic each minute',
+      'a peer teaching segment (student A explains to student B, then swap)',
+      'a story completion chain where each student adds one sentence',
+      'a vocabulary ranking and justification activity',
+      'an error correction hunt on a printed or projected paragraph',
+    ],
+    'CLOSING': [
+      'an exit-ticket sentence using the target structure',
+      'a "three things I learned / one question I still have" reflection',
+      'a pair share: "Explain today\'s grammar rule to your partner in your own words"',
+      'a "ticket out the door" — write one sentence connecting today\'s topic to real life',
+      'a quick vocabulary recap: partners quiz each other on 5 new words',
+      'a silent written reflection on a faith-connection prompt',
+      'a "what would I tell a friend about today\'s lesson?" one-sentence summary',
+    ],
+    'ASSIGNMENT': [
+      'a written production task (5-8 sentences using target grammar)',
+      'a voice recording assignment (1-minute monologue or dialogue)',
+      'a textbook exercise on the grammar point (specific page)',
+      'a vocabulary study task using a chosen strategy (flashcards, sentences, diagram)',
+      'a "find 3 real examples" research task (news, ads, songs)',
+      'a reading comprehension from the textbook with written answers',
+      'a creative writing prompt using vocabulary from the unit',
+    ],
+    'SUBJECT TO BE WORKED': [
+      'a one-sentence skill/grammar/topic statement for the day',
+    ],
+  },
+  // Spanish
+  es: {
+    'MOTIVATION': [
+      'una pregunta provocadora o dilema de la vida real',
+      'una lluvia de ideas cronometrada con una imagen o título',
+      'un juego de asociación de palabras o mapa mental rápido',
+      'un acertijo o misterio relacionado con el tema',
+      'una encuesta rápida con justificación breve',
+      'una predicción: ¿qué creen que va a pasar?',
+      'una conexión personal: ¿cuándo has vivido algo así?',
+      'un video corto o imagen impactante con pregunta guía',
+    ],
+    'ACTIVITY': [
+      'una práctica guiada en parejas con tarjetas de ejemplos',
+      'una actividad de completar con retroalimentación entre pares',
+      'una clasificación o mapa conceptual colaborativo',
+      'un dictado cooperativo (parejas reconstruyen el texto)',
+      'una ronda de preguntas y respuestas con el tema del día',
+      'un ejercicio de identificar errores en oraciones proyectadas',
+      'un juego de tarjetas: relacionar conceptos con definiciones',
+      'una actividad de encuesta de clase usando el vocabulario del día',
+    ],
+    'SKILL DEVELOPMENT': [
+      'un roleplay de situación real usando el vocabulario del tema',
+      'un debate estructurado con rondas de argumento y réplica',
+      'una actividad jigsaw: grupos expertos que enseñan a otros',
+      'un proyecto corto de escritura colaborativa en tríos',
+      'una galería de ideas donde los grupos anotan y responden',
+      'una cadena de historia donde cada estudiante agrega un elemento',
+      'una simulación o juego de roles con roles asignados',
+      'un análisis de caso con preguntas guía y presentación breve',
+      'un taller de corrección entre pares con rúbrica sencilla',
+    ],
+    'CLOSING': [
+      'una pregunta de reflexión que conecte lo aprendido con el principio bíblico',
+      'un ticket de salida: una frase que resume el aprendizaje del día',
+      'una ronda final: cada estudiante dice una palabra clave aprendida',
+      'una conexión personal: ¿dónde aplico esto fuera del aula?',
+      'un resumen en cadena: un estudiante comienza, el siguiente continúa',
+    ],
+    'ASSIGNMENT': [
+      'una tarea escrita específica y alcanzable relacionada con el tema',
+      'una actividad de investigación breve con entregable concreto',
+      'un ejercicio del libro de texto (página y punto específico)',
+      'una reflexión escrita de media página con pregunta guía',
+    ],
+    'SUBJECT TO BE WORKED': [
+      'una oración que enuncia el tema o habilidad del día',
+    ],
+  },
+}
+
 // ── Punto 1: Sugerir actividad para una sección ───────────────────────────────
 export async function suggestSectionActivity({
-  section, grade, subject, objective, unit, dayName, existingContent, planId, principles, newsProject
+  section, grade, subject, objective, unit, dayName, existingContent, planId, principles, newsProject, variantSeed
 }) {
   const isModeloB = MODELO_B_SUBJECTS.includes(subject)
+
+  // Pick an activity archetype based on the random seed — forces variety each call
+  const lang = isModeloB ? 'en' : 'es'
+  const archetypeList = ACTIVITY_ARCHETYPES[lang][section.label] || []
+  const archetype = archetypeList.length
+    ? archetypeList[(variantSeed || Math.floor(Math.random() * 10000)) % archetypeList.length]
+    : null
 
   const SECTION_LIMITS = {
     'SUBJECT TO BE WORKED': isModeloB
@@ -254,9 +380,13 @@ ${isModeloB ? 'Context' : 'Contexto'}:
 - ${isModeloB ? 'Estimated time for this section' : 'Tiempo estimado de esta sección'}: ${section.time}
 ${existingContent ? `- ${isModeloB ? 'What I already have' : 'Lo que ya tengo escrito'}: "${safeExisting}"` : ''}
 
-${isModeloB
-  ? `Suggest a specific, engaging activity for "${section.label}". Be concrete — use the grammar points, vocabulary, and textbook unit listed above. Respect the length limit: ${limit}`
-  : `Sugiere una actividad para "${section.label}". Respeta el límite: ${limit}`
+${archetype
+  ? (isModeloB
+    ? `Design the "${section.label}" as: **${archetype}**. Be concrete — use the grammar points, vocabulary, and textbook unit listed above. Respect the length limit: ${limit}`
+    : `Diseña la sección "${section.label}" como: **${archetype}**. Sé concreto — usa el vocabulario y temas listados. Respeta el límite: ${limit}`)
+  : (isModeloB
+    ? `Suggest a specific, engaging activity for "${section.label}". Be concrete — use the grammar points, vocabulary, and textbook unit listed above. Respect the length limit: ${limit}`
+    : `Sugiere una actividad para "${section.label}". Respeta el límite: ${limit}`)
 }`
 
   return callClaude({ type: 'suggest', system, message, planId, maxTokens: 2500 })
