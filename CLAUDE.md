@@ -1,4 +1,4 @@
-# CBF PLANNER — v4.5
+# CBF PLANNER — v4.6
 ## CLAUDE.md — Documento maestro
 
 > **Principio rector:** *"Nosotros diseñamos. El docente enseña."*
@@ -145,7 +145,27 @@ LIMPIEZA LEGACY ✅  Sistema learning_targets eliminado del frontend (Abril 8, 2
              — news_legacy sigue en DB (datos históricos — no borrar)
              — CLAUDE.md v4.5
 
-PRÓXIMO → SESIÓN I
+SESIÓN I (parcial) ✅  IA de sugerencias por sección enriquecida + export DOCX rediseñado
+             — suggestSectionActivity: contexto del libro inyectado (textbook_reference: book,
+               units[], grammar[], vocabulary[]) + título y skill del proyecto NEWS activo
+             — Lengua automática: Modelo B → prompt y respuesta en inglés; resto en español
+             — ACTIVITY_ARCHETYPES: 10-15 tipos por sección (MOTIVATION/ACTIVITY/SKILL
+               DEVELOPMENT/CLOSING/ASSIGNMENT) — cada llamada selecciona uno vía variantSeed
+               aleatorio; nunca genera el mismo tipo de actividad dos veces seguidas
+             — "🔄 Regenerar" → "🔄 Otra sugerencia": llama la IA de nuevo (antes solo
+               borraba el estado sin regenerar)
+             — maxTokens 2000 → 2500 para respuestas más ricas
+             — Cadena de props: GuideEditorPage → DayPanel → AISuggestButton → suggestSectionActivity
+             — Export DOCX: secciones como banners completos (2 filas por sección)
+               · Row 1: banner ancho completo, fondo color de sección, label 12pt negrita blanca
+               · Row 2: contenido a todo el ancho (o split texto|imagen para side layout)
+               · Elimina la columna lateral estrecha (1760 DXA, ilegible) del diseño anterior
+               · Tabla 2 columnas [7200, 3600] — header y unit subheader con span=2
+               · Imágenes "below" redimensionadas: 1→640px, 2→310px, 3-6→202px
+               · Imágenes "side": columna 240px, 1-2→220px apiladas, 3+→106px en pares
+             — CLAUDE.md v4.6
+
+PRÓXIMO → SESIÓN I (continuación)
 ```
 
 ---
@@ -218,7 +238,7 @@ error_log · activity_log · ai_usage
 
 | Función | Archivo | Tokens |
 |---|---|---|
-| `suggestSectionActivity()` | AIAssistant.js | 2000 |
+| `suggestSectionActivity()` | AIAssistant.js | 2500 |
 | `analyzeGuide()` | AIAssistant.js | 4000 |
 | `generateGuideStructure()` | AIAssistant.js | 16000 |
 | `suggestSmartBlock()` | AIAssistant.js | 1200 |
@@ -237,6 +257,15 @@ NEWS project más próximo → indicator_id → achievement_indicator → achiev
   → bloque 🎯 LOGRO E INDICADORES DEL PERÍODO en el prompt
   → IA genera contenido alineado a todos los indicadores del período
 ```
+
+**`suggestSectionActivity` — enriquecida (Ses. I):**
+- Recibe `newsProject` (desde GuideEditorPage → DayPanel → AISuggestButton)
+- Bloque `📚 TEXTBOOK & PROJECT CONTEXT` con: book, units[], grammar[], vocabulary[], skill
+- Lengua automática: `MODELO_B_SUBJECTS` → respuesta en inglés; demás materias → español
+- `ACTIVITY_ARCHETYPES[lang][section.label]` — lista de 10-15 arquetipos por sección
+- `variantSeed = Math.random() * 10000` en cada click → siempre un arquetipo distinto
+- El prompt le dice a Claude exactamente QUÉ tipo de actividad generar: *"Design as: a hot seat roleplay"*
+- Botón "🔄 Otra sugerencia" llama a la IA directamente (antes solo limpiaba el estado)
 
 ---
 
@@ -581,6 +610,7 @@ git add . && git commit -m "feat: ..." && git push      # deploy automático ~2 
 ✅ SESIÓN G — Cascada indicator_id funcional en guías · repair automático al abrir · botón 🔄 re-vincular · AIGeneratorModal desbloqueado con nuevo sistema · achievementGoal en prompt IA · Principio del indicador · CheckpointModal check-then-write
 ✅ SESIÓN H — SubjectManagerPage · GuideLibraryPage · PeriodCoverageDashboard · ObservationLoggerPage · ReviewRoomPage · CurriculumPage · AgendaPage · PrinciplesPage
 ✅ LIMPIEZA LEGACY — Sistema learning_targets eliminado del frontend · LearningTargetsPage/LearningTargetSelector/learningTarget prop eliminados · isModeloB derivado de MODELO_B_SUBJECTS · checkpoints.target_id NOT NULL eliminado
+✅ SESIÓN I (parcial) — suggestSectionActivity enriquecida (contexto libro, lengua, arquetipos, variantSeed) · botón "Otra sugerencia" regenera de verdad · DOCX secciones como banners completos
 
 🔜 SESIÓN I — Pendientes de profundización
   26. SubjectManagerPage — completar funcionalidad CRUD real de materias

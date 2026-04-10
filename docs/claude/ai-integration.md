@@ -6,7 +6,7 @@ Client-side entry point is `src/utils/AIAssistant.js`, which exposes:
 
 | Function | Purpose | `maxTokens` |
 |---|---|---|
-| `suggestSectionActivity()` | Suggest HTML content for a single guide section | 2000 |
+| `suggestSectionActivity()` | Suggest HTML content for a single guide section | 2500 |
 | `analyzeGuide()` | Pedagogical analysis of a complete guide | 4000 |
 | `generateGuideStructure()` | Generate full week structure as JSON (includes SmartBlocks) | 16000 |
 | `suggestSmartBlock()` | Suggest one SmartBlock for a section based on context + taxonomy | 1200 |
@@ -15,6 +15,9 @@ Client-side entry point is `src/utils/AIAssistant.js`, which exposes:
 | `importGuideFromDocx()` | Parse .docx text (via mammoth) into CBF lesson_plan content JSON | 8000 |
 
 `setAIContext({ schoolId, teacherId, monthlyLimit })` — must be called on login (DashboardPage). Enables usage logging to `ai_usage` table and monthly token limit enforcement. Pricing: input $3/MTok, output $15/MTok.
+
+**`suggestSectionActivity` — contexto enriquecido (Ses. I):**
+Recibe `newsProject` (fluye desde `GuideEditorPage → DayPanel → AISuggestButton`). Construye un bloque `📚 TEXTBOOK & PROJECT CONTEXT` con `textbook_reference.{book, units[], grammar[], vocabulary[]}` + título y skill del proyecto NEWS. Lengua automática: `MODELO_B_SUBJECTS` → respuesta en inglés; demás → español. Define `ACTIVITY_ARCHETYPES[lang][section.label]` (10-15 tipos por sección); cada llamada selecciona uno vía `variantSeed = Math.random() * 10000` — el prompt instruye a Claude a generar exactamente ESE tipo de actividad, garantizando variedad en cada click. El botón "🔄 Otra sugerencia" llama a `handleSuggest()` directamente (antes solo limpiaba el estado).
 
 `generateGuideStructure` auto-retries with a more concise prompt when the response is truncated (JSON parse failure). It also asks Claude to include an optional `smartBlock` field in `activity` and `skill` sections (max 2 per day).
 

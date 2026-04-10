@@ -99,7 +99,7 @@ DOCX day tables use **3 columns** `[1760, 5605, 3435]` DXA. Header and unit rows
 |---|---|---|
 | `src/utils/exportHtml.js` | `exportHtml(content, newsProject?)`, `exportPdf(content, newsProject?)`, `buildHtml(content, newsProject?)` | Imports `blockPreviewHTML` + `BLOCK_TYPES` from SmartBlocks.jsx. Tabla indicadores: **full-width una columna**. Objetos Modelo B normalizados. Bloque `📋 Proyecto NEWS` entre indicadores y versículo. |
 | `src/utils/exportHtml.js` | `buildDayHtml(content, dayKey, newsProject?)`, `exportDayHtml(content, dayKey, newsProject?)`, `getActiveDays(content)` | Export por jornada para Virtual Campus. CSS 100% scoped a `.cbf-day` — no contamina el layout del campus. Incluye encabezado compacto, indicador, versículo y la jornada completa con SmartBlocks interactivos. |
-| `src/utils/exportDocx.js` | `exportGuideDocx()` | `buildSmartBlockDocx(block)` handles all 9 block types. Tabla indicadores: **full-width una columna**, header `INDICADORES DE LOGRO`. Solo renderiza si hay indicadores. |
+| `src/utils/exportDocx.js` | `exportGuideDocx()` | `buildSmartBlockDocx(block)` handles all 16 block types. Tabla indicadores: **full-width una columna**, header `INDICADORES DE LOGRO`. Solo renderiza si hay indicadores. Cada sección genera 2 `TableRow`: (1) banner ancho completo con nombre de sección en negrita sobre fondo de color; (2) fila de contenido a todo el ancho. Tabla de día usa 2 columnas `[7200, 3600]` DXA. |
 | `src/utils/exportRubricHtml.js` | `exportRubricHtml(project, principles, school)` | HTML interactivo para evaluar proyectos NEWS. Clickear celda → calcula nota (1.0–5.0 Boston Flex). Abre en `window.open('', '_blank')`. |
 
 Both exports render: text content, images (with layout), videos (HTML only — iframes), and SmartBlocks.
@@ -126,7 +126,13 @@ Both exports render: text content, images (with layout), videos (HTML only — i
 - `exportPdf()` opens a new window, writes the HTML, and calls `window.print()` after 900ms.
 
 **DOCX export specifics:**
-- All section `TableRow`s have `cantSplit: true` — Word will not split a section row across pages
+- Each section produces 2 rows: a full-width colored banner (section name + time, white bold text) followed by a content row
+- Day table column layout: `[7200, 3600]` DXA — day header, unit subheader, and section banner rows use `columnSpan: 2`
+- Side-image layout uses the 2-column split: text (7200 DXA) + image (3600 DXA)
+- Image widths for "below" layout: 1→640px, 2→310px, 3-6→202px
+- Image widths for "side" layout (image column ~240px): 1-2→220px stacked, 3+→106px two per row
+- All content `TableRow`s have `cantSplit: true` — Word will not split a section row across pages
+- `buildSectionRow()` returns `TableRow[]`; `buildDayTable()` uses `.flat()` to expand them
 
 ## Key Supabase tables
 
