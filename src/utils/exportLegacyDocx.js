@@ -13,7 +13,7 @@
 
 import {
   Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
-  AlignmentType, BorderStyle, WidthType, VerticalAlign, ImageRun, UnderlineType,
+  AlignmentType, BorderStyle, WidthType, VerticalAlign, ImageRun, UnderlineType, ShadingType,
 } from 'docx'
 import { saveAs } from 'file-saver'
 
@@ -51,12 +51,13 @@ function blankP() {
 }
 
 // ── Table helpers ─────────────────────────────────────────────────────────────
-function mkCell(children, width, { va, borders, margins } = {}) {
+function mkCell(children, width, { va, borders, margins, fill } = {}) {
   return new TableCell({
     width:         { size: width, type: WidthType.DXA },
     borders:       borders || allB(bGray),
     verticalAlign: va || VerticalAlign.TOP,
     margins:       margins || { top: 80, bottom: 80, left: 120, right: 120 },
+    shading:       fill ? { fill, type: ShadingType.CLEAR, color: fill } : undefined,
     children:      Array.isArray(children) ? children : [children],
   })
 }
@@ -352,11 +353,15 @@ async function buildLegacyDocx(content, plan) {
     .filter(([, d]) => d.active !== false)
     .sort(([a], [b]) => a.localeCompare(b))
 
+  const DATE_COL  = Math.round(PW * 0.22)
+  const ACT_COL   = Math.round(PW * 0.78)
+  const DATE_FILL = 'D7E3BC'   // same green as hand-made Word template
+
   const headerRow = new TableRow({
     tableHeader: true,
     children: [
-      mkCell(mkP(mkR('Date', { bold: true })), Math.round(PW * 0.22), { borders: allB(bGray) }),
-      mkCell(mkP(mkR('ACTIVITIES DESCRIPTION', { bold: true })), Math.round(PW * 0.78), { borders: allB(bGray) }),
+      mkCell(mkP(mkR('Date', { bold: true })), DATE_COL, { borders: allB(bGray), fill: DATE_FILL }),
+      mkCell(mkP(mkR('ACTIVITIES DESCRIPTION', { bold: true })), ACT_COL, { borders: allB(bGray) }),
     ],
   })
 
@@ -368,12 +373,12 @@ async function buildLegacyDocx(content, plan) {
       children: [
         mkCell(
           mkP(mkR(dateLabel, { bold: true })),
-          Math.round(PW * 0.22),
-          { va: VerticalAlign.TOP, borders: allB(bGray) }
+          DATE_COL,
+          { va: VerticalAlign.TOP, borders: allB(bGray), fill: DATE_FILL }
         ),
         mkCell(
           contentParas,
-          Math.round(PW * 0.78),
+          ACT_COL,
           { va: VerticalAlign.TOP, borders: allB(bGray) }
         ),
       ],
