@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../supabase'
-import useSyllabus from '../hooks/useSyllabus'
+import useSyllabus, { validateUnitWeekRule } from '../hooks/useSyllabus'
 import useAchievements from '../hooks/useAchievements'
 import { useToast } from '../context/ToastContext'
 import { combinedGrade } from '../utils/constants'
@@ -47,6 +47,8 @@ function TopicFormModal({ topic, assignments, goals = [], defaultWeek, defaultPe
     resources: [],
     indicator_id: null,
     academic_year: CURRENT_YEAR,
+    unit_number: null,
+    subunit: '',
   })
   const [saving, setSaving] = useState(false)
 
@@ -204,6 +206,30 @@ function TopicFormModal({ topic, assignments, goals = [], defaultWeek, defaultPe
                 borderRadius: 8, fontSize: 14,
               }} />
           </label>
+
+          {/* Unit number + subunit — Language Arts y Science */}
+          {(form.subject === 'Language Arts' || form.subject === 'Science') && (
+            <div style={{ display: 'grid', gridTemplateColumns: form.subject === 'Language Arts' ? '1fr 1fr' : '1fr', gap: 12 }}>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13, color: '#555', fontWeight: 600 }}>
+                Unidad (ej. 1)
+                <input type="number" min="1" max="20"
+                  value={form.unit_number || ''}
+                  onChange={e => set('unit_number', e.target.value ? parseInt(e.target.value) : null)}
+                  placeholder="ej. 1"
+                  style={{ padding: '8px 10px', border: '1px solid #d0d8e8', borderRadius: 8, fontSize: 14 }} />
+              </label>
+              {form.subject === 'Language Arts' && (
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13, color: '#555', fontWeight: 600 }}>
+                  Subunidad Cambridge (ej. 1.1)
+                  <input type="text"
+                    value={form.subunit || ''}
+                    onChange={e => set('subunit', e.target.value || null)}
+                    placeholder="ej. 1.1"
+                    style={{ padding: '8px 10px', border: '1px solid #d0d8e8', borderRadius: 8, fontSize: 14 }} />
+                </label>
+              )}
+            </div>
+          )}
 
           {/* Description */}
           <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13, color: '#555', fontWeight: 600 }}>
@@ -690,6 +716,18 @@ export default function SyllabusPage({ teacher }) {
             )}
             {filterSubject && (
               <>
+                {/* Unit week rule violations — Language Arts & Science only */}
+                {validateUnitWeekRule(topics, filterSubject).map(v => (
+                  <div key={v.unit_number} style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    background: '#FFF8E6', border: '1px solid #F5C300',
+                    borderRadius: 8, padding: '8px 14px', marginBottom: 10,
+                    fontSize: 13, color: '#7A5A00',
+                  }}>
+                    ⚠️ Unit {v.unit_number} ocupa {v.weeks.length} semanas (semanas {v.weeks.join(', ')}). El máximo para {v.subject} es 2 semanas.
+                  </div>
+                ))}
+
                 {/* Copy banner */}
                 {copiedWeek && (
                   <div style={{

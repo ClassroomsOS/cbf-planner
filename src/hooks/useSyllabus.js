@@ -150,3 +150,27 @@ export default function useSyllabus(teacher, filters = {}) {
     getTopicsForWeek,
   }
 }
+
+// ── validateUnitWeekRule ───────────────────────────────────────────────────────
+// Returns violations where a unit_number spans more than 2 weeks.
+// Only applies to Language Arts and Science.
+//
+// @param  {Array}  topics  — syllabus_topics array
+// @param  {string} subject — subject name
+// @returns {Array<{ unit_number, weeks, subject }>}
+export function validateUnitWeekRule(topics, subject) {
+  if (!['Language Arts', 'Science'].includes(subject)) return []
+  const byUnit = {}
+  topics.forEach(t => {
+    if (!t.unit_number) return
+    if (!byUnit[t.unit_number]) byUnit[t.unit_number] = new Set()
+    byUnit[t.unit_number].add(t.week_number)
+  })
+  return Object.entries(byUnit)
+    .filter(([, weeks]) => weeks.size > 2)
+    .map(([unit_number, weeks]) => ({
+      unit_number: parseInt(unit_number),
+      weeks: [...weeks].sort((a, b) => a - b),
+      subject,
+    }))
+}
