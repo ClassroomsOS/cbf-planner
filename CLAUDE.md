@@ -2,7 +2,7 @@
 ## CLAUDE.md — Documento maestro
 
 > **Principio rector:** *"Nosotros diseñamos. El docente enseña."*
-> Léelo completo antes de escribir código. · Última actualización: Abril 10, 2026
+> Léelo completo antes de escribir código. · Última actualización: Abril 14, 2026
 
 ---
 
