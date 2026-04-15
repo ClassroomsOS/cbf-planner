@@ -5,6 +5,7 @@ import { supabase } from '../supabase'
 import RichEditor from '../components/RichEditor'
 import { exportGuideDocx } from '../utils/exportDocx'
 import { exportLegacyDocx } from '../utils/exportLegacyDocx'
+import { buildWeeklyGuideDocx } from '../utils/exportLegacyGuide'
 import { exportHtml, exportPdf, exportDayHtml, getActiveDays, buildHtml, buildDayHtml, inlineImages } from '../utils/exportHtml'
 import ImageUploader from '../components/ImageUploader'
 import { SmartBlocksList } from '../components/SmartBlocks'
@@ -795,6 +796,27 @@ export default function GuideEditorPage({ teacher }) {
     }
   }
 
+  async function handleExportLegacy() {
+    try {
+      await doSave()
+      const blob = await buildWeeklyGuideDocx([{
+        plan: { ...plan, content: contentRef.current },
+        newsProject: activeNewsProject,
+        indicator: linkedAchievementIndicator,
+        teacher,
+      }])
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `Guia_CBF_${(plan.grade || '').replace(/[^a-zA-Z0-9]/g, '_')}_Sem${plan.week_number || ''}.docx`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      logError(e, { page: 'GuideEditorPage', action: 'exportLegacyGuide' })
+      showToast('Error al exportar la Guía CBF', 'error')
+    }
+  }
+
   // ── Click-outside closes export dropdown ──────────────────
   useEffect(() => {
     if (!exportOpen) return
@@ -1173,6 +1195,18 @@ export default function GuideEditorPage({ teacher }) {
             })}
             title="Vista previa antes de imprimir">
             🖨️ <span className="ge-print-label">Imprimir / PDF</span>
+          </button>
+
+          {/* Exportar Guía CBF — formato oficial institucional, siempre visible */}
+          <button
+            onClick={handleExportLegacy}
+            style={{
+              fontSize: '12px', padding: '5px 12px', borderRadius: '7px',
+              border: '1px solid #1F497D', background: '#1F497D',
+              color: '#fff', cursor: 'pointer', fontWeight: 600,
+            }}
+            title="Exportar en formato institucional CBF-G AC-01">
+            📄 Exportar Guía CBF
           </button>
 
           <div className="ge-export-wrap" ref={exportWrapRef}>
