@@ -175,63 +175,93 @@ function renderQuestion(q, idx) {
 }
 
 // ── Main HTML builder ─────────────────────────────────────────────────────────
-// school fields: name, dane, logo_url, process_name, document_code|plan_code, doc_version|plan_version
+// Encabezado CBF-G AC-01 — estructura de 3 filas × 3 columnas idéntica al
+// header1.xml del formato institucional (exportLegacyGuide.js).
+//   Col 1 (15.3%): logo — rowspan 3
+//   Col 2 (61.0%): fila 1 → nombre + DANE/resolución (fondo #DBE5F1)
+//                  filas 2-3 → PROCESO + subtítulo del documento (merge)
+//   Col 3 (23.7%): fila 1 → CÓD: CBF-G AC-01
+//                  fila 2 → Versión
+//                  fila 3 → Página N de M
 export function buildExamHtml({ assessment, questions, logoBase64, school, teacherName }) {
-  const s  = school || {}
+  const s      = school || {}
   const logoSrc = logoBase64 || s.logo_url || ''
-  const codigo  = s.document_code || s.plan_code || ''
-  const version = s.doc_version   || s.plan_version || ''
-  const proceso = s.process_name  || ''
+  const version = s.doc_version || s.plan_version || '02 — 2022'
+  // DANE + resolución igual que en el template Word
+  const dane  = s.dane       || '308001800455'
+  const resol = s.resolution || '09685 DE 2019'
 
   const totalPts = (questions || []).reduce((sum, q) => sum + (q.points || 0), 0)
   const biblical = (questions || []).filter(q => BIBLICAL_KEYS.includes(q.question_type))
   const academic = (questions || []).filter(q => !BIBLICAL_KEYS.includes(q.question_type))
+  const allQ     = [...academic, ...biblical] // académicas primero, bíblicas al final
 
-  // Split questions into sections for rendering
-  const allQ = [...academic, ...biblical] // academic first, then biblical
-
-  // Institutional header — IDENTICAL to exportHtml.js (lines 350–368)
+  // ── Encabezado institucional CBF-G AC-01 ─────────────────────────────────
+  // Traducción fiel de header1.xml:
+  //   Row 1 height≈70px  | Row 2 height≈20px | Row 3 height≈20px
   const institutionalHeader = `
-<table style="width:100%;border:2px solid #2E5598;border-collapse:collapse;margin-bottom:0">
-  <tr>
-    <td style="width:120px;border:1px solid #2E5598;padding:8px;text-align:center">
-      ${logoSrc
-        ? `<img src="${logoSrc}" style="max-height:80px;max-width:100px;width:auto;height:auto;object-fit:contain">`
-        : '<div style="color:#aaa;font-size:11px">LOGO</div>'
-      }
-    </td>
-    <td style="border:1px solid #2E5598;padding:8px;text-align:center">
-      <div style="font-weight:700;font-size:16px">${esc(s.name)}</div>
-      <div style="font-size:11px;color:#555;margin-top:2px">${esc(s.dane)}</div>
-      <div style="font-size:12px;font-weight:600;color:#2E5598;margin-top:4px">${esc(proceso)}</div>
-    </td>
-    <td style="width:150px;border:1px solid #2E5598;padding:8px;text-align:center">
-      <div style="font-weight:700;font-size:12px">${esc(codigo)}</div>
-      <div style="font-size:11px;color:#888">${esc(version)}</div>
-    </td>
-  </tr>
+<table style="width:100%;border-collapse:collapse;border:1px solid #000;font-family:Arial,sans-serif">
+  <colgroup>
+    <col style="width:15.3%">
+    <col style="width:61%">
+    <col style="width:23.7%">
+  </colgroup>
+  <tbody>
+    <!-- Fila 1: logo | nombre escuela | código documento -->
+    <tr>
+      <td rowspan="3" style="border:1px solid #000;padding:6px;text-align:center;vertical-align:middle">
+        ${logoSrc
+          ? `<img src="${logoSrc}" style="max-height:70px;max-width:90px;width:auto;height:auto;object-fit:contain">`
+          : '<div style="color:#aaa;font-size:10px">LOGO</div>'
+        }
+      </td>
+      <td style="border:1px solid #000;padding:6px 10px;text-align:center;vertical-align:middle;background:#DBE5F1">
+        <div style="font-weight:700;font-size:15px">${esc(s.name || 'COLEGIO BOSTON FLEXIBLE')}</div>
+        <div style="font-size:10px;margin-top:3px">DANE: ${esc(dane)} - RESOLUCIÓN ${esc(resol)}</div>
+      </td>
+      <td style="border:1px solid #000;padding:6px;text-align:center;vertical-align:middle">
+        <div style="font-weight:700;font-size:10px">CÓD: CBF - G AC - 01</div>
+      </td>
+    </tr>
+    <!-- Fila 2: (logo continúa) | proceso + subtítulo | versión -->
+    <tr>
+      <td rowspan="2" style="border:1px solid #000;padding:6px 10px;text-align:center;vertical-align:middle">
+        <div style="font-weight:700;font-size:10px"><u>PROCESO</u>: GESTIÓN ACADÉMICA Y CURRICULAR</div>
+        <div style="font-weight:700;font-size:10px;margin-top:3px">Evaluación</div>
+      </td>
+      <td style="border:1px solid #000;padding:5px 6px;text-align:center;vertical-align:middle">
+        <div style="font-size:10px"><strong>Versión</strong> ${esc(version)}</div>
+      </td>
+    </tr>
+    <!-- Fila 3: (logo continúa) | (proceso continúa) | página -->
+    <tr>
+      <td style="border:1px solid #000;padding:5px 6px;text-align:center;vertical-align:middle">
+        <div style="font-size:10px">Página <span class="cbf-page-num"></span></div>
+      </td>
+    </tr>
+  </tbody>
 </table>`
 
-  // Info row — same pattern as exportHtml.js (lines 371–382)
+  // ── Fila de datos del examen (debajo del encabezado institucional) ────────
   const infoRow = `
-<table style="width:100%;border:1px solid #ddd;border-collapse:collapse;margin-bottom:0;background:#D6E4F0">
+<table style="width:100%;border:1px solid #000;border-top:none;border-collapse:collapse;font-family:Arial,sans-serif;background:#DBE5F1">
   <tr>
-    <td style="padding:5px 12px;font-size:12px"><strong>Grado:</strong> ${esc(assessment.grade)}</td>
-    <td style="padding:5px 12px;font-size:12px"><strong>Período:</strong> ${assessment.period ? `Período ${esc(String(assessment.period))}` : '—'}</td>
-    <td style="padding:5px 12px;font-size:12px"><strong>Asignatura:</strong> ${esc(assessment.subject)}</td>
-    <td style="padding:5px 12px;font-size:12px"><strong>Docente:</strong> ${esc(teacherName)}</td>
-    ${assessment.time_limit_minutes ? `<td style="padding:5px 12px;font-size:12px"><strong>Tiempo:</strong> ${esc(String(assessment.time_limit_minutes))} min</td>` : '<td></td>'}
+    <td style="padding:4px 10px;font-size:11px;border:1px solid #000"><strong>Grado:</strong> ${esc(assessment.grade)}</td>
+    <td style="padding:4px 10px;font-size:11px;border:1px solid #000"><strong>Período:</strong> ${assessment.period ? `Período ${esc(String(assessment.period))}` : '—'}</td>
+    <td style="padding:4px 10px;font-size:11px;border:1px solid #000"><strong>Asignatura:</strong> ${esc(assessment.subject)}</td>
+    <td style="padding:4px 10px;font-size:11px;border:1px solid #000"><strong>Docente:</strong> ${esc(teacherName)}</td>
+    ${assessment.time_limit_minutes ? `<td style="padding:4px 10px;font-size:11px;border:1px solid #000"><strong>Tiempo:</strong> ${esc(String(assessment.time_limit_minutes))} min</td>` : '<td style="border:1px solid #000"></td>'}
   </tr>
   <tr>
-    <td colspan="5" style="padding:5px 12px;font-size:12px">
-      <strong>Nombre del estudiante:</strong> ________________________________________________
-      &nbsp;&nbsp;&nbsp;&nbsp;
-      <strong>Fecha:</strong> _______________
+    <td colspan="5" style="padding:4px 10px;font-size:11px;border:1px solid #000">
+      <strong>Nombre:</strong> _______________________________________________
+      &nbsp;&nbsp;&nbsp;
+      <strong>Fecha:</strong> ________________
     </td>
   </tr>
 </table>`
 
-  // Questions body (academic then biblical)
+  // ── Cuerpo de preguntas ───────────────────────────────────────────────────
   const questionsHtml = allQ.map((q, i) => renderQuestion(q, i)).join('\n')
 
   return `<!DOCTYPE html>
@@ -243,42 +273,40 @@ export function buildExamHtml({ assessment, questions, logoBase64, school, teach
   * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; box-sizing: border-box; }
   body {
     font-family: Arial, sans-serif;
-    margin: 0;
-    padding: 20px;
+    margin: 20px auto;
+    padding: 0 20px;
     color: #222;
     max-width: 960px;
-    margin-left: auto;
-    margin-right: auto;
   }
 
-  /* ── Page header: fixed on every printed page ─────────────────────────── */
-  .cbf-page-header {
-    margin-bottom: 16px;
-  }
+  /* ── Número de página en encabezado (CSS counter) ─────────────────────── */
+  body { counter-reset: cbf-page; }
+  @page  { counter-increment: cbf-page; }
+  .cbf-page-num::before { content: counter(page); }
+
+  /* ── Encabezado de página: fijo en cada página al imprimir ────────────── */
+  .cbf-page-header { margin-bottom: 14px; }
 
   @media print {
     body {
-      padding: 0 16px;
+      margin: 0;
+      padding: 0 14px;
       max-width: 100%;
-      /* Push content below the fixed header on every page */
-      margin-top: 172px;
+      /* Espacio para el encabezado fijo — ajustar si la impresora corta */
+      margin-top: 190px;
     }
     .cbf-page-header {
       position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
+      top: 0; left: 0; right: 0;
       background: white;
-      padding: 8px 16px 0;
+      padding: 6px 14px 0;
       z-index: 9999;
-      margin-bottom: 0;
     }
     .pdf-fab    { display: none !important; }
     .exam-title { break-after: avoid; page-break-after: avoid; }
-    tr          { break-inside: avoid; page-break-inside: avoid; }
   }
 
-  /* ── Floating print button (screen only) ─────────────────────────────── */
+  /* ── Botón flotante (solo pantalla) ───────────────────────────────────── */
   .pdf-fab {
     position: fixed;
     bottom: 24px; right: 24px; z-index: 9999;
@@ -294,22 +322,22 @@ export function buildExamHtml({ assessment, questions, logoBase64, school, teach
 </head>
 <body>
 
-<!-- Encabezado institucional — se repite en cada página al imprimir -->
+<!-- Encabezado CBF-G AC-01 — se repite en cada página impresa -->
 <div class="cbf-page-header">
   ${institutionalHeader}
   ${infoRow}
 </div>
 
-<!-- Título del examen -->
-<div class="exam-title" style="margin-bottom:16px">
-  <h2 style="margin:0 0 6px;font-size:16px;color:#1F3864;font-weight:700">${esc(assessment.title)}</h2>
-  <div style="display:flex;gap:20px;font-size:12px;color:#555;flex-wrap:wrap">
-    <span>📋 ${allQ.length} preguntas &nbsp;·&nbsp; ${totalPts} puntos en total</span>
+<!-- Título y resumen del examen -->
+<div class="exam-title" style="margin-bottom:14px">
+  <h2 style="margin:0 0 5px;font-size:15px;color:#1F3864;font-weight:700">${esc(assessment.title)}</h2>
+  <div style="display:flex;gap:18px;font-size:11px;color:#555;flex-wrap:wrap">
+    <span>📋 ${allQ.length} preguntas &nbsp;·&nbsp; ${totalPts} pts en total</span>
     ${biblical.length > 0 ? `<span style="color:#7B3F00">✝️ ${biblical.length} preguntas de principio bíblico</span>` : ''}
     ${assessment.time_limit_minutes ? `<span>⏱ ${esc(String(assessment.time_limit_minutes))} minutos</span>` : ''}
   </div>
   ${assessment.instructions ? `
-  <div style="margin-top:10px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:5px;padding:8px 12px;font-size:12px;color:#374151">
+  <div style="margin-top:8px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:4px;padding:7px 10px;font-size:11px;color:#374151">
     <strong>Instrucciones:</strong> ${esc(assessment.instructions)}
   </div>` : ''}
 </div>
