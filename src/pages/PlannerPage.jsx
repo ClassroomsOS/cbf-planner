@@ -60,6 +60,9 @@ export default function PlannerPage({ teacher }) {
   const [weeklyNewsHitos, setWeeklyNewsHitos] = useState([])
   // ── Existing plan for current selection ──
   const [existingPlan, setExistingPlan] = useState(null)
+  // ── Active exam for current grade+subject ──
+  const [activeExam, setActiveExam] = useState(null)
+  const [examCodeCopied, setExamCodeCopied] = useState(false)
   // ── Current month's biblical principles ──
   const [monthPrinciple, setMonthPrinciple] = useState(null)
 
@@ -176,6 +179,23 @@ export default function PlannerPage({ teacher }) {
       .maybeSingle()
       .then(({ data }) => setExistingPlan(data || null))
   }, [grade, subject, weekNumber])
+
+  // Fetch active exam for current grade+subject
+  useEffect(() => {
+    if (!grade || !subject) { setActiveExam(null); return }
+    supabase
+      .from('assessments')
+      .select('id, title, access_code, status, period')
+      .eq('school_id', teacher.school_id)
+      .eq('created_by', teacher.id)
+      .eq('grade', grade)
+      .eq('subject', subject)
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => setActiveExam(data || null))
+  }, [grade, subject])
 
   // Subjects available for selected class (from assignments)
   const availableSubjects = grade
@@ -434,6 +454,43 @@ export default function PlannerPage({ teacher }) {
                       </div>
                     )
                   })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Examen activo para este grado+materia */}
+          {activeExam && (
+            <div style={{
+              background: '#FFF8E1', border: '1px solid #FDE68A', borderRadius: 10,
+              padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 12,
+            }}>
+              <span style={{ fontSize: 20, flexShrink: 0 }}>📝</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#92400E', marginBottom: 2 }}>
+                  EXAMEN ACTIVO — {activeExam.period ? `P${activeExam.period}` : ''}
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#1F3864', marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {activeExam.title}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{
+                    fontFamily: 'monospace', fontWeight: 800, fontSize: 15, letterSpacing: 2,
+                    background: '#1F3864', color: '#fff', borderRadius: 6, padding: '3px 10px',
+                  }}>
+                    {activeExam.access_code}
+                  </span>
+                  <button type="button"
+                    onClick={() => navigator.clipboard.writeText(activeExam.access_code).then(() => {
+                      setExamCodeCopied(true); setTimeout(() => setExamCodeCopied(false), 1800)
+                    })}
+                    style={{
+                      fontSize: 11, padding: '3px 10px', borderRadius: 6, cursor: 'pointer',
+                      background: examCodeCopied ? '#ECFDF5' : '#FFF', border: `1px solid ${examCodeCopied ? '#6EE7B7' : '#D0D5DD'}`,
+                      color: examCodeCopied ? '#065F46' : '#374151', fontWeight: 600,
+                    }}>
+                    {examCodeCopied ? '✓ copiado' : '📋 Copiar código'}
+                  </button>
                 </div>
               </div>
             </div>

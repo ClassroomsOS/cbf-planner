@@ -132,6 +132,13 @@ const BIBLICAL_TYPES = [
 
 const BIBLICAL_MIN = 3
 
+// ── Rigor level metadata ──────────────────────────────────────────────────────
+const RIGOR_META = {
+  strict:     { label: 'Estricto',   desc: 'El estudiante debe usar los términos exactos de la rúbrica', color: '#92400E', bg: '#FEF3C7', border: '#FCD34D' },
+  flexible:   { label: 'Flexible',   desc: 'Se acepta paráfrasis que demuestre comprensión real',        color: '#065F46', bg: '#ECFDF5', border: '#6EE7B7' },
+  conceptual: { label: 'Conceptual', desc: 'Se valida que el estudiante llegó a la idea central',         color: '#1E3A8A', bg: '#EFF6FF', border: '#93C5FD' },
+}
+
 function TypeCard({ type, count, onChange, locked, lockReason }) {
   const active = count > 0
   return (
@@ -708,7 +715,19 @@ function ExamCreatorModal({ teacher, onClose, onCreated }) {
                           {isBiblical ? '✝️' : idx + 1}
                         </span>
                         <span style={{ fontSize: 12, color: '#374151', flex: 1, textAlign: 'left' }}>{q.stem}</span>
-                        <span style={{ fontSize: 11, color: '#64748B', flexShrink: 0 }}>{q.points}pts · {typeMeta.label}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+                          {q.criteria?.rigor_level && RIGOR_META[q.criteria.rigor_level] && (
+                            <span style={{
+                              fontSize: 10, padding: '1px 6px', borderRadius: 4, fontWeight: 700,
+                              background: RIGOR_META[q.criteria.rigor_level].bg,
+                              color: RIGOR_META[q.criteria.rigor_level].color,
+                              border: `1px solid ${RIGOR_META[q.criteria.rigor_level].border}`,
+                            }}>
+                              {RIGOR_META[q.criteria.rigor_level].label}
+                            </span>
+                          )}
+                          <span style={{ fontSize: 11, color: '#64748B' }}>{q.points}pts · {typeMeta.label}</span>
+                        </div>
                       </button>
                       {isEditing && (
                         <div style={{ padding: '0 14px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -734,15 +753,48 @@ function ExamCreatorModal({ teacher, onClose, onCreated }) {
                             </div>
                           )}
                           {q.criteria && (
-                            <div style={{ background: '#F8FAFC', borderRadius: 8, padding: '10px' }}>
-                              <p style={{ fontSize: 11, fontWeight: 700, color: '#374151', margin: '0 0 6px' }}>Criterios de evaluación IA</p>
+                            <div style={{ background: '#F8FAFC', borderRadius: 8, padding: '10px', border: '1px solid #E2E8F0' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                                <p style={{ fontSize: 11, fontWeight: 700, color: '#374151', margin: 0 }}>Criterios de evaluación IA</p>
+                                {q.criteria.bloom_level && (
+                                  <span style={{ fontSize: 10, padding: '1px 7px', borderRadius: 4, background: '#F0F4FF', color: '#3730A3', border: '1px solid #C7D7FF', fontWeight: 600 }}>
+                                    Bloom: {q.criteria.bloom_level}
+                                  </span>
+                                )}
+                              </div>
+                              {/* Rigor level selector */}
+                              <label style={{ fontSize: 11, color: '#64748B', display: 'block', marginBottom: 5 }}>
+                                Rigor de corrección — define cuánta exactitud exige el corrector IA:
+                              </label>
+                              <div style={{ display: 'flex', gap: 5, marginBottom: 8 }}>
+                                {Object.entries(RIGOR_META).map(([key, meta]) => (
+                                  <button key={key} type="button"
+                                    onClick={() => updateCriteria(idx, 'rigor_level', key)}
+                                    style={{
+                                      flex: 1, padding: '6px 4px', borderRadius: 7, fontSize: 11, fontWeight: 700,
+                                      cursor: 'pointer', textAlign: 'center',
+                                      background: q.criteria.rigor_level === key ? meta.bg : '#fff',
+                                      color: q.criteria.rigor_level === key ? meta.color : '#64748B',
+                                      border: `1.5px solid ${q.criteria.rigor_level === key ? meta.border : '#E2E8F0'}`,
+                                    }}>
+                                    {meta.label}
+                                  </button>
+                                ))}
+                              </div>
+                              {q.criteria.rigor_level && RIGOR_META[q.criteria.rigor_level] && (
+                                <div style={{ fontSize: 10, color: RIGOR_META[q.criteria.rigor_level].color, marginBottom: 8, fontStyle: 'italic' }}>
+                                  {RIGOR_META[q.criteria.rigor_level].desc}
+                                </div>
+                              )}
+                              {/* Model answer */}
                               <textarea value={q.criteria.model_answer || ''} rows={2}
                                 onChange={e => updateCriteria(idx, 'model_answer', e.target.value)}
-                                placeholder="Respuesta modelo"
+                                placeholder="Respuesta modelo (referencia para el corrector IA)"
                                 style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid #D0D5DD', fontSize: 12, resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                              {/* Key concepts */}
                               <input value={(q.criteria.key_concepts || []).join(', ')}
                                 onChange={e => updateCriteria(idx, 'key_concepts', e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
-                                placeholder="Conceptos clave (separados por coma)"
+                                placeholder="Conceptos clave que debe mencionar (separados por coma)"
                                 style={{ width: '100%', marginTop: 6, padding: '6px 8px', borderRadius: 6, border: '1px solid #D0D5DD', fontSize: 12 }} />
                             </div>
                           )}
