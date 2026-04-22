@@ -30,7 +30,8 @@
 | Pipeline imágenes IA | ⬜ Pendiente | Fotos de textbook → multimodal → prompt |
 | Refactoring (Fase 3) | ⬜ Pendiente | Archivos grandes, CSS modular, TeacherContext |
 | **Módulo de Evaluación — Backend** | ✅ Completo | 10 tablas, triggers, cola AI, corrección Claude, escala colombiana. Probado E2E. |
-| **Módulo de Evaluación — Frontend** | 🔶 Parcial | ~~Pantalla creación~~ ✅ · ~~N versiones anti-copia~~ ✅ · ~~Print CBF-G AC-01~~ ✅ · Dashboard resultados ❌ · Revisión humana ❌ |
+| **Módulo de Evaluación — Frontend** | 🔶 Parcial | ~~Pantalla creación~~ ✅ · ~~N versiones anti-copia~~ ✅ · ~~Print CBF-G AC-01~~ ✅ · ~~ExamPlayerV2 email-auth~~ ✅ · Dashboard resultados ❌ · Revisión humana ❌ |
+| **Roster de Estudiantes** | ✅ Completo | school_students · StudentsPage · exam-instance-generator auto-query · email auth en /eval |
 | **CBF Observability Layer** | ✅ Completo | 16 códigos error `CBF-[MOD]-[TYPE]-[NNN]`, cbf-logger, alertas Telegram, health snapshots |
 | **CBF Quality Standard** | ✅ Completo | Definition of Done, clasificación bugs, estándares performance y disponibilidad |
 
@@ -62,7 +63,7 @@ El backend está completo y probado. El frontend avanza.
 4. ~~Impresión institucional CBF-G AC-01 — encabezado 3×3 exacto, 11 renderers por tipo~~ ✅
 5. ~~Examen activo visible desde PlannerPage — callout con código de acceso~~ ✅
 
-**🔒 Sistema antitrampa — ExamPlayerPage** ← SESIÓN K, ÍTEM 1
+**🔒 Sistema antitrampa — ExamPlayerV2Page** ← SESIÓN L, ÍTEM 1
 El conteo de tabs existe pero no hay lockdown real. Implementar en `ExamPhase`:
 - `requestFullscreen()` al iniciar + alerta si el estudiante sale del fullscreen (`fullscreenchange`)
 - `onContextMenu → e.preventDefault()` en el contenedor del examen (bloquear click derecho)
@@ -207,7 +208,18 @@ Cuando el docente sube fotos de textbook en NewsProjectEditor:
 
 ---
 
-## Completado — sesión 2026-04-22
+## Completado — sesión 2026-04-22 (continuación)
+
+- [x] school_students: tabla nueva con trigger auto-student_code, RLS, índices
+- [x] exam_instances: columnas student_email, student_id, student_section
+- [x] StudentsPage (/students): agregar uno a uno + importar CSV/Excel pegado
+- [x] ExamPlayerV2Page: entry cambia a email @redboston.edu.co + access_code
+- [x] ExamPlayerV2Page: Telegram alert incluye student_section
+- [x] exam-instance-generator: acepta grade+section; auto-consulta roster; guarda email/id/section
+- [x] DashboardPage: ruta /students + link sidebar "👩‍🎓 Mis Estudiantes"
+- [x] Migración 20260422000004 ejecutada en producción
+
+## Completado — sesión 2026-04-22 (primera parte)
 
 - [x] ExamDashboardPage: selector de N versiones (1–4) en wizard Step 2 con checkboxes shuffle
 - [x] ExamDashboardPage: wizard Step 3 — criterios editables + RIGOR_META UI (3 botones color)

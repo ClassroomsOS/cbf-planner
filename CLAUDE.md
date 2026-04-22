@@ -1,8 +1,8 @@
-# CBF PLANNER — v4.7
+# CBF PLANNER — v5.1
 ## CLAUDE.md — Documento maestro
 
 > **Principio rector:** *"Nosotros diseñamos. El docente enseña."*
-> Léelo completo antes de escribir código. · Última actualización: Abril 14, 2026
+> Léelo completo antes de escribir código. · Última actualización: Abril 22, 2026
 
 ---
 
@@ -208,8 +208,34 @@ SESIÓN J ✅  Módulo de Evaluación — Frontend (parcial) + N versiones anti-
                · InstructionsPhase: badge "Versión B/C/D" visible al estudiante
              — CLAUDE.md v5.0
 
-PRÓXIMO → SESIÓN K
-  1. PRIMERO — Sistema antitrampa NIVEL MÁXIMO en ExamPlayerPage (ExamPhase):
+SESIÓN K ✅  Roster de estudiantes + autenticación email institucional
+             — school_students: tabla nueva (email, grade, section, student_code auto)
+               · student_code generado por trigger PostgreSQL: "9B-001", "9B-002"...
+               · UNIQUE(school_id, email) — un registro por estudiante por colegio
+               · RLS: school_id = get_my_school_id() para lectura; owner/admin para escritura
+             — exam_instances: 3 columnas nuevas (student_email, student_id, student_section)
+               · Index (session_id, student_email) para lookup O(log n) en el player
+             — StudentsPage (/students): gestión del roster
+               · Agregar uno a uno: nombre + correo (auto-completa @redboston.edu.co) + sección
+               · Importar CSV/Excel: pegar texto copiado directamente desde Excel
+                 Formato: Nombre [tab|,|;] Correo [tab] Sección — parser tolerante
+                 Inserta en batches de 50; duplicados omitidos silenciosamente
+               · Filtros por grado y sección · tabla con student_code visible
+             — ExamPlayerV2Page (/eval): entry cambia a email + access_code
+               · Valida @redboston.edu.co antes de consultar
+               · Lookup: exam_sessions por access_code → exam_instances por student_email
+               · Un estudiante puede tener múltiples exámenes activos (distintos access_codes)
+               · Telegram alert incluye student_section en el payload
+             — exam-instance-generator: acepta grade + section como alternativa a students[]
+               · Auto-consulta school_students por grade+section si no se pasa roster explícito
+               · Guarda student_email, student_id, student_section en cada exam_instance
+               · Error claro si no hay roster cargado para ese grado/sección
+             — DashboardPage: ruta /students + link en sidebar "👩‍🎓 Mis Estudiantes"
+             — Migración: 20260422000004_school_students_roster.sql (ejecutada en prod)
+             — CLAUDE.md v5.1
+
+PRÓXIMO → SESIÓN L
+  1. PRIMERO — Sistema antitrampa NIVEL MÁXIMO en ExamPlayerV2Page (ExamPhase):
 
      ── CAPA 1: DETECCIÓN MULTI-EVENTO (cubrir TODOS los vectores de escape) ──
      Cada evento dispara: incremento en DB + Telegram + badge rojo inmediato.
@@ -285,9 +311,14 @@ PRÓXIMO → SESIÓN K
      · Bloquear el botón Home físico del iPad
        → visibilitychange/pagehide lo detecta, no lo impide
 
-  2. Dashboard de resultados: quién presentó, quién no, notas, alertas de integridad
-  3. Panel revisión humana: correcciones AI con confianza < 0.65
-  4. Login/Auth: "Olvidé mi contraseña" + email automático al crear docente
+  2. Integrar flujo completo docente → examen resiliente:
+     — ExamDashboardPage: botón "Generar exámenes" → llama exam-instance-generator
+       pasando grade + section del examen (ya no students[] manual)
+     — Mostrar progreso de generación (cuántos generados / total del roster)
+     — Estado de cada instancia: ⏳ pendiente · ✅ listo · 🔴 sin roster
+  3. Dashboard de resultados: quién presentó, quién no, notas, alertas de integridad
+  4. Panel revisión humana: correcciones AI con confianza < 0.65
+  5. Login/Auth: "Olvidé mi contraseña" + email automático al crear docente
 ```
 
 ---
@@ -335,6 +366,23 @@ exam_ai_queue         — cola de corrección AI · status (pending/processing/d
                         retry_count · processed_at
 cbf_error_log         — errores con código CBF-[MOD]-[TYPE]-[NNN] · severity · school_id
 health_snapshots      — métricas de salud cada 6h · cron via pg_net
+
+— ROSTER (Ses. K) —
+school_students       — roster institucional de alumnos · email UNIQUE(school_id, email)
+                        grade (combined) · section · student_code auto (trigger PostgreSQL)
+                        teacher_id FK · RLS: school = get_my_school_id()
+                        exam_instances.student_email → lookup anon sin exponer esta tabla
+
+— SCHEMA RESILIENTE EXAM PLAYER (Ses. K prev.) —
+exam_blueprints       — configuración pedagógica del examen (inmutable post-publicación)
+exam_sessions         — evento en vivo: access_code · status · service_worker_payload
+exam_instances        — examen único por alumno: generated_questions JSONB (inmutable)
+                        student_email · student_id FK · student_section · version_label
+                        instance_status (ready/started/submitted) · integrity_flags
+exam_responses        — respuestas polimórficas · response_origin · auto/ai/human score
+exam_results          — nota calculada por trigger · colombian_grade 1.0–5.0
+exam_preflight_log    — log de checks T-24h / T-0h / T-30min
+exam_offline_queue    — cola offline → sync al reconectar
 ```
 
 ---
@@ -642,6 +690,7 @@ const { data: newsProjects } = await supabase
 /library          GuideLibraryPage         Biblioteca de guías aprobadas
 /ai-usage         AIUsagePage              Monitor de tokens IA
 /messages         MessagesPage             Mensajería 1-a-1
+/students         StudentsPage             Roster de alumnos (agregar / CSV) ← Ses. K
 /coverage         PeriodCoverageDashboard  Cobertura eleot® acumulada (admin)
 /observations     ObservationLoggerPage    Observaciones Cognia (admin)
 
