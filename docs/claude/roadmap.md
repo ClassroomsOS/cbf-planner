@@ -95,6 +95,29 @@ El conteo de tabs existe pero no hay lockdown real. Implementar en `ExamPhase`:
 6. **Dashboard de resultados por examen** — quién presentó, quién no, notas, alertas de integridad
 7. **Panel de revisión humana** — correcciones AI con confianza < 0.65 para revisión del docente
 
+---
+
+> ### 📌 Nota pedagógica — Responsabilidad del docente (no es tarea de desarrollo)
+>
+> **El sistema antitrampa técnico tiene un límite:** un estudiante que fotografíe la pantalla
+> y le envíe la imagen a una IA externa (ChatGPT, Gemini, etc.) puede recibir ayuda si las
+> preguntas son genéricas. La tecnología no puede resolver esto sola.
+>
+> **Lo que sí está en manos del docente:** diseñar preguntas con contexto irrepetible:
+> - Fragmentos de un texto leído o discutido específicamente en clase esa semana
+> - Situaciones hipotéticas con nombres de personajes del libro de texto CBF
+> - Casos que referencien algo dicho en clase ("según lo que vimos el martes...")
+> - Preguntas que exijan conectar dos ideas trabajadas en la unidad, no hechos aislados
+>
+> Una IA externa sin acceso al contexto de la clase dará respuestas genéricas o incorrectas
+> ante este tipo de preguntas. **Esto es criterio de diseño de evaluación — cada docente
+> debe saberlo y aplicarlo.** No es una función del sistema; es una competencia del evaluador.
+>
+> *Recomendación para capacitación docente: incluir este principio en la inducción al módulo
+> de evaluación cuando se haga el lanzamiento institucional.*
+
+---
+
 **Login/Auth completo** (`LoginPage.jsx`, `App.jsx`, Edge Fn `admin-create-teacher`)
 1. Configurar Google OAuth en Supabase Dashboard → Auth → Providers → Google
 2. Validar dominio `@redboston.edu.co` post-OAuth en `App.jsx:onAuthStateChange`
