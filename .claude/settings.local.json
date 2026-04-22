@@ -33,7 +33,14 @@
       "Bash(python3 -c \"import reportlab; print\\('ok'\\)\")",
       "Bash(py -c \"import reportlab; print\\('ok'\\)\")",
       "Bash(npx --yes md-to-pdf --version)",
-      "Bash(grep -v \"{ data, error }\\\\|const { error\\\\|\\\\.then\\\\|catch\")"
+      "Bash(grep -v \"{ data, error }\\\\|const { error\\\\|\\\\.then\\\\|catch\")",
+      "Bash(npm --version)",
+      "Bash(netstat -ano)",
+      "Bash(findstr \":5173\")",
+      "Bash(npx vite:*)",
+      "Bash(gh run:*)",
+      "Bash(npm test:*)",
+      "Bash(.\\\\supabase.exe db:*)"
     ]
   }
 }
