@@ -209,31 +209,82 @@ SESIÓN J ✅  Módulo de Evaluación — Frontend (parcial) + N versiones anti-
              — CLAUDE.md v5.0
 
 PRÓXIMO → SESIÓN K
-  1. PRIMERO — Sistema antitrampa en ExamPlayerPage (ExamPhase):
-     · requestFullscreen() al iniciar + alerta si sale del fullscreen (fullscreenchange)
-     · onContextMenu → preventDefault() (bloquear click derecho)
-     · onCopy / onCut / onPaste → preventDefault() en áreas de respuesta
-     · keydown global: bloquear F12, Ctrl+U, Ctrl+Shift+I, Ctrl+C
-     · tab_switch_count >= 3 → integrity_flags.high_risk = true en DB
-     · Badge rojo cuando tab_switch_count >= 2
-     · ExamDetailModal: indicador ⚠️ Riesgo alto si high_risk
-     · MARCA DE AGUA — nombre completo del estudiante como watermark en toda la pantalla:
-       CSS: pseudoelemento ::before en el contenedor raíz del examen, position:fixed,
-       texto rotado ~(-30deg), opacity:0.07, repetido en grid (background con canvas o
-       CSS repeat), z-index sobre el contenido pero pointer-events:none
-       → si el estudiante fotografía la pantalla y la comparte, el nombre es visible
-       → el texto debe incluir: nombre + fecha + hora (ej. "Juan Pérez · 22 abr 2026 · 9:14 am")
-     · COMPATIBILIDAD MULTIDISPOSITIVO — probar y garantizar en:
-       iPad (Safari iOS) · Mac (Safari/Chrome) · MacBook Air (Safari/Chrome/Firefox)
-       Notas: requestFullscreen() en iOS Safari requiere interacción previa del usuario y
-       puede estar limitado — usar fallback visual si la API no está disponible
-       visibilitychange funciona en todos; F12/DevTools no aplica en iOS → omitir esos keydown
-     · ALERTA TELEGRAM AL DOCENTE — via Edge Function cbf-logger o nueva fn exam-integrity-alert:
-       Trigger: tab_switch_count >= 3 OR salida de fullscreen detectada
-       Mensaje: "⚠️ [Examen: Título] — [Nombre estudiante] activó alerta de integridad
-                 Cambios de tab: N · [Fecha hora] · Ver en: /exam-dashboard"
-       El chat_id del docente debe estar en teachers.telegram_chat_id (agregar columna si no existe)
-       Fallback: si no tiene telegram_chat_id configurado, registrar en integrity_flags sin notificar
+  1. PRIMERO — Sistema antitrampa NIVEL MÁXIMO en ExamPlayerPage (ExamPhase):
+
+     ── CAPA 1: DETECCIÓN MULTI-EVENTO (cubrir TODOS los vectores de escape) ──
+     Cada evento dispara: incremento en DB + Telegram + badge rojo inmediato.
+     No basta con uno solo — se usan TODOS en paralelo, belt + suspenders:
+
+     a) visibilitychange → document.hidden = true (tab switch, Alt+Tab, Home en iPad)
+     b) window 'blur' → la ventana pierde el foco (otra app, otro programa, Spotlight en Mac)
+     c) fullscreenchange / webkitfullscreenchange → salida de pantalla completa
+     d) window 'resize' → DevTools anclado reduce el tamaño de la ventana
+        detector: si window.outerWidth - window.innerWidth > 160 → DevTools abierto
+     e) keydown global (preventDefault + registro):
+        F12 · Ctrl+Shift+I · Ctrl+Shift+J · Ctrl+U (ver código fuente)
+        Ctrl+W (cerrar tab) · Ctrl+T (nueva tab) · Ctrl+N (nueva ventana)
+        Alt+F4 (Windows) · Cmd+W · Cmd+T · Cmd+N (Mac)
+        Cmd+Tab (Mac app switcher) · Cmd+Space (Spotlight)
+     f) beforeunload → si intenta cerrar/recargar la página
+     g) contextmenu → preventDefault() en todo el documento
+     h) copy / cut / paste → preventDefault() en todo el documento
+     i) En iOS/iPad además: pagehide + pageshow (el sistema puede suspender la página)
+        MutationObserver en <body> para detectar si el DOM es manipulado externamente
+
+     ── CAPA 2: MARCA DE AGUA FORENSE RESISTENTE ──
+     · Renderizar en <canvas> (no CSS ::before — el canvas es más difícil de remover por DevTools)
+     · Canvas position:fixed, z-index:9999, pointer-events:none, width/height:100vw/100vh
+     · Texto diagonal -30°, repetido en grid cada ~200px, opacity:0.08
+     · Contenido: "NombreCompleto · Versión B · 22 abr · 9:14 am"
+     · Re-dibujar el canvas en cada requestAnimationFrame → si alguien borra el nodo,
+       un MutationObserver lo detecta y lo vuelve a insertar inmediatamente
+     · En iOS donde canvas puede tener limitaciones: fallback a div con texto repetido en grid
+
+     ── CAPA 3: FULLSCREEN ADAPTATIVO POR PLATAFORMA ──
+     · Desktop (Chrome/Firefox/Edge): requestFullscreen() obligatorio al pulsar "Iniciar"
+       salida → alerta modal "Debes volver a pantalla completa" + cuenta de evento
+     · Mac Safari: document.documentElement.requestFullscreen() — verificar soporte
+     · iPad iOS Safari: requestFullscreen() NO disponible → activar "modo quiosco":
+       banner rojo fijo top:0 "MODO EXAMEN PROTEGIDO — no abandones esta pantalla"
+       + bloquear scroll del body + bloquear pinch-to-zoom (meta viewport + touchstart)
+     · Detectar plataforma: /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+       (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+
+     ── CAPA 4: ALERTA TELEGRAM EN TIEMPO REAL ──
+     · Edge Function: exam-integrity-alert (nueva, dedicada, rápida)
+       POST { session_id, student_name, exam_title, event_type, count, teacher_id }
+       → lee teachers.telegram_chat_id → llama Telegram Bot API sendMessage
+     · Mensaje al docente:
+       "🚨 ALERTA EXAMEN
+        [Nombre] — [Título examen] — Versión [X]
+        Evento: [Cambio de tab / Salió fullscreen / DevTools detectado]
+        Ocurrencias: N · [Hora exacta]
+        Acción recomendada: verificar presencialmente"
+     · Frecuencia: primera alerta inmediata; luego máx 1 cada 60s por estudiante (no spam)
+     · teachers.telegram_chat_id: nueva columna — agregar migración
+     · Fallback: sin chat_id → solo registra en integrity_flags JSONB en la sesión
+
+     ── CAPA 5: COMPATIBILIDAD — MATRIZ DE PRUEBAS OBLIGATORIA ──
+     Antes de dar por completo este ítem, probar CADA combinación:
+     [ ] iPad + Safari iOS (versión reciente)
+     [ ] iPad + Chrome iOS
+     [ ] MacBook Air + Safari
+     [ ] MacBook Air + Chrome
+     [ ] MacBook Air + Firefox
+     [ ] Mac (iMac/MacMini) + Safari
+     [ ] Mac + Chrome
+     En cada una verificar: fullscreen/fallback · visibilitychange · blur ·
+     marca de agua · Telegram recibido · badge en pantalla
+
+     ── LÍMITES TÉCNICOS DEL NAVEGADOR (documentar, no prometer) ──
+     Lo que un navegador NO puede hacer aunque quiera:
+     · Impedir que el sistema operativo cambie de app (Alt+Tab nativo del OS)
+       → DETECCIÓN es posible (blur/visibilitychange), BLOQUEO no
+     · Impedir screenshots del sistema (Cmd+Shift+3, botón físico iPad)
+       → la marca de agua forense es la única contramedida
+     · Bloquear el botón Home físico del iPad
+       → visibilitychange/pagehide lo detecta, no lo impide
+
   2. Dashboard de resultados: quién presentó, quién no, notas, alertas de integridad
   3. Panel revisión humana: correcciones AI con confianza < 0.65
   4. Login/Auth: "Olvidé mi contraseña" + email automático al crear docente

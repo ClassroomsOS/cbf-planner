@@ -74,15 +74,23 @@ El conteo de tabs existe pero no hay lockdown real. Implementar en `ExamPhase`:
 - **Marca de agua forense** — nombre completo del estudiante + fecha + hora repetido en toda
   la pantalla (CSS `::before` rotado -30°, `opacity: 0.07`, `pointer-events: none`, `position: fixed`)
   Si el estudiante fotografía la pantalla y la comparte, el nombre queda impreso en la imagen
-- **Compatibilidad multidispositivo** — probar y garantizar en iPad (Safari iOS), Mac/MacBook Air
-  (Safari + Chrome + Firefox). `requestFullscreen()` en iOS Safari requiere interacción del usuario
-  y puede estar limitado — implementar fallback visual si la API no está disponible. Omitir
-  bloqueo de teclas F12/DevTools en iOS (no aplica). `visibilitychange` funciona en todos.
-- **Alerta Telegram al docente** — via Edge Function `cbf-logger` o nueva `exam-integrity-alert`
-  - Trigger: `tab_switch_count >= 3` o salida de fullscreen detectada
-  - Mensaje: `"⚠️ [Examen] — [Estudiante] activó alerta de integridad · Tabs: N · [Hora]"`
-  - Requiere columna `teachers.telegram_chat_id` (agregar migración si no existe)
-  - Fallback: si no tiene `telegram_chat_id`, solo registra en `integrity_flags` sin notificar
+- **Sistema antitrampa NIVEL MÁXIMO** — 5 capas de defensa:
+  - **Capa 1 — Detección multi-evento**: `visibilitychange` + `window blur` + `fullscreenchange`
+    + `resize` (DevTools anclado) + `keydown` global + `beforeunload` + `contextmenu` +
+    `copy/cut/paste` + `pagehide` (iOS) + `MutationObserver` en body. Cada evento → DB + Telegram.
+  - **Capa 2 — Marca de agua en Canvas** (resistente a DevTools): `<canvas>` `position:fixed`
+    `z-index:9999` redibujo por `requestAnimationFrame` + `MutationObserver` que lo reinserta
+    si alguien lo borra. Texto: nombre + versión + hora diagonal -30°.
+  - **Capa 3 — Fullscreen adaptativo**: Desktop → `requestFullscreen()` obligatorio.
+    iPad iOS Safari (no soporta fullscreen) → "modo quiosco": banner rojo fijo + body scroll bloqueado.
+  - **Capa 4 — Telegram en tiempo real**: Edge Function `exam-integrity-alert` dedicada.
+    Mensaje inmediato al primer evento; throttle 1/60s para no hacer spam.
+    Requiere `teachers.telegram_chat_id` (nueva migración).
+  - **Capa 5 — Matriz de pruebas obligatoria**: iPad Safari/Chrome · MacBook Air Safari/Chrome/Firefox
+    · Mac Safari/Chrome. Cada combinación verificada antes de marcar como completo.
+  - **Límites honestos del navegador**: Alt+Tab del OS y botón Home físico del iPad no pueden
+    bloquearse — solo detectarse. Screenshots del sistema tampoco — la marca de agua es la
+    única contramedida para fotos con celular.
 
 6. **Dashboard de resultados por examen** — quién presentó, quién no, notas, alertas de integridad
 7. **Panel de revisión humana** — correcciones AI con confianza < 0.65 para revisión del docente
