@@ -209,10 +209,17 @@ SESIÓN J ✅  Módulo de Evaluación — Frontend (parcial) + N versiones anti-
              — CLAUDE.md v5.0
 
 PRÓXIMO → SESIÓN K
-  · Módulo de Evaluación — Frontend (continuar):
-    Dashboard de resultados: quién presentó, quién no, notas, alertas de integridad
-    Panel revisión humana: correcciones AI con confianza < 0.65
-  · Login/Auth: "Olvidé mi contraseña" + email automático al crear docente
+  1. PRIMERO — Sistema antitrampa en ExamPlayerPage (ExamPhase):
+     · requestFullscreen() al iniciar + alerta si sale del fullscreen (fullscreenchange)
+     · onContextMenu → preventDefault() (bloquear click derecho)
+     · onCopy / onCut / onPaste → preventDefault() en áreas de respuesta
+     · keydown global: bloquear F12, Ctrl+U, Ctrl+Shift+I, Ctrl+C
+     · tab_switch_count >= 3 → integrity_flags.high_risk = true en DB
+     · Badge rojo cuando tab_switch_count >= 2
+     · ExamDetailModal: indicador ⚠️ Riesgo alto si high_risk
+  2. Dashboard de resultados: quién presentó, quién no, notas, alertas de integridad
+  3. Panel revisión humana: correcciones AI con confianza < 0.65
+  4. Login/Auth: "Olvidé mi contraseña" + email automático al crear docente
 ```
 
 ---

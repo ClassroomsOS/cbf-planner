@@ -61,7 +61,18 @@ El backend está completo y probado. El frontend avanza.
 3. ~~N versiones anti-copia — shuffle determinístico, round-robin, badge versión al estudiante~~ ✅
 4. ~~Impresión institucional CBF-G AC-01 — encabezado 3×3 exacto, 11 renderers por tipo~~ ✅
 5. ~~Examen activo visible desde PlannerPage — callout con código de acceso~~ ✅
-6. **Dashboard de resultados por examen** — quién presentó, quién no, notas, alertas de integridad ← SIGUIENTE
+
+**🔒 Sistema antitrampa — ExamPlayerPage** ← SESIÓN K, ÍTEM 1
+El conteo de tabs existe pero no hay lockdown real. Implementar en `ExamPhase`:
+- `requestFullscreen()` al iniciar + alerta si el estudiante sale del fullscreen (`fullscreenchange`)
+- `onContextMenu → e.preventDefault()` en el contenedor del examen (bloquear click derecho)
+- `onCopy / onCut / onPaste → e.preventDefault()` en todas las áreas de texto
+- Bloquear teclas sospechosas: `F12`, `Ctrl+U`, `Ctrl+Shift+I`, `Ctrl+C` (global `keydown`)
+- Umbral de alerta: si `tab_switch_count >= 3` → marcar `integrity_flags.high_risk = true` en DB
+- Badge visual en rojo cuando `tab_switch_count >= 2` (hoy es naranja genérico)
+- En `ExamDetailModal`: mostrar `⚠️ Riesgo alto` junto al nombre del estudiante si `high_risk`
+
+6. **Dashboard de resultados por examen** — quién presentó, quién no, notas, alertas de integridad
 7. **Panel de revisión humana** — correcciones AI con confianza < 0.65 para revisión del docente
 
 **Login/Auth completo** (`LoginPage.jsx`, `App.jsx`, Edge Fn `admin-create-teacher`)
