@@ -9,7 +9,8 @@ import ProfileSetupPage from './pages/ProfileSetupPage'
 import PendingPage from './pages/PendingPage'
 import RejectedPage from './pages/RejectedPage'
 import SetPasswordPage from './pages/SetPasswordPage'
-import ExamPlayerPage  from './pages/ExamPlayerPage'
+import ExamPlayerPage   from './pages/ExamPlayerPage'
+import ExamPlayerV2Page from './pages/ExamPlayerV2Page'
 
 export default function App() {
   const [session,    setSession]    = useState(undefined) // undefined = loading
@@ -120,9 +121,10 @@ export default function App() {
       <ToastProvider>
         <BrowserRouter basename="/cbf-planner">
           <Routes>
-          {/* Public — Student exam player (no auth required) */}
+          {/* Public — Student exam players (no auth required) */}
           <Route path="/exam/:code" element={<ExamPlayerPage />} />
           <Route path="/exam"       element={<ExamPlayerPage />} />
+          <Route path="/eval"       element={<ExamPlayerV2Page />} />
 
           {/* Not logged in → Login */}
           <Route path="/login" element={

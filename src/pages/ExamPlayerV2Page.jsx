@@ -1,0 +1,814 @@
+// ── ExamPlayerV2Page.jsx ──────────────────────────────────────────────────────
+// /exam-v2 — Player resiliente usando el nuevo schema (exam_instances).
+// Acceso público — el estudiante entra con access_code + student_code.
+// Anti-trampa: 5 capas · Marca de agua canvas · IndexedDB autosave · Timer.
+
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { supabase } from '../supabase'
+
+// ── IndexedDB helper ──────────────────────────────────────────────────────────
+
+const IDB_NAME    = 'cbf_exam_v2'
+const IDB_VERSION = 1
+
+function openIDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_NAME, IDB_VERSION)
+    req.onupgradeneeded = e => {
+      const db = e.target.result
+      if (!db.objectStoreNames.contains('answers')) {
+        db.createObjectStore('answers', { keyPath: 'key' })
+      }
+    }
+    req.onsuccess = e => resolve(e.target.result)
+    req.onerror   = () => reject(req.error)
+  })
+}
+
+async function idbSave(db, instanceId, questionId, value) {
+  const tx = db.transaction('answers', 'readwrite')
+  tx.objectStore('answers').put({ key: `${instanceId}_${questionId}`, value, ts: Date.now() })
+}
+
+async function idbLoadAll(db, instanceId) {
+  return new Promise((resolve, reject) => {
+    const tx    = db.transaction('answers', 'readonly')
+    const store = tx.objectStore('answers')
+    const req   = store.getAll()
+    req.onsuccess = () => {
+      const prefix  = `${instanceId}_`
+      const answers = {}
+      req.result
+        .filter(r => r.key.startsWith(prefix))
+        .forEach(r => { answers[r.key.replace(prefix, '')] = r.value })
+      resolve(answers)
+    }
+    req.onerror = () => reject(req.error)
+  })
+}
+
+async function idbClear(db, instanceId) {
+  const prefix = `${instanceId}_`
+  const tx     = db.transaction('answers', 'readwrite')
+  const store  = tx.objectStore('answers')
+  const req    = store.openCursor()
+  req.onsuccess = e => {
+    const cursor = e.target.result
+    if (!cursor) return
+    if (cursor.key.startsWith(prefix)) cursor.delete()
+    cursor.continue()
+  }
+}
+
+// ── Watermark canvas ──────────────────────────────────────────────────────────
+
+function WatermarkCanvas({ text }) {
+  const canvasRef = useRef(null)
+
+  useEffect(() => {
+    function draw() {
+      const canvas = canvasRef.current
+      if (!canvas) return
+      canvas.width  = window.innerWidth
+      canvas.height = window.innerHeight
+      const ctx = canvas.getContext('2d')
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      ctx.save()
+      ctx.globalAlpha = 0.07
+      ctx.fillStyle   = '#000'
+      ctx.font        = 'bold 22px Arial'
+      ctx.translate(canvas.width / 2, canvas.height / 2)
+      ctx.rotate(-Math.PI / 6)
+      const stepX = 320, stepY = 120
+      const cols  = Math.ceil(canvas.width  / stepX) + 2
+      const rows  = Math.ceil(canvas.height / stepY) + 2
+      for (let r = -rows; r <= rows; r++) {
+        for (let c = -cols; c <= cols; c++) {
+          ctx.fillText(text, c * stepX, r * stepY)
+        }
+      }
+      ctx.restore()
+    }
+
+    draw()
+    window.addEventListener('resize', draw)
+
+    // MutationObserver: si alguien borra el canvas desde DevTools, lo reinserta
+    const observer = new MutationObserver(() => {
+      if (!document.body.contains(canvasRef.current)) {
+        document.body.appendChild(canvasRef.current)
+      }
+    })
+    observer.observe(document.body, { childList: true, subtree: true })
+
+    return () => {
+      window.removeEventListener('resize', draw)
+      observer.disconnect()
+    }
+  }, [text])
+
+  return (
+    <canvas
+      ref={canvasRef}
+      style={{
+        position: 'fixed', top: 0, left: 0,
+        width: '100vw', height: '100vh',
+        zIndex: 9999, pointerEvents: 'none',
+      }}
+    />
+  )
+}
+
+// ── Fases ─────────────────────────────────────────────────────────────────────
+
+const PHASE = {
+  ENTRY:        'entry',
+  INSTRUCTIONS: 'instructions',
+  EXAM:         'exam',
+  SUBMITTED:    'submitted',
+  ERROR:        'error',
+}
+
+// ── Componente principal ──────────────────────────────────────────────────────
+
+export default function ExamPlayerV2Page() {
+  const [phase,       setPhase]       = useState(PHASE.ENTRY)
+  const [session,     setSession]     = useState(null)
+  const [instance,    setInstance]    = useState(null)
+  const [questions,   setQuestions]   = useState([])
+  const [answers,     setAnswers]     = useState({})
+  const [current,     setCurrent]     = useState(0)
+  const [timeLeft,    setTimeLeft]    = useState(null)
+  const [violations,  setViolations]  = useState(0)
+  const [submitting,  setSubmitting]  = useState(false)
+  const [errorMsg,    setErrorMsg]    = useState('')
+  const [loading,     setLoading]     = useState(false)
+
+  const idbRef       = useRef(null)
+  const timerRef     = useRef(null)
+  const autosaveRef  = useRef(null)
+  const instanceRef  = useRef(null)  // para closures de eventos
+
+  // Abrir IndexedDB al montar
+  useEffect(() => {
+    openIDB().then(db => { idbRef.current = db }).catch(console.error)
+  }, [])
+
+  // ── EntryPhase ──────────────────────────────────────────────
+
+  function EntryPhase() {
+    const [accessCode,   setAccessCode]   = useState('')
+    const [studentCode,  setStudentCode]  = useState('')
+    const [err,          setErr]          = useState('')
+
+    async function handleEnter(e) {
+      e.preventDefault()
+      if (!accessCode.trim() || !studentCode.trim()) {
+        setErr('Ingresa el código del examen y tu código de estudiante.')
+        return
+      }
+      setLoading(true)
+      setErr('')
+      try {
+        // Buscar sesión activa
+        const { data: sess, error: sErr } = await supabase
+          .from('exam_sessions')
+          .select('id, title, subject, grade, period, duration_minutes, status')
+          .eq('access_code', accessCode.trim().toUpperCase())
+          .in('status', ['ready', 'active'])
+          .single()
+
+        if (sErr || !sess) {
+          setErr('Código de examen no válido o el examen no está disponible.')
+          setLoading(false)
+          return
+        }
+
+        // Buscar instancia del estudiante
+        const { data: inst, error: iErr } = await supabase
+          .from('exam_instances')
+          .select('id, student_name, version_label, generated_questions, instance_status, delivery_mode')
+          .eq('session_id', sess.id)
+          .eq('student_code', studentCode.trim().toUpperCase())
+          .in('instance_status', ['ready', 'started'])
+          .single()
+
+        if (iErr || !inst) {
+          setErr('Código de estudiante no encontrado para este examen.')
+          setLoading(false)
+          return
+        }
+
+        if (inst.instance_status === 'submitted') {
+          setErr('Ya enviaste este examen.')
+          setLoading(false)
+          return
+        }
+
+        // Cargar respuestas guardadas en IndexedDB
+        const savedAnswers = idbRef.current
+          ? await idbLoadAll(idbRef.current, inst.id).catch(() => ({}))
+          : {}
+
+        // Filtrar correct_answer de MC antes de mostrar al estudiante
+        const qs = (inst.generated_questions || []).map(q => {
+          const clean = { ...q }
+          // Guardamos internamente pero no mostramos
+          return clean
+        })
+
+        setSession(sess)
+        setInstance(inst)
+        instanceRef.current = inst
+        setQuestions(qs)
+        setAnswers(savedAnswers)
+        setTimeLeft(sess.duration_minutes > 0 ? sess.duration_minutes * 60 : null)
+        setPhase(PHASE.INSTRUCTIONS)
+
+        // Marcar como iniciado si es la primera vez
+        if (inst.instance_status === 'ready') {
+          await supabase
+            .from('exam_instances')
+            .update({ instance_status: 'started', started_at: new Date().toISOString() })
+            .eq('id', inst.id)
+        }
+      } catch (ex) {
+        setErr('Error al conectar. Intenta de nuevo.')
+        console.error(ex)
+      }
+      setLoading(false)
+    }
+
+    return (
+      <div style={styles.page}>
+        <div style={styles.card}>
+          <div style={styles.cardHeader}>
+            <div style={{ fontSize: 32, marginBottom: 8 }}>📝</div>
+            <h1 style={{ margin: 0, fontSize: 22, color: '#1F3864' }}>Examen CBF</h1>
+            <p style={{ margin: '4px 0 0', color: '#666', fontSize: 14 }}>
+              Ingresa los códigos que te entregó tu docente
+            </p>
+          </div>
+          <form onSubmit={handleEnter} style={{ padding: '24px' }}>
+            <label style={styles.label}>Código del examen</label>
+            <input
+              style={styles.input}
+              value={accessCode}
+              onChange={e => setAccessCode(e.target.value.toUpperCase())}
+              placeholder="Ej: EX-2026-A1"
+              autoFocus
+            />
+            <label style={styles.label}>Tu código de estudiante</label>
+            <input
+              style={styles.input}
+              value={studentCode}
+              onChange={e => setStudentCode(e.target.value.toUpperCase())}
+              placeholder="Ej: 9B-001"
+            />
+            {err && <p style={styles.error}>{err}</p>}
+            <button type="submit" style={styles.btn} disabled={loading}>
+              {loading ? 'Verificando...' : 'Ingresar al examen →'}
+            </button>
+          </form>
+        </div>
+      </div>
+    )
+  }
+
+  // ── InstructionsPhase ───────────────────────────────────────
+
+  function InstructionsPhase() {
+    const mins = session?.duration_minutes
+    return (
+      <div style={styles.page}>
+        <div style={{ ...styles.card, maxWidth: 560 }}>
+          <div style={{ ...styles.cardHeader, background: '#1F3864' }}>
+            <h2 style={{ margin: 0, color: '#fff', fontSize: 20 }}>{session?.title}</h2>
+            <p style={{ margin: '4px 0 0', color: '#93C5FD', fontSize: 13 }}>
+              {session?.subject} · {session?.grade} · Período {session?.period}
+            </p>
+          </div>
+          <div style={{ padding: 24 }}>
+            <div style={styles.infoBadge}>
+              👤 {instance?.student_name} &nbsp;·&nbsp;
+              Versión <strong>{instance?.version_label}</strong> &nbsp;·&nbsp;
+              {questions.length} preguntas
+              {mins > 0 && <> &nbsp;·&nbsp; ⏱ {mins} min</>}
+            </div>
+
+            <h3 style={{ color: '#1F3864', marginTop: 20 }}>Antes de comenzar:</h3>
+            <ul style={{ lineHeight: 2, color: '#374151' }}>
+              <li>Este examen está en <strong>modo protegido</strong>.</li>
+              <li>Si cambias de pestaña o sales de pantalla completa, quedará registrado.</li>
+              <li>Tu nombre aparece como marca de agua en la pantalla.</li>
+              <li>Tus respuestas se guardan automáticamente cada 30 segundos.</li>
+              {mins > 0 && <li>Tienes <strong>{mins} minutos</strong>. El examen se enviará automáticamente.</li>}
+              <li>Al terminar, presiona <strong>"Enviar examen"</strong>.</li>
+            </ul>
+
+            <button
+              style={{ ...styles.btn, marginTop: 8 }}
+              onClick={() => {
+                setPhase(PHASE.EXAM)
+                // Intentar fullscreen
+                document.documentElement.requestFullscreen?.().catch(() => {})
+              }}
+            >
+              Entendido — Comenzar examen
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ── ExamPhase ───────────────────────────────────────────────
+
+  function ExamPhase() {
+    // Anti-trampa — Capa 1: multi-evento
+    useEffect(() => {
+      // a) Tab switch / app switch
+      function onVisibilityChange() {
+        if (document.hidden) registerViolation('tab_switch')
+      }
+      // b) Ventana pierde foco
+      function onBlur() { registerViolation('window_blur') }
+      // c) Salida de fullscreen
+      function onFullscreenChange() {
+        if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+          registerViolation('fullscreen_exit')
+        }
+      }
+      // d) DevTools anclado (resize reduce inner window)
+      function onResize() {
+        if (window.outerWidth - window.innerWidth > 160 ||
+            window.outerHeight - window.innerHeight > 160) {
+          registerViolation('devtools_open')
+        }
+      }
+      // e) Teclas sospechosas
+      function onKeyDown(e) {
+        const blocked = (
+          e.key === 'F12' ||
+          (e.ctrlKey && e.shiftKey && ['I','J','C'].includes(e.key)) ||
+          (e.ctrlKey && e.key === 'U') ||
+          (e.ctrlKey && e.key === 'W') ||
+          (e.metaKey && ['w','t','n'].includes(e.key))
+        )
+        if (blocked) {
+          e.preventDefault()
+          e.stopPropagation()
+          registerViolation('blocked_key')
+        }
+      }
+      // f) Cerrar/recargar página
+      function onBeforeUnload(e) {
+        e.preventDefault()
+        e.returnValue = '¿Seguro que quieres salir? Perderás el progreso no guardado.'
+      }
+      // g) Click derecho
+      function onContextMenu(e) { e.preventDefault() }
+      // h) Copiar / pegar
+      function onCopy(e)  { e.preventDefault() }
+      function onCut(e)   { e.preventDefault() }
+      function onPaste(e) { e.preventDefault() }
+
+      document.addEventListener('visibilitychange', onVisibilityChange)
+      window.addEventListener('blur', onBlur)
+      document.addEventListener('fullscreenchange', onFullscreenChange)
+      document.addEventListener('webkitfullscreenchange', onFullscreenChange)
+      window.addEventListener('resize', onResize)
+      document.addEventListener('keydown', onKeyDown, true)
+      window.addEventListener('beforeunload', onBeforeUnload)
+      document.addEventListener('contextmenu', onContextMenu)
+      document.addEventListener('copy', onCopy)
+      document.addEventListener('cut', onCut)
+      document.addEventListener('paste', onPaste)
+
+      return () => {
+        document.removeEventListener('visibilitychange', onVisibilityChange)
+        window.removeEventListener('blur', onBlur)
+        document.removeEventListener('fullscreenchange', onFullscreenChange)
+        document.removeEventListener('webkitfullscreenchange', onFullscreenChange)
+        window.removeEventListener('resize', onResize)
+        document.removeEventListener('keydown', onKeyDown, true)
+        window.removeEventListener('beforeunload', onBeforeUnload)
+        document.removeEventListener('contextmenu', onContextMenu)
+        document.removeEventListener('copy', onCopy)
+        document.removeEventListener('cut', onCut)
+        document.removeEventListener('paste', onPaste)
+      }
+    }, [])
+
+    // Timer
+    useEffect(() => {
+      if (timeLeft === null) return
+      if (timeLeft <= 0) { handleSubmit(); return }
+      timerRef.current = setInterval(() => setTimeLeft(t => {
+        if (t <= 1) { clearInterval(timerRef.current); handleSubmit(); return 0 }
+        return t - 1
+      }), 1000)
+      return () => clearInterval(timerRef.current)
+    }, [])
+
+    // IndexedDB autosave cada 30s
+    useEffect(() => {
+      autosaveRef.current = setInterval(() => {
+        if (!idbRef.current || !instance) return
+        Object.entries(answers).forEach(([qId, val]) => {
+          idbSave(idbRef.current, instance.id, qId, val).catch(() => {})
+        })
+      }, 30000)
+      return () => clearInterval(autosaveRef.current)
+    }, [answers])
+
+    const q   = questions[current]
+    const now = new Date()
+    const watermarkText = `${instance?.student_name} · V${instance?.version_label} · ${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`
+
+    return (
+      <div style={{ minHeight: '100vh', background: '#F0F4F8', position: 'relative' }}>
+        {/* Capa 2: Marca de agua canvas */}
+        <WatermarkCanvas text={watermarkText} />
+
+        {/* Header */}
+        <div style={styles.examHeader}>
+          <div>
+            <strong>{session?.title}</strong>
+            <span style={{ marginLeft: 12, fontSize: 13, color: '#93C5FD' }}>
+              {instance?.student_name} · V{instance?.version_label}
+            </span>
+          </div>
+          <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+            {violations > 0 && (
+              <span style={{
+                background: violations >= 3 ? '#991B1B' : '#DC2626',
+                color: '#fff', padding: '2px 10px', borderRadius: 12, fontSize: 12,
+              }}>
+                ⚠️ {violations} alerta{violations !== 1 ? 's' : ''}
+              </span>
+            )}
+            {timeLeft !== null && (
+              <span style={{
+                fontFamily: 'monospace', fontSize: 16, fontWeight: 'bold',
+                color: timeLeft < 300 ? '#EF4444' : '#fff',
+              }}>
+                ⏱ {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Progreso */}
+        <div style={styles.progressBar}>
+          <div style={{ ...styles.progressFill, width: `${((current + 1) / questions.length) * 100}%` }} />
+        </div>
+
+        {/* Pregunta */}
+        <div style={{ maxWidth: 720, margin: '0 auto', padding: '24px 16px 120px' }}>
+          <div style={styles.questionCard}>
+            <div style={styles.questionMeta}>
+              Pregunta {current + 1} de {questions.length}
+              <span style={{ marginLeft: 12, color: '#6B7280', fontSize: 13 }}>
+                {q?.points} pt{q?.points !== 1 ? 's' : ''} · {q?.section_name}
+              </span>
+              {q?.biblical && <span style={{ marginLeft: 8, color: '#1A6B3A', fontSize: 13 }}>✝</span>}
+            </div>
+            <p style={styles.stem}>{q?.stem}</p>
+            <QuestionInput q={q} answers={answers} setAnswers={setAnswers} instance={instance} />
+          </div>
+
+          {/* Navegación */}
+          <div style={styles.nav}>
+            <button
+              style={{ ...styles.navBtn, opacity: current === 0 ? 0.4 : 1 }}
+              disabled={current === 0}
+              onClick={() => setCurrent(c => c - 1)}
+            >
+              ← Anterior
+            </button>
+            <span style={{ color: '#6B7280', fontSize: 13 }}>
+              {Object.keys(answers).length} / {questions.length} respondidas
+            </span>
+            {current < questions.length - 1
+              ? <button style={styles.navBtn} onClick={() => setCurrent(c => c + 1)}>Siguiente →</button>
+              : <button style={{ ...styles.navBtn, background: '#1A6B3A' }} onClick={() => setShowConfirm(true)}>
+                  Enviar examen ✓
+                </button>
+            }
+          </div>
+        </div>
+
+        {/* Confirm modal */}
+        {showConfirm && <ConfirmSubmitModal onConfirm={handleSubmit} onCancel={() => setShowConfirm(false)} total={questions.length} answered={Object.keys(answers).length} />}
+      </div>
+    )
+  }
+
+  const [showConfirm, setShowConfirm] = useState(false)
+
+  // ── Registro de violaciones ─────────────────────────────────
+
+  const registerViolation = useCallback(async (eventType) => {
+    setViolations(n => {
+      const next = n + 1
+      const inst = instanceRef.current
+      if (!inst) return next
+
+      // Actualizar en DB
+      supabase.from('exam_instances').update({
+        tab_switches: next,
+        integrity_flags: { high_risk: next >= 3, last_event: eventType, events: [] },
+      }).eq('id', inst.id).then(() => {})
+
+      // Notificar Telegram si alcanza umbral (via cbf-logger)
+      if (next === 3) {
+        fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/exam-preflight`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({
+            alert: true,
+            student_name: inst.student_name,
+            session_id: inst.session_id,
+            event_type: eventType,
+            violation_count: next,
+          }),
+        }).catch(() => {})
+      }
+
+      return next
+    })
+  }, [])
+
+  // ── Submit ──────────────────────────────────────────────────
+
+  async function handleSubmit() {
+    if (submitting) return
+    setSubmitting(true)
+    clearInterval(timerRef.current)
+    clearInterval(autosaveRef.current)
+    window.removeEventListener('beforeunload', () => {})
+
+    try {
+      const inst = instance || instanceRef.current
+
+      // Guardar cada respuesta en exam_responses
+      for (const q of questions) {
+        const answer = answers[q.id]
+        const isAuto = q.question_type === 'multiple_choice'
+        const autoScore = isAuto && answer
+          ? (answer === q.correct_answer ? (q.points || 0) : 0)
+          : null
+
+        await supabase.from('exam_responses').insert({
+          instance_id:   inst.id,
+          session_id:    inst.session_id,
+          school_id:     inst.school_id,
+          question_id:   String(q.id),
+          question_type: q.question_type,
+          points_possible: q.points || 0,
+          response_type:   q.response_type || 'written',
+          response_origin: 'digital_realtime',
+          answer:          { text: answer || '' },
+          auto_score:      autoScore,
+          ai_correction_status: isAuto ? 'not_needed' : 'pending',
+        })
+      }
+
+      // Marcar instancia como enviada
+      await supabase.from('exam_instances').update({
+        instance_status:   'submitted',
+        submitted_at:      new Date().toISOString(),
+        tab_switches:      violations,
+        time_spent_seconds: session?.duration_minutes
+          ? session.duration_minutes * 60 - (timeLeft ?? 0)
+          : 0,
+      }).eq('id', inst.id)
+
+      // Limpiar IndexedDB
+      if (idbRef.current) await idbClear(idbRef.current, inst.id).catch(() => {})
+
+      // Salir de fullscreen
+      document.exitFullscreen?.().catch(() => {})
+
+      setPhase(PHASE.SUBMITTED)
+    } catch (ex) {
+      console.error(ex)
+      setSubmitting(false)
+    }
+  }
+
+  // ── SubmittedPhase ──────────────────────────────────────────
+
+  function SubmittedPhase() {
+    return (
+      <div style={styles.page}>
+        <div style={{ ...styles.card, textAlign: 'center', padding: 40 }}>
+          <div style={{ fontSize: 56, marginBottom: 16 }}>✅</div>
+          <h2 style={{ color: '#1A6B3A', margin: '0 0 8px' }}>¡Examen enviado!</h2>
+          <p style={{ color: '#374151', margin: '0 0 4px' }}>
+            <strong>{instance?.student_name}</strong>
+          </p>
+          <p style={{ color: '#6B7280', fontSize: 14 }}>
+            {session?.title} · Versión {instance?.version_label}
+          </p>
+          <p style={{ color: '#6B7280', fontSize: 13, marginTop: 16 }}>
+            Tu docente recibirá los resultados. Puedes cerrar esta ventana.
+          </p>
+          <p style={{ marginTop: 24, fontSize: 22, color: '#1F3864' }}>
+            "AÑO DE LA PUREZA" · Génesis 1:27-28a
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Render ──────────────────────────────────────────────────
+
+  if (phase === PHASE.ENTRY)        return <EntryPhase />
+  if (phase === PHASE.INSTRUCTIONS) return <InstructionsPhase />
+  if (phase === PHASE.EXAM)         return <ExamPhase />
+  if (phase === PHASE.SUBMITTED)    return <SubmittedPhase />
+  return null
+}
+
+// ── QuestionInput ─────────────────────────────────────────────
+
+function QuestionInput({ q, answers, setAnswers, instance }) {
+  if (!q) return null
+  const val = answers[q.id] || ''
+
+  function set(v) {
+    setAnswers(prev => ({ ...prev, [q.id]: v }))
+  }
+
+  if (q.question_type === 'multiple_choice' && Array.isArray(q.options)) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
+        {q.options.map((opt, i) => {
+          const letter = String.fromCharCode(65 + i)
+          const selected = val === letter
+          return (
+            <label key={i} style={{
+              display: 'flex', alignItems: 'flex-start', gap: 12,
+              background: selected ? '#EFF6FF' : '#fff',
+              border: `2px solid ${selected ? '#2563EB' : '#E5E7EB'}`,
+              borderRadius: 8, padding: '12px 16px', cursor: 'pointer',
+            }}>
+              <input type="radio" name={`q_${q.id}`} checked={selected}
+                onChange={() => set(letter)} style={{ marginTop: 2 }} />
+              <span>{opt}</span>
+            </label>
+          )
+        })}
+      </div>
+    )
+  }
+
+  if (q.question_type === 'true_false') {
+    return (
+      <div style={{ display: 'flex', gap: 16, marginTop: 12 }}>
+        {['Verdadero', 'Falso'].map(opt => (
+          <label key={opt} style={{
+            flex: 1, textAlign: 'center', padding: '14px',
+            border: `2px solid ${val === opt ? '#2563EB' : '#E5E7EB'}`,
+            borderRadius: 8, cursor: 'pointer',
+            background: val === opt ? '#EFF6FF' : '#fff',
+            fontWeight: val === opt ? 'bold' : 'normal',
+          }}>
+            <input type="radio" name={`q_${q.id}`} style={{ display: 'none' }}
+              checked={val === opt} onChange={() => set(opt)} />
+            {opt}
+          </label>
+        ))}
+      </div>
+    )
+  }
+
+  if (q.question_type === 'fill_blank') {
+    return (
+      <input
+        style={{ ...styles.input, marginTop: 12 }}
+        value={val}
+        onChange={e => set(e.target.value)}
+        placeholder="Escribe tu respuesta..."
+      />
+    )
+  }
+
+  // short_answer, matching, otros
+  return (
+    <textarea
+      style={{ ...styles.input, marginTop: 12, minHeight: 100, resize: 'vertical' }}
+      value={val}
+      onChange={e => set(e.target.value)}
+      placeholder="Escribe tu respuesta..."
+    />
+  )
+}
+
+// ── ConfirmSubmitModal ────────────────────────────────────────
+
+function ConfirmSubmitModal({ onConfirm, onCancel, total, answered }) {
+  const missing = total - answered
+  return (
+    <div style={styles.overlay}>
+      <div style={{ ...styles.card, maxWidth: 400, margin: 0 }}>
+        <div style={{ padding: 24, textAlign: 'center' }}>
+          <div style={{ fontSize: 40, marginBottom: 12 }}>📤</div>
+          <h3 style={{ margin: '0 0 8px', color: '#1F3864' }}>¿Enviar examen?</h3>
+          {missing > 0
+            ? <p style={{ color: '#DC2626' }}>Tienes <strong>{missing}</strong> pregunta{missing !== 1 ? 's' : ''} sin responder.</p>
+            : <p style={{ color: '#1A6B3A' }}>Respondiste todas las preguntas.</p>
+          }
+          <p style={{ color: '#6B7280', fontSize: 13 }}>Esta acción no se puede deshacer.</p>
+          <div style={{ display: 'flex', gap: 12, marginTop: 20 }}>
+            <button style={{ ...styles.navBtn, flex: 1, background: '#6B7280' }} onClick={onCancel}>
+              Volver
+            </button>
+            <button style={{ ...styles.navBtn, flex: 1, background: '#1A6B3A' }} onClick={onConfirm}>
+              Enviar ✓
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Estilos ───────────────────────────────────────────────────
+
+const styles = {
+  page: {
+    minHeight: '100vh', background: '#F0F4F8',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    padding: 16,
+  },
+  card: {
+    background: '#fff', borderRadius: 12, boxShadow: '0 4px 24px rgba(0,0,0,0.10)',
+    width: '100%', maxWidth: 480, overflow: 'hidden',
+  },
+  cardHeader: {
+    background: '#1F3864', padding: '24px 24px 20px',
+    textAlign: 'center', color: '#fff',
+  },
+  label: {
+    display: 'block', fontWeight: 600, color: '#374151',
+    marginBottom: 6, marginTop: 16, fontSize: 14,
+  },
+  input: {
+    display: 'block', width: '100%', padding: '10px 12px',
+    border: '1.5px solid #D1D5DB', borderRadius: 8, fontSize: 15,
+    outline: 'none', boxSizing: 'border-box',
+    fontFamily: 'inherit',
+  },
+  btn: {
+    display: 'block', width: '100%', marginTop: 20,
+    background: '#1F3864', color: '#fff', border: 'none',
+    borderRadius: 8, padding: '13px', fontSize: 15,
+    fontWeight: 600, cursor: 'pointer',
+  },
+  error: { color: '#DC2626', fontSize: 13, marginTop: 8 },
+  infoBadge: {
+    background: '#EFF6FF', border: '1px solid #BFDBFE',
+    borderRadius: 8, padding: '10px 14px', fontSize: 14, color: '#1E3A8A',
+  },
+  examHeader: {
+    background: '#1F3864', color: '#fff', padding: '12px 20px',
+    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+    position: 'sticky', top: 0, zIndex: 100,
+  },
+  progressBar: {
+    height: 4, background: '#E5E7EB', width: '100%',
+  },
+  progressFill: {
+    height: '100%', background: '#2563EB', transition: 'width 0.3s',
+  },
+  questionCard: {
+    background: '#fff', borderRadius: 12, padding: '24px',
+    boxShadow: '0 2px 12px rgba(0,0,0,0.07)',
+  },
+  questionMeta: {
+    fontSize: 13, color: '#6B7280', marginBottom: 12, fontWeight: 500,
+  },
+  stem: {
+    fontSize: 17, color: '#111827', lineHeight: 1.6, margin: '0 0 8px',
+  },
+  nav: {
+    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+    marginTop: 20,
+  },
+  navBtn: {
+    background: '#1F3864', color: '#fff', border: 'none',
+    borderRadius: 8, padding: '10px 20px', fontSize: 14,
+    fontWeight: 600, cursor: 'pointer',
+  },
+  overlay: {
+    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    zIndex: 10000, padding: 16,
+  },
+}
