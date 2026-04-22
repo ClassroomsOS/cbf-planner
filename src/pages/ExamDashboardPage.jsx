@@ -180,7 +180,6 @@ function ExamCreatorModal({ teacher, onClose, onCreated }) {
           title: form.title.trim(), instructions: form.instructions.trim(),
           access_code: accessCode, status: 'active',
           time_limit_minutes: form.time_limit || null,
-          academic_year: new Date().getFullYear().toString(),
         })
         .select('id')
         .single()
