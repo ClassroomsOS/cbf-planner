@@ -11,6 +11,7 @@ import { createPortal } from 'react-dom'
 import { supabase } from '../supabase'
 import { useToast } from '../context/ToastContext'
 import { generateExamQuestions } from '../utils/AIAssistant'
+import { printExamHtml } from '../utils/exportExamHtml'
 import { canManage } from '../utils/roles'
 
 // ── UI helpers ────────────────────────────────────────────────────────────────
@@ -836,10 +837,29 @@ function ExamCreatorModal({ teacher, onClose, onCreated }) {
 }
 
 // ── EXAM DETAIL MODAL ─────────────────────────────────────────────────────────
-function ExamDetailModal({ exam, results, onClose, onStatusChange }) {
+function ExamDetailModal({ exam, results, onClose, onStatusChange, teacher }) {
   const { showToast } = useToast()
-  const [changing, setChanging] = useState(false)
+  const [changing,  setChanging]  = useState(false)
+  const [printing,  setPrinting]  = useState(false)
   const baseUrl = window.location.origin + window.location.pathname
+
+  async function handlePrint() {
+    setPrinting(true)
+    try {
+      const { data: questions, error } = await supabase
+        .from('questions')
+        .select('id, question_type, stem, options, points, position')
+        .eq('assessment_id', exam.id)
+        .order('position')
+      if (error) throw error
+      const school = teacher?.schools || teacher?.school || {}
+      await printExamHtml({ assessment: exam, questions: questions || [], school, teacherName: teacher?.full_name || '' })
+    } catch (err) {
+      showToast('Error al imprimir: ' + err.message, 'error')
+    } finally {
+      setPrinting(false)
+    }
+  }
 
   async function toggleStatus() {
     setChanging(true)
@@ -892,13 +912,20 @@ function ExamDetailModal({ exam, results, onClose, onStatusChange }) {
               </div>
             )}
           </div>
-          <button type="button" onClick={toggleStatus} disabled={changing}
-            style={{ width: '100%', padding: '10px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: changing ? 'default' : 'pointer',
-              background: exam.status === 'active' ? '#FEF2F2' : '#ECFDF5',
-              color: exam.status === 'active' ? '#DC2626' : '#15803D',
-              border: `1px solid ${exam.status === 'active' ? '#FCA5A5' : '#A7F3D0'}` }}>
-            {changing ? '…' : exam.status === 'active' ? '🔒 Cerrar examen' : '🔓 Reabrir examen'}
-          </button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <button type="button" onClick={handlePrint} disabled={printing}
+              style={{ width: '100%', padding: '10px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: printing ? 'default' : 'pointer',
+                background: '#FFF8E1', color: '#7A6200', border: '1px solid #FDE68A', opacity: printing ? 0.7 : 1 }}>
+              {printing ? '⏳ Preparando…' : '🖨️ Imprimir / Guardar PDF'}
+            </button>
+            <button type="button" onClick={toggleStatus} disabled={changing}
+              style={{ width: '100%', padding: '10px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: changing ? 'default' : 'pointer',
+                background: exam.status === 'active' ? '#FEF2F2' : '#ECFDF5',
+                color: exam.status === 'active' ? '#DC2626' : '#15803D',
+                border: `1px solid ${exam.status === 'active' ? '#FCA5A5' : '#A7F3D0'}` }}>
+              {changing ? '…' : exam.status === 'active' ? '🔒 Cerrar examen' : '🔓 Reabrir examen'}
+            </button>
+          </div>
         </div>
       </div>
     </div>,
@@ -1064,7 +1091,7 @@ export default function ExamDashboardPage({ teacher }) {
         <ExamCreatorModal teacher={teacher} onClose={() => setShowCreator(false)} onCreated={() => { setShowCreator(false); load() }} />
       )}
       {detailExam && (
-        <ExamDetailModal exam={detailExam} results={results[detailExam.id] || []} onClose={() => setDetailExam(null)} onStatusChange={handleStatusChange} />
+        <ExamDetailModal exam={detailExam} results={results[detailExam.id] || []} onClose={() => setDetailExam(null)} onStatusChange={handleStatusChange} teacher={teacher} />
       )}
     </div>
   )
