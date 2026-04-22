@@ -217,6 +217,12 @@ PRÓXIMO → SESIÓN K
      · tab_switch_count >= 3 → integrity_flags.high_risk = true en DB
      · Badge rojo cuando tab_switch_count >= 2
      · ExamDetailModal: indicador ⚠️ Riesgo alto si high_risk
+     · MARCA DE AGUA — nombre completo del estudiante como watermark en toda la pantalla:
+       CSS: pseudoelemento ::before en el contenedor raíz del examen, position:fixed,
+       texto rotado ~(-30deg), opacity:0.07, repetido en grid (background con canvas o
+       CSS repeat), z-index sobre el contenido pero pointer-events:none
+       → si el estudiante fotografía la pantalla y la comparte, el nombre es visible
+       → el texto debe incluir: nombre + fecha + hora (ej. "Juan Pérez · 22 abr 2026 · 9:14 am")
   2. Dashboard de resultados: quién presentó, quién no, notas, alertas de integridad
   3. Panel revisión humana: correcciones AI con confianza < 0.65
   4. Login/Auth: "Olvidé mi contraseña" + email automático al crear docente

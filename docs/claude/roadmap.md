@@ -71,6 +71,9 @@ El conteo de tabs existe pero no hay lockdown real. Implementar en `ExamPhase`:
 - Umbral de alerta: si `tab_switch_count >= 3` → marcar `integrity_flags.high_risk = true` en DB
 - Badge visual en rojo cuando `tab_switch_count >= 2` (hoy es naranja genérico)
 - En `ExamDetailModal`: mostrar `⚠️ Riesgo alto` junto al nombre del estudiante si `high_risk`
+- **Marca de agua forense** — nombre completo del estudiante + fecha + hora repetido en toda
+  la pantalla (CSS `::before` rotado -30°, `opacity: 0.07`, `pointer-events: none`, `position: fixed`)
+  Si el estudiante fotografía la pantalla y la comparte, el nombre queda impreso en la imagen
 
 6. **Dashboard de resultados por examen** — quién presentó, quién no, notas, alertas de integridad
 7. **Panel de revisión humana** — correcciones AI con confianza < 0.65 para revisión del docente
