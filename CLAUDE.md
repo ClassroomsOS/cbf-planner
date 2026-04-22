@@ -145,7 +145,7 @@ LIMPIEZA LEGACY ✅  Sistema learning_targets eliminado del frontend (Abril 8, 2
              — news_legacy sigue en DB (datos históricos — no borrar)
              — CLAUDE.md v4.5
 
-SESIÓN I (parcial) ✅  IA de sugerencias por sección enriquecida + export DOCX rediseñado
+SESIÓN I ✅  IA de sugerencias por sección enriquecida + export DOCX rediseñado
              — suggestSectionActivity: contexto del libro inyectado (textbook_reference: book,
                units[], grammar[], vocabulary[]) + título y skill del proyecto NEWS activo
              — Lengua automática: Modelo B → prompt y respuesta en inglés; resto en español
@@ -179,7 +179,40 @@ SESIÓN I (parcial) ✅  IA de sugerencias por sección enriquecida + export DOC
                · Botón "⬇️ Descargar HTML" en paso Rúbrica de NewsProjectEditor
              — CLAUDE.md v4.7
 
-PRÓXIMO → SESIÓN I (continuación)
+SESIÓN J ✅  Módulo de Evaluación — Frontend (parcial) + N versiones anti-copia
+             — ExamDashboardPage: wizard Step 2 → selector de versiones (1/2/3/4)
+               · checkboxes shuffle preguntas / opciones (visibles si versiones > 1)
+               · handlePublish crea N rows en assessment_versions
+                 (Versión A = base sin shuffle; B/C/D = shuffle activado)
+               · ExamDetailModal muestra badges por versión con indicadores de shuffle
+               · Botón 🖨️ Imprimir / PDF wired up con printExamHtml()
+             — ExamDashboardPage: wizard Step 3 — criterios editables con rigor UI
+               · RIGOR_META: 3 niveles (strict/flexible/conceptual) con colores y descripciones
+               · Selector 3 botones reemplaza dropdown crudo; chip en estado colapsado
+               · Sanitizador rigor_level antes de INSERT → evita constraint violation
+             — exportExamHtml.js: encabezado institucional CBF-G AC-01 correcto
+               · Tabla 3 filas × 3 columnas según header1.xml (no el header de exportHtml.js)
+               · Col widths: 15.3% | 61% | 23.7% · logo con rowspan=3
+               · printExamHtml(): inlinea logo como base64, abre ventana, print() a 400ms
+               · 11 renderers de tipo de pregunta para layout de impresión
+             — AIAssistant.js: prompt reforzado — rigor_level SOLO 'strict'|'flexible'|'conceptual'
+             — PlannerPage: callout de examen activo
+               · Consulta assessments por grade+subject+teacher+status='active'
+               · Muestra código de acceso monospace + botón copiar
+             — ExamPlayerPage: asignación round-robin + shuffle determinístico
+               · seededShuffle(arr, seed) — LCG Math.imul para precisión 32-bit
+               · shuffleMCOptions(q, seed) — reordena opciones y actualiza correct_answer
+               · EntryPhase: sessionCount % versions.length → asignación justa por versión
+               · Seed = version_number × 31337 — mismo estudiante siempre recibe mismo orden
+               · student_exam_sessions.assessment_version_id incluido en INSERT
+               · InstructionsPhase: badge "Versión B/C/D" visible al estudiante
+             — CLAUDE.md v5.0
+
+PRÓXIMO → SESIÓN K
+  · Módulo de Evaluación — Frontend (continuar):
+    Dashboard de resultados: quién presentó, quién no, notas, alertas de integridad
+    Panel revisión humana: correcciones AI con confianza < 0.65
+  · Login/Auth: "Olvidé mi contraseña" + email automático al crear docente
 ```
 
 ---
@@ -210,6 +243,23 @@ schedule_slots        — franjas del horario institucional por nivel
 school_calendar       — días hábiles · is_school_day · affects_planning
 news_legacy           — LEGACY (era tabla news — no borrar)
 error_log · activity_log · ai_usage
+
+— MÓDULO DE EVALUACIÓN (10 tablas — backend completo, probado E2E) —
+assessments           — examen: title, grade, subject, access_code, status, rubric_criteria JSONB
+                        created_by FK teachers · biblical_min (% mín preguntas bíblicas)
+questions             — question_type · stem · options JSONB · correct_answer · rigor_level
+                        (ENUM: 'strict'|'flexible'|'conceptual') · points · position
+question_criteria     — criterio de corrección por pregunta abierta · rubric_level · rigor_level
+assessment_versions   — version_number · version_label ('A'/'B'/'C'/'D') · is_base
+                        shuffle_questions · shuffle_options · FK assessment_id
+student_exam_sessions — access_code join · started_at · submitted_at · total_score
+                        integrity_flags JSONB · assessment_version_id FK
+student_submissions   — answer_text · is_correct · ai_score · ai_confidence · ai_feedback
+                        needs_human_review · human_score · human_reviewer_id
+exam_ai_queue         — cola de corrección AI · status (pending/processing/done/failed)
+                        retry_count · processed_at
+cbf_error_log         — errores con código CBF-[MOD]-[TYPE]-[NNN] · severity · school_id
+health_snapshots      — métricas de salud cada 6h · cron via pg_net
 ```
 
 ---

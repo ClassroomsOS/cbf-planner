@@ -1,7 +1,7 @@
 # Roadmap y Estado del Proyecto
 
 > Extraído de `CLAUDE.md` + auditoría `docs/auditoria/2026-04-04-auditoria-sistema.md`
-> Última actualización: 2026-04-21
+> Última actualización: 2026-04-22
 
 ---
 
@@ -30,7 +30,7 @@
 | Pipeline imágenes IA | ⬜ Pendiente | Fotos de textbook → multimodal → prompt |
 | Refactoring (Fase 3) | ⬜ Pendiente | Archivos grandes, CSS modular, TeacherContext |
 | **Módulo de Evaluación — Backend** | ✅ Completo | 10 tablas, triggers, cola AI, corrección Claude, escala colombiana. Probado E2E. |
-| **Módulo de Evaluación — Frontend** | ⬜ Pendiente | Pantalla creación, dashboard resultados, revisión humana |
+| **Módulo de Evaluación — Frontend** | 🔶 Parcial | ~~Pantalla creación~~ ✅ · ~~N versiones anti-copia~~ ✅ · ~~Print CBF-G AC-01~~ ✅ · Dashboard resultados ❌ · Revisión humana ❌ |
 | **CBF Observability Layer** | ✅ Completo | 16 códigos error `CBF-[MOD]-[TYPE]-[NNN]`, cbf-logger, alertas Telegram, health snapshots |
 | **CBF Quality Standard** | ✅ Completo | Definition of Done, clasificación bugs, estándares performance y disponibilidad |
 
@@ -55,12 +55,14 @@
 ### 🔴 Alta prioridad
 
 **Módulo de Evaluación — Frontend** (Fase 6)
-El backend está completo y probado. Falta la interfaz para que los docentes lo usen.
-1. Pantalla de creación de examen con AI — tema + grado → examen generado en < 2 min
-2. Interfaz de criterios y rúbrica — visible, editable, no obligatoria (principio Betty Crocker)
-3. Dashboard de resultados por examen — quién presentó, quién no, notas, alertas de integridad
-4. Panel de revisión humana — correcciones AI con confianza < 0.65 para revisión del docente
-5. Exam player integrado al flujo del Planner — link compartible, sin subir archivos a GitHub
+El backend está completo y probado. El frontend avanza.
+1. ~~Pantalla de creación de examen con AI — tema + grado → examen generado en < 2 min~~ ✅
+2. ~~Interfaz de criterios y rúbrica — visible, editable, no obligatoria (principio Betty Crocker)~~ ✅
+3. ~~N versiones anti-copia — shuffle determinístico, round-robin, badge versión al estudiante~~ ✅
+4. ~~Impresión institucional CBF-G AC-01 — encabezado 3×3 exacto, 11 renderers por tipo~~ ✅
+5. ~~Examen activo visible desde PlannerPage — callout con código de acceso~~ ✅
+6. **Dashboard de resultados por examen** — quién presentó, quién no, notas, alertas de integridad ← SIGUIENTE
+7. **Panel de revisión humana** — correcciones AI con confianza < 0.65 para revisión del docente
 
 **Login/Auth completo** (`LoginPage.jsx`, `App.jsx`, Edge Fn `admin-create-teacher`)
 1. Configurar Google OAuth en Supabase Dashboard → Auth → Providers → Google
@@ -127,10 +129,12 @@ Cuando el docente sube fotos de textbook en NewsProjectEditor:
 4. Prompt: bloque `📖 PÁGINAS DEL LIBRO` con URLs para lectura multimodal
 5. UI: sección "Subir páginas del libro" con previsualización y reorden drag
 
-### Exámenes diferenciados por estudiante (Módulo de Evaluación — Fase 6)
-- N versiones del mismo examen — misma rúbrica, preguntas distintas
-- Cada estudiante recibe una versión única — la copia se vuelve estructuralmente imposible
-- La corrección AI usa la misma rúbrica para todas las versiones
+### ~~Exámenes diferenciados por estudiante (Módulo de Evaluación — Fase 6)~~ ✅ Implementado
+- ~~N versiones del mismo examen — misma rúbrica, preguntas distintas~~
+- ~~Cada estudiante recibe una versión única — la copia se vuelve estructuralmente imposible~~
+- ~~La corrección AI usa la misma rúbrica para todas las versiones~~
+
+**Implementación:** `seededShuffle` + `shuffleMCOptions` en ExamPlayerPage. Seed determinístico = `version_number × 31337`. Asignación round-robin por `sessionCount % N`. El docente elige 1/2/3/4 versiones en el wizard antes de publicar.
 
 ---
 
@@ -148,6 +152,20 @@ Cuando el docente sube fotos de textbook en NewsProjectEditor:
 | Deploy directo a producción | Todas las migraciones y Edge Functions | Crear Supabase Branch |
 
 ---
+
+## Completado — sesión 2026-04-22
+
+- [x] ExamDashboardPage: selector de N versiones (1–4) en wizard Step 2 con checkboxes shuffle
+- [x] ExamDashboardPage: wizard Step 3 — criterios editables + RIGOR_META UI (3 botones color)
+- [x] ExamDashboardPage: sanitizador rigor_level → fix constraint `question_criteria_rigor_level_check`
+- [x] ExamDashboardPage: botón 🖨️ Imprimir wired up con `printExamHtml()`
+- [x] exportExamHtml.js: encabezado CBF-G AC-01 correcto (tabla 3×3 según header1.xml)
+- [x] exportExamHtml.js: 11 renderers de tipo de pregunta para layout de impresión institucional
+- [x] AIAssistant.js: prompt reforzado — rigor_level whitelist explícita en el prompt
+- [x] PlannerPage: callout de examen activo con código de acceso + botón copiar
+- [x] ExamPlayerPage: `seededShuffle` (LCG) + `shuffleMCOptions` (reordena + actualiza correct_answer)
+- [x] ExamPlayerPage: asignación round-robin por `sessionCount % N_versions`
+- [x] ExamPlayerPage: `assessment_version_id` en INSERT de sesión + badge versión en InstructionsPhase
 
 ## Completado — sesión 2026-04-21
 
