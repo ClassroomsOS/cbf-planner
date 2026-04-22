@@ -9,6 +9,35 @@ import { supabase } from '../supabase'
 
 const AUTOSAVE_INTERVAL = 30 * 1000 // 30 seconds
 
+// ── Deterministic shuffle (LCG seeded) ────────────────────────────────────────
+// Same seed always produces the same order — so a version is consistent.
+function seededShuffle(arr, seed) {
+  const a = [...arr]
+  let s = Math.abs(seed | 0) || 1
+  for (let i = a.length - 1; i > 0; i--) {
+    s = (Math.imul(s, 1664525) + 1013904223) >>> 0
+    const j = s % (i + 1)
+    ;[a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
+
+// Shuffle MC options and keep correct_answer consistent with the new position.
+// Options arrive as ["A) texto", "B) texto", ...] — we strip the prefix, shuffle,
+// re-assign letters, and update correct_answer to match the new letter of the
+// originally-correct option.
+function shuffleMCOptions(q, seed) {
+  if (q.question_type !== 'multiple_choice' || !Array.isArray(q.options)) return q
+  const rawTexts = q.options.map(opt => opt.replace(/^[A-D]\)\s*/, ''))
+  const correctIdx = q.correct_answer ? q.correct_answer.charCodeAt(0) - 65 : 0
+  const newOrder = seededShuffle(rawTexts.map((_, i) => i), seed)
+  const newOptions = newOrder.map((origIdx, pos) =>
+    `${String.fromCharCode(65 + pos)}) ${rawTexts[origIdx]}`
+  )
+  const newCorrectPos = newOrder.indexOf(correctIdx)
+  return { ...q, options: newOptions, correct_answer: String.fromCharCode(65 + newCorrectPos) }
+}
+
 // ── Institutional header (same as legacy print) ───────────────────────────────
 function InstitutionalHeader({ school }) {
   const s = school || {}
@@ -80,30 +109,61 @@ function EntryPhase({ initialCode, onStart }) {
       return
     }
 
-    // Load questions
-    const { data: questions, error: qErr } = await supabase
+    // Load questions (base order)
+    const { data: baseQuestions, error: qErr } = await supabase
       .from('questions')
-      .select('id, stem, question_type, points, options, position')
+      .select('id, stem, question_type, points, options, correct_answer, position')
       .eq('assessment_id', assessment.id)
       .eq('school_id', assessment.school_id)
       .order('position', { ascending: true })
 
-    if (qErr || !questions?.length) {
+    if (qErr || !baseQuestions?.length) {
       setError('No se encontraron preguntas en este examen. Habla con tu docente.')
       setLoading(false)
       return
     }
 
-    // Create session
+    // Load assessment versions and assign one (round-robin)
+    const [{ data: versions }, { count: sessionCount }] = await Promise.all([
+      supabase.from('assessment_versions')
+        .select('id, version_number, version_label, is_base, shuffle_questions, shuffle_options')
+        .eq('assessment_id', assessment.id)
+        .order('version_number'),
+      supabase.from('student_exam_sessions')
+        .select('*', { count: 'exact', head: true })
+        .eq('assessment_id', assessment.id),
+    ])
+
+    let assignedVersion = null
+    let questions = baseQuestions
+
+    if (versions?.length) {
+      const vIdx = (sessionCount || 0) % versions.length
+      assignedVersion = versions[vIdx]
+
+      // Apply deterministic shuffle based on version_number as seed
+      const vSeed = assignedVersion.version_number * 31337
+      if (assignedVersion.shuffle_questions) {
+        questions = seededShuffle(baseQuestions, vSeed)
+      }
+      if (assignedVersion.shuffle_options) {
+        questions = questions.map((q, qi) =>
+          shuffleMCOptions(q, vSeed + qi * 999)
+        )
+      }
+    }
+
+    // Create session with assigned version
     const { data: session, error: sErr } = await supabase
       .from('student_exam_sessions')
       .insert({
-        assessment_id: assessment.id,
-        school_id: assessment.school_id,
-        student_name: name.trim(),
-        access_code_used: code.trim().toUpperCase(),
-        status: 'in_progress',
-        started_at: new Date().toISOString(),
+        assessment_id:         assessment.id,
+        assessment_version_id: assignedVersion?.id || null,
+        school_id:             assessment.school_id,
+        student_name:          name.trim(),
+        access_code_used:      code.trim().toUpperCase(),
+        status:                'in_progress',
+        started_at:            new Date().toISOString(),
       })
       .select('id')
       .single()
@@ -114,7 +174,7 @@ function EntryPhase({ initialCode, onStart }) {
       return
     }
 
-    onStart({ assessment, questions, session })
+    onStart({ assessment, questions, session, versionLabel: assignedVersion?.version_label })
     setLoading(false)
   }
 
@@ -167,7 +227,7 @@ function EntryPhase({ initialCode, onStart }) {
 }
 
 // ── PHASE 2: Instructions ─────────────────────────────────────────────────────
-function InstructionsPhase({ assessment, questions, onBegin, school }) {
+function InstructionsPhase({ assessment, questions, onBegin, school, versionLabel }) {
   const totalPts = questions.reduce((s, q) => s + (q.points || 0), 0)
   const types = {
     multiple_choice:  questions.filter(q => q.question_type === 'multiple_choice').length,
@@ -180,7 +240,18 @@ function InstructionsPhase({ assessment, questions, onBegin, school }) {
       <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 520, boxShadow: '0 8px 32px rgba(0,0,0,.1)', overflow: 'hidden' }}>
         <InstitutionalHeader school={school} />
         <div style={{ padding: '24px' }}>
-          <h2 style={{ margin: '0 0 6px', fontSize: 18, color: '#1F3864' }}>{assessment.title}</h2>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginBottom: 6 }}>
+            <h2 style={{ margin: 0, fontSize: 18, color: '#1F3864' }}>{assessment.title}</h2>
+            {versionLabel && (
+              <span style={{
+                flexShrink: 0, padding: '3px 10px', borderRadius: 6, fontSize: 12, fontWeight: 800,
+                background: '#FFF8E1', color: '#92400E', border: '1px solid #FDE68A',
+                letterSpacing: 0.5,
+              }}>
+                {versionLabel}
+              </span>
+            )}
+          </div>
           <p style={{ margin: '0 0 20px', fontSize: 13, color: '#64748B' }}>
             {assessment.subject} · {assessment.grade}
           </p>
@@ -619,6 +690,7 @@ export default function ExamPlayerPage() {
         assessment={examData.assessment}
         questions={examData.questions}
         school={examData.assessment.schools}
+        versionLabel={examData.versionLabel}
         onBegin={handleBegin}
       />
     )

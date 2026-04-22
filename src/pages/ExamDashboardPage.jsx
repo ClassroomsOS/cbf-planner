@@ -203,7 +203,10 @@ function ExamCreatorModal({ teacher, onClose, onCreated }) {
   const [indicators, setIndicators]   = useState([])
   const [loadingCascade, setLoadingCascade] = useState(false)
 
-  // ── Step 2 state — question types ──────────────────────────────────────
+  // ── Step 2 state — versions + question types ───────────────────────────
+  const [versionCount, setVersionCount]   = useState(1)
+  const [shuffleQuestions, setShuffleQ]   = useState(true)
+  const [shuffleOptions,   setShuffleO]   = useState(true)
   const [questionTypes, setQuestionTypes] = useState({
     multiple_choice: 5, true_false: 0, fill_blank: 0, matching: 0,
     short_answer: 3, error_correction: 0, sequencing: 0, open_development: 2,
@@ -422,7 +425,22 @@ function ExamCreatorModal({ teacher, onClose, onCreated }) {
         }
       }
 
-      showToast(`Examen publicado — código: ${accessCode}`, 'success')
+      // Create assessment_versions (1 per version configured)
+      const VERSION_LABELS = ['A', 'B', 'C', 'D']
+      for (let v = 0; v < versionCount; v++) {
+        const { error: vErr } = await supabase.from('assessment_versions').insert({
+          assessment_id: assessment.id,
+          school_id: teacher.school_id,
+          version_number: v + 1,
+          version_label: `Versión ${VERSION_LABELS[v]}`,
+          is_base: v === 0,
+          shuffle_questions: v > 0 ? shuffleQuestions : false,
+          shuffle_options:   v > 0 ? shuffleOptions   : false,
+        })
+        if (vErr) throw new Error('Error al crear versión: ' + vErr.message)
+      }
+
+      showToast(`Examen publicado${versionCount > 1 ? ` — ${versionCount} versiones` : ''} · Código: ${accessCode}`, 'success')
       onCreated()
     } catch (err) {
       showToast(err.message, 'error')
@@ -613,6 +631,40 @@ function ExamCreatorModal({ teacher, onClose, onCreated }) {
           {/* ── PASO 2 — Tipos de pregunta ───────────────────────────────── */}
           {step === 2 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {/* Version picker */}
+              <div style={{ background: '#F0F4FF', borderRadius: 10, padding: '12px 14px', border: '1px solid #C7D7FF' }}>
+                <p style={{ margin: '0 0 8px', fontSize: 12, fontWeight: 700, color: '#1F3864' }}>
+                  🔀 Versiones del examen — anti-copia
+                </p>
+                <div style={{ display: 'flex', gap: 6, marginBottom: versionCount > 1 ? 10 : 0 }}>
+                  {[1, 2, 3, 4].map(n => (
+                    <button key={n} type="button" onClick={() => setVersionCount(n)}
+                      style={{ flex: 1, padding: '7px 4px', borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                        background: versionCount === n ? '#1F3864' : '#fff',
+                        color: versionCount === n ? '#fff' : '#374151',
+                        border: `1.5px solid ${versionCount === n ? '#1F3864' : '#E2E8F0'}` }}>
+                      {n === 1 ? '1 versión' : `${n} versiones`}
+                    </button>
+                  ))}
+                </div>
+                {versionCount > 1 && (
+                  <>
+                    <div style={{ display: 'flex', gap: 18, fontSize: 12, marginBottom: 6 }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', color: '#374151' }}>
+                        <input type="checkbox" checked={shuffleQuestions} onChange={e => setShuffleQ(e.target.checked)} />
+                        Barajar orden de preguntas
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', color: '#374151' }}>
+                        <input type="checkbox" checked={shuffleOptions} onChange={e => setShuffleO(e.target.checked)} />
+                        Barajar opciones (opción múltiple)
+                      </label>
+                    </div>
+                    <div style={{ fontSize: 10, color: '#64748B', fontStyle: 'italic' }}>
+                      Versión A: orden original. Versiones B–{['B','C','D'][versionCount - 2]}: preguntas/opciones barajadas por versión. El sistema asigna automáticamente al entrar.
+                    </div>
+                  </>
+                )}
+              </div>
               {/* Total counter */}
               <div style={{
                 background: total > 25 ? '#FFFBEB' : '#F0F4FF',
@@ -893,7 +945,16 @@ function ExamDetailModal({ exam, results, onClose, onStatusChange, teacher }) {
   const { showToast } = useToast()
   const [changing,  setChanging]  = useState(false)
   const [printing,  setPrinting]  = useState(false)
+  const [versions,  setVersions]  = useState([])
   const baseUrl = window.location.origin + window.location.pathname
+
+  useEffect(() => {
+    supabase.from('assessment_versions')
+      .select('id, version_number, version_label, is_base, shuffle_questions, shuffle_options')
+      .eq('assessment_id', exam.id)
+      .order('version_number')
+      .then(({ data }) => setVersions(data || []))
+  }, [exam.id])
 
   async function handlePrint() {
     setPrinting(true)
@@ -936,6 +997,32 @@ function ExamDetailModal({ exam, results, onClose, onStatusChange, teacher }) {
             <p style={{ fontSize: 12, fontWeight: 600, color: '#64748B', margin: '0 0 6px' }}>CÓDIGO DE ACCESO</p>
             <CopyCode code={exam.access_code} />
           </div>
+          {versions.length > 1 && (
+            <div style={{ marginBottom: 16 }}>
+              <p style={{ fontSize: 12, fontWeight: 600, color: '#64748B', margin: '0 0 8px' }}>VERSIONES — ANTI-COPIA</p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {versions.map(v => (
+                  <div key={v.id} style={{
+                    padding: '5px 11px', borderRadius: 7, fontSize: 12, fontWeight: 700,
+                    background: v.is_base ? '#F0F4FF' : '#FFF8E1',
+                    color: v.is_base ? '#1F3864' : '#92400E',
+                    border: `1px solid ${v.is_base ? '#C7D7FF' : '#FDE68A'}`,
+                  }}>
+                    {v.version_label}
+                    {!v.is_base && (
+                      <span style={{ fontSize: 10, fontWeight: 400, marginLeft: 5 }}>
+                        {[v.shuffle_questions && '↕ preguntas', v.shuffle_options && '↔ opciones'].filter(Boolean).join(' · ')}
+                      </span>
+                    )}
+                    {v.is_base && <span style={{ fontSize: 10, fontWeight: 400, marginLeft: 5 }}>original</span>}
+                  </div>
+                ))}
+              </div>
+              <p style={{ fontSize: 10, color: '#9CA3AF', margin: '6px 0 0', fontStyle: 'italic' }}>
+                El sistema asigna automáticamente una versión a cada estudiante (round-robin).
+              </p>
+            </div>
+          )}
           <div style={{ marginBottom: 16 }}>
             <p style={{ fontSize: 12, fontWeight: 600, color: '#64748B', margin: '0 0 6px' }}>LINK DIRECTO</p>
             <div style={{ background: '#F1F5F9', borderRadius: 7, padding: '8px 10px', fontSize: 12, color: '#374151', wordBreak: 'break-all', border: '1px solid #E2E8F0', fontFamily: 'monospace' }}>{examUrl}</div>
