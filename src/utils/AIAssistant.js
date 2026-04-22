@@ -1095,148 +1095,170 @@ Crea una tabla clara donde el estudiante pueda:
   return callClaude({ type: 'student_rubric', system, message, maxTokens: 3000 })
 }
 
-// ── generateExamQuestions ────────────────────────────────────────────────────
-// Generates a complete exam (questions + rubric criteria) from a topic.
-// Returns JSON: { title, instructions, questions: [{ stem, type, points, options?,
-//   correct_answer?, criteria: { model_answer, key_concepts, rubric, rigor_level,
-//   bloom_level } }] }
-// ── Helpers for generateExamQuestions ────────────────────────────────────────
+// ── generateExamQuestions ─────────────────────────────────────────────────────
+// Generates a CBF exam with pedagogical context, 11 question types, and
+// mandatory biblical principle questions (min 3).
+// Returns: { title, instructions, questions: [...] }
+
+const EXAM_ACADEMIC_KEYS = [
+  'multiple_choice','true_false','fill_blank','matching',
+  'short_answer','error_correction','sequencing','open_development',
+]
+const EXAM_BIBLICAL_KEYS = ['biblical_reflection','verse_analysis','principle_application']
 
 function parseExamJSON(raw) {
-  // Direct parse
   try { const p = JSON.parse(raw); if (p && Array.isArray(p.questions)) return p } catch {}
-  // Extract first {...} block (handles markdown fences)
   const match = raw.match(/\{[\s\S]*\}/)
   if (match) {
     try { const p = JSON.parse(match[0]); if (p && Array.isArray(p.questions)) return p } catch {}
   }
-  // Detect truncation vs parse error
   if (raw.includes('"questions"')) {
-    throw new Error('La respuesta de la IA fue cortada. Reduce el número de preguntas o intenta de nuevo.')
+    throw new Error('La respuesta de la IA fue cortada. Reduce el número de preguntas e intenta de nuevo.')
   }
   throw new Error('Error al procesar la respuesta de la IA. Intenta de nuevo.')
 }
 
-function buildExamPrompt({ subject, grade, topic, period, mcCount, saCount, devCount, lang, batchLabel }) {
-  const total = mcCount + saCount + devCount
-  return `Diseña ${batchLabel} sobre el siguiente tema.
-MATERIA: ${sanitizeAIInput(subject)} | GRADO: ${sanitizeAIInput(grade)} | PERÍODO: ${period || '?'}
-TEMA: ${sanitizeAIInput(topic)}
-DISTRIBUCIÓN: ${mcCount} MC · ${saCount} SA · ${devCount} DEV
-IDIOMA: ${lang}
+function buildExamPrompt({ subject, grade, indicator, biblicalContext, syllabusTopics, typeCounts, lang, batchLabel, startPos }) {
+  const total      = Object.values(typeCounts).reduce((s, v) => s + v, 0)
+  const hasBiblical = EXAM_BIBLICAL_KEYS.some(k => (typeCounts[k] || 0) > 0)
 
-RESPONDE SOLO EL JSON, sin texto adicional:
-{
-  "title": "título del examen",
-  "instructions": "instrucciones breves (máx 2 oraciones)",
-  "questions": [
-    {
-      "position": 1,
-      "stem": "pregunta",
-      "question_type": "multiple_choice",
-      "points": 2,
-      "options": ["A) opción", "B) opción", "C) opción", "D) opción"],
-      "correct_answer": "B",
-      "criteria": null
-    },
-    {
-      "position": ${mcCount + 1},
-      "stem": "pregunta",
-      "question_type": "short_answer",
-      "points": 3,
-      "options": null,
-      "correct_answer": null,
-      "criteria": {
-        "model_answer": "respuesta modelo (1-2 oraciones)",
-        "key_concepts": ["concepto1", "concepto2", "concepto3"],
-        "bloom_level": "apply",
-        "rigor_level": "flexible"
-      }
-    }
-  ]
+  const distLines = Object.entries(typeCounts)
+    .filter(([, v]) => v > 0)
+    .map(([k, v]) => `  ${v} × ${k}`)
+    .join('\n')
+
+  return `Diseña ${batchLabel} — Colegio Boston Flexible, Colombia (escala 1.0–5.0).
+MATERIA: ${sanitizeAIInput(subject)} | GRADO: ${sanitizeAIInput(grade)} | IDIOMA: ${lang}
+
+🎯 INDICADOR DE LOGRO EVALUADO:
+"${sanitizeAIInput(indicator?.text || 'Contenidos del período')}"
+Dimensión: ${indicator?.dimension || 'cognitivo'} | Habilidad: ${indicator?.skill_area || 'general'}
+
+📚 TEMAS DEL SYLLABUS:
+${(syllabusTopics || []).slice(0, 6).map(t => `• ${sanitizeAIInput(String(t.content || t))}`).join('\n') || '• Contenidos del período evaluado'}
+${hasBiblical ? `
+✝️ PRINCIPIO BÍBLICO (obligatorio en preguntas bíblicas):
+Principio: "${sanitizeAIInput(biblicalContext?.principle || '')}"
+Versículo: ${sanitizeAIInput(biblicalContext?.verse_ref || '')}
+Reflexión esperada: "${sanitizeAIInput(biblicalContext?.reflection || '')}"` : ''}
+
+DISTRIBUCIÓN EXACTA — ${total} preguntas (posiciones ${startPos}–${startPos + total - 1}):
+${distLines}
+
+INSTRUCCIONES POR TIPO (usar question_type exacto):
+• multiple_choice → options:["A) txt","B) txt","C) txt","D) txt"], correct_answer:"A"|"B"|"C"|"D", criteria:null, points:2
+• true_false → options:["Verdadero","Falso"], correct_answer:"Verdadero"|"Falso", criteria:null, points:1
+• fill_blank → stem con ___ donde va la respuesta, correct_answer:"texto exacto", criteria:{model_answer,key_concepts,bloom_level,rigor_level}, points:2
+• matching → options:{"col_a":["t1","t2","t3"],"col_b":["d1","d2","d3"]}, correct_answer:{"t1":"d1","t2":"d2","t3":"d3"}, criteria:null, points:3
+• short_answer → criteria:{model_answer,key_concepts,bloom_level:"apply",rigor_level:"flexible"}, points:3
+• error_correction → stem contiene texto con errores intencionados, correct_answer:"versión corregida completa", criteria:{model_answer,key_concepts,bloom_level:"analyze",rigor_level:"strict"}, points:3
+• sequencing → options:["pasoB","pasoA","pasoD","pasoC"] (desordenados), correct_answer:["pasoA","pasoB","pasoC","pasoD"] (orden correcto), criteria:null, points:3
+• open_development → criteria:{model_answer,key_concepts,bloom_level:"evaluate"|"create",rigor_level:"conceptual"}, points:5
+• biblical_reflection → pregunta abierta sobre cómo el principio/versículo aplica a la vida, criteria:{model_answer,key_concepts,bloom_level:"apply",rigor_level:"flexible"}, points:4
+• verse_analysis → analiza el significado profundo del versículo en el contexto de la materia, criteria:{model_answer,key_concepts,bloom_level:"analyze",rigor_level:"conceptual"}, points:4
+• principle_application → presenta una situación concreta y pide aplicar el principio bíblico, criteria:{model_answer,key_concepts,bloom_level:"evaluate",rigor_level:"flexible"}, points:4
+
+RESPONDE SOLO JSON VÁLIDO — sin markdown, sin texto adicional:
+{"title":"…","instructions":"…","questions":[{"position":${startPos},"stem":"…","question_type":"…","points":N,"options":…,"correct_answer":…,"criteria":…},…]}
+
+REGLA CRÍTICA: Genera EXACTAMENTE ${total} preguntas con los tipos indicados. SOLO JSON.`
 }
 
-REGLAS:
-- MC: criteria=null. 4 opciones plausibles. correct_answer="A"|"B"|"C"|"D". points=2.
-- SA (short_answer): criteria requerido. points=3. bloom_level=apply/understand.
-- DEV (open_development): criteria requerido. points=5. bloom_level=analyze/evaluate/create. rigor_level=conceptual.
-- Genera exactamente ${mcCount} MC + ${saCount} SA + ${devCount} DEV. Total: ${total} preguntas.
-- SOLO JSON. Nada antes ni después del JSON.`
-}
-
-// ── generateExamQuestions ────────────────────────────────────────────────────
-// Supports up to 50 questions by splitting into batches of ≤25 when needed.
-// Criteria is compact (model_answer + key_concepts + bloom + rigor) — no rubric
-// levels, keeping token count manageable. MC questions have criteria=null since
-// they are auto-corrected via correct_answer.
-export async function generateExamQuestions({ subject, grade, topic, period, numQuestions = 10, questionMix, principles }) {
-  const mix = questionMix || { multiple_choice: 0.4, short_answer: 0.3, open_development: 0.3 }
-
-  const isEnglish = ['Language Arts', 'Social Studies', 'Science', 'Lingua Skill'].includes(subject)
+export async function generateExamQuestions({
+  subject, grade,
+  indicator,        // { text, dimension, skill_area }
+  biblicalContext,  // { principle, verse_ref, reflection }
+  syllabusTopics,   // [{ week, content }] or [string]
+  questionTypes,    // { multiple_choice: 5, true_false: 3, biblical_reflection: 2, ... }
+  additionalContext,// optional extra text appended to indicator
+}) {
+  const isEnglish = ['Language Arts','Social Studies','Science','Lingua Skill'].includes(subject)
   const lang = isEnglish ? 'English' : 'español'
 
-  const system = `Eres un experto en diseño de evaluaciones para educación básica y media colombiana.
-Diseñas exámenes rigurosos y pedagógicamente sólidos basados en la taxonomía de Bloom.
-Boston Flex usa escala 1.0–5.0. SIEMPRE responde con JSON válido sin markdown ni texto extra.`
+  const system = `Eres un experto en diseño de evaluaciones para educación básica y media colombiana (Colegio Boston Flexible).
+Diseñas exámenes pedagógicamente sólidos según la Taxonomía de Bloom, conectados al indicador de logro y al principio bíblico institucional.
+SIEMPRE responde con JSON válido, sin markdown ni texto extra.`
 
-  const BATCH_SIZE = 25  // max questions per API call
+  const enrichedIndicator = additionalContext
+    ? { ...indicator, text: [indicator?.text, additionalContext].filter(Boolean).join('\n') }
+    : indicator
 
-  // ── Single batch (≤ 25 questions) ────────────────────────────────────────
-  if (numQuestions <= BATCH_SIZE) {
-    const mcCount  = Math.round(numQuestions * mix.multiple_choice)
-    const saCount  = Math.round(numQuestions * mix.short_answer)
-    const devCount = numQuestions - mcCount - saCount
+  const total = Object.values(questionTypes).reduce((s, v) => s + v, 0)
+  const BATCH_SIZE = 25
 
-    const message = buildExamPrompt({ subject, grade, topic, period, mcCount, saCount, devCount, lang, batchLabel: `un examen de ${numQuestions} preguntas` })
-    const raw = await callClaude({ type: 'exam_generate', system, message, maxTokens: 8000 })
+  // ── Single batch ──────────────────────────────────────────────────────────
+  if (total <= BATCH_SIZE) {
+    const msg = buildExamPrompt({
+      subject, grade, indicator: enrichedIndicator, biblicalContext, syllabusTopics,
+      typeCounts: questionTypes, lang,
+      batchLabel: `un examen completo de ${total} preguntas`,
+      startPos: 1,
+    })
+    const raw = await callClaude({ type: 'exam_generate', system, message: msg, maxTokens: 9000 })
     const parsed = parseExamJSON(raw)
-
-    if (!parsed.questions.length) throw new Error('El examen generado no contiene preguntas. Intenta de nuevo.')
+    if (!parsed.questions.length) throw new Error('El examen no contiene preguntas. Intenta de nuevo.')
     return parsed
   }
 
-  // ── Multi-batch (> 25 questions) ─────────────────────────────────────────
-  // Split into two roughly equal batches, then merge.
-  const half1 = Math.ceil(numQuestions / 2)
-  const half2 = numQuestions - half1
-
-  function splitCounts(total) {
-    const mc  = Math.round(total * mix.multiple_choice)
-    const sa  = Math.round(total * mix.short_answer)
-    const dev = total - mc - sa
-    return { mc, sa, dev }
+  // ── Multi-batch (>25): biblical always in batch 1 ─────────────────────────
+  const biblicalTypes = {}
+  const academicTypes = {}
+  for (const [k, v] of Object.entries(questionTypes)) {
+    if (v <= 0) continue
+    if (EXAM_BIBLICAL_KEYS.includes(k)) biblicalTypes[k] = v
+    else academicTypes[k] = v
   }
 
-  const b1 = splitCounts(half1)
-  const b2 = splitCounts(half2)
+  const academicTotal = Object.values(academicTypes).reduce((s, v) => s + v, 0)
+  const half1 = Math.ceil(academicTotal / 2)
+  const half2 = academicTotal - half1
+
+  function splitAcademic(target) {
+    const entries = Object.entries(academicTypes).filter(([,v]) => v > 0)
+    const result = {}
+    let placed = 0
+    for (const [k, v] of entries) {
+      const share = Math.round((v / academicTotal) * target)
+      result[k] = share
+      placed += share
+    }
+    const diff = target - placed
+    if (diff !== 0 && entries.length) result[entries[0][0]] = (result[entries[0][0]] || 0) + diff
+    return result
+  }
+
+  const b1Types = { ...splitAcademic(half1), ...biblicalTypes }
+  const b2Types = { ...splitAcademic(half2) }
+  const b1Total = Object.values(b1Types).reduce((s, v) => s + v, 0)
 
   const [raw1, raw2] = await Promise.all([
     callClaude({
-      type: 'exam_generate', system, maxTokens: 8000,
-      message: buildExamPrompt({ subject, grade, topic, period, mcCount: b1.mc, saCount: b1.sa, devCount: b1.dev, lang, batchLabel: `la primera parte del examen (${half1} preguntas)` }),
+      type: 'exam_generate', system, maxTokens: 9000,
+      message: buildExamPrompt({
+        subject, grade, indicator: enrichedIndicator, biblicalContext, syllabusTopics,
+        typeCounts: b1Types, lang,
+        batchLabel: `la primera parte del examen (${b1Total} preguntas, incluye preguntas bíblicas)`,
+        startPos: 1,
+      }),
     }),
     callClaude({
-      type: 'exam_generate', system, maxTokens: 8000,
-      message: buildExamPrompt({ subject, grade, topic, period, mcCount: b2.mc, saCount: b2.sa, devCount: b2.dev, lang, batchLabel: `la segunda parte del examen (${half2} preguntas, continuación de la primera parte)` }),
+      type: 'exam_generate', system, maxTokens: 9000,
+      message: buildExamPrompt({
+        subject, grade, indicator: enrichedIndicator, biblicalContext: null, syllabusTopics,
+        typeCounts: b2Types, lang,
+        batchLabel: `la segunda parte del examen (${Object.values(b2Types).reduce((s,v)=>s+v,0)} preguntas, continuación)`,
+        startPos: b1Total + 1,
+      }),
     }),
   ])
 
   const p1 = parseExamJSON(raw1)
   const p2 = parseExamJSON(raw2)
-
-  // Merge: use title/instructions from batch 1, renumber positions from batch 2
-  const offset = p1.questions.length
-  const mergedQuestions = [
+  const merged = [
     ...p1.questions,
-    ...p2.questions.map((q, i) => ({ ...q, position: offset + i + 1 })),
+    ...p2.questions.map((q, i) => ({ ...q, position: p1.questions.length + i + 1 })),
   ]
-
-  if (!mergedQuestions.length) throw new Error('No se generaron preguntas. Intenta de nuevo.')
-
-  return {
-    title:        p1.title || p2.title || '',
-    instructions: p1.instructions || p2.instructions || '',
-    questions:    mergedQuestions,
-  }
+  if (!merged.length) throw new Error('No se generaron preguntas. Intenta de nuevo.')
+  return { title: p1.title || p2.title || '', instructions: p1.instructions || '', questions: merged }
 }
 

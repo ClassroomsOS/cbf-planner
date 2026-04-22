@@ -9,16 +9,40 @@ import { supabase } from '../supabase'
 
 const AUTOSAVE_INTERVAL = 30 * 1000 // 30 seconds
 
-function Logo() {
-  return (
-    <div style={{
-      textAlign: 'center', padding: '24px 20px 16px',
-      borderBottom: '1px solid #E2E8F0',
-    }}>
-      <div style={{ fontSize: 28, fontWeight: 900, color: '#1F3864', letterSpacing: -1 }}>CBF</div>
-      <div style={{ fontSize: 12, color: '#9CA3AF', letterSpacing: 2, textTransform: 'uppercase' }}>
-        Módulo de Evaluación
+// ── Institutional header (same as legacy print) ───────────────────────────────
+function InstitutionalHeader({ school }) {
+  const s = school || {}
+  if (!s.name) {
+    return (
+      <div style={{ textAlign: 'center', padding: '20px 20px 12px', borderBottom: '2px solid #2E5598' }}>
+        <div style={{ fontSize: 24, fontWeight: 900, color: '#1F3864', letterSpacing: -1 }}>CBF</div>
+        <div style={{ fontSize: 11, color: '#9CA3AF', letterSpacing: 2, textTransform: 'uppercase' }}>Módulo de Evaluación</div>
       </div>
+    )
+  }
+  return (
+    <div style={{ borderBottom: '2px solid #2E5598' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', border: '2px solid #2E5598' }}>
+        <tbody>
+          <tr>
+            <td style={{ width: 80, border: '1px solid #2E5598', padding: 8, textAlign: 'center' }}>
+              {s.logo_url
+                ? <img src={s.logo_url} style={{ maxHeight: 52, maxWidth: 68, objectFit: 'contain' }} alt="logo" />
+                : <div style={{ color: '#aaa', fontSize: 9 }}>LOGO</div>
+              }
+            </td>
+            <td style={{ border: '1px solid #2E5598', padding: '6px 10px', textAlign: 'center' }}>
+              <div style={{ fontWeight: 700, fontSize: 13, color: '#1F3864' }}>{s.name}</div>
+              {s.dane && <div style={{ fontSize: 10, color: '#555', marginTop: 1 }}>DANE: {s.dane}</div>}
+              {s.process_name && <div style={{ fontSize: 10, color: '#2E5598', fontWeight: 600, marginTop: 1 }}>{s.process_name}</div>}
+            </td>
+            <td style={{ width: 110, border: '1px solid #2E5598', padding: 6, textAlign: 'center' }}>
+              <div style={{ fontWeight: 700, fontSize: 10, color: '#1F3864' }}>{s.document_code || s.plan_code || 'CBF'}</div>
+              <div style={{ fontSize: 9, color: '#888', marginTop: 1 }}>{s.doc_version || s.plan_version || ''}</div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   )
 }
@@ -37,10 +61,10 @@ function EntryPhase({ initialCode, onStart }) {
     setLoading(true)
     setError('')
 
-    // Find assessment by access code
+    // Find assessment by access code (join school for header)
     const { data: assessment, error: aErr } = await supabase
       .from('assessments')
-      .select('id, title, subject, grade, instructions, status, time_limit_minutes, school_id')
+      .select('id, title, subject, grade, instructions, status, time_limit_minutes, school_id, schools(name, dane, logo_url, resolution, document_code, plan_code, doc_version, plan_version, process_name)')
       .eq('access_code', code.trim().toUpperCase())
       .maybeSingle()
 
@@ -143,7 +167,7 @@ function EntryPhase({ initialCode, onStart }) {
 }
 
 // ── PHASE 2: Instructions ─────────────────────────────────────────────────────
-function InstructionsPhase({ assessment, questions, onBegin }) {
+function InstructionsPhase({ assessment, questions, onBegin, school }) {
   const totalPts = questions.reduce((s, q) => s + (q.points || 0), 0)
   const types = {
     multiple_choice:  questions.filter(q => q.question_type === 'multiple_choice').length,
@@ -154,7 +178,7 @@ function InstructionsPhase({ assessment, questions, onBegin }) {
   return (
     <div style={{ minHeight: '100vh', background: '#F8FAFC', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
       <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 520, boxShadow: '0 8px 32px rgba(0,0,0,.1)', overflow: 'hidden' }}>
-        <Logo />
+        <InstitutionalHeader school={school} />
         <div style={{ padding: '24px' }}>
           <h2 style={{ margin: '0 0 6px', fontSize: 18, color: '#1F3864' }}>{assessment.title}</h2>
           <p style={{ margin: '0 0 20px', fontSize: 13, color: '#64748B' }}>
@@ -327,7 +351,10 @@ function QuestionPhase({ assessment, questions, session, onSubmit }) {
         padding: '10px 20px',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
-        <div style={{ fontSize: 14, fontWeight: 700 }}>{assessment.title}</div>
+        <div style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.3 }}>
+          <div>{assessment.title}</div>
+          {assessment.schools?.name && <div style={{ fontSize: 10, opacity: .7, fontWeight: 400 }}>{assessment.schools.name}</div>}
+        </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           {tabSwitches > 0 && (
             <span style={{ background: '#EF4444', color: '#fff', borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 700 }}>
@@ -591,6 +618,7 @@ export default function ExamPlayerPage() {
       <InstructionsPhase
         assessment={examData.assessment}
         questions={examData.questions}
+        school={examData.assessment.schools}
         onBegin={handleBegin}
       />
     )
