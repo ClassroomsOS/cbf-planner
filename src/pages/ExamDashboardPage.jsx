@@ -82,7 +82,7 @@ function ExamCreatorModal({ teacher, onClose, onCreated }) {
     instructions: '', time_limit: 60,
   })
   // Step 2 — config
-  const [numQ, setNumQ] = useState(10)
+  const [numQ, setNumQ] = useState(15)
   const [mix, setMix] = useState({ multiple_choice: 0.4, short_answer: 0.3, open_development: 0.3 })
   // Step 3 — AI result
   const [generating, setGenerating] = useState(false)
@@ -333,12 +333,17 @@ function ExamCreatorModal({ teacher, onClose, onCreated }) {
               <div>
                 <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 8 }}>
                   Número de preguntas: <strong style={{ color: '#1F3864' }}>{numQ}</strong>
+                  {numQ > 25 && (
+                    <span style={{ marginLeft: 8, fontSize: 11, color: '#F59E0B', fontWeight: 400 }}>
+                      · se generará en 2 llamadas paralelas
+                    </span>
+                  )}
                 </label>
-                <input type="range" min="5" max="20" value={numQ}
+                <input type="range" min="5" max="50" value={numQ}
                   onChange={e => setNumQ(parseInt(e.target.value))}
                   style={{ width: '100%' }} />
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>
-                  <span>5</span><span>20</span>
+                  <span>5</span><span style={{ color: numQ > 25 ? '#F59E0B' : '#9CA3AF' }}>25 →</span><span>50</span>
                 </div>
               </div>
 
@@ -443,7 +448,7 @@ function ExamCreatorModal({ teacher, onClose, onCreated }) {
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                             <div>
                               <label style={{ fontSize: 11, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 3 }}>Puntos</label>
-                              <input type="number" min="1" max="20" value={q.points}
+                              <input type="number" min="1" max="50" value={q.points}
                                 onChange={e => updateQuestion(idx, 'points', parseInt(e.target.value) || 1)}
                                 style={{ width: '100%', padding: '7px 10px', borderRadius: 7, border: '1px solid #D0D5DD', fontSize: 13 }} />
                             </div>

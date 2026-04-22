@@ -1100,107 +1100,143 @@ Crea una tabla clara donde el estudiante pueda:
 // Returns JSON: { title, instructions, questions: [{ stem, type, points, options?,
 //   correct_answer?, criteria: { model_answer, key_concepts, rubric, rigor_level,
 //   bloom_level } }] }
-export async function generateExamQuestions({ subject, grade, topic, period, numQuestions = 10, questionMix, principles }) {
-  const mix = questionMix || { multiple_choice: 0.4, short_answer: 0.3, open_development: 0.3 }
-  const mcCount   = Math.round(numQuestions * mix.multiple_choice)
-  const saCount   = Math.round(numQuestions * mix.short_answer)
-  const devCount  = numQuestions - mcCount - saCount
+// ── Helpers for generateExamQuestions ────────────────────────────────────────
 
-  const isEnglish = ['Language Arts', 'Social Studies', 'Science', 'Lingua Skill'].includes(subject)
-  const lang = isEnglish ? 'English' : 'español'
+function parseExamJSON(raw) {
+  // Direct parse
+  try { const p = JSON.parse(raw); if (p && Array.isArray(p.questions)) return p } catch {}
+  // Extract first {...} block (handles markdown fences)
+  const match = raw.match(/\{[\s\S]*\}/)
+  if (match) {
+    try { const p = JSON.parse(match[0]); if (p && Array.isArray(p.questions)) return p } catch {}
+  }
+  // Detect truncation vs parse error
+  if (raw.includes('"questions"')) {
+    throw new Error('La respuesta de la IA fue cortada. Reduce el número de preguntas o intenta de nuevo.')
+  }
+  throw new Error('Error al procesar la respuesta de la IA. Intenta de nuevo.')
+}
 
-  const system = `Eres un experto en diseño de evaluaciones para educación básica y media colombiana.
-Diseñas exámenes rigurosos, justos y pedagógicamente sólidos basados en la taxonomía de Bloom.
-Boston Flex usa escala 1.0–5.0 donde (puntaje/total)×4+1.
-SIEMPRE responde con JSON válido sin markdown ni texto extra. NUNCA escribas nada fuera del JSON.`
-
-  // Note: MC questions use auto-correction (correct_answer), so they don't need AI criteria/rubric.
-  // Only SA and development questions need criteria — this keeps token count manageable.
-  const message = `Diseña un examen de ${numQuestions} preguntas sobre el siguiente tema.
+function buildExamPrompt({ subject, grade, topic, period, mcCount, saCount, devCount, lang, batchLabel }) {
+  const total = mcCount + saCount + devCount
+  return `Diseña ${batchLabel} sobre el siguiente tema.
 MATERIA: ${sanitizeAIInput(subject)} | GRADO: ${sanitizeAIInput(grade)} | PERÍODO: ${period || '?'}
 TEMA: ${sanitizeAIInput(topic)}
-DISTRIBUCIÓN: ${mcCount} opción múltiple (MC) · ${saCount} respuesta corta (SA) · ${devCount} desarrollo (DEV)
+DISTRIBUCIÓN: ${mcCount} MC · ${saCount} SA · ${devCount} DEV
 IDIOMA: ${lang}
 
-FORMATO JSON REQUERIDO (responde SOLO el JSON, sin introducción):
+RESPONDE SOLO EL JSON, sin texto adicional:
 {
-  "title": "título conciso",
-  "instructions": "instrucciones para el estudiante (2 oraciones máximo)",
+  "title": "título del examen",
+  "instructions": "instrucciones breves (máx 2 oraciones)",
   "questions": [
     {
       "position": 1,
-      "stem": "texto de la pregunta",
+      "stem": "pregunta",
       "question_type": "multiple_choice",
       "points": 2,
       "options": ["A) opción", "B) opción", "C) opción", "D) opción"],
-      "correct_answer": "A",
+      "correct_answer": "B",
       "criteria": null
     },
     {
       "position": ${mcCount + 1},
-      "stem": "texto de pregunta SA o DEV",
+      "stem": "pregunta",
       "question_type": "short_answer",
       "points": 3,
       "options": null,
       "correct_answer": null,
       "criteria": {
-        "model_answer": "respuesta modelo breve",
-        "key_concepts": ["concepto1", "concepto2"],
-        "rubric": {
-          "levels": [
-            { "score": 3, "label": "Superior", "descriptor": "descriptor breve" },
-            { "score": 2.4, "label": "Alto", "descriptor": "descriptor" },
-            { "score": 1.8, "label": "Básico", "descriptor": "descriptor" },
-            { "score": 0.9, "label": "Bajo", "descriptor": "descriptor" },
-            { "score": 0, "label": "Muy Bajo", "descriptor": "sin respuesta" }
-          ]
-        },
-        "rigor_level": "flexible",
-        "bloom_level": "understand"
+        "model_answer": "respuesta modelo (1-2 oraciones)",
+        "key_concepts": ["concepto1", "concepto2", "concepto3"],
+        "bloom_level": "apply",
+        "rigor_level": "flexible"
       }
     }
   ]
 }
 
-REGLAS CRÍTICAS:
-- MC: criteria SIEMPRE null. options[] con 4 alternativas plausibles. correct_answer: letra "A","B","C" o "D".
-- SA (short_answer): criteria requerido. points: 3. rigor_level: "flexible".
-- DEV (open_development): criteria requerido. points: 5. rigor_level: "conceptual". bloom_level alto (analyze/evaluate/create).
-- Distribuye Bloom: MC → remember/understand, SA → apply, DEV → analyze o superior.
-- Genera exactamente ${mcCount} MC + ${saCount} SA + ${devCount} DEV en ese orden.
-- SOLO JSON. Sin texto antes ni después.`
+REGLAS:
+- MC: criteria=null. 4 opciones plausibles. correct_answer="A"|"B"|"C"|"D". points=2.
+- SA (short_answer): criteria requerido. points=3. bloom_level=apply/understand.
+- DEV (open_development): criteria requerido. points=5. bloom_level=analyze/evaluate/create. rigor_level=conceptual.
+- Genera exactamente ${mcCount} MC + ${saCount} SA + ${devCount} DEV. Total: ${total} preguntas.
+- SOLO JSON. Nada antes ni después del JSON.`
+}
 
-  const raw = await callClaude({ type: 'exam_generate', system, message, maxTokens: 8000 })
+// ── generateExamQuestions ────────────────────────────────────────────────────
+// Supports up to 50 questions by splitting into batches of ≤25 when needed.
+// Criteria is compact (model_answer + key_concepts + bloom + rigor) — no rubric
+// levels, keeping token count manageable. MC questions have criteria=null since
+// they are auto-corrected via correct_answer.
+export async function generateExamQuestions({ subject, grade, topic, period, numQuestions = 10, questionMix, principles }) {
+  const mix = questionMix || { multiple_choice: 0.4, short_answer: 0.3, open_development: 0.3 }
 
-  // Check for truncation
-  if (raw.includes('"finish_reason":"max_tokens"') || !raw.trim().endsWith('}')) {
-    // Try to extract what we got anyway
+  const isEnglish = ['Language Arts', 'Social Studies', 'Science', 'Lingua Skill'].includes(subject)
+  const lang = isEnglish ? 'English' : 'español'
+
+  const system = `Eres un experto en diseño de evaluaciones para educación básica y media colombiana.
+Diseñas exámenes rigurosos y pedagógicamente sólidos basados en la taxonomía de Bloom.
+Boston Flex usa escala 1.0–5.0. SIEMPRE responde con JSON válido sin markdown ni texto extra.`
+
+  const BATCH_SIZE = 25  // max questions per API call
+
+  // ── Single batch (≤ 25 questions) ────────────────────────────────────────
+  if (numQuestions <= BATCH_SIZE) {
+    const mcCount  = Math.round(numQuestions * mix.multiple_choice)
+    const saCount  = Math.round(numQuestions * mix.short_answer)
+    const devCount = numQuestions - mcCount - saCount
+
+    const message = buildExamPrompt({ subject, grade, topic, period, mcCount, saCount, devCount, lang, batchLabel: `un examen de ${numQuestions} preguntas` })
+    const raw = await callClaude({ type: 'exam_generate', system, message, maxTokens: 8000 })
+    const parsed = parseExamJSON(raw)
+
+    if (!parsed.questions.length) throw new Error('El examen generado no contiene preguntas. Intenta de nuevo.')
+    return parsed
   }
 
-  // Extract JSON object from response — handles markdown fences and surrounding text
-  let parsed
-  try {
-    parsed = JSON.parse(raw)
-  } catch {
-    // Try to extract first {...} block
-    const match = raw.match(/\{[\s\S]*\}/)
-    if (!match) throw new Error('La IA no devolvió JSON válido. Intenta de nuevo con menos preguntas.')
-    try {
-      parsed = JSON.parse(match[0])
-    } catch {
-      // Last resort: try to find a partial JSON and report clearly
-      const hasQuestions = raw.includes('"questions"')
-      if (hasQuestions) {
-        throw new Error('La respuesta de la IA fue cortada (muy larga). Reduce el número de preguntas e intenta de nuevo.')
-      }
-      throw new Error('Error al procesar la respuesta de la IA. Intenta de nuevo.')
-    }
+  // ── Multi-batch (> 25 questions) ─────────────────────────────────────────
+  // Split into two roughly equal batches, then merge.
+  const half1 = Math.ceil(numQuestions / 2)
+  const half2 = numQuestions - half1
+
+  function splitCounts(total) {
+    const mc  = Math.round(total * mix.multiple_choice)
+    const sa  = Math.round(total * mix.short_answer)
+    const dev = total - mc - sa
+    return { mc, sa, dev }
   }
 
-  if (!Array.isArray(parsed.questions) || parsed.questions.length === 0) {
-    throw new Error('El examen generado no contiene preguntas. Intenta de nuevo.')
-  }
+  const b1 = splitCounts(half1)
+  const b2 = splitCounts(half2)
 
-  return parsed
+  const [raw1, raw2] = await Promise.all([
+    callClaude({
+      type: 'exam_generate', system, maxTokens: 8000,
+      message: buildExamPrompt({ subject, grade, topic, period, mcCount: b1.mc, saCount: b1.sa, devCount: b1.dev, lang, batchLabel: `la primera parte del examen (${half1} preguntas)` }),
+    }),
+    callClaude({
+      type: 'exam_generate', system, maxTokens: 8000,
+      message: buildExamPrompt({ subject, grade, topic, period, mcCount: b2.mc, saCount: b2.sa, devCount: b2.dev, lang, batchLabel: `la segunda parte del examen (${half2} preguntas, continuación de la primera parte)` }),
+    }),
+  ])
+
+  const p1 = parseExamJSON(raw1)
+  const p2 = parseExamJSON(raw2)
+
+  // Merge: use title/instructions from batch 1, renumber positions from batch 2
+  const offset = p1.questions.length
+  const mergedQuestions = [
+    ...p1.questions,
+    ...p2.questions.map((q, i) => ({ ...q, position: offset + i + 1 })),
+  ]
+
+  if (!mergedQuestions.length) throw new Error('No se generaron preguntas. Intenta de nuevo.')
+
+  return {
+    title:        p1.title || p2.title || '',
+    instructions: p1.instructions || p2.instructions || '',
+    questions:    mergedQuestions,
+  }
 }
 
