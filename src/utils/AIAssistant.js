@@ -1146,14 +1146,15 @@ DISTRIBUCIÓN EXACTA — ${total} preguntas (posiciones ${startPos}–${startPos
 ${distLines}
 
 INSTRUCCIONES POR TIPO (usar question_type exacto):
+IMPORTANTE — rigor_level SOLO puede ser uno de estos tres valores exactos: "strict" | "flexible" | "conceptual". Cualquier otro valor rompe la base de datos.
 • multiple_choice → options:["A) txt","B) txt","C) txt","D) txt"], correct_answer:"A"|"B"|"C"|"D", criteria:null, points:2
 • true_false → options:["Verdadero","Falso"], correct_answer:"Verdadero"|"Falso", criteria:null, points:1
-• fill_blank → stem con ___ donde va la respuesta, correct_answer:"texto exacto", criteria:{model_answer,key_concepts,bloom_level,rigor_level}, points:2
+• fill_blank → stem con ___ donde va la respuesta, correct_answer:"texto exacto", criteria:{model_answer,key_concepts,bloom_level,rigor_level:"flexible"}, points:2
 • matching → options:{"col_a":["t1","t2","t3"],"col_b":["d1","d2","d3"]}, correct_answer:{"t1":"d1","t2":"d2","t3":"d3"}, criteria:null, points:3
 • short_answer → criteria:{model_answer,key_concepts,bloom_level:"apply",rigor_level:"flexible"}, points:3
 • error_correction → stem contiene texto con errores intencionados, correct_answer:"versión corregida completa", criteria:{model_answer,key_concepts,bloom_level:"analyze",rigor_level:"strict"}, points:3
 • sequencing → options:["pasoB","pasoA","pasoD","pasoC"] (desordenados), correct_answer:["pasoA","pasoB","pasoC","pasoD"] (orden correcto), criteria:null, points:3
-• open_development → criteria:{model_answer,key_concepts,bloom_level:"evaluate"|"create",rigor_level:"conceptual"}, points:5
+• open_development → criteria:{model_answer,key_concepts,bloom_level:"evaluate",rigor_level:"conceptual"}, points:5
 • biblical_reflection → pregunta abierta sobre cómo el principio/versículo aplica a la vida, criteria:{model_answer,key_concepts,bloom_level:"apply",rigor_level:"flexible"}, points:4
 • verse_analysis → analiza el significado profundo del versículo en el contexto de la materia, criteria:{model_answer,key_concepts,bloom_level:"analyze",rigor_level:"conceptual"}, points:4
 • principle_application → presenta una situación concreta y pide aplicar el principio bíblico, criteria:{model_answer,key_concepts,bloom_level:"evaluate",rigor_level:"flexible"}, points:4

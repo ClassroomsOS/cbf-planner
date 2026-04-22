@@ -406,7 +406,7 @@ function ExamCreatorModal({ teacher, onClose, onCreated }) {
             model_answer: q.criteria.model_answer || null,
             key_concepts: q.criteria.key_concepts || null,
             rubric: q.criteria.rubric || {},
-            rigor_level: q.criteria.rigor_level || 'flexible',
+            rigor_level: ['strict', 'flexible', 'conceptual'].includes(q.criteria.rigor_level) ? q.criteria.rigor_level : 'flexible',
             bloom_level: q.criteria.bloom_level || null,
             ai_correction_context: q.criteria.ai_correction_context || null,
             ai_generated: true,
