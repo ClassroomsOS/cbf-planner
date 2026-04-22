@@ -37,12 +37,13 @@ function ReviewCard({ item, onAction }) {
       .from('human_overrides')
       .insert({
         ai_evaluation_id: item.eval_id,
+        submission_id: item.submission_id,
         school_id: item.school_id,
-        teacher_id: item.teacher_id,
+        overridden_by: item.overridden_by,
         original_score: item.ai_score,
-        override_score: item.ai_score, // same — confirming
-        override_reason: 'Confirmado por docente sin cambios.',
-        confirmed: true,
+        adjusted_score: item.ai_score, // same — confirming
+        reason: 'Confirmado por docente sin cambios.',
+        status: 'adjusted',
       })
     if (error) { showToast('Error al confirmar: ' + error.message, 'error'); setSaving(false); return }
 
@@ -68,12 +69,13 @@ function ReviewCard({ item, onAction }) {
       .from('human_overrides')
       .insert({
         ai_evaluation_id: item.eval_id,
+        submission_id: item.submission_id,
         school_id: item.school_id,
-        teacher_id: item.teacher_id,
+        overridden_by: item.overridden_by,
         original_score: item.ai_score,
-        override_score: score,
-        override_reason: reason.trim(),
-        confirmed: true,
+        adjusted_score: score,
+        reason: reason.trim(),
+        status: 'adjusted',
       })
     if (error) { showToast('Error: ' + error.message, 'error'); setSaving(false); return }
 
@@ -229,9 +231,9 @@ export default function ExamReviewPage({ teacher }) {
     // Get teacher's question IDs via assessments
     const { data: aRows } = await supabase
       .from('assessments')
-      .select('id, title, teacher_id')
+      .select('id, title, created_by')
       .eq('school_id', schoolId)
-      .eq('teacher_id', teacher.id)
+      .eq('created_by', teacher.id)
 
     if (!aRows?.length) { setItems([]); setLoading(false); return }
     const assessmentIds = aRows.map(a => a.id)
@@ -291,8 +293,9 @@ export default function ExamReviewPage({ teacher }) {
         const assessmentId = q.assessment_id
         return {
           eval_id: e.id,
+          submission_id: e.submission_id,
           school_id: e.school_id,
-          teacher_id: teacher.id,
+          overridden_by: teacher.id,
           ai_score: e.score_awarded,
           max_score: e.max_score,
           ai_feedback: e.feedback,

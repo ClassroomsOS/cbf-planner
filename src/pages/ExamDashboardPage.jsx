@@ -175,10 +175,12 @@ function ExamCreatorModal({ teacher, onClose, onCreated }) {
       const { data: assessment, error: aErr } = await supabase
         .from('assessments')
         .insert({
-          school_id: teacher.school_id, teacher_id: teacher.id,
-          subject: form.subject, grade: form.grade, period: form.period,
+          school_id: teacher.school_id, created_by: teacher.id,
+          subject: form.subject, grade: form.grade,
+          period: form.period ? parseInt(form.period) : null,
           title: form.title.trim(), instructions: form.instructions.trim(),
           access_code: accessCode, status: 'active',
+          ai_generated: true,
           time_limit_minutes: form.time_limit || null,
         })
         .select('id')
@@ -210,7 +212,7 @@ function ExamCreatorModal({ teacher, onClose, onCreated }) {
               question_id: question.id, school_id: teacher.school_id,
               model_answer: q.criteria.model_answer || null,
               key_concepts: q.criteria.key_concepts || null,
-              rubric: q.criteria.rubric || null,
+              rubric: q.criteria.rubric || {},
               rigor_level: q.criteria.rigor_level || 'flexible',
               bloom_level: q.criteria.bloom_level || null,
               ai_correction_context: q.criteria.ai_correction_context || null,
@@ -774,9 +776,9 @@ export default function ExamDashboardPage({ teacher }) {
     // Load assessments
     const { data: aRows } = await supabase
       .from('assessments')
-      .select('id, title, subject, grade, period, status, access_code, created_at, time_limit_minutes, teacher_id')
+      .select('id, title, subject, grade, period, status, access_code, created_at, time_limit_minutes, created_by')
       .eq('school_id', schoolId)
-      .eq('teacher_id', teacher.id)
+      .eq('created_by', teacher.id)
       .order('created_at', { ascending: false })
     const examList = aRows || []
     setExams(examList)
