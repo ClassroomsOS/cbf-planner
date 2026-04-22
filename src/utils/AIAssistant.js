@@ -1095,3 +1095,90 @@ Crea una tabla clara donde el estudiante pueda:
   return callClaude({ type: 'student_rubric', system, message, maxTokens: 3000 })
 }
 
+// ── generateExamQuestions ────────────────────────────────────────────────────
+// Generates a complete exam (questions + rubric criteria) from a topic.
+// Returns JSON: { title, instructions, questions: [{ stem, type, points, options?,
+//   correct_answer?, criteria: { model_answer, key_concepts, rubric, rigor_level,
+//   bloom_level } }] }
+export async function generateExamQuestions({ subject, grade, topic, period, numQuestions = 10, questionMix, principles }) {
+  const mix = questionMix || { multiple_choice: 0.4, short_answer: 0.3, open_development: 0.3 }
+  const mcCount   = Math.round(numQuestions * mix.multiple_choice)
+  const saCount   = Math.round(numQuestions * mix.short_answer)
+  const devCount  = numQuestions - mcCount - saCount
+
+  const isEnglish = ['Language Arts', 'Social Studies', 'Science', 'Lingua Skill'].includes(subject)
+  const lang = isEnglish ? 'English' : 'español'
+
+  const system = `Eres un experto en diseño de evaluaciones para educación básica y media colombiana.
+Diseñas exámenes rigurosos, justos y pedagógicamente sólidos basados en la taxonomía de Bloom.
+Boston Flex usa escala 1.0–5.0 donde (puntaje/total)×4+1.
+SIEMPRE responde con JSON válido sin markdown.${principles ? `
+INSTITUCIÓN CRISTIANA: Los exámenes pueden incluir conexión con principios bíblicos cuando sea pertinente.
+${principles.yearVerse ? `Versículo del año: ${principles.yearVerse}` : ''}` : ''}`
+
+  const message = `Diseña un examen de ${numQuestions} preguntas sobre el siguiente tema.
+MATERIA: ${sanitizeAIInput(subject)} | GRADO: ${sanitizeAIInput(grade)} | PERÍODO: ${period || '?'}
+TEMA: ${sanitizeAIInput(topic)}
+DISTRIBUCIÓN: ${mcCount} opción múltiple · ${saCount} respuesta corta · ${devCount} desarrollo abierto
+IDIOMA DEL EXAMEN: ${lang}
+
+Genera el examen en este formato JSON exacto:
+{
+  "title": "título conciso del examen",
+  "instructions": "instrucciones generales para el estudiante (2-3 oraciones)",
+  "questions": [
+    {
+      "position": 1,
+      "stem": "texto completo de la pregunta",
+      "question_type": "multiple_choice|short_answer|open_development",
+      "points": <2 para MC, 3 para SA, 5 para desarrollo>,
+      "options": ["A) opción 1", "B) opción 2", "C) opción 3", "D) opción 4"],
+      "correct_answer": "A",
+      "criteria": {
+        "model_answer": "respuesta modelo completa (para SA y desarrollo)",
+        "key_concepts": ["concepto 1", "concepto 2", "concepto 3"],
+        "rubric": {
+          "levels": [
+            { "score": <max>, "label": "Superior", "descriptor": "descripción nivel superior" },
+            { "score": <max*0.8>, "label": "Alto", "descriptor": "..." },
+            { "score": <max*0.6>, "label": "Básico", "descriptor": "..." },
+            { "score": <max*0.3>, "label": "Bajo", "descriptor": "..." },
+            { "score": 0, "label": "Muy Bajo", "descriptor": "sin respuesta o ininteligible" }
+          ]
+        },
+        "rigor_level": "strict|flexible|conceptual",
+        "bloom_level": "remember|understand|apply|analyze|evaluate|create",
+        "ai_correction_context": "instrucción adicional para el corrector IA (opcional)"
+      }
+    }
+  ]
+}
+
+REGLAS:
+- multiple_choice: incluye options[] y correct_answer, criteria.model_answer puede ser null
+- Las opciones de MC deben ser plausibles y educativamente válidas (no trampas obvias)
+- short_answer: 1-3 oraciones esperadas, rigor_level "flexible"
+- open_development: respuesta de 1-2 párrafos, bloom_level alto, rigor_level "conceptual"
+- Distribuye los niveles de Bloom: al menos 1 pregunta en evaluación/creación
+- El puntaje total debe reflejar la dificultad relativa
+- SOLO JSON, sin explicaciones adicionales`
+
+  const raw = await callClaude({ type: 'exam_generate', system, message, maxTokens: 6000 })
+
+  // Extract JSON object from response
+  let parsed
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    const match = raw.match(/\{[\s\S]*\}/)
+    if (!match) throw new Error('La IA no devolvió un examen válido. Intenta de nuevo.')
+    try { parsed = JSON.parse(match[0]) } catch { throw new Error('Error al parsear el examen generado por IA.') }
+  }
+
+  if (!Array.isArray(parsed.questions) || parsed.questions.length === 0) {
+    throw new Error('El examen generado no contiene preguntas. Intenta de nuevo.')
+  }
+
+  return parsed
+}
+

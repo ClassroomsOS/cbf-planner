@@ -15,6 +15,8 @@ import ObjectivesPage           from './ObjectivesPage'
 import SyllabusPage             from './SyllabusPage'
 import NewsPage                 from './NewsPage'
 import ReviewRoomPage           from './ReviewRoomPage'
+import ExamDashboardPage        from './ExamDashboardPage'
+import ExamReviewPage           from './ExamReviewPage'
 import SubjectManagerPage       from './SubjectManagerPage'
 import GuideLibraryPage         from './GuideLibraryPage'
 import PeriodCoverageDashboard  from './PeriodCoverageDashboard'
@@ -204,6 +206,10 @@ function DashboardInner({ session, teacher, setTeacher }) {
             <span className="dot" style={{ background: '#9BBB59' }} />
             📂 Mis Guías
           </NavLink>
+          <NavLink to="/exams" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
+            <span className="dot" style={{ background: '#C0504D' }} />
+            📝 Evaluaciones
+          </NavLink>
 
           <div className="sb-nav-divider" />
 
@@ -379,6 +385,8 @@ function DashboardInner({ session, teacher, setTeacher }) {
           <Route path="/principles"  element={<PrinciplesPage       teacher={teacher} />} />
           <Route path="/ai-usage"    element={<AIUsagePage          teacher={teacher} />} />
           <Route path="/library"     element={<GuideLibraryPage        teacher={teacher} />} />
+          <Route path="/exams"       element={<ExamDashboardPage       teacher={teacher} />} />
+          <Route path="/exams/review" element={<ExamReviewPage         teacher={teacher} />} />
           <Route path="/coverage"    element={<PeriodCoverageDashboard teacher={teacher} />} />
           <Route path="/observations" element={<ObservationLoggerPage  teacher={teacher} />} />
           <Route path="/messages"   element={<MessagesPage         teacher={teacher} onUpdate={fetchUnreadMessages} />} />
