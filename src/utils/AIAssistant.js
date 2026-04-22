@@ -1112,67 +1112,89 @@ export async function generateExamQuestions({ subject, grade, topic, period, num
   const system = `Eres un experto en diseño de evaluaciones para educación básica y media colombiana.
 Diseñas exámenes rigurosos, justos y pedagógicamente sólidos basados en la taxonomía de Bloom.
 Boston Flex usa escala 1.0–5.0 donde (puntaje/total)×4+1.
-SIEMPRE responde con JSON válido sin markdown.${principles ? `
-INSTITUCIÓN CRISTIANA: Los exámenes pueden incluir conexión con principios bíblicos cuando sea pertinente.
-${principles.yearVerse ? `Versículo del año: ${principles.yearVerse}` : ''}` : ''}`
+SIEMPRE responde con JSON válido sin markdown ni texto extra. NUNCA escribas nada fuera del JSON.`
 
+  // Note: MC questions use auto-correction (correct_answer), so they don't need AI criteria/rubric.
+  // Only SA and development questions need criteria — this keeps token count manageable.
   const message = `Diseña un examen de ${numQuestions} preguntas sobre el siguiente tema.
 MATERIA: ${sanitizeAIInput(subject)} | GRADO: ${sanitizeAIInput(grade)} | PERÍODO: ${period || '?'}
 TEMA: ${sanitizeAIInput(topic)}
-DISTRIBUCIÓN: ${mcCount} opción múltiple · ${saCount} respuesta corta · ${devCount} desarrollo abierto
-IDIOMA DEL EXAMEN: ${lang}
+DISTRIBUCIÓN: ${mcCount} opción múltiple (MC) · ${saCount} respuesta corta (SA) · ${devCount} desarrollo (DEV)
+IDIOMA: ${lang}
 
-Genera el examen en este formato JSON exacto:
+FORMATO JSON REQUERIDO (responde SOLO el JSON, sin introducción):
 {
-  "title": "título conciso del examen",
-  "instructions": "instrucciones generales para el estudiante (2-3 oraciones)",
+  "title": "título conciso",
+  "instructions": "instrucciones para el estudiante (2 oraciones máximo)",
   "questions": [
     {
       "position": 1,
-      "stem": "texto completo de la pregunta",
-      "question_type": "multiple_choice|short_answer|open_development",
-      "points": <2 para MC, 3 para SA, 5 para desarrollo>,
-      "options": ["A) opción 1", "B) opción 2", "C) opción 3", "D) opción 4"],
+      "stem": "texto de la pregunta",
+      "question_type": "multiple_choice",
+      "points": 2,
+      "options": ["A) opción", "B) opción", "C) opción", "D) opción"],
       "correct_answer": "A",
+      "criteria": null
+    },
+    {
+      "position": ${mcCount + 1},
+      "stem": "texto de pregunta SA o DEV",
+      "question_type": "short_answer",
+      "points": 3,
+      "options": null,
+      "correct_answer": null,
       "criteria": {
-        "model_answer": "respuesta modelo completa (para SA y desarrollo)",
-        "key_concepts": ["concepto 1", "concepto 2", "concepto 3"],
+        "model_answer": "respuesta modelo breve",
+        "key_concepts": ["concepto1", "concepto2"],
         "rubric": {
           "levels": [
-            { "score": <max>, "label": "Superior", "descriptor": "descripción nivel superior" },
-            { "score": <max*0.8>, "label": "Alto", "descriptor": "..." },
-            { "score": <max*0.6>, "label": "Básico", "descriptor": "..." },
-            { "score": <max*0.3>, "label": "Bajo", "descriptor": "..." },
-            { "score": 0, "label": "Muy Bajo", "descriptor": "sin respuesta o ininteligible" }
+            { "score": 3, "label": "Superior", "descriptor": "descriptor breve" },
+            { "score": 2.4, "label": "Alto", "descriptor": "descriptor" },
+            { "score": 1.8, "label": "Básico", "descriptor": "descriptor" },
+            { "score": 0.9, "label": "Bajo", "descriptor": "descriptor" },
+            { "score": 0, "label": "Muy Bajo", "descriptor": "sin respuesta" }
           ]
         },
-        "rigor_level": "strict|flexible|conceptual",
-        "bloom_level": "remember|understand|apply|analyze|evaluate|create",
-        "ai_correction_context": "instrucción adicional para el corrector IA (opcional)"
+        "rigor_level": "flexible",
+        "bloom_level": "understand"
       }
     }
   ]
 }
 
-REGLAS:
-- multiple_choice: incluye options[] y correct_answer, criteria.model_answer puede ser null
-- Las opciones de MC deben ser plausibles y educativamente válidas (no trampas obvias)
-- short_answer: 1-3 oraciones esperadas, rigor_level "flexible"
-- open_development: respuesta de 1-2 párrafos, bloom_level alto, rigor_level "conceptual"
-- Distribuye los niveles de Bloom: al menos 1 pregunta en evaluación/creación
-- El puntaje total debe reflejar la dificultad relativa
-- SOLO JSON, sin explicaciones adicionales`
+REGLAS CRÍTICAS:
+- MC: criteria SIEMPRE null. options[] con 4 alternativas plausibles. correct_answer: letra "A","B","C" o "D".
+- SA (short_answer): criteria requerido. points: 3. rigor_level: "flexible".
+- DEV (open_development): criteria requerido. points: 5. rigor_level: "conceptual". bloom_level alto (analyze/evaluate/create).
+- Distribuye Bloom: MC → remember/understand, SA → apply, DEV → analyze o superior.
+- Genera exactamente ${mcCount} MC + ${saCount} SA + ${devCount} DEV en ese orden.
+- SOLO JSON. Sin texto antes ni después.`
 
-  const raw = await callClaude({ type: 'exam_generate', system, message, maxTokens: 6000 })
+  const raw = await callClaude({ type: 'exam_generate', system, message, maxTokens: 8000 })
 
-  // Extract JSON object from response
+  // Check for truncation
+  if (raw.includes('"finish_reason":"max_tokens"') || !raw.trim().endsWith('}')) {
+    // Try to extract what we got anyway
+  }
+
+  // Extract JSON object from response — handles markdown fences and surrounding text
   let parsed
   try {
     parsed = JSON.parse(raw)
   } catch {
+    // Try to extract first {...} block
     const match = raw.match(/\{[\s\S]*\}/)
-    if (!match) throw new Error('La IA no devolvió un examen válido. Intenta de nuevo.')
-    try { parsed = JSON.parse(match[0]) } catch { throw new Error('Error al parsear el examen generado por IA.') }
+    if (!match) throw new Error('La IA no devolvió JSON válido. Intenta de nuevo con menos preguntas.')
+    try {
+      parsed = JSON.parse(match[0])
+    } catch {
+      // Last resort: try to find a partial JSON and report clearly
+      const hasQuestions = raw.includes('"questions"')
+      if (hasQuestions) {
+        throw new Error('La respuesta de la IA fue cortada (muy larga). Reduce el número de preguntas e intenta de nuevo.')
+      }
+      throw new Error('Error al procesar la respuesta de la IA. Intenta de nuevo.')
+    }
   }
 
   if (!Array.isArray(parsed.questions) || parsed.questions.length === 0) {
