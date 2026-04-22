@@ -77,7 +77,7 @@ function EntryPhase({ initialCode, onStart }) {
         assessment_id: assessment.id,
         school_id: assessment.school_id,
         student_name: name.trim(),
-        access_code: code.trim().toUpperCase(),
+        access_code_used: code.trim().toUpperCase(),
         status: 'in_progress',
         started_at: new Date().toISOString(),
       })
@@ -237,7 +237,7 @@ function QuestionPhase({ assessment, questions, session, onSubmit }) {
         setTabSwitches(n => {
           const next = n + 1
           supabase.from('student_exam_sessions')
-            .update({ tab_switches: next, integrity_flags: [`tab_switch_at_${new Date().toISOString()}`] })
+            .update({ tab_switch_count: next })
             .eq('id', session.id)
             .then(() => {})
           return next
@@ -301,7 +301,7 @@ function QuestionPhase({ assessment, questions, session, onSubmit }) {
       await supabase.from('student_exam_sessions').update({
         status: 'submitted',
         submitted_at: new Date().toISOString(),
-        tab_switches: tabSwitches,
+        tab_switch_count: tabSwitches,
       }).eq('id', session.id)
 
       onSubmit()
