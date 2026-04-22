@@ -140,55 +140,24 @@ SELECT cron.schedule(
 -- ── Nuevas reglas de alerta para el preflight ────────────────
 
 INSERT INTO alert_rules (
-  name, condition_sql, severity, message_template,
-  notification_channels, cooldown_minutes, is_active
-) VALUES
-(
-  'exam_preflight_failed',
-  $$EXISTS (
-    SELECT 1 FROM exam_sessions
-    WHERE preflight_status = 'failed'
-    AND scheduled_at > NOW()
-    AND scheduled_at < NOW() + INTERVAL '24 hours'
-  )$$,
-  'critical',
-  'PREFLIGHT FALLIDO: hay un examen programado en las próximas 24h con preflight fallido',
-  ARRAY['telegram'],
-  60,  -- no repetir más de una vez por hora
-  true
-),
-(
-  'exam_preflight_warned_close',
-  $$EXISTS (
-    SELECT 1 FROM exam_sessions
-    WHERE preflight_status = 'warned'
-    AND scheduled_at > NOW()
-    AND scheduled_at < NOW() + INTERVAL '2 hours'
-  )$$,
-  'warn',
-  'PREFLIGHT CON ADVERTENCIAS: examen en menos de 2 horas con advertencias activas',
-  ARRAY['telegram'],
-  30,
-  true
-),
-(
-  'exam_no_preflight_before_start',
-  $$EXISTS (
-    SELECT 1 FROM exam_sessions
-    WHERE preflight_status = 'pending'
-    AND scheduled_at > NOW()
-    AND scheduled_at < NOW() + INTERVAL '1 hour'
-  )$$,
-  'error',
-  'ALERTA: examen en menos de 1 hora sin preflight ejecutado',
-  ARRAY['telegram'],
-  15,
-  true
+  name, description, error_code, module,
+  severity_min, threshold_count, threshold_minutes,
+  notify_telegram, active
 )
-ON CONFLICT (name) DO UPDATE SET
-  condition_sql = EXCLUDED.condition_sql,
-  message_template = EXCLUDED.message_template,
-  is_active = EXCLUDED.is_active;
+SELECT * FROM (VALUES
+  ('exam_preflight_failed',
+   'PREFLIGHT FALLIDO: hay un examen programado en las próximas 24h con preflight fallido',
+   'CBF-EXAM-PRE-001', 'EXAM', 'critical', 1, 60, true, true),
+  ('exam_preflight_warned_close',
+   'PREFLIGHT CON ADVERTENCIAS: examen en menos de 2 horas con advertencias activas',
+   'CBF-EXAM-PRE-002', 'EXAM', 'warn', 1, 30, true, true),
+  ('exam_no_preflight_before_start',
+   'ALERTA: examen en menos de 1 hora sin preflight ejecutado',
+   'CBF-EXAM-PRE-001', 'EXAM', 'error', 1, 15, true, true)
+) AS v(name, description, error_code, module, severity_min, threshold_count, threshold_minutes, notify_telegram, active)
+WHERE NOT EXISTS (
+  SELECT 1 FROM alert_rules ar WHERE ar.name = v.name
+);
 
 -- ── Comentario de arquitectura ───────────────────────────────
 COMMENT ON FUNCTION run_scheduled_preflights IS
