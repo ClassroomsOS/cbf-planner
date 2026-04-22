@@ -22,15 +22,22 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 // ─── Tipos ───────────────────────────────────────────────────
 
 interface Student {
-  code: string;
-  name: string;
+  id?:      string;  // school_students.id
+  code:     string;
+  name:     string;
+  email?:   string;
+  section?: string;
 }
 
 interface GeneratorRequest {
-  blueprint_id: string;
-  session_id: string;
-  school_id: string;
-  students: Student[];
+  blueprint_id:  string;
+  session_id:    string;
+  school_id:     string;
+  // Opción A: pasar roster explícito
+  students?:     Student[];
+  // Opción B: dejar que el generator consulte school_students por grade+section
+  grade?:        string;
+  section?:      string;
   version_count?: number; // 1–4, default 3
 }
 
@@ -118,11 +125,17 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: "Invalid JSON body" }, 400);
   }
 
-  const { blueprint_id, session_id, school_id, students, version_count = 3 } = body;
+  const { blueprint_id, session_id, school_id, students: explicitStudents,
+          grade, section, version_count = 3 } = body;
 
-  if (!blueprint_id || !session_id || !school_id || !students?.length) {
+  if (!blueprint_id || !session_id || !school_id) {
     return jsonResponse({
-      error: "blueprint_id, session_id, school_id y students son requeridos"
+      error: "blueprint_id, session_id y school_id son requeridos"
+    }, 400);
+  }
+  if (!explicitStudents?.length && (!grade || !section)) {
+    return jsonResponse({
+      error: "Debes pasar 'students[]' o 'grade' + 'section' para obtener el roster"
     }, 400);
   }
 
@@ -130,6 +143,34 @@ Deno.serve(async (req: Request) => {
   const versions = Math.min(Math.max(version_count, 1), 4);
 
   try {
+    // Resolver roster: explícito o desde school_students
+    let students: Student[];
+    if (explicitStudents?.length) {
+      students = explicitStudents;
+    } else {
+      const { data: roster, error: rErr } = await supabase
+        .from("school_students")
+        .select("id, student_code, name, email, section")
+        .eq("school_id", school_id)
+        .eq("grade", grade!)
+        .eq("section", section!)
+        .order("name");
+
+      if (rErr) throw new Error(`Error al leer roster: ${rErr.message}`);
+      if (!roster?.length) {
+        return jsonResponse({
+          error: `No hay estudiantes registrados en ${grade} ${section}. Carga el roster primero.`
+        }, 400);
+      }
+      students = roster.map(s => ({
+        id:      s.id,
+        code:    s.student_code,
+        name:    s.name,
+        email:   s.email,
+        section: s.section,
+      }));
+    }
+
     const result = await generateInstances(supabase, {
       blueprint_id, session_id, school_id, students, version_count: versions,
     });
@@ -152,7 +193,7 @@ Deno.serve(async (req: Request) => {
 
 async function generateInstances(
   supabase: ReturnType<typeof createClient>,
-  body: Required<GeneratorRequest>
+  body: { blueprint_id: string; session_id: string; school_id: string; students: Student[]; version_count: number }
 ): Promise<Record<string, unknown>> {
   const { blueprint_id, session_id, school_id, students, version_count } = body;
   const startedAt = Date.now();
@@ -217,6 +258,9 @@ async function generateInstances(
         school_id,
         student_code:        student.code,
         student_name:        student.name,
+        student_email:       student.email   ?? null,
+        student_id:          student.id      ?? null,
+        student_section:     student.section ?? null,
         generated_questions: questions,
         version_label:       vLabel,
         instance_status:     "ready",
@@ -262,9 +306,10 @@ async function generateInstances(
 
   // 7. Notificar si hay errores
   if (failed > 0) {
+    const sectionInfo = students[0]?.section ? ` · Sección: ${students[0].section}` : '';
     await notifyTelegram(
       `⚠️ GENERACIÓN CON ERRORES\n` +
-      `Sesión: ${session_id}\n` +
+      `Sesión: ${session_id}${sectionInfo}\n` +
       `✅ ${success} instancias OK\n` +
       `❌ ${failed} fallidas\n` +
       `Tiempo: ${elapsed}ms`

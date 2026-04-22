@@ -1,6 +1,6 @@
 // ── ExamPlayerV2Page.jsx ──────────────────────────────────────────────────────
-// /exam-v2 — Player resiliente usando el nuevo schema (exam_instances).
-// Acceso público — el estudiante entra con access_code + student_code.
+// /eval — Player resiliente usando el nuevo schema (exam_instances).
+// Acceso público — el estudiante entra con email @redboston.edu.co + access_code.
 // Anti-trampa: 5 capas · Marca de agua canvas · IndexedDB autosave · Timer.
 
 import { useState, useEffect, useRef, useCallback } from 'react'
@@ -157,24 +157,31 @@ export default function ExamPlayerV2Page() {
   // ── EntryPhase ──────────────────────────────────────────────
 
   function EntryPhase() {
-    const [accessCode,   setAccessCode]   = useState('')
-    const [studentCode,  setStudentCode]  = useState('')
-    const [err,          setErr]          = useState('')
+    const [accessCode, setAccessCode] = useState('')
+    const [email,      setEmail]      = useState('')
+    const [err,        setErr]        = useState('')
 
     async function handleEnter(e) {
       e.preventDefault()
-      if (!accessCode.trim() || !studentCode.trim()) {
-        setErr('Ingresa el código del examen y tu código de estudiante.')
+      const code       = accessCode.trim().toUpperCase()
+      const emailClean = email.trim().toLowerCase()
+
+      if (!code || !emailClean) {
+        setErr('Ingresa el código del examen y tu correo institucional.')
+        return
+      }
+      if (!emailClean.endsWith('@redboston.edu.co')) {
+        setErr('Debes usar tu correo @redboston.edu.co.')
         return
       }
       setLoading(true)
       setErr('')
       try {
-        // Buscar sesión activa
+        // 1. Buscar sesión activa por access_code
         const { data: sess, error: sErr } = await supabase
           .from('exam_sessions')
-          .select('id, title, subject, grade, period, duration_minutes, status')
-          .eq('access_code', accessCode.trim().toUpperCase())
+          .select('id, title, subject, grade, period, duration_minutes, status, school_id')
+          .eq('access_code', code)
           .in('status', ['ready', 'active'])
           .single()
 
@@ -184,38 +191,32 @@ export default function ExamPlayerV2Page() {
           return
         }
 
-        // Buscar instancia del estudiante
+        // 2. Buscar instancia del estudiante por session_id + student_email
         const { data: inst, error: iErr } = await supabase
           .from('exam_instances')
-          .select('id, student_name, version_label, generated_questions, instance_status, delivery_mode')
+          .select('id, student_name, student_section, version_label, generated_questions, instance_status, delivery_mode, school_id, session_id')
           .eq('session_id', sess.id)
-          .eq('student_code', studentCode.trim().toUpperCase())
+          .eq('student_email', emailClean)
           .in('instance_status', ['ready', 'started'])
-          .single()
+          .maybeSingle()
 
-        if (iErr || !inst) {
-          setErr('Código de estudiante no encontrado para este examen.')
+        if (!inst) {
+          setErr('Tu correo no está registrado para este examen. Contacta a tu docente.')
+          setLoading(false)
+          return
+        }
+        if (iErr) {
+          setErr('Error al verificar tu acceso. Intenta de nuevo.')
           setLoading(false)
           return
         }
 
-        if (inst.instance_status === 'submitted') {
-          setErr('Ya enviaste este examen.')
-          setLoading(false)
-          return
-        }
-
-        // Cargar respuestas guardadas en IndexedDB
+        // 3. Cargar respuestas guardadas en IndexedDB (reanudación offline)
         const savedAnswers = idbRef.current
           ? await idbLoadAll(idbRef.current, inst.id).catch(() => ({}))
           : {}
 
-        // Filtrar correct_answer de MC antes de mostrar al estudiante
-        const qs = (inst.generated_questions || []).map(q => {
-          const clean = { ...q }
-          // Guardamos internamente pero no mostramos
-          return clean
-        })
+        const qs = inst.generated_questions || []
 
         setSession(sess)
         setInstance(inst)
@@ -225,7 +226,7 @@ export default function ExamPlayerV2Page() {
         setTimeLeft(sess.duration_minutes > 0 ? sess.duration_minutes * 60 : null)
         setPhase(PHASE.INSTRUCTIONS)
 
-        // Marcar como iniciado si es la primera vez
+        // 4. Marcar como iniciado si es la primera vez
         if (inst.instance_status === 'ready') {
           await supabase
             .from('exam_instances')
@@ -246,24 +247,27 @@ export default function ExamPlayerV2Page() {
             <div style={{ fontSize: 32, marginBottom: 8 }}>📝</div>
             <h1 style={{ margin: 0, fontSize: 22, color: '#1F3864' }}>Examen CBF</h1>
             <p style={{ margin: '4px 0 0', color: '#666', fontSize: 14 }}>
-              Ingresa los códigos que te entregó tu docente
+              Ingresa tu correo institucional y el código del examen
             </p>
           </div>
           <form onSubmit={handleEnter} style={{ padding: '24px' }}>
+            <label style={styles.label}>Correo institucional</label>
+            <input
+              style={styles.input}
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              placeholder="tunombre@redboston.edu.co"
+              autoFocus
+              autoComplete="email"
+            />
             <label style={styles.label}>Código del examen</label>
             <input
               style={styles.input}
               value={accessCode}
               onChange={e => setAccessCode(e.target.value.toUpperCase())}
               placeholder="Ej: EX-2026-A1"
-              autoFocus
-            />
-            <label style={styles.label}>Tu código de estudiante</label>
-            <input
-              style={styles.input}
-              value={studentCode}
-              onChange={e => setStudentCode(e.target.value.toUpperCase())}
-              placeholder="Ej: 9B-001"
+              autoComplete="off"
             />
             {err && <p style={styles.error}>{err}</p>}
             <button type="submit" style={styles.btn} disabled={loading}>
@@ -521,8 +525,8 @@ export default function ExamPlayerV2Page() {
         integrity_flags: { high_risk: next >= 3, last_event: eventType, events: [] },
       }).eq('id', inst.id).then(() => {})
 
-      // Notificar Telegram si alcanza umbral (via cbf-logger)
-      if (next === 3) {
+      // Notificar Telegram si alcanza umbral (via exam-integrity-alert)
+      if (next === 3 || next === 5) {
         fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/exam-preflight`, {
           method: 'POST',
           headers: {
@@ -531,9 +535,10 @@ export default function ExamPlayerV2Page() {
           },
           body: JSON.stringify({
             alert: true,
-            student_name: inst.student_name,
-            session_id: inst.session_id,
-            event_type: eventType,
+            student_name:    inst.student_name,
+            student_section: inst.student_section || '',
+            session_id:      inst.session_id,
+            event_type:      eventType,
             violation_count: next,
           }),
         }).catch(() => {})
