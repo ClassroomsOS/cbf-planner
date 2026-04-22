@@ -223,6 +223,17 @@ PRÓXIMO → SESIÓN K
        CSS repeat), z-index sobre el contenido pero pointer-events:none
        → si el estudiante fotografía la pantalla y la comparte, el nombre es visible
        → el texto debe incluir: nombre + fecha + hora (ej. "Juan Pérez · 22 abr 2026 · 9:14 am")
+     · COMPATIBILIDAD MULTIDISPOSITIVO — probar y garantizar en:
+       iPad (Safari iOS) · Mac (Safari/Chrome) · MacBook Air (Safari/Chrome/Firefox)
+       Notas: requestFullscreen() en iOS Safari requiere interacción previa del usuario y
+       puede estar limitado — usar fallback visual si la API no está disponible
+       visibilitychange funciona en todos; F12/DevTools no aplica en iOS → omitir esos keydown
+     · ALERTA TELEGRAM AL DOCENTE — via Edge Function cbf-logger o nueva fn exam-integrity-alert:
+       Trigger: tab_switch_count >= 3 OR salida de fullscreen detectada
+       Mensaje: "⚠️ [Examen: Título] — [Nombre estudiante] activó alerta de integridad
+                 Cambios de tab: N · [Fecha hora] · Ver en: /exam-dashboard"
+       El chat_id del docente debe estar en teachers.telegram_chat_id (agregar columna si no existe)
+       Fallback: si no tiene telegram_chat_id configurado, registrar en integrity_flags sin notificar
   2. Dashboard de resultados: quién presentó, quién no, notas, alertas de integridad
   3. Panel revisión humana: correcciones AI con confianza < 0.65
   4. Login/Auth: "Olvidé mi contraseña" + email automático al crear docente

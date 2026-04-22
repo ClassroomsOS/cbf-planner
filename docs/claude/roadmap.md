@@ -74,6 +74,15 @@ El conteo de tabs existe pero no hay lockdown real. Implementar en `ExamPhase`:
 - **Marca de agua forense** — nombre completo del estudiante + fecha + hora repetido en toda
   la pantalla (CSS `::before` rotado -30°, `opacity: 0.07`, `pointer-events: none`, `position: fixed`)
   Si el estudiante fotografía la pantalla y la comparte, el nombre queda impreso en la imagen
+- **Compatibilidad multidispositivo** — probar y garantizar en iPad (Safari iOS), Mac/MacBook Air
+  (Safari + Chrome + Firefox). `requestFullscreen()` en iOS Safari requiere interacción del usuario
+  y puede estar limitado — implementar fallback visual si la API no está disponible. Omitir
+  bloqueo de teclas F12/DevTools en iOS (no aplica). `visibilitychange` funciona en todos.
+- **Alerta Telegram al docente** — via Edge Function `cbf-logger` o nueva `exam-integrity-alert`
+  - Trigger: `tab_switch_count >= 3` o salida de fullscreen detectada
+  - Mensaje: `"⚠️ [Examen] — [Estudiante] activó alerta de integridad · Tabs: N · [Hora]"`
+  - Requiere columna `teachers.telegram_chat_id` (agregar migración si no existe)
+  - Fallback: si no tiene `telegram_chat_id`, solo registra en `integrity_flags` sin notificar
 
 6. **Dashboard de resultados por examen** — quién presentó, quién no, notas, alertas de integridad
 7. **Panel de revisión humana** — correcciones AI con confianza < 0.65 para revisión del docente
