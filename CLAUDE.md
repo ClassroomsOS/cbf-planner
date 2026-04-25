@@ -1,4 +1,4 @@
-# CBF PLANNER — v5.3
+# CBF PLANNER — v5.4
 ## CLAUDE.md — Documento maestro
 
 > **Principio rector:** *"Nosotros diseñamos. El docente enseña."*
@@ -25,22 +25,30 @@ Libros:      Uncover 4 (8°) · Evolve 4 (9°) · Cambridge One (digital)
 
 ---
 
-## ✅ SESIÓN L — COMPLETADA
+## ✅ SESIÓN M — COMPLETADA
 
-- Sistema antitrampa 5 capas en ExamPlayerV2Page: multi-event detection · canvas watermark (RAF + MutationObserver) · fullscreen adaptativo + iOS kiosk · Edge Fn `exam-integrity-alert` → Telegram · `teachers.telegram_chat_id`
-- Generar instancias por roster desde ExamDetailModal (grade+section → auto-query `school_students`)
-- Vista previa y edición de preguntas por versión en ExamDetailModal
-- Login/Auth completo: "Olvidé mi contraseña" (`resetPasswordForEmail` → `SetPasswordPage`) + email automático al crear docente (Resend / `inviteUserByEmail` fallback) en Edge Fn `admin-create-teacher`
-- Dashboard de resultados por examen: quién presentó/no · notas 1–5 · distribución · alertas de integridad (`ExamResultsDashboard` en `ExamDetailModal`)
-- Panel revisión humana (`/exams/review`): correcciones IA confianza < 0.65 → override docente → recálculo nota colombiana inmediato
-- Design system completo: fuentes/espaciado/animaciones para uso prolongado · DM Mono · spring physics · skeleton states
+- **ExamPlayerV2Page — UX completo:**
+  - Credenciales persistentes en `localStorage` (`cbf_exam_entry`) → si iOS mata la pestaña, el estudiante regresa a pantalla de entrada pre-rellenada con "🔄 Continuar examen"
+  - Banner rojo/blanco `position:fixed inset:0 z:99999` al detectar cualquier violación (tab switch, fullscreen exit, screen lock, Home button); botón "Regresar a pantalla completa" o "Entendido" según tipo
+  - Notificaciones Telegram de ciclo: `exam_started` (hora+nombre+sección) · `exam_resumed` · `exam_submitted` (nota parcial) — sin throttle, bypasan la lógica de violaciones
+  - Modal de score post-envío: nota colombiana 1.0–5.0 calculada en cliente para preguntas MCQ; botón descarga PDF del examen corregido
+  - Navegación por secciones: tabs "Parte I / Parte II…" cuando `section_name` difiere entre preguntas; botón Siguiente dentro de cada sección; "Enviar examen" solo aparece en la última pregunta de la última sección; `ReviewModal` (grid preguntas verde/amarillo por sección) antes de enviar
+- **exam-integrity-alert Edge Fn:** `CYCLE_EVENTS = Set(['exam_started','exam_resumed','exam_submitted'])` — eventos de ciclo no actualizan `integrity_flags`, usan formato de notificación distinto (`CYCLE_META`)
+- **ExamDashboardPage — Wizard Paso 2 — Secciones:**
+  - Estado `sections: [{id, name, types}]` reemplaza `questionTypes` plano
+  - UI: tarjetas por sección con input de nombre + TypeCard grids propios; `➕ Agregar sección` para exámenes multi-parte
+  - Mínimo bíblico validado globalmente (suma de todas las secciones)
+- **AIAssistant.js — `generateExamQuestions`:** acepta `sections[]`; una llamada IA por sección (`generateSingleSection` privada); preguntas etiquetadas con `section_name` client-side; merge ordenado; `buildExamPrompt` recibe `sectionName` opcional para contexto temático
+- **exam_instances:** `section_name: q.section_name || ''` — ya no hardcodeado a `''`
 
-## 🔜 SPRINT ACTUAL — SESIÓN M
+## 🔜 SPRINT ACTUAL — SESIÓN N
 
 **🔜 Pendiente:**
-- **Google OAuth** — configurar en Supabase Dashboard → Auth → Providers + validar dominio post-OAuth en `App.jsx`
+- **Google OAuth** — configurar en Supabase Dashboard → Auth → Providers + validar dominio `@redboston.edu.co` post-OAuth en `App.jsx:onAuthStateChange`
 - **Sala de Revisión** (`/sala-revision`) — guías publicadas por grado · edición con justificación · notificación al docente
 - **Sincronización local** — `supabase db pull` · copiar Edge Fns `exam-ai-corrector` v3 + `cbf-logger` v1 al local
+- **Email al estudiante** — cuando corrección IA/docente termina → enviar nota final por correo
+- **Monitor docente en tiempo real** — durante el examen: contador estudiantes activos / enviaron
 
 ---
 
@@ -89,6 +97,7 @@ SYLLABUS TOPICS → ACHIEVEMENT GOAL → ACHIEVEMENT INDICATORS
 | **J** | ExamDashboardPage: N versiones + rigor UI · exportExamHtml CBF-G AC-01 · seededShuffle + round-robin en ExamPlayerPage · callout examen en PlannerPage | ✅ prod |
 | **K** | school_students (roster) · StudentsPage (/students) · ExamPlayerV2Page: email auth · exam-instance-generator auto-roster · Migración 20260422000004 | ✅ prod |
 | **L** | Antitrampa 5 capas · exam-integrity-alert Edge Fn · generar instancias por roster · preview+edición preguntas · auth completo (forgot pwd + Resend) · Dashboard resultados · Panel revisión humana · Design system UX | ✅ prod |
+| **M** | ExamPlayerV2: credenciales localStorage · banner violación rojo/blanco · Telegram ciclo (started/resumed/submitted) · score modal nota colombiana · secciones tabs + ReviewModal · Wizard secciones multi-parte · generateExamQuestions sections[] | ✅ prod |
 
 > Para el roadmap detallado y backlog → `docs/claude/roadmap.md`
 
@@ -174,12 +183,19 @@ Para operaciones críticas (checkpoints, logs) usar check-then-write:
 // busca existente → update si existe, insert si no
 ```
 
+### 6. ExamPlayerV2 — `section_name` en `exam_instances.generated_questions`
+Cada pregunta en el JSONB tiene `section_name: string`. Si es `''` → todas las preguntas en un grupo → sin tabs en el player. Si hay valores distintos → tabs automáticos. **NUNCA hardcodear `section_name: ''` al construir instancias** — usar `q.section_name || ''` para preservar lo que generó la IA.
+
+### 7. exam-integrity-alert — eventos de ciclo vs. violaciones
+`CYCLE_EVENTS = ['exam_started', 'exam_resumed', 'exam_submitted']` NO actualizan `integrity_flags` y usan formato Telegram distinto (emoji verde/check, sin "ALERTA"). Cualquier otro `event_type` es violación → actualiza `tab_switches` + `integrity_flags` + mensaje rojo.
+
 ---
 
 ## 🗄️ BASE DE DATOS — TABLAS EN PRODUCCIÓN
 
 ```
 teachers              — RLS via get_my_school_id() SECURITY DEFINER
+                        telegram_chat_id text (para alertas antitrampa)
 schools               — features JSONB · year_verse · logo_url · dane · resolution
 teacher_assignments   — asignaciones materia/grado/sección/horario JSONB
 lesson_plans          — content JSONB · indicator_id · syllabus_topic_id
@@ -223,9 +239,11 @@ school_students       — email UNIQUE(school_id,email) · grade(combined) · se
 
 — SCHEMA EXAM PLAYER —
 exam_blueprints       — configuración pedagógica inmutable post-publicación
-exam_sessions         — access_code · status · service_worker_payload
-exam_instances        — generated_questions JSONB · student_email · student_id FK
-                        student_section · version_label · instance_status · integrity_flags
+exam_sessions         — access_code · status · service_worker_payload · teacher_id
+exam_instances        — generated_questions JSONB (con section_name por pregunta)
+                        student_email · student_id FK · student_section
+                        version_label · instance_status · integrity_flags
+                        tab_switches · started_at
 exam_responses        — respuestas polimórficas · response_origin · auto/ai/human score
 exam_results          — nota trigger · colombian_grade 1.0–5.0
 exam_preflight_log    — checks T-24h / T-0h / T-30min
@@ -278,8 +296,16 @@ exam_offline_queue    — cola offline → sync al reconectar
 | `importGuideFromDocx()` | 8000 |
 | `analyzeGuideCoverage()` | 1800 |
 | `generateStudentRubric()` | 3000 |
+| `generateExamQuestions()` | 9000/sección |
 
-**Flujo indicator_id → IA:**
+**`generateExamQuestions({ subject, grade, indicator, biblicalContext, syllabusTopics, sections, additionalContext })`**
+- `sections: [{ id, name, types: { multiple_choice, true_false, ... } }]` — una llamada IA por sección (función interna `generateSingleSection`)
+- Si sección tiene >25 preguntas → multi-batch interno (bíblicas en batch 1)
+- Preguntas etiquetadas con `section_name` client-side después de la generación
+- `sections` toma precedencia; `questionTypes` plano aceptado como fallback legacy
+- `buildExamPrompt` recibe `sectionName` opcional → instrucción temática al modelo
+
+**Flujo indicator_id → IA (guías):**
 ```
 NEWS project más próximo → indicator_id → achievement_indicator → achievement_goal
   → generateGuideStructure recibe achievementGoal { text, period, indicators[] }
@@ -341,6 +367,8 @@ Helpers en `src/utils/roles.js`: `canManage` · `isSuperAdmin` · `isRector` · 
 /ai-usage      AIUsagePage              Monitor de tokens IA
 /messages      MessagesPage             Mensajería 1-a-1
 /students      StudentsPage             Roster de alumnos (agregar / CSV)
+/exams         ExamDashboardPage        Crear examen con IA · Detalle · Instancias
+/exams/review  ExamReviewPage           Panel revisión humana confianza < 0.65
 /coverage      PeriodCoverageDashboard  Cobertura eleot® acumulada (admin)
 /observations  ObservationLoggerPage    Observaciones Cognia (admin)
 
@@ -354,12 +382,15 @@ Helpers en `src/utils/roles.js`: `canManage` · `isSuperAdmin` · `isRector` · 
 /teachers      AdminTeachersPage        CRUD docentes + asignaciones
 /notifications NotificationsPage        Centro de notificaciones
 /curriculum    CurriculumPage           Malla curricular
-/sala-revision ReviewRoomPage           Revisión de guías publicadas
+/sala-revision ReviewRoomPage           Revisión de guías publicadas (pendiente Ses. N)
 /subjects      SubjectManagerPage       Gestión de materias
 /settings      SettingsPage             Feature flags + horario institucional
 
 // SOLO SUPERADMIN
 /superadmin    SuperAdminPage           Identidad institucional + seguridad
+
+// PÚBLICO (sin auth)
+/eval          ExamPlayerV2Page         Estudiante: acceso por email + código
 ```
 
 ### Hooks — src/hooks/
@@ -384,6 +415,23 @@ useAsync.js · useAutoSave.js · useForm.js · useFocusTrap.js · usePersistentS
 // AI:      AIAssistant.js · AIComponents.jsx (AISuggestButton · AIAnalyzerModal · AIGeneratorModal)
 // ctx:     FeaturesContext (useFeatures) · ToastContext (useToast → createPortal)
 // NOTA:    GoalCard / IndicatorList / PeriodProgress están inline en ObjectivesPage.jsx
+// EXAMEN:  ExamDashboardPage · ExamDetailModal · ExamResultsDashboard · ExamPlayerV2Page
+//          ExamReviewPage · exportExamHtml.js · exam-integrity-alert (Edge Fn)
+//          exam-instance-generator (Edge Fn) · exam-ai-corrector (Edge Fn v3)
+```
+
+### Estado clave — ExamPlayerV2Page
+```javascript
+// EntryPhase
+localStorage['cbf_exam_entry'] = { code, email, name, section } // persiste para iOS
+// ExamPhase
+violationAlert  // { title, message, isFullscreen } | null — banner rojo bloqueante
+examScore       // { colombianGrade, totalMcScore, maxTotal, openCount } | null
+sections        // [{ name, indices[] }] — de q.section_name; hasMultipleSections
+curSecIdx       // índice de sección actual
+isLastSec / isLastInSec // controlan visibilidad del botón "Enviar"
+// Telegram
+sendTelegramNotification(eventType, extra) // useCallback, sin throttle, para ciclo
 ```
 
 ### Estado clave — GuideEditorPage
@@ -419,9 +467,11 @@ export default function DashboardPage({ session, teacher, setTeacher }) {
 
 ```bash
 cd "C:\BOSTON FLEX\ClassroomOS\cbf-planner"
-npm run dev                                              # localhost:5173/cbf-planner/
-git add . && git commit -m "feat: ..." && git push      # deploy automático ~2 min
+npm run dev                                                        # localhost:5173/cbf-planner/
+git add . && git commit -m "feat: ..." && git push                 # deploy automático ~2 min
+.\supabase.exe functions deploy exam-integrity-alert --no-verify-jwt
 .\supabase.exe functions deploy claude-proxy --no-verify-jwt
+.\supabase.exe functions logs exam-integrity-alert
 .\supabase.exe functions logs claude-proxy
 ```
 
@@ -441,4 +491,4 @@ git add . && git commit -m "feat: ..." && git push      # deploy automático ~2 
 ---
 
 *CBF Planner · ETA Platform · Edoardo Ortiz + Claude Sonnet · Barranquilla 2026*
-*"Nosotros diseñamos. El docente enseña." · CLAUDE.md v5.3 — Abril 25, 2026*
+*"Nosotros diseñamos. El docente enseña." · CLAUDE.md v5.4 — Abril 25, 2026*
