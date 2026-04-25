@@ -1,13 +1,15 @@
 // ============================================================
 // CBF PLANNER — exam-integrity-alert
-// Supabase Edge Function (Deno) — Sesión L
+// Supabase Edge Function (Deno) — Sesión L / M
 //
-// Recibe un evento de integridad desde ExamPlayerV2Page y:
-//   1. Actualiza integrity_flags en exam_instances (DB)
-//   2. Envía alerta Telegram al docente (si tiene telegram_chat_id)
+// Recibe eventos desde ExamPlayerV2Page y:
+//   1. Actualiza integrity_flags en exam_instances (solo violaciones)
+//   2. Envía mensaje Telegram al docente con formato según tipo de evento:
+//      • Violaciones de integridad → ALERTA ⚠️ 🚨
+//      • Notificaciones de ciclo  → INFO 🟢 ✅
 //
-// Throttle: el frontend controla la frecuencia (1/60s por sesión).
-// Esta función siempre procesa lo que recibe.
+// Throttle: el frontend controla la frecuencia de violaciones (1/60s).
+// Notificaciones (exam_started, exam_submitted) no tienen throttle.
 // ============================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -25,18 +27,52 @@ function getCorsOrigin(req: Request): string {
   return ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
 }
 
-const EVENT_LABELS: Record<string, string> = {
-  tab_switch:      "cambió de pestaña",
-  window_blur:     "perdió el foco de ventana",
-  fullscreen_exit: "salió de pantalla completa",
-  devtools_open:   "abrió DevTools",
-  blocked_key:     "intentó tecla bloqueada (F12/Ctrl+U/etc.)",
-  beforeunload:    "intentó cerrar la página",
-  context_menu:    "click derecho",
-  copy_attempt:    "intentó copiar/cortar",
-  pagehide:        "ocultó la página (iOS background)",
+// ── Eventos de integridad (violaciones) ──────────────────────────────────────
+const INTEGRITY_LABELS: Record<string, string> = {
+  tab_switch:         "cambió de pestaña / bloqueó la pantalla",
+  window_blur:        "perdió el foco de ventana",
+  fullscreen_exit:    "salió de pantalla completa",
+  fullscreen_declined:"rechazó el fullscreen al iniciar",
+  devtools_open:      "abrió DevTools",
+  blocked_key:        "intentó tecla bloqueada (F12/Ctrl+U/etc.)",
+  beforeunload:       "intentó cerrar la página",
+  context_menu:       "click derecho",
+  copy_attempt:       "intentó copiar/cortar",
+  pagehide:           "ocultó la página (iOS Home / app switcher)",
 };
 
+// ── Eventos de ciclo (no son violaciones) ────────────────────────────────────
+const CYCLE_EVENTS = new Set(["exam_started", "exam_resumed", "exam_submitted"]);
+
+const CYCLE_META: Record<string, { emoji: string; verb: string }> = {
+  exam_started:  { emoji: "🟢", verb: "INICIÓ el examen" },
+  exam_resumed:  { emoji: "🔄", verb: "REANUDÓ el examen" },
+  exam_submitted:{ emoji: "✅", verb: "ENVIÓ el examen" },
+};
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function bogotaTime(): string {
+  return new Date().toLocaleTimeString("es-CO", {
+    timeZone: "America/Bogota",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+async function sendTelegram(chatId: string, text: string): Promise<boolean> {
+  if (!TELEGRAM_BOT_TOKEN) return false;
+  const res = await fetch(
+    `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text, parse_mode: "Markdown" }),
+    },
+  );
+  return res.ok;
+}
+
+// ── Handler principal ─────────────────────────────────────────────────────────
 Deno.serve(async (req: Request) => {
   const origin = getCorsOrigin(req);
   const corsHeaders = {
@@ -62,9 +98,13 @@ Deno.serve(async (req: Request) => {
       session_id,
       instance_id,
       student_name,
+      student_section,
       exam_title,
       event_type,
       count,
+      start_time,
+      submit_time,
+      score_info,
     } = await req.json();
 
     if (!instance_id) return json({ error: "instance_id requerido" }, 400);
@@ -74,18 +114,22 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    // ── 1. Actualizar integrity_flags en DB ──────────────────
-    await supabase.from("exam_instances").update({
-      tab_switches: count,
-      integrity_flags: {
-        high_risk: count >= 3,
-        last_event: event_type,
-        violation_count: count,
-        updated_at: new Date().toISOString(),
-      },
-    }).eq("id", instance_id);
+    const isCycleEvent = CYCLE_EVENTS.has(event_type);
 
-    // ── 2. Obtener teacher_id desde exam_sessions ────────────
+    // ── 1. Actualizar integrity_flags (solo violaciones) ─────────────────────
+    if (!isCycleEvent) {
+      await supabase.from("exam_instances").update({
+        tab_switches: count,
+        integrity_flags: {
+          high_risk: count >= 3,
+          last_event: event_type,
+          violation_count: count,
+          updated_at: new Date().toISOString(),
+        },
+      }).eq("id", instance_id);
+    }
+
+    // ── 2. Obtener teacher_id desde exam_sessions ─────────────────────────────
     if (!session_id) return json({ ok: true, telegram: false });
 
     const { data: sess } = await supabase
@@ -97,7 +141,7 @@ Deno.serve(async (req: Request) => {
     const teacherId = sess?.teacher_id;
     if (!teacherId) return json({ ok: true, telegram: false });
 
-    // ── 3. Obtener telegram_chat_id del docente ──────────────
+    // ── 3. Obtener telegram_chat_id del docente ───────────────────────────────
     const { data: teacher } = await supabase
       .from("teachers")
       .select("telegram_chat_id, full_name")
@@ -108,34 +152,50 @@ Deno.serve(async (req: Request) => {
       return json({ ok: true, telegram: false });
     }
 
-    // ── 4. Enviar alerta Telegram ────────────────────────────
-    const riskEmoji = count >= 5 ? "🚨" : count >= 3 ? "⚠️" : "📢";
-    const label = EVENT_LABELS[event_type] || event_type;
-    const title = exam_title || sess?.title || "Examen";
+    // ── 4. Construir mensaje según tipo de evento ─────────────────────────────
+    const title    = exam_title || sess?.title || "Examen";
+    const student  = student_name  || "Estudiante";
+    const section  = student_section || "—";
+    const timeStr  = start_time || submit_time || bogotaTime();
 
-    const lines = [
-      `${riskEmoji} *ALERTA DE INTEGRIDAD — CBF*`,
-      `👤 *${student_name || "Estudiante desconocido"}*`,
-      `📝 ${title}`,
-      `🔍 Evento: ${label}`,
-      `📊 Total alertas: *${count}*`,
-    ];
-    if (count >= 3) lines.push("🔴 *RIESGO ALTO — Revisar manualmente*");
+    let msgLines: string[];
 
-    const res = await fetch(
-      `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chat_id: teacher.telegram_chat_id,
-          text: lines.join("\n"),
-          parse_mode: "Markdown",
-        }),
-      },
+    if (isCycleEvent) {
+      // ── Notificación de ciclo ──────────────────────────────────────────────
+      const meta = CYCLE_META[event_type];
+      msgLines = [
+        `${meta.emoji} *${student} ${meta.verb}*`,
+        `📝 ${title}`,
+        `👤 Sección: ${section}`,
+        `🕐 ${timeStr}`,
+      ];
+      if (score_info) {
+        msgLines.push(`📊 Puntaje: ${score_info}`);
+      }
+      if (event_type === "exam_submitted") {
+        msgLines.push("─");
+        msgLines.push("_Ver resultados completos en CBF Planner → Módulo de Evaluación_");
+      }
+    } else {
+      // ── Alerta de integridad ───────────────────────────────────────────────
+      const riskEmoji = count >= 5 ? "🚨" : count >= 3 ? "⚠️" : "📢";
+      const label     = INTEGRITY_LABELS[event_type] || event_type;
+      msgLines = [
+        `${riskEmoji} *ALERTA DE INTEGRIDAD — CBF*`,
+        `👤 *${student}* — Sección: ${section}`,
+        `📝 ${title}`,
+        `🔍 Evento: ${label}`,
+        `📊 Total alertas: *${count}*`,
+        `🕐 ${bogotaTime()}`,
+      ];
+      if (count >= 3) msgLines.push("🔴 *RIESGO ALTO — Revisar manualmente*");
+    }
+
+    const telegramOk = await sendTelegram(
+      teacher.telegram_chat_id,
+      msgLines.join("\n"),
     );
 
-    const telegramOk = res.ok;
     return json({ ok: true, telegram: telegramOk });
   } catch (err) {
     return json({ error: (err as Error).message }, 500);

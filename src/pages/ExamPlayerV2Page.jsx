@@ -160,7 +160,9 @@ export default function ExamPlayerV2Page() {
   const [errorMsg,    setErrorMsg]    = useState('')
   const [loading,     setLoading]     = useState(false)
 
-  const [showFsModal, setShowFsModal] = useState(false)
+  // violationAlert: { title, message, isFullscreen } | null
+  const [violationAlert, setViolationAlert] = useState(null)
+  const [examScore,      setExamScore]      = useState(null)  // { mcScore, mcMax, total, openCount, colombianGrade }
 
   const idbRef         = useRef(null)
   const timerRef       = useRef(null)
@@ -168,6 +170,8 @@ export default function ExamPlayerV2Page() {
   const instanceRef    = useRef(null)   // para closures de eventos
   const sessionRef     = useRef(null)   // para closures de eventos
   const lastAlertRef   = useRef(0)      // timestamp del último Telegram enviado (throttle 60s)
+  const violationsRef  = useRef(0)      // sync ref para acceso en handleSubmit y sendTelegramNotification
+  const hadHiddenRef   = useRef(false)  // page was hidden during exam (tab switch / screen lock)
   // ⚠️ SECURITY: correct answers NEVER go into React state (visible in React DevTools + Network).
   // Stored in a plain ref — not exposed in component state tree.
   const correctAnsRef  = useRef({})     // { [questionId]: correctAnswer }
@@ -278,13 +282,23 @@ export default function ExamPlayerV2Page() {
 
         setPhase(PHASE.INSTRUCTIONS)
 
-        // 4. Marcar como iniciado si es la primera vez
-        if (inst.instance_status === 'ready') {
+        // 4. Marcar como iniciado si es la primera vez + Telegram al docente
+        const isFirstEntry = inst.instance_status === 'ready'
+        if (isFirstEntry) {
           await supabase
             .from('exam_instances')
             .update({ instance_status: 'started', started_at: new Date().toISOString() })
             .eq('id', inst.id)
         }
+        // Notificar al docente por Telegram (inicio o reanudación)
+        const startTime = new Date().toLocaleTimeString('es-CO', {
+          timeZone: 'America/Bogota', hour: '2-digit', minute: '2-digit',
+        })
+        setTimeout(() => {
+          sendTelegramNotification(isFirstEntry ? 'exam_started' : 'exam_resumed', {
+            start_time: startTime,
+          })
+        }, 0)
       } catch (ex) {
         setErr('Error al conectar. Intenta de nuevo.')
         console.error(ex)
@@ -388,9 +402,12 @@ export default function ExamPlayerV2Page() {
                 setPhase(PHASE.EXAM)
                 if (!isIOS) {
                   document.documentElement.requestFullscreen?.().catch(() => {
-                    // Student declined fullscreen — register violation and show re-entry modal
                     registerViolation('fullscreen_declined')
-                    setShowFsModal(true)
+                    setViolationAlert({
+                      title:       '⛔ Activa pantalla completa',
+                      message:     'El examen requiere pantalla completa. El rechazo fue registrado y notificado a tu docente.',
+                      isFullscreen: true,
+                    })
                   })
                 }
               }}
@@ -408,9 +425,20 @@ export default function ExamPlayerV2Page() {
   function ExamPhase() {
     // Anti-trampa — Capa 1: detección multi-evento
     useEffect(() => {
-      // a) Tab switch / app switch
+      // a) Tab switch / app switch / bloqueo de pantalla
       function onVisibilityChange() {
-        if (document.hidden) registerViolation('tab_switch')
+        if (document.hidden) {
+          hadHiddenRef.current = true
+          registerViolation('tab_switch')
+        } else if (hadHiddenRef.current) {
+          // Estudiante regresó — mostrar advertencia en rojo
+          hadHiddenRef.current = false
+          setViolationAlert({
+            title:       '⚠️ Saliste del examen',
+            message:     'Se detectó que cambiaste de pestaña, app o bloqueaste la pantalla. Este evento fue registrado y notificado a tu docente.',
+            isFullscreen: false,
+          })
+        }
       }
       // b) Ventana pierde foco — solo si el documento NO está oculto.
       // visibilitychange ya cubre tab-switch; este cubre DevTools en ventana separada
@@ -418,14 +446,30 @@ export default function ExamPlayerV2Page() {
       function onBlur() {
         if (!document.hidden) registerViolation('window_blur')
       }
-      // c) Salida / entrada de fullscreen → modal de re-ingreso en desktop
+      // c) Salida / entrada de fullscreen → banner rojo en desktop
       function onFullscreenChange() {
         const inFs = !!(document.fullscreenElement || document.webkitFullscreenElement)
         if (inFs) {
-          setShowFsModal(false)
+          setViolationAlert(null)
         } else {
           registerViolation('fullscreen_exit')
-          if (!isIOS) setShowFsModal(true)
+          if (!isIOS) {
+            setViolationAlert({
+              title:       '⛔ Saliste de pantalla completa',
+              message:     'El examen requiere pantalla completa. Salir fue registrado y notificado a tu docente. Regresa para continuar.',
+              isFullscreen: true,
+            })
+          }
+        }
+      }
+      // c2) iOS Home button — mostrar advertencia al regresar
+      function onPageShow(e) {
+        if (e.persisted && !hadHiddenRef.current) {
+          setViolationAlert({
+            title:       '⚠️ Saliste del examen',
+            message:     'Se detectó que presionaste el botón Home o cerraste la app. Este evento fue registrado y notificado a tu docente.',
+            isFullscreen: false,
+          })
         }
       }
       // d) DevTools anclado — detectado por resize (DevTools reduce dimensiones de la ventana)
@@ -500,6 +544,7 @@ export default function ExamPlayerV2Page() {
       document.addEventListener('copy', onCopy)
       document.addEventListener('cut', onCut)
       window.addEventListener('pagehide', onPageHide)
+      window.addEventListener('pageshow', onPageShow)
       if (isIOS) {
         document.addEventListener('touchmove', onTouchMove, { passive: false })
         document.body.style.overflow = 'hidden'
@@ -519,6 +564,7 @@ export default function ExamPlayerV2Page() {
         document.removeEventListener('copy', onCopy)
         document.removeEventListener('cut', onCut)
         window.removeEventListener('pagehide', onPageHide)
+        window.removeEventListener('pageshow', onPageShow)
         if (devtoolsCheckInterval) clearInterval(devtoolsCheckInterval)
         if (isIOS) {
           document.removeEventListener('touchmove', onTouchMove)
@@ -572,24 +618,40 @@ export default function ExamPlayerV2Page() {
           </div>
         )}
 
-        {/* Capa 3 — Desktop: modal si sale de fullscreen */}
-        {showFsModal && !isIOS && (
-          <div style={styles.overlay}>
-            <div style={{ background: '#fff', borderRadius: 14, padding: 32, maxWidth: 380, textAlign: 'center', boxShadow: '0 8px 32px rgba(0,0,0,.25)' }}>
-              <div style={{ fontSize: 44, marginBottom: 12 }}>⚠️</div>
-              <h3 style={{ margin: '0 0 10px', color: '#DC2626' }}>Saliste de pantalla completa</h3>
-              <p style={{ color: '#374151', margin: '0 0 6px', fontSize: 14 }}>El examen requiere pantalla completa. Este evento fue registrado y notificado a tu docente.</p>
+        {/* Capa 3 — Desktop: banner rojo si sale de fullscreen o cambia de app */}
+        {violationAlert && (
+          <div style={{
+            position: 'fixed', inset: 0, background: '#7F1D1D', zIndex: 99999,
+            display: 'flex', flexDirection: 'column', alignItems: 'center',
+            justifyContent: 'center', padding: 32,
+          }}>
+            <div style={{ fontSize: 72, marginBottom: 20, lineHeight: 1 }}>🚫</div>
+            <h2 style={{ color: '#fff', fontSize: 26, margin: '0 0 16px', textAlign: 'center', fontWeight: 800 }}>
+              {violationAlert.title}
+            </h2>
+            <p style={{ color: '#FCA5A5', fontSize: 16, margin: '0 0 36px', textAlign: 'center', maxWidth: 480, lineHeight: 1.7 }}>
+              {violationAlert.message}
+            </p>
+            {violationAlert.isFullscreen ? (
               <button
                 type="button"
                 onClick={() => {
                   document.documentElement.requestFullscreen?.().catch(() => {})
-                  setShowFsModal(false)
+                  setViolationAlert(null)
                 }}
-                style={{ ...styles.btn, marginTop: 20, background: '#1F3864' }}
+                style={{ background: '#fff', color: '#7F1D1D', border: 'none', borderRadius: 10, padding: '14px 32px', fontSize: 16, fontWeight: 700, cursor: 'pointer' }}
               >
-                🔲 Volver a pantalla completa
+                🔲 Regresar a pantalla completa
               </button>
-            </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setViolationAlert(null)}
+                style={{ background: '#fff', color: '#7F1D1D', border: 'none', borderRadius: 10, padding: '14px 32px', fontSize: 16, fontWeight: 700, cursor: 'pointer' }}
+              >
+                Entendido — Continuar examen
+              </button>
+            )}
           </div>
         )}
 
@@ -676,6 +738,7 @@ export default function ExamPlayerV2Page() {
   const registerViolation = useCallback((eventType) => {
     setViolations(n => {
       const next = n + 1
+      violationsRef.current = next
       const inst = instanceRef.current
       const sess = sessionRef.current
       if (!inst) return next
@@ -691,12 +754,13 @@ export default function ExamPlayerV2Page() {
             'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
           },
           body: JSON.stringify({
-            instance_id:  inst.id,
-            session_id:   inst.session_id,
-            student_name: inst.student_name,
-            exam_title:   sess?.title || '',
-            event_type:   eventType,
-            count:        next,
+            instance_id:     inst.id,
+            session_id:      inst.session_id,
+            student_name:    inst.student_name,
+            student_section: inst.student_section,
+            exam_title:      sess?.title || '',
+            event_type:      eventType,
+            count:           next,
           }),
         }).catch(() => {})
         // La Edge Function actualiza DB — no duplicar aquí
@@ -714,6 +778,30 @@ export default function ExamPlayerV2Page() {
 
       return next
     })
+  }, [])
+
+  // Notificaciones no-violación (inicio, envío) — sin throttle, sin DB integrity_flags
+  const sendTelegramNotification = useCallback((eventType, extra = {}) => {
+    const inst = instanceRef.current
+    const sess = sessionRef.current
+    if (!inst) return
+    fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/exam-integrity-alert`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+      },
+      body: JSON.stringify({
+        instance_id:     inst.id,
+        session_id:      inst.session_id,
+        student_name:    inst.student_name,
+        student_section: inst.student_section,
+        exam_title:      sess?.title || '',
+        event_type:      eventType,
+        count:           violationsRef.current,
+        ...extra,
+      }),
+    }).catch(() => {})
   }, [])
 
   // ── Submit ──────────────────────────────────────────────────
@@ -762,12 +850,41 @@ export default function ExamPlayerV2Page() {
           : 0,
       }).eq('id', inst.id)
 
+      // Calcular puntaje inmediato (MCQ auto-corregido)
+      let totalMcScore = 0, maxMcScore = 0, openCount = 0
+      const maxTotal = questions.reduce((s, q) => s + (q.points || 0), 0)
+      for (const q of questions) {
+        if (q.question_type === 'multiple_choice') {
+          maxMcScore += q.points || 0
+          if (answers[q.id] === correctAnsRef.current[q.id]) totalMcScore += q.points || 0
+        } else {
+          openCount++
+        }
+      }
+      const colombianGrade = (openCount === 0 && maxTotal > 0)
+        ? ((totalMcScore / maxTotal) * 4 + 1).toFixed(1)
+        : null
+
+      setExamScore({ mcScore: totalMcScore, mcMax: maxMcScore, total: maxTotal, openCount, colombianGrade })
+
+      // Telegram al docente: examen enviado
+      const submitTime = new Date().toLocaleTimeString('es-CO', {
+        timeZone: 'America/Bogota', hour: '2-digit', minute: '2-digit',
+      })
+      sendTelegramNotification('exam_submitted', {
+        submit_time: submitTime,
+        score_info: openCount === 0
+          ? `${totalMcScore}/${maxTotal} pts → ${colombianGrade}/5.0`
+          : `MC: ${totalMcScore}/${maxMcScore} pts | ${openCount} preg. abiertas pendientes IA`,
+      })
+
       // Limpiar IndexedDB + credenciales guardadas (examen terminado)
       if (idbRef.current) await idbClear(idbRef.current, inst.id).catch(() => {})
       try { localStorage.removeItem('cbf_exam_entry') } catch {}
 
       // Salir de fullscreen
       document.exitFullscreen?.().catch(() => {})
+      setViolationAlert(null)
 
       setPhase(PHASE.SUBMITTED)
     } catch (ex) {
@@ -779,23 +896,124 @@ export default function ExamPlayerV2Page() {
   // ── SubmittedPhase ──────────────────────────────────────────
 
   function SubmittedPhase() {
+    const sc = examScore
+    const gradeColor = !sc?.colombianGrade ? '#6B7280'
+      : parseFloat(sc.colombianGrade) >= 4.6 ? '#1A6B3A'
+      : parseFloat(sc.colombianGrade) >= 4.0 ? '#2563EB'
+      : parseFloat(sc.colombianGrade) >= 3.0 ? '#D97706'
+      : '#DC2626'
+
+    function openResultsPdf() {
+      const now = new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota' })
+      const rows = questions.map((q, i) => {
+        const answer  = answers[q.id] || '—'
+        const isAuto  = q.question_type === 'multiple_choice'
+        const correct = isAuto ? correctAnsRef.current[q.id] : null
+        const isRight = isAuto ? answer === correct : null
+        const rowBg   = isRight === true ? '#DCFCE7' : isRight === false ? '#FEE2E2' : '#fff'
+        return `<tr style="background:${rowBg}">
+          <td style="padding:8px 10px;border:1px solid #E5E7EB;font-weight:600;color:#374151">${i + 1}</td>
+          <td style="padding:8px 10px;border:1px solid #E5E7EB;color:#111827">${q.stem || ''}</td>
+          <td style="padding:8px 10px;border:1px solid #E5E7EB;font-weight:600">${answer}</td>
+          <td style="padding:8px 10px;border:1px solid #E5E7EB;text-align:center">
+            ${isRight === true ? '✅' : isRight === false ? `❌ (${correct})` : '⏳ Pendiente IA'}
+          </td>
+          <td style="padding:8px 10px;border:1px solid #E5E7EB;text-align:center">${q.points || 0}</td>
+        </tr>`
+      }).join('')
+
+      const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+        <title>Resultados — ${session?.title}</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 32px; color: #111827; }
+          h1   { color: #1F3864; margin-bottom: 4px; }
+          .sub { color: #6B7280; font-size: 14px; margin-bottom: 24px; }
+          table { width: 100%; border-collapse: collapse; font-size: 14px; }
+          th { background: #1F3864; color: #fff; padding: 10px; text-align: left; }
+          .score-box { background: #F0F4F8; border: 2px solid #1F3864; border-radius: 12px; padding: 20px 28px; margin-bottom: 24px; display: inline-block; }
+          .grade { font-size: 48px; font-weight: 800; color: ${gradeColor}; }
+          .verse { margin-top: 32px; font-style: italic; color: #6B7280; font-size: 13px; }
+          @media print { button { display: none; } }
+        </style>
+      </head><body>
+        <h1>Colegio Boston Flexible</h1>
+        <div class="sub">${session?.title} · ${session?.subject} · ${session?.grade} · Versión ${instance?.version_label}<br>
+        Estudiante: <strong>${instance?.student_name}</strong> — Sección: ${instance?.student_section || '—'}<br>
+        Fecha: ${now}</div>
+        ${sc ? `<div class="score-box">
+          ${sc.colombianGrade
+            ? `<div class="grade">${sc.colombianGrade}<span style="font-size:24px;color:#6B7280">/5.0</span></div>
+               <div style="font-size:14px;margin-top:4px">Puntaje: ${sc.mcScore}/${sc.total} pts</div>`
+            : `<div style="font-size:20px;font-weight:700">${sc.mcScore}/${sc.mcMax} pts (MC)</div>
+               <div style="font-size:13px;color:#D97706;margin-top:4px">⏳ ${sc.openCount} pregunta(s) abiertas pendientes de corrección IA</div>`
+          }
+        </div>` : ''}
+        <table><thead><tr>
+          <th>#</th><th>Pregunta</th><th>Tu respuesta</th><th>Resultado</th><th>Pts</th>
+        </tr></thead><tbody>${rows}</tbody></table>
+        <div class="verse">"AÑO DE LA PUREZA" · Génesis 1:27-28a (TLA)</div>
+      </body></html>`
+
+      const w = window.open('', '_blank')
+      if (w) { w.document.write(html); w.document.close(); w.print() }
+    }
+
     return (
       <div style={styles.page}>
-        <div style={{ ...styles.card, textAlign: 'center', padding: 40 }}>
-          <div style={{ fontSize: 56, marginBottom: 16 }}>✅</div>
-          <h2 style={{ color: '#1A6B3A', margin: '0 0 8px' }}>¡Examen enviado!</h2>
-          <p style={{ color: '#374151', margin: '0 0 4px' }}>
-            <strong>{instance?.student_name}</strong>
-          </p>
-          <p style={{ color: '#6B7280', fontSize: 14 }}>
-            {session?.title} · Versión {instance?.version_label}
-          </p>
-          <p style={{ color: '#6B7280', fontSize: 13, marginTop: 16 }}>
-            Tu docente recibirá los resultados. Puedes cerrar esta ventana.
-          </p>
-          <p style={{ marginTop: 24, fontSize: 22, color: '#1F3864' }}>
-            "AÑO DE LA PUREZA" · Génesis 1:27-28a
-          </p>
+        <div style={{ ...styles.card, maxWidth: 520, overflow: 'visible' }}>
+          <div style={{ background: '#1A6B3A', padding: '24px', textAlign: 'center' }}>
+            <div style={{ fontSize: 52, lineHeight: 1 }}>✅</div>
+            <h2 style={{ color: '#fff', margin: '12px 0 4px', fontSize: 22 }}>¡Examen enviado!</h2>
+            <p style={{ color: '#BBF7D0', margin: 0, fontSize: 14 }}>
+              {instance?.student_name} · Versión {instance?.version_label}
+            </p>
+          </div>
+
+          <div style={{ padding: '24px' }}>
+            {sc && (
+              <div style={{ textAlign: 'center', marginBottom: 20 }}>
+                {sc.colombianGrade ? (
+                  <>
+                    <div style={{ fontSize: 56, fontWeight: 800, color: gradeColor, lineHeight: 1 }}>
+                      {sc.colombianGrade}
+                      <span style={{ fontSize: 24, color: '#9CA3AF', fontWeight: 400 }}>/5.0</span>
+                    </div>
+                    <div style={{ color: '#6B7280', fontSize: 14, marginTop: 4 }}>
+                      {sc.mcScore} / {sc.total} puntos
+                    </div>
+                    <div style={{ marginTop: 8, fontSize: 13, fontWeight: 600, color: gradeColor }}>
+                      {parseFloat(sc.colombianGrade) >= 4.6 ? '⭐ Superior'
+                        : parseFloat(sc.colombianGrade) >= 4.0 ? '✅ Alto'
+                        : parseFloat(sc.colombianGrade) >= 3.0 ? '📘 Básico'
+                        : '❗ Bajo'}
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ background: '#FEF9C3', border: '1px solid #FDE68A', borderRadius: 10, padding: '14px', textAlign: 'left' }}>
+                    <strong style={{ color: '#92400E' }}>Puntaje MC: {sc.mcScore}/{sc.mcMax} pts</strong><br />
+                    <span style={{ color: '#78350F', fontSize: 13 }}>
+                      ⏳ {sc.openCount} pregunta{sc.openCount !== 1 ? 's' : ''} abierta{sc.openCount !== 1 ? 's' : ''} en revisión IA — la nota final la recibirás después.
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={openResultsPdf}
+              style={{ ...styles.btn, background: '#1F3864', marginTop: 8 }}
+            >
+              📄 Descargar / guardar resultados como PDF
+            </button>
+
+            <p style={{ color: '#6B7280', fontSize: 13, textAlign: 'center', marginTop: 16 }}>
+              Tu docente recibió la notificación. Puedes cerrar esta ventana.
+            </p>
+            <p style={{ marginTop: 16, fontSize: 14, color: '#1F3864', textAlign: 'center', fontStyle: 'italic' }}>
+              "AÑO DE LA PUREZA" · Génesis 1:27-28a
+            </p>
+          </div>
         </div>
       </div>
     )
