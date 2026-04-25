@@ -6,7 +6,7 @@
 //   Paso 3 — Revisar preguntas generadas
 //   Paso 4 — Publicar
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '../supabase'
 import { useToast } from '../context/ToastContext'
@@ -952,6 +952,266 @@ function seededShuffle(arr, seed) {
   return a
 }
 
+// ── ExamPreviewModal ──────────────────────────────────────────────────────────
+const TYPE_LABELS = {
+  multiple_choice: 'Opción múltiple', true_false: 'V / F',
+  fill_blank: 'Completar', short_answer: 'Respuesta corta', matching: 'Relacionar',
+}
+const TYPE_COLORS = {
+  multiple_choice: '#1D4ED8', true_false: '#7C3AED',
+  fill_blank: '#059669', short_answer: '#D97706', matching: '#DC2626',
+}
+
+function ExamPreviewModal({ exam, onClose }) {
+  const { showToast } = useToast()
+  const [questions,      setQuestions]      = useState([])
+  const [versions,       setVersions]       = useState([])
+  const [loading,        setLoading]        = useState(true)
+  const [activeVersion,  setActiveVersion]  = useState(0)
+  const [editingId,      setEditingId]      = useState(null)
+  const [editForm,       setEditForm]       = useState({})
+  const [saving,         setSaving]         = useState(false)
+
+  useEffect(() => {
+    async function load() {
+      const [{ data: qs }, { data: vs }] = await Promise.all([
+        supabase.from('questions')
+          .select('id, question_type, stem, options, correct_answer, points, position')
+          .eq('assessment_id', exam.id).order('position'),
+        supabase.from('assessment_versions')
+          .select('id, version_number, version_label, is_base, shuffle_questions')
+          .eq('assessment_id', exam.id).order('version_number'),
+      ])
+      setQuestions(qs || [])
+      setVersions(vs?.length ? vs : [{ id: 'base', version_label: 'A', is_base: true, shuffle_questions: false }])
+      setLoading(false)
+    }
+    load()
+  }, [exam.id])
+
+  // Aplica shuffle de la versión seleccionada para mostrar el orden real
+  const displayQuestions = useMemo(() => {
+    const v = versions[activeVersion]
+    if (!v || v.is_base || !v.shuffle_questions) return questions
+    return seededShuffle(questions, (activeVersion + 1) * 31337)
+  }, [questions, versions, activeVersion])
+
+  function startEdit(q) {
+    setEditingId(q.id)
+    setEditForm({
+      stem:           q.stem,
+      correct_answer: q.correct_answer || '',
+      points:         q.points,
+      options:        q.options ? [...q.options] : [],
+    })
+  }
+
+  async function saveEdit(q) {
+    setSaving(true)
+    const updates = {
+      stem:           editForm.stem.trim(),
+      correct_answer: editForm.correct_answer,
+      points:         parseFloat(editForm.points) || parseFloat(q.points),
+      ...(q.question_type === 'multiple_choice' && { options: editForm.options }),
+    }
+    const { error } = await supabase.from('questions').update(updates).eq('id', q.id)
+    setSaving(false)
+    if (error) { showToast('Error: ' + error.message, 'error'); return }
+    setQuestions(prev => prev.map(p => p.id === q.id ? { ...p, ...updates } : p))
+    setEditingId(null)
+    showToast('Pregunta guardada', 'success')
+  }
+
+  const totalPts = questions.reduce((s, q) => s + parseFloat(q.points || 0), 0)
+
+  return createPortal(
+    <div className="lt-modal-overlay" style={{ zIndex: 10001, alignItems: 'flex-start', paddingTop: 20, paddingBottom: 20 }}>
+      <div style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 800, maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 16px 48px rgba(0,0,0,.28)', overflow: 'hidden' }}>
+
+        {/* Header */}
+        <div style={{ padding: '14px 20px', background: '#1F3864', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+          <div>
+            <h3 style={{ margin: 0, color: '#fff', fontSize: 15 }}>📋 Vista previa — {exam.title}</h3>
+            <p style={{ margin: '2px 0 0', color: '#93C5FD', fontSize: 12 }}>{exam.grade} · {questions.length} preguntas · {totalPts.toFixed(1)} pts</p>
+          </div>
+          <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', color: '#93C5FD', fontSize: 22, cursor: 'pointer' }}>✕</button>
+        </div>
+
+        {/* Version tabs */}
+        {versions.length > 1 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 20px', borderBottom: '1px solid #E2E8F0', background: '#F8FAFC', flexShrink: 0 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#64748B', marginRight: 4 }}>VERSIÓN:</span>
+            {versions.map((v, i) => (
+              <button key={v.id} type="button" onClick={() => { setActiveVersion(i); setEditingId(null) }}
+                style={{ padding: '4px 14px', borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                  background: activeVersion === i ? '#1F3864' : '#EFF6FF',
+                  color: activeVersion === i ? '#fff' : '#1F3864',
+                  border: `1.5px solid ${activeVersion === i ? '#1F3864' : '#BFDBFE'}` }}>
+                {v.version_label}
+                {!v.is_base && v.shuffle_questions && <span style={{ fontSize: 10, fontWeight: 400, marginLeft: 3 }}>↕</span>}
+              </button>
+            ))}
+            <span style={{ fontSize: 11, color: '#94A3B8', marginLeft: 4 }}>
+              {versions[activeVersion]?.is_base ? 'Orden original' : 'Preguntas reordenadas (shuffle)'}
+            </span>
+          </div>
+        )}
+
+        {/* Questions */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
+          {loading && <p style={{ color: '#888', fontStyle: 'italic' }}>Cargando preguntas…</p>}
+
+          {!loading && displayQuestions.length === 0 && (
+            <p style={{ color: '#9CA3AF' }}>Este examen no tiene preguntas registradas.</p>
+          )}
+
+          {!loading && displayQuestions.map((q, idx) => (
+            <div key={q.id} style={{ marginBottom: 14, border: `1.5px solid ${editingId === q.id ? '#FCD34D' : '#E2E8F0'}`, borderRadius: 10, overflow: 'hidden', transition: 'border-color 0.15s' }}>
+
+              {/* Question header */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 14px', background: '#F8FAFC' }}>
+                <span style={{ fontWeight: 800, color: '#1F3864', fontSize: 14, minWidth: 22 }}>{idx + 1}.</span>
+                <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 5,
+                  background: `${TYPE_COLORS[q.question_type] || '#6B7280'}18`,
+                  color: TYPE_COLORS[q.question_type] || '#6B7280' }}>
+                  {TYPE_LABELS[q.question_type] || q.question_type}
+                </span>
+                <span style={{ fontSize: 11, color: '#6B7280', marginLeft: 'auto' }}>{q.points} pt{parseFloat(q.points) !== 1 ? 's' : ''}</span>
+                <button type="button" onClick={() => editingId === q.id ? setEditingId(null) : startEdit(q)}
+                  style={{ padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                    background: editingId === q.id ? '#FEE2E2' : '#EFF6FF',
+                    color: editingId === q.id ? '#DC2626' : '#1D4ED8',
+                    border: `1px solid ${editingId === q.id ? '#FCA5A5' : '#BFDBFE'}` }}>
+                  {editingId === q.id ? '✕ Cancelar' : '✏ Editar'}
+                </button>
+              </div>
+
+              {/* View mode */}
+              {editingId !== q.id && (
+                <div style={{ padding: '12px 14px' }}>
+                  <p style={{ margin: '0 0 10px', fontSize: 14, color: '#111827', lineHeight: 1.6 }}>{q.stem}</p>
+                  {q.options && Array.isArray(q.options) && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                      {q.options.map((opt, oi) => {
+                        const letter = String.fromCharCode(65 + oi)
+                        const isCorrect = q.question_type === 'true_false'
+                          ? opt === q.correct_answer
+                          : letter === q.correct_answer || opt === q.correct_answer
+                        return (
+                          <div key={oi} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', borderRadius: 7,
+                            background: isCorrect ? '#ECFDF5' : '#F8FAFC',
+                            border: `1.5px solid ${isCorrect ? '#6EE7B7' : '#E2E8F0'}` }}>
+                            {isCorrect && <span style={{ color: '#059669', fontWeight: 700 }}>✓</span>}
+                            <span style={{ fontSize: 13, color: isCorrect ? '#065F46' : '#374151', fontWeight: isCorrect ? 600 : 400 }}>{opt}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                  {!q.options && q.correct_answer && (
+                    <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 7, padding: '5px 12px', display: 'inline-block' }}>
+                      <span style={{ fontSize: 12, color: '#065F46', fontWeight: 600 }}>✓ {q.correct_answer}</span>
+                    </div>
+                  )}
+                  {!q.options && !q.correct_answer && (
+                    <span style={{ fontSize: 12, color: '#9CA3AF', fontStyle: 'italic' }}>Respuesta abierta — corrección IA/manual</span>
+                  )}
+                </div>
+              )}
+
+              {/* Edit mode */}
+              {editingId === q.id && (
+                <div style={{ padding: '14px 16px', background: '#FFFBEB' }}>
+                  <div style={{ marginBottom: 12 }}>
+                    <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Enunciado</label>
+                    <textarea value={editForm.stem} rows={3}
+                      onChange={e => setEditForm(f => ({ ...f, stem: e.target.value }))}
+                      style={{ width: '100%', padding: '8px', border: '1.5px solid #FCD34D', borderRadius: 7, fontSize: 13, resize: 'vertical', boxSizing: 'border-box', fontFamily: 'inherit' }} />
+                  </div>
+
+                  {q.question_type === 'multiple_choice' && (
+                    <div style={{ marginBottom: 12 }}>
+                      <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>Opciones — clic en el círculo para marcar correcta</label>
+                      {editForm.options.map((opt, oi) => {
+                        const letter = String.fromCharCode(65 + oi)
+                        const isCorrect = editForm.correct_answer === letter
+                        return (
+                          <div key={oi} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                            <button type="button" onClick={() => setEditForm(f => ({ ...f, correct_answer: letter }))}
+                              style={{ width: 26, height: 26, borderRadius: '50%', flexShrink: 0, cursor: 'pointer', fontWeight: 700, fontSize: 12,
+                                border: `2px solid ${isCorrect ? '#059669' : '#D1D5DB'}`,
+                                background: isCorrect ? '#ECFDF5' : '#fff',
+                                color: isCorrect ? '#059669' : '#9CA3AF' }}>
+                              {isCorrect ? '✓' : letter}
+                            </button>
+                            <input value={opt} onChange={e => setEditForm(f => {
+                              const opts = [...f.options]; opts[oi] = e.target.value; return { ...f, options: opts }
+                            })} style={{ flex: 1, padding: '6px 10px', border: '1.5px solid #FCD34D', borderRadius: 6, fontSize: 13 }} />
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  {q.question_type === 'true_false' && (
+                    <div style={{ marginBottom: 12 }}>
+                      <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>Respuesta correcta</label>
+                      <div style={{ display: 'flex', gap: 10 }}>
+                        {['Verdadero', 'Falso'].map(opt => (
+                          <button key={opt} type="button" onClick={() => setEditForm(f => ({ ...f, correct_answer: opt }))}
+                            style={{ padding: '6px 20px', borderRadius: 7, fontSize: 13, cursor: 'pointer',
+                              border: `1.5px solid ${editForm.correct_answer === opt ? '#059669' : '#D1D5DB'}`,
+                              background: editForm.correct_answer === opt ? '#ECFDF5' : '#fff',
+                              color: editForm.correct_answer === opt ? '#065F46' : '#374151',
+                              fontWeight: editForm.correct_answer === opt ? 700 : 400 }}>
+                            {opt}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {['fill_blank', 'short_answer', 'matching'].includes(q.question_type) && (
+                    <div style={{ marginBottom: 12 }}>
+                      <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Respuesta correcta / clave</label>
+                      <input value={editForm.correct_answer}
+                        onChange={e => setEditForm(f => ({ ...f, correct_answer: e.target.value }))}
+                        style={{ width: '100%', padding: '7px 10px', border: '1.5px solid #FCD34D', borderRadius: 6, fontSize: 13, boxSizing: 'border-box' }} />
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <label style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>Puntos:</label>
+                    <input type="number" min="0.5" step="0.5" value={editForm.points}
+                      onChange={e => setEditForm(f => ({ ...f, points: e.target.value }))}
+                      style={{ width: 70, padding: '5px 8px', border: '1.5px solid #FCD34D', borderRadius: 6, fontSize: 13 }} />
+                    <button type="button" onClick={() => saveEdit(q)} disabled={saving}
+                      style={{ marginLeft: 'auto', padding: '7px 20px', borderRadius: 7, background: saving ? '#9CA3AF' : '#059669', color: '#fff', border: 'none', fontWeight: 700, fontSize: 13, cursor: saving ? 'default' : 'pointer' }}>
+                      {saving ? '⏳ Guardando…' : '💾 Guardar'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding: '12px 20px', borderTop: '1px solid #E2E8F0', background: '#F8FAFC', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+          <span style={{ fontSize: 12, color: '#6B7280' }}>
+            {totalPts.toFixed(1)} pts totales · {questions.length} preguntas
+          </span>
+          <button type="button" onClick={onClose}
+            style={{ padding: '8px 24px', borderRadius: 8, background: '#1F3864', color: '#fff', border: 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+            Listo ✓
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  )
+}
+
 // ── GenerarRosterModal ────────────────────────────────────────────────────────
 function GenerarRosterModal({ exam, teacher, onClose, onDone }) {
   const { showToast } = useToast()
@@ -1202,6 +1462,7 @@ function ExamDetailModal({ exam, results, onClose, onStatusChange, teacher }) {
   const [printing,       setPrinting]       = useState(false)
   const [versions,       setVersions]       = useState([])
   const [showGenRoster,  setShowGenRoster]  = useState(false)
+  const [showPreview,    setShowPreview]    = useState(false)
   const baseUrl = window.location.origin + window.location.pathname
 
   useEffect(() => {
@@ -1248,6 +1509,12 @@ function ExamDetailModal({ exam, results, onClose, onStatusChange, teacher }) {
         teacher={teacher}
         onClose={() => setShowGenRoster(false)}
         onDone={() => setShowGenRoster(false)}
+      />
+    )}
+    {showPreview && (
+      <ExamPreviewModal
+        exam={exam}
+        onClose={() => setShowPreview(false)}
       />
     )}
     {createPortal(
@@ -1317,6 +1584,11 @@ function ExamDetailModal({ exam, results, onClose, onStatusChange, teacher }) {
             )}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <button type="button" onClick={() => setShowPreview(true)}
+              style={{ width: '100%', padding: '10px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                background: 'linear-gradient(135deg,#059669,#065F46)', color: '#fff', border: 'none' }}>
+              🔍 Vista previa / Editar preguntas
+            </button>
             <button type="button" onClick={() => setShowGenRoster(true)}
               style={{ width: '100%', padding: '10px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer',
                 background: 'linear-gradient(135deg,#1F3864,#2E5598)', color: '#fff', border: 'none' }}>
