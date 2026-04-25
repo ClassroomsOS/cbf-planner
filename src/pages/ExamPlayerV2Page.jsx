@@ -184,9 +184,13 @@ export default function ExamPlayerV2Page() {
   // ── EntryPhase ──────────────────────────────────────────────
 
   function EntryPhase() {
-    const [accessCode, setAccessCode] = useState('')
-    const [email,      setEmail]      = useState('')
+    const saved = (() => {
+      try { return JSON.parse(localStorage.getItem('cbf_exam_entry') || '{}') } catch { return {} }
+    })()
+    const [accessCode, setAccessCode] = useState(saved.code  || '')
+    const [email,      setEmail]      = useState(saved.email || '')
     const [err,        setErr]        = useState('')
+    const isReturning = !!(saved.code && saved.email)
 
     async function handleEnter(e) {
       e.preventDefault()
@@ -269,6 +273,9 @@ export default function ExamPlayerV2Page() {
         }
         setTimeLeft(remaining)
 
+        // Guardar credenciales en localStorage para reanudación si iOS mata la tab
+        try { localStorage.setItem('cbf_exam_entry', JSON.stringify({ code, email: emailClean })) } catch {}
+
         setPhase(PHASE.INSTRUCTIONS)
 
         // 4. Marcar como iniciado si es la primera vez
@@ -288,11 +295,15 @@ export default function ExamPlayerV2Page() {
     return (
       <div style={styles.page}>
         <div style={styles.card}>
-          <div style={styles.cardHeader}>
+          <div style={{ ...styles.cardHeader, background: isReturning ? '#7C3AED' : undefined }}>
             <div style={{ fontSize: 32, marginBottom: 8 }}>📝</div>
-            <h1 style={{ margin: 0, fontSize: 22, color: '#1F3864' }}>Examen CBF</h1>
-            <p style={{ margin: '4px 0 0', color: '#666', fontSize: 14 }}>
-              Ingresa tu correo institucional y el código del examen
+            <h1 style={{ margin: 0, fontSize: 22, color: isReturning ? '#fff' : '#1F3864' }}>
+              {isReturning ? '🔄 Continuar examen' : 'Examen CBF'}
+            </h1>
+            <p style={{ margin: '4px 0 0', color: isReturning ? '#C4B5FD' : '#666', fontSize: 14 }}>
+              {isReturning
+                ? 'Parece que saliste del examen. Toca "Continuar" para retomar donde quedaste.'
+                : 'Ingresa tu correo institucional y el código del examen'}
             </p>
           </div>
           <form onSubmit={handleEnter} style={{ padding: '24px' }}>
@@ -315,8 +326,8 @@ export default function ExamPlayerV2Page() {
               autoComplete="off"
             />
             {err && <p style={styles.error}>{err}</p>}
-            <button type="submit" style={styles.btn} disabled={loading}>
-              {loading ? 'Verificando...' : 'Ingresar al examen →'}
+            <button type="submit" style={{ ...styles.btn, background: isReturning ? '#7C3AED' : undefined }} disabled={loading}>
+              {loading ? 'Verificando...' : isReturning ? 'Continuar examen →' : 'Ingresar al examen →'}
             </button>
           </form>
         </div>
@@ -751,8 +762,9 @@ export default function ExamPlayerV2Page() {
           : 0,
       }).eq('id', inst.id)
 
-      // Limpiar IndexedDB
+      // Limpiar IndexedDB + credenciales guardadas (examen terminado)
       if (idbRef.current) await idbClear(idbRef.current, inst.id).catch(() => {})
+      try { localStorage.removeItem('cbf_exam_entry') } catch {}
 
       // Salir de fullscreen
       document.exitFullscreen?.().catch(() => {})
