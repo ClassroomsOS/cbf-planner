@@ -189,7 +189,7 @@ export default function ExamPlayerV2Page() {
         // 1. Buscar sesión activa por access_code
         const { data: sess, error: sErr } = await supabase
           .from('exam_sessions')
-          .select('id, title, subject, grade, period, duration_minutes, status, school_id, created_by')
+          .select('id, title, subject, grade, period, duration_minutes, status, school_id, teacher_id')
           .eq('access_code', code)
           .in('status', ['ready', 'active'])
           .single()

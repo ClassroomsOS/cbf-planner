@@ -90,11 +90,11 @@ Deno.serve(async (req: Request) => {
 
     const { data: sess } = await supabase
       .from("exam_sessions")
-      .select("created_by, title")
+      .select("teacher_id, title")
       .eq("id", session_id)
       .maybeSingle();
 
-    const teacherId = sess?.created_by;
+    const teacherId = sess?.teacher_id;
     if (!teacherId) return json({ ok: true, telegram: false });
 
     // ── 3. Obtener telegram_chat_id del docente ──────────────

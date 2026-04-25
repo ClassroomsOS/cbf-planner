@@ -940,12 +940,268 @@ function ExamCreatorModal({ teacher, onClose, onCreated }) {
   )
 }
 
+// ── Seeded shuffle (LCG — mismo algoritmo que ExamPlayerPage) ─────────────────
+function seededShuffle(arr, seed) {
+  const a = [...arr]
+  let s = seed
+  for (let i = a.length - 1; i > 0; i--) {
+    s = (s * 1664525 + 1013904223) & 0xFFFFFFFF
+    const j = Math.abs(s) % (i + 1)
+    ;[a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
+
+// ── GenerarRosterModal ────────────────────────────────────────────────────────
+function GenerarRosterModal({ exam, teacher, onClose, onDone }) {
+  const { showToast } = useToast()
+  const [roster,    setRoster]    = useState(null)   // null = loading
+  const [phase,     setPhase]     = useState('confirm')  // confirm | generating | done | error
+  const [progress,  setProgress]  = useState(0)
+  const [result,    setResult]    = useState(null)
+
+  useEffect(() => {
+    supabase
+      .from('school_students')
+      .select('id, name, email, student_code, section')
+      .eq('school_id', teacher.school_id)
+      .eq('grade', exam.grade)
+      .order('name')
+      .then(({ data, error }) => {
+        if (error) { showToast('Error al cargar roster: ' + error.message, 'error'); onClose(); return }
+        setRoster(data || [])
+      })
+  }, [])
+
+  async function handleGenerate() {
+    if (!roster?.length) return
+    setPhase('generating')
+    setProgress(0)
+
+    try {
+      // 1. Cargar preguntas del examen
+      const { data: questions, error: qErr } = await supabase
+        .from('questions')
+        .select('id, question_type, stem, options, correct_answer, points, position, rigor_level')
+        .eq('assessment_id', exam.id)
+        .order('position')
+      if (qErr) throw new Error('Error al cargar preguntas: ' + qErr.message)
+      if (!questions?.length) throw new Error('Este examen no tiene preguntas.')
+
+      // 2. Cargar versiones anti-copia
+      const { data: versions } = await supabase
+        .from('assessment_versions')
+        .select('version_number, version_label, shuffle_questions, shuffle_options')
+        .eq('assessment_id', exam.id)
+        .order('version_number')
+      const versionCount = versions?.length || 1
+
+      // 3. Crear exam_session para V2 player
+      const v2Code = Math.random().toString(36).substring(2, 8).toUpperCase()
+      const { data: session, error: sErr } = await supabase
+        .from('exam_sessions')
+        .insert({
+          school_id:        teacher.school_id,
+          teacher_id:       teacher.id,
+          title:            exam.title,
+          subject:          exam.subject,
+          grade:            exam.grade,
+          period:           exam.period || null,
+          access_code:      v2Code,
+          status:           'ready',
+          duration_minutes: exam.time_limit_minutes || null,
+          total_students:   roster.length,
+          service_worker_payload: { assessment_id: exam.id, generated_at: new Date().toISOString() },
+        })
+        .select('id')
+        .single()
+      if (sErr || !session?.id) throw new Error('Error al crear sesión V2: ' + (sErr?.message || 'sin ID'))
+
+      // 4. Crear exam_instance por estudiante
+      const VERSION_LABELS = ['A', 'B', 'C', 'D']
+      let created = 0
+      let failed  = 0
+
+      for (let i = 0; i < roster.length; i++) {
+        const student  = roster[i]
+        const vIdx     = i % versionCount
+        const vLabel   = versions?.[vIdx]?.version_label || VERSION_LABELS[vIdx] || 'A'
+        const seed     = (vIdx + 1) * 31337
+
+        // Construir preguntas con shuffle según versión
+        let qs = questions.map((q, idx) => ({
+          id:            q.id,
+          stem:          q.stem,
+          question_type: q.question_type,
+          options:       q.options || null,
+          correct_answer: q.correct_answer || null,
+          points:        q.points || 1,
+          position:      idx + 1,
+          section_name:  '',
+          biblical:      false,
+          rigor_level:   q.rigor_level || 'flexible',
+        }))
+        if (versions?.[vIdx]?.shuffle_questions && vIdx > 0) {
+          qs = seededShuffle(qs, seed)
+        }
+
+        const { error: iErr } = await supabase.from('exam_instances').insert({
+          session_id:          session.id,
+          school_id:           teacher.school_id,
+          student_id:          student.id,
+          student_code:        student.student_code,
+          student_name:        student.name,
+          student_email:       student.email || null,
+          student_section:     student.section || null,
+          generated_questions: qs,
+          version_label:       vLabel,
+          instance_status:     'ready',
+          delivery_mode:       'digital',
+        })
+
+        if (iErr) failed++
+        else created++
+        setProgress(Math.round(((i + 1) / roster.length) * 100))
+      }
+
+      setResult({ created, failed, total: roster.length, v2Code, sessionId: session.id })
+      setPhase('done')
+      onDone?.()
+    } catch (err) {
+      showToast(err.message, 'error')
+      setPhase('error')
+    }
+  }
+
+  return createPortal(
+    <div className="lt-modal-overlay" style={{ zIndex: 10000 }}>
+      <div style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 480, boxShadow: '0 12px 40px rgba(0,0,0,.25)', overflow: 'hidden' }}>
+
+        {/* Header */}
+        <div style={{ padding: '16px 20px', background: '#1F3864', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <h3 style={{ margin: 0, color: '#fff', fontSize: 15 }}>👥 Generar exámenes por roster</h3>
+            <p style={{ margin: '2px 0 0', color: '#93C5FD', fontSize: 12 }}>{exam.title} · {exam.grade}</p>
+          </div>
+          {phase !== 'generating' && (
+            <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', color: '#93C5FD', fontSize: 20, cursor: 'pointer' }}>✕</button>
+          )}
+        </div>
+
+        <div style={{ padding: 24 }}>
+
+          {/* Cargando roster */}
+          {roster === null && (
+            <p style={{ color: '#888', fontStyle: 'italic' }}>Buscando estudiantes en el roster…</p>
+          )}
+
+          {/* Sin estudiantes */}
+          {roster !== null && roster.length === 0 && (
+            <div style={{ textAlign: 'center', padding: '20px 0' }}>
+              <div style={{ fontSize: 40, marginBottom: 8 }}>🔴</div>
+              <p style={{ fontWeight: 700, color: '#DC2626' }}>Sin roster para {exam.grade}</p>
+              <p style={{ color: '#6B7280', fontSize: 13 }}>Carga los estudiantes primero en <strong>Mis Estudiantes</strong>.</p>
+              <button type="button" onClick={onClose} style={{ marginTop: 16, padding: '8px 20px', borderRadius: 8, background: '#F1F5F9', border: '1px solid #CBD5E1', color: '#374151', fontSize: 13, cursor: 'pointer' }}>Cerrar</button>
+            </div>
+          )}
+
+          {/* Confirmar */}
+          {roster !== null && roster.length > 0 && phase === 'confirm' && (
+            <>
+              <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 10, padding: '14px 16px', marginBottom: 16 }}>
+                <p style={{ margin: 0, fontSize: 14, color: '#1E3A8A', fontWeight: 700 }}>
+                  {roster.length} estudiante{roster.length !== 1 ? 's' : ''} en el roster
+                </p>
+                <p style={{ margin: '4px 0 0', fontSize: 12, color: '#3B82F6' }}>
+                  Se creará un examen personalizado para cada uno en ExamPlayer V2
+                </p>
+              </div>
+              {/* Preview primeros 5 */}
+              <div style={{ marginBottom: 16 }}>
+                {roster.slice(0, 5).map(s => (
+                  <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 8px', fontSize: 12, borderBottom: '1px solid #F1F5F9' }}>
+                    <span style={{ color: '#374151' }}>{s.name}</span>
+                    <span style={{ color: '#9CA3AF' }}>{s.email || '—'}</span>
+                  </div>
+                ))}
+                {roster.length > 5 && (
+                  <p style={{ fontSize: 11, color: '#9CA3AF', margin: '6px 0 0', fontStyle: 'italic' }}>
+                    …y {roster.length - 5} más
+                  </p>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button type="button" onClick={onClose} style={{ flex: 1, padding: '10px', borderRadius: 8, background: '#F1F5F9', border: '1px solid #CBD5E1', color: '#374151', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                  Cancelar
+                </button>
+                <button type="button" onClick={handleGenerate} style={{ flex: 2, padding: '10px', borderRadius: 8, background: 'linear-gradient(135deg,#1F3864,#2E5598)', color: '#fff', border: 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                  ✨ Generar {roster.length} instancias
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* Generando */}
+          {phase === 'generating' && (
+            <div style={{ textAlign: 'center', padding: '16px 0' }}>
+              <p style={{ fontWeight: 700, color: '#1F3864', marginBottom: 16 }}>Generando instancias…</p>
+              <div style={{ height: 10, background: '#E5E7EB', borderRadius: 8, overflow: 'hidden', marginBottom: 8 }}>
+                <div style={{ height: '100%', background: '#2563EB', borderRadius: 8, width: `${progress}%`, transition: 'width 0.3s' }} />
+              </div>
+              <p style={{ fontSize: 13, color: '#6B7280' }}>{progress}% completado</p>
+            </div>
+          )}
+
+          {/* Resultado */}
+          {phase === 'done' && result && (
+            <div>
+              <div style={{ textAlign: 'center', marginBottom: 16 }}>
+                <div style={{ fontSize: 40 }}>{result.failed === 0 ? '✅' : '⚠️'}</div>
+                <p style={{ fontWeight: 700, color: result.failed === 0 ? '#1A6B3A' : '#D97706', margin: '6px 0' }}>
+                  {result.created} de {result.total} instancias creadas
+                </p>
+                {result.failed > 0 && <p style={{ fontSize: 12, color: '#DC2626' }}>⚠️ {result.failed} fallaron — intenta de nuevo</p>}
+              </div>
+              <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 10, padding: '14px 16px', marginBottom: 16 }}>
+                <p style={{ margin: '0 0 4px', fontSize: 11, fontWeight: 700, color: '#065F46' }}>CÓDIGO DE ACCESO — EXAM PLAYER V2</p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <code style={{ fontSize: 22, fontWeight: 800, color: '#1F3864', letterSpacing: 2 }}>{result.v2Code}</code>
+                  <button type="button" onClick={() => navigator.clipboard.writeText(result.v2Code).then(() => showToast('Código copiado', 'success'))}
+                    style={{ padding: '4px 10px', borderRadius: 6, background: '#D1FAE5', border: '1px solid #6EE7B7', color: '#065F46', fontSize: 11, cursor: 'pointer', fontWeight: 600 }}>
+                    📋 Copiar
+                  </button>
+                </div>
+                <p style={{ margin: '6px 0 0', fontSize: 11, color: '#047857' }}>
+                  Comparte este código con los estudiantes. Ingresan en <strong>/eval</strong> con su correo + este código.
+                </p>
+              </div>
+              <button type="button" onClick={onClose} style={{ width: '100%', padding: '10px', borderRadius: 8, background: '#1F3864', color: '#fff', border: 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                Listo
+              </button>
+            </div>
+          )}
+
+          {phase === 'error' && (
+            <div style={{ textAlign: 'center', padding: '16px 0' }}>
+              <div style={{ fontSize: 40 }}>❌</div>
+              <p style={{ color: '#DC2626', fontWeight: 700 }}>Error al generar</p>
+              <button type="button" onClick={onClose} style={{ marginTop: 12, padding: '8px 20px', borderRadius: 8, background: '#F1F5F9', border: '1px solid #CBD5E1', fontSize: 13, cursor: 'pointer' }}>Cerrar</button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body
+  )
+}
+
 // ── EXAM DETAIL MODAL ─────────────────────────────────────────────────────────
 function ExamDetailModal({ exam, results, onClose, onStatusChange, teacher }) {
   const { showToast } = useToast()
-  const [changing,  setChanging]  = useState(false)
-  const [printing,  setPrinting]  = useState(false)
-  const [versions,  setVersions]  = useState([])
+  const [changing,       setChanging]       = useState(false)
+  const [printing,       setPrinting]       = useState(false)
+  const [versions,       setVersions]       = useState([])
+  const [showGenRoster,  setShowGenRoster]  = useState(false)
   const baseUrl = window.location.origin + window.location.pathname
 
   useEffect(() => {
@@ -985,7 +1241,16 @@ function ExamDetailModal({ exam, results, onClose, onStatusChange, teacher }) {
 
   const examUrl = `${baseUrl}exam/${exam.access_code}`
 
-  return createPortal(
+  return <>
+    {showGenRoster && (
+      <GenerarRosterModal
+        exam={exam}
+        teacher={teacher}
+        onClose={() => setShowGenRoster(false)}
+        onDone={() => setShowGenRoster(false)}
+      />
+    )}
+    {createPortal(
     <div className="lt-modal-overlay" style={{ zIndex: 9998 }}>
       <div style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 520, maxHeight: '80vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 12px 40px rgba(0,0,0,.2)' }}>
         <div style={{ padding: '16px 20px', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#F8FAFC' }}>
@@ -1052,6 +1317,11 @@ function ExamDetailModal({ exam, results, onClose, onStatusChange, teacher }) {
             )}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <button type="button" onClick={() => setShowGenRoster(true)}
+              style={{ width: '100%', padding: '10px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                background: 'linear-gradient(135deg,#1F3864,#2E5598)', color: '#fff', border: 'none' }}>
+              👥 Generar por roster (Exam Player V2)
+            </button>
             <button type="button" onClick={handlePrint} disabled={printing}
               style={{ width: '100%', padding: '10px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: printing ? 'default' : 'pointer',
                 background: '#FFF8E1', color: '#7A6200', border: '1px solid #FDE68A', opacity: printing ? 0.7 : 1 }}>
@@ -1069,7 +1339,8 @@ function ExamDetailModal({ exam, results, onClose, onStatusChange, teacher }) {
       </div>
     </div>,
     document.body
-  )
+  )}
+  </>
 }
 
 // ── TelegramConfigPanel ───────────────────────────────────────────────────────
