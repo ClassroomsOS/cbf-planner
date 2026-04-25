@@ -1463,6 +1463,7 @@ function ExamDetailModal({ exam, results, onClose, onStatusChange, teacher }) {
   const [versions,       setVersions]       = useState([])
   const [showGenRoster,  setShowGenRoster]  = useState(false)
   const [showPreview,    setShowPreview]    = useState(false)
+  const [showResults,    setShowResults]    = useState(false)
   const baseUrl = window.location.origin + window.location.pathname
 
   useEffect(() => {
@@ -1515,6 +1516,13 @@ function ExamDetailModal({ exam, results, onClose, onStatusChange, teacher }) {
       <ExamPreviewModal
         exam={exam}
         onClose={() => setShowPreview(false)}
+      />
+    )}
+    {showResults && (
+      <ExamResultsDashboard
+        exam={exam}
+        teacher={teacher}
+        onClose={() => setShowResults(false)}
       />
     )}
     {createPortal(
@@ -1584,6 +1592,11 @@ function ExamDetailModal({ exam, results, onClose, onStatusChange, teacher }) {
             )}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <button type="button" onClick={() => setShowResults(true)}
+              style={{ width: '100%', padding: '10px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                background: 'linear-gradient(135deg,#1F3864,#2E5598)', color: '#fff', border: 'none' }}>
+              📊 Dashboard de resultados
+            </button>
             <button type="button" onClick={() => setShowPreview(true)}
               style={{ width: '100%', padding: '10px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer',
                 background: 'linear-gradient(135deg,#059669,#065F46)', color: '#fff', border: 'none' }}>
@@ -1613,6 +1626,305 @@ function ExamDetailModal({ exam, results, onClose, onStatusChange, teacher }) {
     document.body
   )}
   </>
+}
+
+// ── EXAM RESULTS DASHBOARD ────────────────────────────────────────────────────
+function gradeLevel(g) {
+  if (g == null) return null
+  if (g >= 4.6) return { label: 'Superior', color: '#15803D', bg: '#DCFCE7' }
+  if (g >= 4.0) return { label: 'Alto',     color: '#1D4ED8', bg: '#DBEAFE' }
+  if (g >= 3.0) return { label: 'Básico',   color: '#D97706', bg: '#FEF3C7' }
+  return        { label: 'Bajo',     color: '#DC2626', bg: '#FEE2E2' }
+}
+
+function integrityRisk(flags, tabSwitches) {
+  if (!flags && !tabSwitches) return 'ok'
+  if (flags?.high_risk) return 'high'
+  const count = tabSwitches || flags?.violation_count || 0
+  if (count >= 3) return 'high'
+  if (count >= 1) return 'medium'
+  return 'ok'
+}
+
+function IntegrityBadge({ flags, tabSwitches }) {
+  const risk = integrityRisk(flags, tabSwitches)
+  const count = tabSwitches || flags?.violation_count || 0
+  if (risk === 'high') return (
+    <span title={`${count} evento(s) sospechoso(s)`} style={{ background: '#FEE2E2', color: '#DC2626', borderRadius: 5, padding: '2px 7px', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }}>
+      ⚠️ Riesgo alto
+    </span>
+  )
+  if (risk === 'medium') return (
+    <span title={`${count} evento(s) sospechoso(s)`} style={{ background: '#FEF9C3', color: '#854D0E', borderRadius: 5, padding: '2px 7px', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }}>
+      🟡 {count} alerta{count > 1 ? 's' : ''}
+    </span>
+  )
+  return <span style={{ color: '#9CA3AF', fontSize: 11 }}>✓</span>
+}
+
+function fmtDuration(secs) {
+  if (!secs || secs <= 0) return '—'
+  const m = Math.floor(secs / 60)
+  return `${m} min`
+}
+
+function GradeDistBar({ rows }) {
+  const total = rows.length
+  if (!total) return null
+  const counts = { Superior: 0, Alto: 0, Básico: 0, Bajo: 0, Pendiente: 0 }
+  rows.forEach(r => {
+    const lv = gradeLevel(r.colombian_grade)
+    if (lv) counts[lv.label]++
+    else counts.Pendiente++
+  })
+  const palette = {
+    Superior:  { color: '#15803D', bg: '#16A34A' },
+    Alto:      { color: '#1D4ED8', bg: '#2563EB' },
+    Básico:    { color: '#D97706', bg: '#D97706' },
+    Bajo:      { color: '#DC2626', bg: '#EF4444' },
+    Pendiente: { color: '#9CA3AF', bg: '#D1D5DB' },
+  }
+  return (
+    <div style={{ marginBottom: 18 }}>
+      <div style={{ display: 'flex', borderRadius: 8, overflow: 'hidden', height: 14, marginBottom: 6 }}>
+        {Object.entries(counts).map(([label, n]) => n > 0 && (
+          <div key={label} title={`${label}: ${n}`} style={{ flex: n, background: palette[label].bg, transition: 'flex .3s' }} />
+        ))}
+      </div>
+      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+        {Object.entries(counts).map(([label, n]) => n > 0 && (
+          <span key={label} style={{ fontSize: 11, color: palette[label].color, fontWeight: 600 }}>
+            ● {label} {n} ({Math.round(n / total * 100)}%)
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function StatTile({ value, sub, color }) {
+  return (
+    <div style={{ flex: 1, minWidth: 100, background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, padding: '12px 14px', textAlign: 'center' }}>
+      <div style={{ fontSize: 24, fontWeight: 800, color: color || '#1F3864', lineHeight: 1 }}>{value}</div>
+      <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4, textTransform: 'uppercase', letterSpacing: .3 }}>{sub}</div>
+    </div>
+  )
+}
+
+function ExamResultsDashboard({ exam, teacher, onClose }) {
+  const [instances, setInstances] = useState([])
+  const [loading,   setLoading]   = useState(true)
+  const [tab,       setTab]       = useState('submitted')   // 'submitted' | 'pending'
+
+  useEffect(() => {
+    async function load() {
+      setLoading(true)
+
+      // 1. Find exam_sessions created by this teacher for this assessment
+      const { data: examSessions } = await supabase
+        .from('exam_sessions')
+        .select('id')
+        .eq('teacher_id', teacher.id)
+        .filter('service_worker_payload->>assessment_id', 'eq', exam.id)
+
+      let rows = []
+
+      if (examSessions?.length) {
+        const sIds = examSessions.map(s => s.id)
+
+        // 2. Get all instances
+        const { data: instRows } = await supabase
+          .from('exam_instances')
+          .select('id, student_name, student_email, student_section, student_code, version_label, instance_status, integrity_flags, tab_switches, submitted_at, time_spent_seconds')
+          .in('session_id', sIds)
+          .order('student_section', { ascending: true })
+
+        rows = instRows || []
+
+        // 3. Try to get grades from exam_results
+        if (rows.length) {
+          const iIds = rows.map(r => r.id)
+          const { data: gradeRows } = await supabase
+            .from('exam_results')
+            .select('instance_id, colombian_grade, total_score, max_score')
+            .in('instance_id', iIds)
+
+          if (gradeRows?.length) {
+            const gMap = {}
+            gradeRows.forEach(g => { gMap[g.instance_id] = g })
+            rows = rows.map(r => ({ ...r, ...( gMap[r.id] || {}) }))
+          }
+        }
+      }
+
+      // 4. Fallback for V1 (no instances) — show sessions from assessment_results
+      if (!rows.length) {
+        const { data: resultRows } = await supabase
+          .from('assessment_results')
+          .select('session_id, final_grade, percentage, status, student_name')
+          .eq('assessment_id', exam.id)
+        rows = (resultRows || []).map(r => ({
+          id: r.session_id,
+          student_name: r.student_name,
+          instance_status: r.status === 'complete' ? 'submitted' : 'started',
+          colombian_grade: r.final_grade,
+          integrity_flags: null,
+          tab_switches: 0,
+        }))
+      }
+
+      setInstances(rows)
+      setLoading(false)
+    }
+    load()
+  }, [exam.id, teacher.id])
+
+  const submitted = instances.filter(r => r.instance_status === 'submitted')
+  const pending   = instances.filter(r => r.instance_status !== 'submitted')
+
+  const avgGrade = (() => {
+    const graded = submitted.filter(r => r.colombian_grade != null)
+    if (!graded.length) return null
+    return (graded.reduce((s, r) => s + r.colombian_grade, 0) / graded.length).toFixed(1)
+  })()
+
+  const highRiskCount = submitted.filter(r => integrityRisk(r.integrity_flags, r.tab_switches) === 'high').length
+
+  const displayed = tab === 'submitted' ? submitted : pending
+
+  return createPortal(
+    <div className="lt-modal-overlay" style={{ zIndex: 9998 }}>
+      <div style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 760, maxHeight: '88vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 12px 40px rgba(0,0,0,.2)' }}>
+
+        {/* Header */}
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(135deg, #1F3864, #2E5598)', borderRadius: '14px 14px 0 0' }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: 15, color: '#fff', fontWeight: 700 }}>📊 Dashboard de Resultados</h3>
+            <p style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,.7)' }}>{exam.title} · {exam.subject} · {exam.grade}</p>
+          </div>
+          <button type="button" onClick={onClose} style={{ background: 'rgba(255,255,255,.15)', border: 'none', borderRadius: 7, padding: '6px 10px', fontSize: 18, cursor: 'pointer', color: '#fff' }}>✕</button>
+        </div>
+
+        <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
+          {loading ? (
+            <p style={{ color: '#888', fontStyle: 'italic', textAlign: 'center', padding: 40 }}>Cargando resultados…</p>
+          ) : instances.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '48px 24px', color: '#9CA3AF' }}>
+              <div style={{ fontSize: 40, marginBottom: 12 }}>📋</div>
+              <p>Aún no hay presentaciones registradas.</p>
+            </div>
+          ) : (
+            <>
+              {/* Stats */}
+              <div style={{ display: 'flex', gap: 10, marginBottom: 18, flexWrap: 'wrap' }}>
+                <StatTile value={`${submitted.length}/${instances.length}`} sub="Presentaron" color="#1F3864" />
+                <StatTile value={avgGrade ? `${avgGrade}/5.0` : '—'} sub="Promedio" color={avgGrade ? gradeColor(parseFloat(avgGrade)) : '#9CA3AF'} />
+                <StatTile value={highRiskCount || '0'} sub="Riesgo alto" color={highRiskCount > 0 ? '#DC2626' : '#9CA3AF'} />
+                <StatTile value={pending.length || '0'} sub="Pendientes" color={pending.length > 0 ? '#D97706' : '#9CA3AF'} />
+              </div>
+
+              {/* Grade distribution */}
+              {submitted.length > 0 && <GradeDistBar rows={submitted} />}
+
+              {/* Tabs */}
+              <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+                {[
+                  { key: 'submitted', label: `✅ Presentaron (${submitted.length})` },
+                  { key: 'pending',   label: `⏳ No presentaron (${pending.length})` },
+                ].map(t => (
+                  <button key={t.key} type="button" onClick={() => setTab(t.key)} style={{
+                    padding: '6px 14px', borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: 'pointer', border: 'none',
+                    background: tab === t.key ? '#1F3864' : '#F1F5F9',
+                    color: tab === t.key ? '#fff' : '#475569',
+                  }}>{t.label}</button>
+                ))}
+              </div>
+
+              {/* Table */}
+              {displayed.length === 0 ? (
+                <p style={{ color: '#9CA3AF', fontStyle: 'italic', fontSize: 13 }}>
+                  {tab === 'submitted' ? 'Ningún estudiante ha presentado aún.' : '¡Todos presentaron!'}
+                </p>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                    <thead>
+                      <tr style={{ background: '#F8FAFC' }}>
+                        {['Nombre', 'Sección', 'Versión', 'Nota', 'Nivel', 'Integridad', tab === 'submitted' ? 'Tiempo' : 'Estado'].map(h => (
+                          <th key={h} style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 700, color: '#64748B', fontSize: 11, borderBottom: '1px solid #E2E8F0', whiteSpace: 'nowrap' }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {displayed
+                        .slice()
+                        .sort((a, b) => {
+                          if (tab !== 'submitted') return (a.student_name || '').localeCompare(b.student_name || '')
+                          // submitted: sort by grade desc, ungraded last
+                          const ga = a.colombian_grade ?? -1
+                          const gb = b.colombian_grade ?? -1
+                          return gb - ga
+                        })
+                        .map((r, i) => {
+                          const lv = gradeLevel(r.colombian_grade)
+                          const risk = integrityRisk(r.integrity_flags, r.tab_switches)
+                          return (
+                            <tr key={r.id || i} style={{ borderBottom: '1px solid #F1F5F9', background: risk === 'high' ? '#FFF5F5' : 'transparent' }}>
+                              <td style={{ padding: '9px 10px', fontWeight: 600, color: '#374151' }}>
+                                {r.student_name || '—'}
+                                {r.student_code && <span style={{ color: '#9CA3AF', fontWeight: 400, marginLeft: 5 }}>({r.student_code})</span>}
+                              </td>
+                              <td style={{ padding: '9px 10px', color: '#64748B' }}>{r.student_section || '—'}</td>
+                              <td style={{ padding: '9px 10px' }}>
+                                {r.version_label
+                                  ? <span style={{ background: '#F0F4FF', color: '#1F3864', borderRadius: 5, padding: '2px 7px', fontWeight: 700 }}>{r.version_label}</span>
+                                  : <span style={{ color: '#9CA3AF' }}>—</span>
+                                }
+                              </td>
+                              <td style={{ padding: '9px 10px' }}>
+                                {r.colombian_grade != null
+                                  ? <span style={{ fontSize: 16, fontWeight: 800, color: gradeColor(r.colombian_grade) }}>{r.colombian_grade.toFixed(1)}</span>
+                                  : <span style={{ color: '#9CA3AF', fontSize: 11 }}>⏳ pendiente</span>
+                                }
+                              </td>
+                              <td style={{ padding: '9px 10px' }}>
+                                {lv
+                                  ? <span style={{ background: lv.bg, color: lv.color, borderRadius: 5, padding: '2px 7px', fontSize: 11, fontWeight: 700 }}>{lv.label}</span>
+                                  : <span style={{ color: '#9CA3AF' }}>—</span>
+                                }
+                              </td>
+                              <td style={{ padding: '9px 10px' }}>
+                                <IntegrityBadge flags={r.integrity_flags} tabSwitches={r.tab_switches} />
+                              </td>
+                              <td style={{ padding: '9px 10px', color: '#64748B' }}>
+                                {tab === 'submitted'
+                                  ? fmtDuration(r.time_spent_seconds)
+                                  : <span style={{ background: r.instance_status === 'started' ? '#FEF9C3' : '#F1F5F9', color: r.instance_status === 'started' ? '#854D0E' : '#6B7280', borderRadius: 5, padding: '2px 7px', fontSize: 11, fontWeight: 700 }}>
+                                      {r.instance_status === 'started' ? '⏳ En curso' : '⬜ Sin iniciar'}
+                                    </span>
+                                }
+                              </td>
+                            </tr>
+                          )
+                        })
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {tab === 'submitted' && submitted.some(r => r.colombian_grade == null) && (
+                <p style={{ marginTop: 12, fontSize: 11, color: '#9CA3AF', fontStyle: 'italic' }}>
+                  ⏳ Algunas notas están pendientes de corrección AI. Se actualizarán automáticamente.
+                </p>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body
+  )
 }
 
 // ── TelegramConfigPanel ───────────────────────────────────────────────────────

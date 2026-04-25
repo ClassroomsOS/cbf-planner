@@ -1,4 +1,4 @@
-# CBF PLANNER — v5.2
+# CBF PLANNER — v5.3
 ## CLAUDE.md — Documento maestro
 
 > **Principio rector:** *"Nosotros diseñamos. El docente enseña."*
@@ -25,30 +25,17 @@ Libros:      Uncover 4 (8°) · Evolve 4 (9°) · Cambridge One (digital)
 
 ---
 
-## 🔜 SPRINT ACTUAL — SESIÓN L
+## 🔜 SPRINT ACTUAL — SESIÓN L (continuación)
 
-**1. Sistema antitrampa NIVEL MÁXIMO — ExamPlayerV2Page (ExamPhase)**
+**✅ Completado:**
+- Sistema antitrampa 5 capas en ExamPlayerV2Page: multi-event detection · canvas watermark (RAF + MutationObserver) · fullscreen adaptativo + iOS kiosk · Edge Fn `exam-integrity-alert` → Telegram · `teachers.telegram_chat_id`
+- Generar instancias por roster desde ExamDetailModal (grade+section → auto-query `school_students`)
+- Vista previa y edición de preguntas por versión en ExamDetailModal
+- Login/Auth completo: "Olvidé mi contraseña" (`resetPasswordForEmail` → `SetPasswordPage`) + email automático al crear docente (Resend / `inviteUserByEmail` fallback) en Edge Fn `admin-create-teacher`
 
-| Capa | Qué implementar |
-|---|---|
-| **1 — Detección multi-evento** | `visibilitychange` + `window blur` + `fullscreenchange`/`webkitfullscreenchange` + `resize` (DevTools: `outerWidth - innerWidth > 160`) + `keydown` global (F12, Ctrl+Shift+I/J, Ctrl+U/W/T/N, Alt+F4, Cmd+W/T/N/Tab/Space) + `beforeunload` + `contextmenu` + `copy/cut/paste` + `pagehide`/iOS + `MutationObserver` en body. Cada evento → DB + Telegram + badge rojo. |
-| **2 — Marca de agua canvas** | `<canvas>` `position:fixed` `z-index:9999` `pointer-events:none`. Texto: "NombreCompleto · Versión B · 22 abr · 9:14 am" diagonal -30°, grid ~200px, opacity 0.08. Redibujar en `requestAnimationFrame`. `MutationObserver` reinserta si alguien borra el nodo. Fallback iOS: div con texto en grid. |
-| **3 — Fullscreen adaptativo** | Desktop: `requestFullscreen()` obligatorio al "Iniciar"; salida → modal alerta + cuenta evento. iPad iOS Safari (no soporta fullscreen) → "modo quiosco": banner rojo fijo top:0 + body scroll bloqueado + pinch-to-zoom bloqueado. Detectar iOS: `/iPad\|iPhone\|iPod/.test(navigator.userAgent) \|\| (platform==='MacIntel' && maxTouchPoints>1)` |
-| **4 — Telegram en tiempo real** | Nueva Edge Function `exam-integrity-alert`. POST `{ session_id, student_name, exam_title, event_type, count, teacher_id }` → lee `teachers.telegram_chat_id` → Telegram Bot API. Primera alerta inmediata; throttle 1/60s por estudiante. Fallback sin chat_id: solo `integrity_flags` JSONB. **Migración nueva:** `teachers.telegram_chat_id text`. |
-| **5 — Matriz de pruebas** | Verificar CADA combo antes de marcar completo: iPad Safari/Chrome · MacBook Air Safari/Chrome/Firefox · Mac Safari/Chrome. Verificar: fullscreen/fallback · visibilitychange · blur · marca de agua · Telegram recibido · badge en pantalla. |
-
-**Límites honestos del navegador:** Alt+Tab del OS y botón Home físico del iPad no pueden bloquearse — solo detectarse. Screenshots del sistema tampoco — la marca de agua es la única contramedida.
-
-**2. Flujo docente → generar exámenes por roster**
-- ExamDashboardPage: botón "Generar exámenes" → llama `exam-instance-generator` con grade + section (ya no `students[]` manual)
-- Mostrar progreso: cuántos generados / total del roster
-- Estado de cada instancia: ⏳ pendiente · ✅ listo · 🔴 sin roster
-
-**3. Dashboard de resultados** — quién presentó, quién no, notas, alertas de integridad
-
-**4. Panel revisión humana** — correcciones AI con confianza < 0.65
-
-**5. Login/Auth** — "Olvidé mi contraseña" + email automático al crear docente
+**🔜 Pendiente:**
+- **Dashboard de resultados** — quién presentó/no, notas 1–5, alertas de integridad por examen
+- **Panel revisión humana** — correcciones AI con `ai_confidence < 0.65` → revisión del docente
 
 ---
 
@@ -96,7 +83,7 @@ SYLLABUS TOPICS → ACHIEVEMENT GOAL → ACHIEVEMENT INDICATORS
 | **I** | suggestSectionActivity enriquecida (textbook + archetypes) · DOCX single-column fix · Legacy DOCX secciones+imágenes · Preview modal todos los formatos · downloadRubricHtml | ✅ prod |
 | **J** | ExamDashboardPage: N versiones + rigor UI · exportExamHtml CBF-G AC-01 · seededShuffle + round-robin en ExamPlayerPage · callout examen en PlannerPage | ✅ prod |
 | **K** | school_students (roster) · StudentsPage (/students) · ExamPlayerV2Page: email auth · exam-instance-generator auto-roster · Migración 20260422000004 | ✅ prod |
-| **L** | ← **SPRINT ACTUAL** (ver sección arriba) | 🔜 |
+| **L** | Antitrampa 5 capas · exam-integrity-alert Edge Fn · generar instancias por roster · preview+edición preguntas · auth completo (forgot pwd + Resend) | 🔶 parcial |
 
 > Para el roadmap detallado y backlog → `docs/claude/roadmap.md`
 
@@ -449,4 +436,4 @@ git add . && git commit -m "feat: ..." && git push      # deploy automático ~2 
 ---
 
 *CBF Planner · ETA Platform · Edoardo Ortiz + Claude Sonnet · Barranquilla 2026*
-*"Nosotros diseñamos. El docente enseña." · CLAUDE.md v5.2 — Abril 25, 2026*
+*"Nosotros diseñamos. El docente enseña." · CLAUDE.md v5.3 — Abril 25, 2026*

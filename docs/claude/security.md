@@ -16,13 +16,17 @@
 | Creación de docentes por admin | Edge Fn `admin-create-teacher` | Ver flujo abajo |
 | Validación de dominio de email | `LoginPage.jsx` + Edge Fn | Ver sección abajo |
 
-### 🔶 Pendiente — Login/Auth completo
+### ✅ Completado recientemente
+| Función | Archivo | Notas |
+|---|---|---|
+| Olvidé mi contraseña | `LoginPage.jsx` (mode='forgot') | `resetPasswordForEmail(email, { redirectTo })` → `SetPasswordPage` |
+| Email de bienvenida al docente | Edge Fn `admin-create-teacher` | Si `RESEND_API_KEY` → email custom HTML; si no → `inviteUserByEmail` Supabase |
+
+### 🔶 Pendiente
 | Función | Estado | Notas |
 |---|---|---|
-| Google OAuth activo | **Pendiente** | Configurar en Supabase Dashboard → Auth → Providers → Google. Debe validar dominio `@redboston.edu.co` post-OAuth. |
-| Olvidé mi contraseña | **Pendiente** | `supabase.auth.resetPasswordForEmail(email, { redirectTo })` → usuario recibe link → `SetPasswordPage` ya existe y puede reutilizarse |
-| Email de bienvenida al docente creado | **Pendiente** | Hoy el admin comparte el recovery link manualmente. Debería enviarse automáticamente desde `admin-create-teacher` Edge Fn. |
-| Dominio en Google OAuth | **Pendiente** | Después de `signInWithOAuth`, en `onAuthStateChange` verificar que `session.user.email` termine en el dominio permitido. Si no, hacer `signOut()` y mostrar error. |
+| Google OAuth activo | **Pendiente** | Configurar en Supabase Dashboard → Auth → Providers → Google |
+| Dominio en Google OAuth | **Pendiente** | Post-OAuth en `onAuthStateChange`: verificar email termina en dominio permitido; si no, `signOut()` |
 
 ---
 
@@ -46,8 +50,9 @@ Admin/Rector → /teachers → ➕ Crear docente
       → valida dominio contra schools.features
       → crea auth user (email_confirm: true) + insert teachers (status: approved)
       → genera recovery link (expira 1h)
-      → [HOY] Admin comparte link manualmente
-      → [PENDIENTE] Edge Fn envía email automático al docente
+      → Si RESEND_API_KEY: sendWelcomeEmail() → HTML email institucional ✅
+      → Si no hay Resend: inviteUserByEmail → Supabase SMTP envía automáticamente ✅
+      → Responde { success, id, recovery_url (fallback), email_sent }
       → Docente abre link → SetPasswordPage
       → supabase.auth.updateUser({ password }) → acceso al sistema
 ```

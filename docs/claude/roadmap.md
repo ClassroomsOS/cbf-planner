@@ -9,7 +9,7 @@
 
 | Área | Estado | Notas |
 |---|---|---|
-| Auth / Login | 🔶 A medias | Email+pass ✅ · Google OAuth handler ✅ · Forgot password ❌ · Emails automáticos ❌ |
+| Auth / Login | 🔶 Casi completo | Email+pass ✅ · Google OAuth handler ✅ · Forgot password ✅ · Email bienvenida docente ✅ · Google OAuth config en Dashboard ❌ |
 | Roles y permisos | ✅ Completo | Rector = Coordinador, canManage expandido, badges sidebar |
 | Paneles admin | ✅ Completo | SettingsPage limpio, SuperAdminPage, AdminTeachersPage edit+delete |
 | Asignaciones RLS | ✅ Completo | Policies para admin + superadmin + rector |
@@ -30,7 +30,7 @@
 | Pipeline imágenes IA | ⬜ Pendiente | Fotos de textbook → multimodal → prompt |
 | Refactoring (Fase 3) | ⬜ Pendiente | Archivos grandes, CSS modular, TeacherContext |
 | **Módulo de Evaluación — Backend** | ✅ Completo | 10 tablas, triggers, cola AI, corrección Claude, escala colombiana. Probado E2E. |
-| **Módulo de Evaluación — Frontend** | 🔶 Parcial | ~~Pantalla creación~~ ✅ · ~~N versiones anti-copia~~ ✅ · ~~Print CBF-G AC-01~~ ✅ · ~~ExamPlayerV2 email-auth~~ ✅ · Dashboard resultados ❌ · Revisión humana ❌ |
+| **Módulo de Evaluación — Frontend** | 🔶 Parcial | ~~Pantalla creación~~ ✅ · ~~N versiones anti-copia~~ ✅ · ~~Print CBF-G AC-01~~ ✅ · ~~ExamPlayerV2 email-auth~~ ✅ · ~~Antitrampa 5 capas~~ ✅ · ~~Generar instancias por roster~~ ✅ · ~~Preview+edición preguntas por versión~~ ✅ · Dashboard resultados ❌ · Revisión humana ❌ |
 | **Roster de Estudiantes** | ✅ Completo | school_students · StudentsPage · exam-instance-generator auto-query · email auth en /eval |
 | **CBF Observability Layer** | ✅ Completo | 16 códigos error `CBF-[MOD]-[TYPE]-[NNN]`, cbf-logger, alertas Telegram, health snapshots |
 | **CBF Quality Standard** | ✅ Completo | Definition of Done, clasificación bugs, estándares performance y disponibilidad |
@@ -119,11 +119,10 @@ El conteo de tabs existe pero no hay lockdown real. Implementar en `ExamPhase`:
 
 ---
 
-**Login/Auth completo** (`LoginPage.jsx`, `App.jsx`, Edge Fn `admin-create-teacher`)
+**Login/Auth** — pendiente solo Google OAuth
 1. Configurar Google OAuth en Supabase Dashboard → Auth → Providers → Google
 2. Validar dominio `@redboston.edu.co` post-OAuth en `App.jsx:onAuthStateChange`
-3. Agregar "Olvidé mi contraseña" → `resetPasswordForEmail()` → `SetPasswordPage` (ya existe)
-4. Email automático al crear docente desde `admin-create-teacher` (Supabase SMTP / Resend)
+- ~~"Olvidé mi contraseña"~~ ✅ · ~~Email automático al crear docente (Resend)~~ ✅
 
 Ver detalles en [`security.md`](security.md).
 
