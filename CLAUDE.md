@@ -25,17 +25,22 @@ Libros:      Uncover 4 (8°) · Evolve 4 (9°) · Cambridge One (digital)
 
 ---
 
-## 🔜 SPRINT ACTUAL — SESIÓN L (continuación)
+## ✅ SESIÓN L — COMPLETADA
 
-**✅ Completado:**
 - Sistema antitrampa 5 capas en ExamPlayerV2Page: multi-event detection · canvas watermark (RAF + MutationObserver) · fullscreen adaptativo + iOS kiosk · Edge Fn `exam-integrity-alert` → Telegram · `teachers.telegram_chat_id`
 - Generar instancias por roster desde ExamDetailModal (grade+section → auto-query `school_students`)
 - Vista previa y edición de preguntas por versión en ExamDetailModal
 - Login/Auth completo: "Olvidé mi contraseña" (`resetPasswordForEmail` → `SetPasswordPage`) + email automático al crear docente (Resend / `inviteUserByEmail` fallback) en Edge Fn `admin-create-teacher`
+- Dashboard de resultados por examen: quién presentó/no · notas 1–5 · distribución · alertas de integridad (`ExamResultsDashboard` en `ExamDetailModal`)
+- Panel revisión humana (`/exams/review`): correcciones IA confianza < 0.65 → override docente → recálculo nota colombiana inmediato
+- Design system completo: fuentes/espaciado/animaciones para uso prolongado · DM Mono · spring physics · skeleton states
+
+## 🔜 SPRINT ACTUAL — SESIÓN M
 
 **🔜 Pendiente:**
-- **Dashboard de resultados** — quién presentó/no, notas 1–5, alertas de integridad por examen
-- **Panel revisión humana** — correcciones AI con `ai_confidence < 0.65` → revisión del docente
+- **Google OAuth** — configurar en Supabase Dashboard → Auth → Providers + validar dominio post-OAuth en `App.jsx`
+- **Sala de Revisión** (`/sala-revision`) — guías publicadas por grado · edición con justificación · notificación al docente
+- **Sincronización local** — `supabase db pull` · copiar Edge Fns `exam-ai-corrector` v3 + `cbf-logger` v1 al local
 
 ---
 
@@ -83,7 +88,7 @@ SYLLABUS TOPICS → ACHIEVEMENT GOAL → ACHIEVEMENT INDICATORS
 | **I** | suggestSectionActivity enriquecida (textbook + archetypes) · DOCX single-column fix · Legacy DOCX secciones+imágenes · Preview modal todos los formatos · downloadRubricHtml | ✅ prod |
 | **J** | ExamDashboardPage: N versiones + rigor UI · exportExamHtml CBF-G AC-01 · seededShuffle + round-robin en ExamPlayerPage · callout examen en PlannerPage | ✅ prod |
 | **K** | school_students (roster) · StudentsPage (/students) · ExamPlayerV2Page: email auth · exam-instance-generator auto-roster · Migración 20260422000004 | ✅ prod |
-| **L** | Antitrampa 5 capas · exam-integrity-alert Edge Fn · generar instancias por roster · preview+edición preguntas · auth completo (forgot pwd + Resend) | 🔶 parcial |
+| **L** | Antitrampa 5 capas · exam-integrity-alert Edge Fn · generar instancias por roster · preview+edición preguntas · auth completo (forgot pwd + Resend) · Dashboard resultados · Panel revisión humana · Design system UX | ✅ prod |
 
 > Para el roadmap detallado y backlog → `docs/claude/roadmap.md`
 
