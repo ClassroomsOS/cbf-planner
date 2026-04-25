@@ -93,13 +93,28 @@ function WatermarkCanvas({ text }) {
     draw()
     window.addEventListener('resize', draw)
 
-    // MutationObserver: si alguien borra el canvas desde DevTools, lo reinserta
+    // MutationObserver: si alguien borra el canvas desde DevTools, lo reinserta.
+    // También detecta intentos de ocultarlo vía style/attribute (opacity:0, display:none, etc.)
     const observer = new MutationObserver(() => {
-      if (!document.body.contains(canvasRef.current)) {
-        document.body.appendChild(canvasRef.current)
+      const canvas = canvasRef.current
+      if (!canvas) return
+      if (!document.body.contains(canvas)) {
+        document.body.appendChild(canvas)
+        draw()
+      } else {
+        // Restore visibility if tampered via DevTools style panel
+        const s = canvas.style
+        if (s.opacity === '0' || s.display === 'none' || s.visibility === 'hidden') {
+          s.opacity = ''
+          s.display = ''
+          s.visibility = ''
+        }
+        if (canvas.getAttribute('hidden') !== null) {
+          canvas.removeAttribute('hidden')
+        }
       }
     })
-    observer.observe(document.body, { childList: true, subtree: true })
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'hidden', 'class'] })
 
     return () => {
       window.removeEventListener('resize', draw)
@@ -147,12 +162,15 @@ export default function ExamPlayerV2Page() {
 
   const [showFsModal, setShowFsModal] = useState(false)
 
-  const idbRef       = useRef(null)
-  const timerRef     = useRef(null)
-  const autosaveRef  = useRef(null)
-  const instanceRef  = useRef(null)   // para closures de eventos
-  const sessionRef   = useRef(null)   // para closures de eventos
-  const lastAlertRef = useRef(0)      // timestamp del último Telegram enviado (throttle 60s)
+  const idbRef         = useRef(null)
+  const timerRef       = useRef(null)
+  const autosaveRef    = useRef(null)
+  const instanceRef    = useRef(null)   // para closures de eventos
+  const sessionRef     = useRef(null)   // para closures de eventos
+  const lastAlertRef   = useRef(0)      // timestamp del último Telegram enviado (throttle 60s)
+  // ⚠️ SECURITY: correct answers NEVER go into React state (visible in React DevTools + Network).
+  // Stored in a plain ref — not exposed in component state tree.
+  const correctAnsRef  = useRef({})     // { [questionId]: correctAnswer }
 
   // Detectar iOS (no soporta requestFullscreen — usar modo quiosco)
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
@@ -225,13 +243,24 @@ export default function ExamPlayerV2Page() {
           ? await idbLoadAll(idbRef.current, inst.id).catch(() => ({}))
           : {}
 
-        const qs = inst.generated_questions || []
+        const rawQs = inst.generated_questions || []
+
+        // ── SECURITY FIX: strip correct_answer before setting React state ──
+        // correct_answer must NEVER live in React state — it's visible in React
+        // DevTools and can be read by any student with basic browser knowledge.
+        // Store in a plain ref instead; used only at submit time for auto-scoring.
+        const safeQs    = rawQs.map(({ correct_answer: _ca, ...rest }) => rest)
+        const answerMap = {}
+        for (const q of rawQs) {
+          if (q.correct_answer !== undefined) answerMap[q.id] = q.correct_answer
+        }
+        correctAnsRef.current = answerMap
 
         setSession(sess)
         sessionRef.current = sess
         setInstance(inst)
         instanceRef.current = inst
-        setQuestions(qs)
+        setQuestions(safeQs)
         setAnswers(savedAnswers)
         setTimeLeft(sess.duration_minutes > 0 ? sess.duration_minutes * 60 : null)
         setPhase(PHASE.INSTRUCTIONS)
@@ -325,7 +354,11 @@ export default function ExamPlayerV2Page() {
               onClick={() => {
                 setPhase(PHASE.EXAM)
                 if (!isIOS) {
-                  document.documentElement.requestFullscreen?.().catch(() => {})
+                  document.documentElement.requestFullscreen?.().catch(() => {
+                    // Student declined fullscreen — register violation and show re-entry modal
+                    registerViolation('fullscreen_declined')
+                    setShowFsModal(true)
+                  })
                 }
               }}
             >
@@ -346,8 +379,12 @@ export default function ExamPlayerV2Page() {
       function onVisibilityChange() {
         if (document.hidden) registerViolation('tab_switch')
       }
-      // b) Ventana pierde foco
-      function onBlur() { registerViolation('window_blur') }
+      // b) Ventana pierde foco — solo si el documento NO está oculto.
+      // visibilitychange ya cubre tab-switch; este cubre DevTools en ventana separada
+      // o cualquier app que robe foco sin ocultar la pestaña.
+      function onBlur() {
+        if (!document.hidden) registerViolation('window_blur')
+      }
       // c) Salida / entrada de fullscreen → modal de re-ingreso en desktop
       function onFullscreenChange() {
         const inFs = !!(document.fullscreenElement || document.webkitFullscreenElement)
@@ -358,12 +395,33 @@ export default function ExamPlayerV2Page() {
           if (!isIOS) setShowFsModal(true)
         }
       }
-      // d) DevTools anclado (resize reduce el ancho de la ventana)
+      // d) DevTools anclado — detectado por resize (DevTools reduce dimensiones de la ventana)
+      // Threshold 160px cubre la mayoría de panels sin falsos positivos por zoom/DPI.
+      // DevTools undocked en ventana separada: cubierto por onBlur (sin document.hidden).
       function onResize() {
         if (window.outerWidth  - window.innerWidth  > 160 ||
             window.outerHeight - window.innerHeight > 160) {
           registerViolation('devtools_open')
         }
+      }
+
+      // d2) DevTools via RegExp toString getter — detecta DevTools abierto (docked o undocked).
+      // Cuando la consola de DevTools está activa, formatea automáticamente cualquier objeto
+      // enviado a console.log() llamando a su toString(). Usamos una RegExp cuyo toString
+      // tiene un getter instrumentado. Si es llamado → DevTools está mirando.
+      // console.clear() evita que el log sea visible por el estudiante.
+      let devtoolsCheckInterval = null
+      if (!isIOS) {
+        devtoolsCheckInterval = setInterval(() => {
+          let triggered = false
+          const probe = /./
+          probe.toString = () => { triggered = true; return '' }
+          // eslint-disable-next-line no-console
+          console.log(probe)
+          // eslint-disable-next-line no-console
+          console.clear()
+          if (triggered) registerViolation('devtools_open')
+        }, 3000)
       }
       // e) Teclas sospechosas — bloquear + registrar
       function onKeyDown(e) {
@@ -428,6 +486,7 @@ export default function ExamPlayerV2Page() {
         document.removeEventListener('copy', onCopy)
         document.removeEventListener('cut', onCut)
         window.removeEventListener('pagehide', onPageHide)
+        if (devtoolsCheckInterval) clearInterval(devtoolsCheckInterval)
         if (isIOS) {
           document.removeEventListener('touchmove', onTouchMove)
           document.body.style.overflow = ''
@@ -640,8 +699,9 @@ export default function ExamPlayerV2Page() {
       for (const q of questions) {
         const answer = answers[q.id]
         const isAuto = q.question_type === 'multiple_choice'
+        // Use correctAnsRef — never q.correct_answer (stripped from state for security)
         const autoScore = isAuto && answer
-          ? (answer === q.correct_answer ? (q.points || 0) : 0)
+          ? (answer === correctAnsRef.current[q.id] ? (q.points || 0) : 0)
           : null
 
         await supabase.from('exam_responses').insert({
