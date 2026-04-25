@@ -68,6 +68,7 @@ function DashboardInner({ session, teacher, setTeacher }) {
 
   const [unread,         setUnread]         = useState(0)
   const [unreadMessages, setUnreadMessages] = useState(0)
+  const [pendingReview,  setPendingReview]  = useState(0)
 
   // Fetch unread counts
   async function fetchUnread() {
@@ -96,6 +97,17 @@ function DashboardInner({ session, teacher, setTeacher }) {
     } catch { setUnreadMessages(0) }
   }
 
+  async function fetchPendingReview() {
+    if (!isAdmin) return
+    try {
+      const { count } = await supabase
+        .from('lesson_plans')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'submitted')
+      setPendingReview(count || 0)
+    } catch { setPendingReview(0) }
+  }
+
   // ── Real-time subscriptions ─────────────────────────────────────────────────
   // Replaces 60s polling with instant updates via Supabase Realtime.
   // Subscriptions listen to INSERT/UPDATE/DELETE on notifications and messages.
@@ -109,6 +121,7 @@ function DashboardInner({ session, teacher, setTeacher }) {
     // Initial fetch
     fetchUnread()
     fetchUnreadMessages()
+    fetchPendingReview()
 
     // Subscribe to notifications changes
     const notificationsChannel = supabase
@@ -146,10 +159,21 @@ function DashboardInner({ session, teacher, setTeacher }) {
       )
       .subscribe()
 
+    // Subscribe to lesson_plans status changes (admin only — drives pending review badge)
+    let plansChannel = null
+    if (isAdmin) {
+      plansChannel = supabase
+        .channel('plans-status-changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'lesson_plans' },
+          () => fetchPendingReview())
+        .subscribe()
+    }
+
     // Cleanup subscriptions on unmount
     return () => {
       supabase.removeChannel(notificationsChannel)
       supabase.removeChannel(messagesChannel)
+      if (plansChannel) supabase.removeChannel(plansChannel)
     }
   }, [teacher.id, teacher.school_id, isAdmin])
 
@@ -319,7 +343,10 @@ function DashboardInner({ session, teacher, setTeacher }) {
               <NavLink to="/sala-revision" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
                 <span className="dot" style={{ background: '#C0504D' }} />
                 🏛 Sala de Revisión
-                <span className="sb-admin-badge">Admin</span>
+                {pendingReview > 0
+                  ? <span className="sb-notif-badge">{pendingReview}</span>
+                  : <span className="sb-admin-badge">Admin</span>
+                }
               </NavLink>
               <NavLink to="/subjects" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
                 <span className="dot" style={{ background: '#F79646' }} />
