@@ -74,18 +74,23 @@ export default function ObservationLoggerPage({ teacher }) {
 
   async function init() {
     setLoading(true)
-    const [{ data: trows }, { data: orows }] = await Promise.all([
-      supabase.from('teachers').select('id, full_name').eq('school_id', teacher.school_id),
-      supabase.from('eleot_observations')
-        .select('*')
-        .eq('school_id', teacher.school_id)
-        .order('date', { ascending: false })
-        .order('created_at', { ascending: false })
-        .limit(100),
-    ])
-    setTeachers(trows || [])
-    setObs(orows || [])
-    setLoading(false)
+    try {
+      const [{ data: trows }, { data: orows }] = await Promise.all([
+        supabase.from('teachers').select('id, full_name').eq('school_id', teacher.school_id),
+        supabase.from('eleot_observations')
+          .select('*')
+          .eq('school_id', teacher.school_id)
+          .order('date', { ascending: false })
+          .order('created_at', { ascending: false })
+          .limit(100),
+      ])
+      setTeachers(trows || [])
+      setObs(orows || [])
+    } catch (err) {
+      showToast('Error al cargar observaciones', 'error')
+    } finally {
+      setLoading(false)
+    }
   }
 
   function setField(key, val) {

@@ -394,7 +394,7 @@ function ExamCreatorModal({ teacher, onClose, onCreated }) {
         })
         .select('id').single()
 
-      if (aErr) throw new Error('Error al crear examen: ' + aErr.message)
+      if (aErr || !assessment?.id) throw new Error('Error al crear examen: ' + (aErr?.message || 'sin ID'))
 
       for (const q of generatedExam.questions) {
         const { data: question, error: qErr } = await supabase
@@ -995,7 +995,7 @@ function ExamDetailModal({ exam, results, onClose, onStatusChange, teacher }) {
         <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
           <div style={{ marginBottom: 16 }}>
             <p style={{ fontSize: 12, fontWeight: 600, color: '#64748B', margin: '0 0 6px' }}>CÓDIGO DE ACCESO</p>
-            <CopyCode code={exam.access_code} />
+            {exam.access_code && <CopyCode code={exam.access_code} />}
           </div>
           {versions.length > 1 && (
             <div style={{ marginBottom: 16 }}>
@@ -1217,7 +1217,7 @@ export default function ExamDashboardPage({ teacher }) {
                   )}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                  <CopyCode code={exam.access_code} />
+                  {exam.access_code && <CopyCode code={exam.access_code} />}
                   <button type="button" onClick={() => setDetailExam(exam)} style={{ padding: '7px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, background: '#1F3864', color: '#fff', border: 'none', cursor: 'pointer' }}>Ver →</button>
                 </div>
               </div>
