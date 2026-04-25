@@ -68,7 +68,9 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
 
   const [hoveredOp,   setHoveredOp]   = useState(null)
   const [hoveredComp, setHoveredComp] = useState(null)
-  const [saving, setSaving] = useState(false)
+  const [saving,    setSaving]    = useState(false)
+  const [archiving, setArchiving] = useState(false)
+  const [versionCount, setVersionCount] = useState(null) // null = no cargado
   const [generatingRubric, setGeneratingRubric] = useState(false)
   const [rubricGenerationStep, setRubricGenerationStep] = useState(0)
   const [activeStep, setActiveStep] = useState('identify')
@@ -412,6 +414,42 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
       showToast(result.error, 'error')
     }
   }, [form, isEditing, onSave, saving, showToast])
+
+  // ── Archivar versión (snapshot inmutable en news_project_versions) ──────────
+  const handleArchive = useCallback(async () => {
+    if (archiving || !project?.id) return
+    setArchiving(true)
+    try {
+      const { count } = await supabase
+        .from('news_project_versions')
+        .select('id', { count: 'exact', head: true })
+        .eq('project_id', project.id)
+      const nextVersion = (count || 0) + 1
+      const { error } = await supabase.from('news_project_versions').insert({
+        project_id:  project.id,
+        school_id:   teacher.school_id,
+        version:     nextVersion,
+        content:     { ...form, id: project.id },
+        archived_by: teacher.id,
+      })
+      if (error) throw error
+      setVersionCount(nextVersion)
+      showToast(`📦 Versión v${nextVersion} archivada`, 'success')
+    } catch (err) {
+      showToast('Error al archivar: ' + err.message, 'error')
+    }
+    setArchiving(false)
+  }, [archiving, project, form, teacher, showToast])
+
+  // Cargar conteo de versiones al abrir un proyecto existente
+  useEffect(() => {
+    if (!project?.id) return
+    supabase
+      .from('news_project_versions')
+      .select('id', { count: 'exact', head: true })
+      .eq('project_id', project.id)
+      .then(({ count }) => setVersionCount(count || 0))
+  }, [project?.id])
 
   const isValid = form.title && form.subject && form.grade && form.section && form.due_date && form.description
 
@@ -1560,9 +1598,29 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
             <div style={{ fontSize: 11, color: '#888' }}>
               {form.rubric.length > 0 && `${form.rubric.length} criterios · `}
               {form.status === 'draft' ? 'Borrador' : form.status}
+              {versionCount !== null && versionCount > 0 && (
+                <span style={{ marginLeft: 6, color: '#065F46', fontWeight: 700 }}>
+                  · 📦 {versionCount} versión{versionCount !== 1 ? 'es' : ''} archivada{versionCount !== 1 ? 's' : ''}
+                </span>
+              )}
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={onClose} className="news-btn-primary" style={styles.btnCancel}>Cancelar</button>
+              {isEditing && (
+                <button
+                  type="button"
+                  onClick={handleArchive}
+                  disabled={archiving}
+                  title="Guarda una copia inmutable del estado actual del proyecto"
+                  style={{
+                    padding: '8px 14px', borderRadius: 8, border: '1px solid #A7F3D0',
+                    background: archiving ? '#F0FDF4' : '#ECFDF5',
+                    color: '#065F46', fontSize: 13, fontWeight: 600,
+                    cursor: archiving ? 'default' : 'pointer',
+                  }}>
+                  {archiving ? '⏳…' : '📦 Archivar versión'}
+                </button>
+              )}
               <button
                 className="news-btn-primary"
                 onClick={handleSubmit}

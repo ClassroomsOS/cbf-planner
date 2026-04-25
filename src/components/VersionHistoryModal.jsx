@@ -37,7 +37,7 @@ export default function VersionHistoryModal({ planId, planTitle, teacher, onClos
     const [{ data: vers }, { data: trows }] = await Promise.all([
       supabase
         .from('lesson_plan_versions')
-        .select('id, version, status, note, archived_by, archived_at')
+        .select('id, version, status, note, archived_by, archived_at, storage_path')
         .eq('plan_id', planId)
         .order('version', { ascending: false }),
       supabase
@@ -197,8 +197,19 @@ export default function VersionHistoryModal({ planId, planTitle, teacher, onClos
                 )}
 
                 {/* Actions */}
-                {canRestore && !isLatest && (
-                  <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
+                <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {ver.storage_path && (
+                    <a href={ver.storage_path} target="_blank" rel="noreferrer"
+                      style={{
+                        padding: '6px 14px', borderRadius: 7, fontSize: 12, fontWeight: 600,
+                        background: '#ECFDF5', color: '#065F46',
+                        border: '1px solid #A7F3D0', textDecoration: 'none',
+                        display: 'inline-flex', alignItems: 'center', gap: 4,
+                      }}>
+                      📄 Abrir archivado
+                    </a>
+                  )}
+                  {canRestore && !isLatest && (
                     <button type="button"
                       disabled={!!restoring}
                       onClick={() => handleRestore(ver)}
@@ -210,8 +221,8 @@ export default function VersionHistoryModal({ planId, planTitle, teacher, onClos
                       }}>
                       {restoring === ver.id ? '⏳ Restaurando…' : '🔄 Restaurar esta versión'}
                     </button>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             )
           })}

@@ -16,6 +16,7 @@ import FeedbackModal     from '../components/FeedbackModal'
 import VersionHistoryModal from '../components/VersionHistoryModal'
 import { canGiveFeedback } from '../utils/roles'
 import { useToast }      from '../context/ToastContext'
+import { buildHtml, inlineImages } from '../utils/exportHtml'
 
 // ── Status meta ───────────────────────────────────────────────────────────────
 const STATUS_META = {
@@ -468,6 +469,25 @@ export default function ReviewRoomPage({ teacher }) {
     })
 
     if (verErr) { showToast('Error al crear snapshot: ' + verErr.message, 'error'); setChangingId(null); return }
+
+    // ── Subir HTML archivado a Storage (no bloquea si falla) ─────────────────
+    try {
+      const inlined = await inlineImages(plan.content)
+      const htmlStr = buildHtml(inlined)
+      const blob = new Blob([htmlStr], { type: 'text/html' })
+      const filePath = `archives/${teacher.school_id}/guides/${plan.id}/v${nextVersion}.html`
+      const { error: storErr } = await supabase.storage
+        .from('guide-images')
+        .upload(filePath, blob, { contentType: 'text/html', upsert: false })
+      if (!storErr) {
+        const { data: urlData } = supabase.storage.from('guide-images').getPublicUrl(filePath)
+        if (urlData?.publicUrl) {
+          await supabase.from('lesson_plan_versions')
+            .update({ storage_path: urlData.publicUrl })
+            .eq('plan_id', plan.id).eq('version', nextVersion)
+        }
+      }
+    } catch (_) { /* No bloquear la publicación si falla el upload HTML */ }
 
     const { error: planErr } = await supabase.from('lesson_plans')
       .update({ status: 'published', locked: true }).eq('id', plan.id)
