@@ -259,7 +259,16 @@ export default function ExamPlayerV2Page() {
         instanceRef.current = inst
         setQuestions(safeQs)
         setAnswers(savedAnswers)
-        setTimeLeft(sess.duration_minutes > 0 ? sess.duration_minutes * 60 : null)
+
+        // Calcular tiempo restante real desde started_at para resistir reconexiones.
+        // Sin esto, apagar el iPad y volver reiniciaba el timer al máximo.
+        let remaining = sess.duration_minutes > 0 ? sess.duration_minutes * 60 : null
+        if (remaining !== null && inst.started_at) {
+          const elapsed = Math.floor((Date.now() - new Date(inst.started_at).getTime()) / 1000)
+          remaining = Math.max(0, remaining - elapsed)
+        }
+        setTimeLeft(remaining)
+
         setPhase(PHASE.INSTRUCTIONS)
 
         // 4. Marcar como iniciado si es la primera vez
@@ -318,14 +327,17 @@ export default function ExamPlayerV2Page() {
   // ── InstructionsPhase ───────────────────────────────────────
 
   function InstructionsPhase() {
-    const mins = session?.duration_minutes
+    const mins     = session?.duration_minutes
+    const isResume = instance?.instance_status === 'started'
+    // timeLeft ya tiene el tiempo restante real (calculado desde started_at en handleEnter)
+    const minsLeft = timeLeft !== null ? Math.ceil(timeLeft / 60) : null
     return (
       <div style={styles.page}>
         <div style={{ ...styles.card, maxWidth: 560 }}>
-          <div style={{ ...styles.cardHeader, background: '#1F3864' }}>
+          <div style={{ ...styles.cardHeader, background: isResume ? '#7C3AED' : '#1F3864' }}>
             <h2 style={{ margin: 0, color: '#fff', fontSize: 20 }}>{session?.title}</h2>
-            <p style={{ margin: '4px 0 0', color: '#93C5FD', fontSize: 13 }}>
-              {session?.subject} · {session?.grade} · Período {session?.period}
+            <p style={{ margin: '4px 0 0', color: '#C4B5FD', fontSize: 13 }}>
+              {isResume ? '🔄 Continuando examen guardado' : `${session?.subject} · ${session?.grade} · Período ${session?.period}`}
             </p>
           </div>
           <div style={{ padding: 24 }}>
@@ -333,16 +345,29 @@ export default function ExamPlayerV2Page() {
               👤 {instance?.student_name} &nbsp;·&nbsp;
               Versión <strong>{instance?.version_label}</strong> &nbsp;·&nbsp;
               {questions.length} preguntas
-              {mins > 0 && <> &nbsp;·&nbsp; ⏱ {mins} min</>}
+              {minsLeft !== null && (
+                <> &nbsp;·&nbsp; ⏱ <strong style={{ color: minsLeft <= 5 ? '#DC2626' : 'inherit' }}>{minsLeft} min restantes</strong></>
+              )}
             </div>
 
-            <h3 style={{ color: '#1F3864', marginTop: 20 }}>Antes de comenzar:</h3>
+            {isResume && (
+              <div style={{
+                background: '#F5F3FF', border: '1px solid #C4B5FD', borderRadius: 10,
+                padding: '12px 14px', marginTop: 14, fontSize: 13, color: '#5B21B6',
+              }}>
+                ✓ Tus respuestas guardadas fueron recuperadas. Continúa donde te quedaste.
+              </div>
+            )}
+
+            <h3 style={{ color: '#1F3864', marginTop: 20 }}>
+              {isResume ? 'Recuerda:' : 'Antes de comenzar:'}
+            </h3>
             <ul style={{ lineHeight: 2, color: '#374151' }}>
               <li>Este examen está en <strong>modo protegido</strong>.</li>
               <li>Si cambias de pestaña o sales de pantalla completa, quedará registrado.</li>
               <li>Tu nombre aparece como marca de agua en la pantalla.</li>
               <li>Tus respuestas se guardan automáticamente cada 30 segundos.</li>
-              {mins > 0 && <li>Tienes <strong>{mins} minutos</strong>. El examen se enviará automáticamente.</li>}
+              {minsLeft !== null && <li>Te quedan <strong>{minsLeft} minutos</strong>. El examen se enviará automáticamente.</li>}
               <li>Al terminar, presiona <strong>"Enviar examen"</strong>.</li>
             </ul>
 
