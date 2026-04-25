@@ -22,10 +22,10 @@ export function useToast() {
 
 // ── Toast types with colors ──
 const TOAST_STYLES = {
-  success: { bg: '#EEFBF0', border: '#9BBB59', color: '#1A6B3A', icon: '✅' },
-  error:   { bg: '#FFF5F5', border: '#CC1F27', color: '#CC1F27', icon: '⚠️' },
-  info:    { bg: '#EEF2FB', border: '#1A3A8F', color: '#1A3A8F', icon: 'ℹ️' },
-  warning: { bg: '#FFFDF0', border: '#F5C300', color: '#8a4f00', icon: '⚡' },
+  success: { bg: '#EFFBF2', border: '#6EBF82', barColor: '#1A6B3A', color: '#155C2D', icon: '✓' },
+  error:   { bg: '#FFF3F3', border: '#F5A0A0', barColor: '#CC1F27', color: '#A81820', icon: '✕' },
+  info:    { bg: '#EEF4FF', border: '#93B8F5', barColor: '#1D4ED8', color: '#1A3A8F', icon: 'i' },
+  warning: { bg: '#FFFBEC', border: '#F0D070', barColor: '#D97706', color: '#7A5500', icon: '!' },
 }
 
 export function ToastProvider({ children }) {
@@ -68,9 +68,15 @@ export function ToastProvider({ children }) {
                   color: style.color,
                 }}
               >
-                <span style={S.icon} aria-hidden="true">{style.icon}</span>
+                {/* left accent bar */}
+                <div style={{ ...S.bar, background: style.barColor }} aria-hidden="true" />
+                {/* icon badge */}
+                <div style={{ ...S.iconBadge, background: style.barColor }} aria-hidden="true">
+                  <span style={S.iconChar}>{style.icon}</span>
+                </div>
                 <span style={S.message}>{toast.message}</span>
                 <button
+                  type="button"
                   onClick={() => dismissToast(toast.id)}
                   style={{ ...S.closeBtn, color: style.color }}
                   aria-label="Cerrar notificación"
@@ -91,46 +97,69 @@ export function ToastProvider({ children }) {
 const S = {
   container: {
     position: 'fixed',
-    bottom: 20,
-    right: 20,
+    bottom: 24,
+    right: 24,
     zIndex: 9999,
     display: 'flex',
     flexDirection: 'column',
     gap: 8,
-    maxWidth: 380,
+    maxWidth: 400,
     pointerEvents: 'none',
   },
   toast: {
     display: 'flex',
     alignItems: 'center',
     gap: 10,
-    padding: '12px 16px',
+    padding: '11px 14px 11px 0',
     borderRadius: 10,
-    border: '1.5px solid',
-    boxShadow: '0 4px 16px rgba(0,0,0,0.10)',
-    fontSize: 13,
+    border: '1px solid',
+    borderLeft: 'none',
+    boxShadow: '0 4px 20px rgba(0,0,0,.10), 0 1px 4px rgba(0,0,0,.06)',
+    fontSize: 13.5,
     fontWeight: 600,
-    fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
-    animation: 'toastSlideIn 0.25s ease-out',
+    fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+    animation: 'toastSlideIn 0.28s cubic-bezier(.34,1.56,.64,1)',
     pointerEvents: 'auto',
+    overflow: 'hidden',
+    backdropFilter: 'blur(8px)',
   },
-  icon: {
-    fontSize: 16,
+  bar: {
+    width: 4,
+    alignSelf: 'stretch',
+    borderRadius: '10px 0 0 10px',
     flexShrink: 0,
+  },
+  iconBadge: {
+    width: 26,
+    height: 26,
+    borderRadius: '50%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  iconChar: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 900,
+    lineHeight: 1,
   },
   message: {
     flex: 1,
-    lineHeight: 1.4,
+    lineHeight: 1.5,
   },
   closeBtn: {
     border: 'none',
     background: 'none',
     cursor: 'pointer',
-    fontSize: 13,
-    fontWeight: 800,
-    padding: '0 2px',
-    opacity: 0.6,
+    fontSize: 12,
+    fontWeight: 900,
+    padding: '2px 6px',
+    opacity: 0.45,
     flexShrink: 0,
+    borderRadius: 4,
+    transition: 'opacity .12s',
+    marginRight: 4,
   },
 }
 
@@ -141,8 +170,8 @@ if (typeof document !== 'undefined') {
     el.id = 'toast-keyframes'
     el.textContent = `
       @keyframes toastSlideIn {
-        from { opacity: 0; transform: translateX(40px); }
-        to   { opacity: 1; transform: translateX(0); }
+        from { opacity: 0; transform: translateX(48px) scale(.96); }
+        to   { opacity: 1; transform: translateX(0) scale(1); }
       }
     `
     document.head.appendChild(el)
