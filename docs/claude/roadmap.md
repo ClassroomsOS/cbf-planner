@@ -26,11 +26,11 @@
 | Guías semanales | ✅ Completo | Editor completo, SmartBlocks, export HTML+DOCX, IA |
 | Mensajería | 🔶 Básica | Mensajes 1-a-1 funcionan. Falta: salas grupales |
 | Sala de Revisión | ⬜ Pendiente | `/sala-revision` — guías publicadas organizadas por grado |
-| Archivado (Fase 5) | ⬜ Pendiente | Snapshot JSON + PDF al publicar, versioning |
+| Archivado (Fase 5) | ✅ Completo | storage_path en lesson_plan_versions · news_project_versions · HTML inmutable a Storage · "Archivar versión" en NEWS |
 | Pipeline imágenes IA | ⬜ Pendiente | Fotos de textbook → multimodal → prompt |
 | Refactoring (Fase 3) | ⬜ Pendiente | Archivos grandes, CSS modular, TeacherContext |
 | **Módulo de Evaluación — Backend** | ✅ Completo | 10 tablas, triggers, cola AI, corrección Claude, escala colombiana. Probado E2E. |
-| **Módulo de Evaluación — Frontend** | 🔶 Parcial | ~~Pantalla creación~~ ✅ · ~~N versiones anti-copia~~ ✅ · ~~Print CBF-G AC-01~~ ✅ · ~~ExamPlayerV2 email-auth~~ ✅ · ~~Antitrampa 5 capas~~ ✅ · ~~Generar instancias por roster~~ ✅ · ~~Preview+edición preguntas por versión~~ ✅ · Dashboard resultados ❌ · Revisión humana ❌ |
+| **Módulo de Evaluación — Frontend** | 🔶 Parcial | ~~Pantalla creación~~ ✅ · ~~N versiones anti-copia~~ ✅ · ~~Print CBF-G AC-01~~ ✅ · ~~ExamPlayerV2 email-auth~~ ✅ · ~~Antitrampa 5 capas~~ ✅ · ~~Generar instancias por roster~~ ✅ · ~~Preview+edición preguntas por versión~~ ✅ · ~~Dashboard resultados~~ ✅ · ~~Monitor en vivo~~ ✅ · Revisión humana ❌ |
 | **Roster de Estudiantes** | ✅ Completo | school_students · StudentsPage · exam-instance-generator auto-query · email auth en /eval |
 | **CBF Observability Layer** | ✅ Completo | 16 códigos error `CBF-[MOD]-[TYPE]-[NNN]`, cbf-logger, alertas Telegram, health snapshots |
 | **CBF Quality Standard** | ✅ Completo | Definition of Done, clasificación bugs, estándares performance y disponibilidad |
@@ -150,9 +150,8 @@ Ver detalles en [`security.md`](security.md).
 **Mensajería expandida**
 - `MessagesPage` → chat 1-a-1 completo + salas grupales
 
-**Auditoría de seguridad del exam player**
-- Sesión dedicada a intentar romperlo como estudiante de 15 años
-- Documentar vulnerabilidades y resolución
+~~**Auditoría de seguridad del exam player**~~ ✅ completado en Sesión L
+- Sistema antitrampa 5 capas implementado (detección multi-evento, canvas watermark, fullscreen adaptativo, Telegram realtime, matriz de pruebas)
 
 ### 🟢 Baja prioridad / Fase 3
 
