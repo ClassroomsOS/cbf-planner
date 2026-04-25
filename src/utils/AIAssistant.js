@@ -1118,7 +1118,7 @@ function parseExamJSON(raw) {
   throw new Error('Error al procesar la respuesta de la IA. Intenta de nuevo.')
 }
 
-function buildExamPrompt({ subject, grade, indicator, biblicalContext, syllabusTopics, typeCounts, lang, batchLabel, startPos }) {
+function buildExamPrompt({ subject, grade, indicator, biblicalContext, syllabusTopics, typeCounts, lang, batchLabel, startPos, sectionName }) {
   const total      = Object.values(typeCounts).reduce((s, v) => s + v, 0)
   const hasBiblical = EXAM_BIBLICAL_KEYS.some(k => (typeCounts[k] || 0) > 0)
 
@@ -1128,7 +1128,7 @@ function buildExamPrompt({ subject, grade, indicator, biblicalContext, syllabusT
     .join('\n')
 
   return `Diseña ${batchLabel} — Colegio Boston Flexible, Colombia (escala 1.0–5.0).
-MATERIA: ${sanitizeAIInput(subject)} | GRADO: ${sanitizeAIInput(grade)} | IDIOMA: ${lang}
+MATERIA: ${sanitizeAIInput(subject)} | GRADO: ${sanitizeAIInput(grade)} | IDIOMA: ${lang}${sectionName ? `\n📌 SECCIÓN: "${sanitizeAIInput(sectionName)}" — las preguntas deben enfocarse en el tema de esta sección.` : ''}
 
 🎯 INDICADOR DE LOGRO EVALUADO:
 "${sanitizeAIInput(indicator?.text || 'Contenidos del período')}"
@@ -1165,33 +1165,18 @@ RESPONDE SOLO JSON VÁLIDO — sin markdown, sin texto adicional:
 REGLA CRÍTICA: Genera EXACTAMENTE ${total} preguntas con los tipos indicados. SOLO JSON.`
 }
 
-export async function generateExamQuestions({
-  subject, grade,
-  indicator,        // { text, dimension, skill_area }
-  biblicalContext,  // { principle, verse_ref, reflection }
-  syllabusTopics,   // [{ week, content }] or [string]
-  questionTypes,    // { multiple_choice: 5, true_false: 3, biblical_reflection: 2, ... }
-  additionalContext,// optional extra text appended to indicator
+// ── Private: generate one section (handles single/multi-batch internally) ─────
+async function generateSingleSection({
+  subject, grade, indicator, biblicalContext, syllabusTopics,
+  typeCounts, lang, system, sectionName,
 }) {
-  const isEnglish = ['Language Arts','Social Studies','Science','Lingua Skill'].includes(subject)
-  const lang = isEnglish ? 'English' : 'español'
-
-  const system = `Eres un experto en diseño de evaluaciones para educación básica y media colombiana (Colegio Boston Flexible).
-Diseñas exámenes pedagógicamente sólidos según la Taxonomía de Bloom, conectados al indicador de logro y al principio bíblico institucional.
-SIEMPRE responde con JSON válido, sin markdown ni texto extra.`
-
-  const enrichedIndicator = additionalContext
-    ? { ...indicator, text: [indicator?.text, additionalContext].filter(Boolean).join('\n') }
-    : indicator
-
-  const total = Object.values(questionTypes).reduce((s, v) => s + v, 0)
+  const total = Object.values(typeCounts).reduce((s, v) => s + v, 0)
   const BATCH_SIZE = 25
 
-  // ── Single batch ──────────────────────────────────────────────────────────
   if (total <= BATCH_SIZE) {
     const msg = buildExamPrompt({
-      subject, grade, indicator: enrichedIndicator, biblicalContext, syllabusTopics,
-      typeCounts: questionTypes, lang,
+      subject, grade, indicator, biblicalContext, syllabusTopics,
+      typeCounts, lang, sectionName,
       batchLabel: `un examen completo de ${total} preguntas`,
       startPos: 1,
     })
@@ -1201,10 +1186,10 @@ SIEMPRE responde con JSON válido, sin markdown ni texto extra.`
     return parsed
   }
 
-  // ── Multi-batch (>25): biblical always in batch 1 ─────────────────────────
+  // Multi-batch (>25): biblical always in batch 1
   const biblicalTypes = {}
   const academicTypes = {}
-  for (const [k, v] of Object.entries(questionTypes)) {
+  for (const [k, v] of Object.entries(typeCounts)) {
     if (v <= 0) continue
     if (EXAM_BIBLICAL_KEYS.includes(k)) biblicalTypes[k] = v
     else academicTypes[k] = v
@@ -1236,8 +1221,8 @@ SIEMPRE responde con JSON válido, sin markdown ni texto extra.`
     callClaude({
       type: 'exam_generate', system, maxTokens: 9000,
       message: buildExamPrompt({
-        subject, grade, indicator: enrichedIndicator, biblicalContext, syllabusTopics,
-        typeCounts: b1Types, lang,
+        subject, grade, indicator, biblicalContext, syllabusTopics,
+        typeCounts: b1Types, lang, sectionName,
         batchLabel: `la primera parte del examen (${b1Total} preguntas, incluye preguntas bíblicas)`,
         startPos: 1,
       }),
@@ -1245,8 +1230,8 @@ SIEMPRE responde con JSON válido, sin markdown ni texto extra.`
     callClaude({
       type: 'exam_generate', system, maxTokens: 9000,
       message: buildExamPrompt({
-        subject, grade, indicator: enrichedIndicator, biblicalContext: null, syllabusTopics,
-        typeCounts: b2Types, lang,
+        subject, grade, indicator, biblicalContext: null, syllabusTopics,
+        typeCounts: b2Types, lang, sectionName,
         batchLabel: `la segunda parte del examen (${Object.values(b2Types).reduce((s,v)=>s+v,0)} preguntas, continuación)`,
         startPos: b1Total + 1,
       }),
@@ -1261,5 +1246,71 @@ SIEMPRE responde con JSON válido, sin markdown ni texto extra.`
   ]
   if (!merged.length) throw new Error('No se generaron preguntas. Intenta de nuevo.')
   return { title: p1.title || p2.title || '', instructions: p1.instructions || '', questions: merged }
+}
+
+export async function generateExamQuestions({
+  subject, grade,
+  indicator,        // { text, dimension, skill_area }
+  biblicalContext,  // { principle, verse_ref, reflection }
+  syllabusTopics,   // [{ week, content }] or [string]
+  sections,         // [{ id, name, types }] — preferred
+  questionTypes,    // legacy flat object — used if sections not provided
+  additionalContext,// optional extra text appended to indicator
+}) {
+  const isEnglish = ['Language Arts','Social Studies','Science','Lingua Skill'].includes(subject)
+  const lang = isEnglish ? 'English' : 'español'
+
+  const system = `Eres un experto en diseño de evaluaciones para educación básica y media colombiana (Colegio Boston Flexible).
+Diseñas exámenes pedagógicamente sólidos según la Taxonomía de Bloom, conectados al indicador de logro y al principio bíblico institucional.
+SIEMPRE responde con JSON válido, sin markdown ni texto extra.`
+
+  const enrichedIndicator = additionalContext
+    ? { ...indicator, text: [indicator?.text, additionalContext].filter(Boolean).join('\n') }
+    : indicator
+
+  // Normalize: sections array takes precedence over legacy questionTypes
+  const secList = sections
+    ? sections.filter(s => Object.values(s.types || {}).reduce((a, b) => a + b, 0) > 0)
+    : [{ id: 1, name: '', types: questionTypes || {} }]
+
+  if (secList.length === 0) throw new Error('Agrega al menos una pregunta.')
+
+  // ── Single section: use existing single/multi-batch logic ─────────────────
+  if (secList.length === 1) {
+    const sec = secList[0]
+    const sectionName = sec.name || ''
+    const result = await generateSingleSection({
+      subject, grade, indicator: enrichedIndicator, biblicalContext, syllabusTopics,
+      typeCounts: sec.types, lang, system, sectionName,
+    })
+    result.questions = result.questions.map(q => ({ ...q, section_name: sectionName }))
+    return result
+  }
+
+  // ── Multiple sections: one generation call per section, then merge ─────────
+  let allQuestions = []
+  let titleResult = ''
+  let instructionsResult = ''
+  let posOffset = 0
+
+  for (const sec of secList) {
+    const sectionName = sec.name || ''
+    const result = await generateSingleSection({
+      subject, grade, indicator: enrichedIndicator, biblicalContext, syllabusTopics,
+      typeCounts: sec.types, lang, system, sectionName,
+    })
+    const tagged = result.questions.map((q, i) => ({
+      ...q,
+      section_name: sectionName,
+      position: posOffset + i + 1,
+    }))
+    if (!titleResult && result.title) titleResult = result.title
+    if (!instructionsResult && result.instructions) instructionsResult = result.instructions
+    allQuestions = [...allQuestions, ...tagged]
+    posOffset += tagged.length
+  }
+
+  if (!allQuestions.length) throw new Error('No se generaron preguntas. Intenta de nuevo.')
+  return { title: titleResult, instructions: instructionsResult, questions: allQuestions }
 }
 

@@ -6,7 +6,7 @@
 //   Paso 3 — Revisar preguntas generadas
 //   Paso 4 — Publicar
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '../supabase'
 import { useToast } from '../context/ToastContext'
@@ -203,15 +203,17 @@ function ExamCreatorModal({ teacher, onClose, onCreated }) {
   const [indicators, setIndicators]   = useState([])
   const [loadingCascade, setLoadingCascade] = useState(false)
 
-  // ── Step 2 state — versions + question types ───────────────────────────
-  const [versionCount, setVersionCount]   = useState(1)
-  const [shuffleQuestions, setShuffleQ]   = useState(true)
-  const [shuffleOptions,   setShuffleO]   = useState(true)
-  const [questionTypes, setQuestionTypes] = useState({
+  // ── Step 2 state — versions + sections ────────────────────────────────
+  const [versionCount, setVersionCount] = useState(1)
+  const [shuffleQuestions, setShuffleQ] = useState(true)
+  const [shuffleOptions,   setShuffleO] = useState(true)
+  const nextSecIdRef = useRef(2)
+  const DEFAULT_TYPES = {
     multiple_choice: 5, true_false: 0, fill_blank: 0, matching: 0,
     short_answer: 3, error_correction: 0, sequencing: 0, open_development: 2,
     biblical_reflection: 2, verse_analysis: 1, principle_application: 0,
-  })
+  }
+  const [sections, setSections] = useState([{ id: 1, name: '', types: { ...DEFAULT_TYPES } }])
 
   // ── Step 3 state — AI result ────────────────────────────────────────────
   const [generating, setGenerating] = useState(false)
@@ -307,24 +309,53 @@ function ExamCreatorModal({ teacher, onClose, onCreated }) {
     }
   }, [form.indicatorId, indicators])
 
-  // ── Question type helpers ──────────────────────────────────────────────
-  const biblicalTotal = BIBLICAL_TYPES.reduce((s, t) => s + (questionTypes[t.key] || 0), 0)
-  const academicTotal = ACADEMIC_TYPES.reduce((s, t) => s + (questionTypes[t.key] || 0), 0)
+  // ── Section helpers ────────────────────────────────────────────────────
+  const biblicalTotal = sections.reduce((sum, sec) =>
+    sum + BIBLICAL_TYPES.reduce((s, t) => s + (sec.types[t.key] || 0), 0), 0)
+  const academicTotal = sections.reduce((sum, sec) =>
+    sum + ACADEMIC_TYPES.reduce((s, t) => s + (sec.types[t.key] || 0), 0), 0)
   const total = academicTotal + biblicalTotal
 
-  function setQType(key, val) {
-    const isBiblical = BIBLICAL_TYPES.some(t => t.key === key)
-    if (isBiblical) {
-      const newBiblicalTotal = BIBLICAL_TYPES.reduce((s, t) => s + (t.key === key ? val : (questionTypes[t.key] || 0)), 0)
-      if (newBiblicalTotal < BIBLICAL_MIN) return // enforce minimum
-    }
-    setQuestionTypes(prev => ({ ...prev, [key]: Math.max(0, val) }))
+  const totalPts = sections.reduce((sum, sec) => sum + [
+    ...ACADEMIC_TYPES.map(t => (sec.types[t.key] || 0) * t.pts),
+    ...BIBLICAL_TYPES.map(t => (sec.types[t.key] || 0) * t.pts),
+  ].reduce((s, v) => s + v, 0), 0)
+
+  function setSecType(secId, key, val) {
+    setSections(prev => prev.map(sec => {
+      if (sec.id !== secId) return sec
+      const newTypes = { ...sec.types, [key]: Math.max(0, val) }
+      // Enforce biblical minimum globally
+      const isBiblical = BIBLICAL_TYPES.some(t => t.key === key)
+      if (isBiblical) {
+        const newGlobalBiblical = prev.reduce((sum, s) =>
+          sum + BIBLICAL_TYPES.reduce((ss, t) => ss + (s.id === secId ? (t.key === key ? val : (sec.types[t.key] || 0)) : (s.types[t.key] || 0)), 0), 0)
+        if (newGlobalBiblical < BIBLICAL_MIN) return sec
+      }
+      return { ...sec, types: newTypes }
+    }))
   }
 
-  const totalPts = [
-    ...ACADEMIC_TYPES.map(t => (questionTypes[t.key] || 0) * t.pts),
-    ...BIBLICAL_TYPES.map(t => (questionTypes[t.key] || 0) * t.pts),
-  ].reduce((s, v) => s + v, 0)
+  function addSection() {
+    const id = nextSecIdRef.current++
+    setSections(prev => [...prev, {
+      id, name: '',
+      types: {
+        multiple_choice: 5, true_false: 0, fill_blank: 0, matching: 0,
+        short_answer: 3, error_correction: 0, sequencing: 0, open_development: 0,
+        biblical_reflection: 0, verse_analysis: 0, principle_application: 0,
+      },
+    }])
+  }
+
+  function removeSection(secId) {
+    if (sections.length <= 1) return
+    setSections(prev => prev.filter(s => s.id !== secId))
+  }
+
+  function updateSectionName(secId, name) {
+    setSections(prev => prev.map(s => s.id === secId ? { ...s, name } : s))
+  }
 
   // ── Generate ───────────────────────────────────────────────────────────
   async function handleGenerate() {
@@ -344,7 +375,7 @@ function ExamCreatorModal({ teacher, onClose, onCreated }) {
         indicator: form.indicator,
         biblicalContext: form.biblicalContext,
         syllabusTopics: form.syllabusTopics,
-        questionTypes,
+        sections,
         additionalContext: form.additionalContext.trim() || undefined,
       })
       setGeneratedExam(exam)
@@ -685,44 +716,100 @@ function ExamCreatorModal({ teacher, onClose, onCreated }) {
                 </div>
               </div>
 
-              {/* Academic types */}
-              <div>
-                <p style={{ fontSize: 12, fontWeight: 700, color: '#374151', margin: '0 0 8px' }}>
-                  📋 Preguntas académicas
-                </p>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                  {ACADEMIC_TYPES.map(t => (
-                    <TypeCard key={t.key} type={t} count={questionTypes[t.key] || 0}
-                      onChange={v => setQType(t.key, v)} />
-                  ))}
+              {/* Section cards */}
+              {!form.biblicalContext.principle && (
+                <div style={{ fontSize: 11, color: '#92400E', background: '#FEF9C3', borderRadius: 6, padding: '5px 8px', border: '1px solid #FDE68A' }}>
+                  No hay principio bíblico cargado. Las preguntas bíblicas se generarán con contexto genérico.
+                  Vuelve al Paso 1 para completarlo.
                 </div>
-              </div>
+              )}
 
-              {/* Biblical types */}
-              <div>
-                <p style={{ fontSize: 12, fontWeight: 700, color: '#7B3F00', margin: '0 0 4px' }}>
-                  ✝️ Preguntas bíblicas — mínimo {BIBLICAL_MIN} (obligatorio CBF)
-                </p>
-                {!form.biblicalContext.principle && (
-                  <div style={{ fontSize: 11, color: '#92400E', background: '#FEF9C3', borderRadius: 6, padding: '5px 8px', marginBottom: 8, border: '1px solid #FDE68A' }}>
-                    No hay principio bíblico cargado. Las preguntas bíblicas se generarán con contexto genérico.
-                    Vuelve al Paso 1 para completarlo.
+              {sections.map((sec, secIdx) => (
+                <div key={sec.id} style={{
+                  border: '1.5px solid #E2E8F0', borderRadius: 12, overflow: 'hidden',
+                  background: '#FAFAFA',
+                }}>
+                  {/* Section header */}
+                  <div style={{
+                    background: sections.length > 1 ? '#1F3864' : '#F8FAFC',
+                    padding: '10px 14px',
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    borderBottom: '1px solid #E2E8F0',
+                  }}>
+                    {sections.length > 1 && (
+                      <span style={{ fontSize: 12, fontWeight: 800, color: '#93C5FD', flexShrink: 0 }}>
+                        Parte {secIdx + 1}
+                      </span>
+                    )}
+                    <input
+                      type="text"
+                      value={sec.name}
+                      onChange={e => updateSectionName(sec.id, e.target.value)}
+                      placeholder={sections.length > 1 ? `Ej. "Comprensión de Lectura", "Gramática"…` : 'Nombre de sección (opcional)'}
+                      style={{
+                        flex: 1, border: sections.length > 1 ? '1px solid #3B5998' : '1px solid #E2E8F0',
+                        borderRadius: 6, padding: '5px 8px', fontSize: 12,
+                        background: sections.length > 1 ? '#2A4A7F' : '#fff',
+                        color: sections.length > 1 ? '#fff' : '#374151',
+                        outline: 'none',
+                      }}
+                    />
+                    {sections.length > 1 && (
+                      <button type="button" onClick={() => removeSection(sec.id)}
+                        title="Eliminar sección"
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8', fontSize: 16, padding: 2, flexShrink: 0 }}>
+                        ×
+                      </button>
+                    )}
                   </div>
-                )}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-                  {BIBLICAL_TYPES.map(t => {
-                    const count = questionTypes[t.key] || 0
-                    const wouldBreakMin = biblicalTotal - count + Math.max(0, count - 1) < BIBLICAL_MIN
-                    return (
-                      <TypeCard key={t.key} type={t} count={count}
-                        onChange={v => setQType(t.key, v)}
-                        locked={wouldBreakMin && count > 0}
-                        lockReason={wouldBreakMin && count > 0 ? `Mínimo ${BIBLICAL_MIN} bíblicas` : null}
-                      />
-                    )
-                  })}
+
+                  <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {/* Academic types */}
+                    <div>
+                      <p style={{ fontSize: 11, fontWeight: 700, color: '#374151', margin: '0 0 6px' }}>📋 Preguntas académicas</p>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                        {ACADEMIC_TYPES.map(t => (
+                          <TypeCard key={t.key} type={t} count={sec.types[t.key] || 0}
+                            onChange={v => setSecType(sec.id, t.key, v)} />
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Biblical types */}
+                    <div>
+                      <p style={{ fontSize: 11, fontWeight: 700, color: '#7B3F00', margin: '0 0 6px' }}>
+                        ✝️ Preguntas bíblicas{secIdx === 0 ? ` — mínimo ${BIBLICAL_MIN} global (CBF)` : ''}
+                      </p>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
+                        {BIBLICAL_TYPES.map(t => {
+                          const count = sec.types[t.key] || 0
+                          const globalBiblicalIfRemoved = sections.reduce((sum, s) =>
+                            sum + BIBLICAL_TYPES.reduce((ss, bt) =>
+                              ss + (s.id === sec.id ? (bt.key === t.key ? Math.max(0, count - 1) : (s.types[bt.key] || 0)) : (s.types[bt.key] || 0)), 0), 0)
+                          const wouldBreakMin = globalBiblicalIfRemoved < BIBLICAL_MIN
+                          return (
+                            <TypeCard key={t.key} type={t} count={count}
+                              onChange={v => setSecType(sec.id, t.key, v)}
+                              locked={wouldBreakMin && count > 0}
+                              lockReason={wouldBreakMin && count > 0 ? `Mínimo ${BIBLICAL_MIN} bíblicas` : null}
+                            />
+                          )
+                        })}
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              ))}
+
+              {/* Add section button */}
+              <button type="button" onClick={addSection}
+                style={{
+                  width: '100%', padding: '9px', borderRadius: 8,
+                  border: '1.5px dashed #C7D7FF', background: '#F8FAFF',
+                  color: '#4F81BD', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                }}>
+                ➕ Agregar sección
+              </button>
             </div>
           )}
 
@@ -754,8 +841,20 @@ function ExamCreatorModal({ teacher, onClose, onCreated }) {
                   const isBiblical = BIBLICAL_TYPES.some(t => t.key === q.question_type)
                   const typeMeta = [...ACADEMIC_TYPES, ...BIBLICAL_TYPES].find(t => t.key === q.question_type) || ACADEMIC_TYPES[0]
                   const isEditing = editingQ === idx
+                  const prevQ = generatedExam.questions[idx - 1]
+                  const showSectionHeader = q.section_name && q.section_name !== (prevQ?.section_name || '')
                   return (
-                    <div key={idx} style={{
+                    <div key={idx}>
+                      {showSectionHeader && (
+                        <div style={{
+                          padding: '6px 12px', marginTop: idx > 0 ? 8 : 0, marginBottom: 4,
+                          background: '#1F3864', borderRadius: 7,
+                          fontSize: 11, fontWeight: 800, color: '#93C5FD', letterSpacing: '0.05em',
+                        }}>
+                          📌 {q.section_name}
+                        </div>
+                      )}
+                    <div style={{
                       border: `1px solid ${isEditing ? '#1F3864' : isBiblical ? '#D4B896' : '#E2E8F0'}`,
                       borderLeft: `4px solid ${typeMeta.color}`,
                       borderRadius: 10, overflow: 'hidden',
@@ -852,6 +951,7 @@ function ExamCreatorModal({ teacher, onClose, onCreated }) {
                           )}
                         </div>
                       )}
+                    </div>
                     </div>
                   )
                 })}
@@ -1297,7 +1397,7 @@ function GenerarRosterModal({ exam, teacher, onClose, onDone }) {
           correct_answer: q.correct_answer || null,
           points:        q.points || 1,
           position:      idx + 1,
-          section_name:  '',
+          section_name:  q.section_name || '',
           biblical:      false,
           rigor_level:   q.rigor_level || 'flexible',
         }))
