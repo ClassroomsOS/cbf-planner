@@ -56,6 +56,7 @@ export default function StudentsPage({ teacher }) {
 
   // Grade de este docente (primera asignación como referencia)
   const [myGrade, setMyGrade] = useState('')
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState(null)
 
   useEffect(() => {
     loadStudents()
@@ -197,7 +198,11 @@ export default function StudentsPage({ teacher }) {
   // ── Eliminar estudiante ───────────────────────────────────────
 
   async function handleDelete(id, name) {
-    if (!window.confirm(`¿Eliminar a ${name} del roster?`)) return
+    if (confirmingDeleteId !== id) {
+      setConfirmingDeleteId(id)
+      return
+    }
+    setConfirmingDeleteId(null)
     const { error } = await supabase
       .from('school_students')
       .delete()
@@ -385,13 +390,24 @@ export default function StudentsPage({ teacher }) {
                       {s.student_code}
                     </td>
                     <td style={td}>
-                      <button
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#EF4444', fontSize: 16 }}
-                        onClick={() => handleDelete(s.id, s.name)}
-                        title="Eliminar"
-                      >
-                        🗑
-                      </button>
+                      {confirmingDeleteId === s.id ? (
+                        <span style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                          <button
+                            style={{ background: '#EF4444', color: '#fff', border: 'none', borderRadius: 4, padding: '2px 8px', cursor: 'pointer', fontSize: 12 }}
+                            onClick={() => handleDelete(s.id, s.name)}
+                          >Confirmar</button>
+                          <button
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6B7280', fontSize: 12 }}
+                            onClick={() => setConfirmingDeleteId(null)}
+                          >Cancelar</button>
+                        </span>
+                      ) : (
+                        <button
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#EF4444', fontSize: 16 }}
+                          onClick={() => handleDelete(s.id, s.name)}
+                          title="Eliminar"
+                        >🗑</button>
+                      )}
                     </td>
                   </tr>
                 ))}

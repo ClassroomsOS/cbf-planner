@@ -14,17 +14,28 @@ const SUPABASE_URL        = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const STORAGE_BUCKET      = "exam-pdfs";
 
+const ALLOWED_ORIGINS = [
+  "https://classroomsos.github.io",
+  "http://localhost:5173",
+  "http://localhost:4173",
+];
+function getCorsOrigin(req: Request): string {
+  const origin = req.headers.get("Origin") || "";
+  return ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+}
+
 // ─── Handler ─────────────────────────────────────────────────
 
 Deno.serve(async (req: Request) => {
+  const origin = getCorsOrigin(req);
   if (req.method === "OPTIONS") {
-    return res(null, 204);
+    return res(null, 204, origin);
   }
-  if (req.method !== "POST") return res({ error: "Method not allowed" }, 405);
+  if (req.method !== "POST") return res({ error: "Method not allowed" }, 405, origin);
 
   const { instance_id, school_id } = await req.json().catch(() => ({}));
   if (!instance_id || !school_id) {
-    return res({ error: "instance_id y school_id son requeridos" }, 400);
+    return res({ error: "instance_id y school_id son requeridos" }, 400, origin);
   }
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
@@ -78,12 +89,12 @@ Deno.serve(async (req: Request) => {
     await log(supabase, school_id, "info",
       `PDF generado: ${instance.student_name} (Versión ${instance.version_label})`);
 
-    return res({ ok: true, pdf_url, instance_id });
+    return res({ ok: true, pdf_url, instance_id }, 200, origin);
 
   } catch (err) {
     await log(supabase, school_id, "error",
       `PDF generation failed: ${err.message}`, "CBF-EXAM-PDF-001");
-    return res({ error: err.message }, 500);
+    return res({ error: err.message }, 500, origin);
   }
 });
 
@@ -282,14 +293,15 @@ async function log(
   } catch { /* never block on log errors */ }
 }
 
-function res(data: unknown, status = 200): Response {
+function res(data: unknown, status = 200, origin = ALLOWED_ORIGINS[0]): Response {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
       "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Origin": origin,
       "Access-Control-Allow-Methods": "POST, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type, Authorization",
+      "Vary": "Origin",
     },
   });
 }

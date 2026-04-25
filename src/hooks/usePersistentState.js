@@ -27,9 +27,6 @@ export function usePersistentState(key, initialValue, options = {}) {
     }
   })
 
-  // Debounce ref for delayed saves
-  const timeoutRef = useState(null)[0]
-
   // Save to localStorage
   const saveToStorage = useCallback(
     (value) => {
@@ -46,13 +43,12 @@ export function usePersistentState(key, initialValue, options = {}) {
   // Update localStorage when state changes
   useEffect(() => {
     if (debounce > 0) {
-      if (timeoutRef) clearTimeout(timeoutRef)
       const timeout = setTimeout(() => saveToStorage(state), debounce)
       return () => clearTimeout(timeout)
     } else {
       saveToStorage(state)
     }
-  }, [state, saveToStorage, debounce, timeoutRef])
+  }, [state, saveToStorage, debounce])
 
   // Clear function
   const clearValue = useCallback(() => {

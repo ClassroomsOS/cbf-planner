@@ -111,18 +111,19 @@ const MODELO_B_SUBJECTS = [
 // ─── Handler principal ────────────────────────────────────────
 
 Deno.serve(async (req: Request) => {
+  const cors = corsHeaders(req);
   if (req.method === "OPTIONS") {
-    return jsonResponse(null, 204, corsHeaders());
+    return jsonResponse(null, 204, cors);
   }
   if (req.method !== "POST") {
-    return jsonResponse({ error: "Method not allowed" }, 405);
+    return jsonResponse({ error: "Method not allowed" }, 405, cors);
   }
 
   let body: GeneratorRequest;
   try {
     body = await req.json();
   } catch {
-    return jsonResponse({ error: "Invalid JSON body" }, 400);
+    return jsonResponse({ error: "Invalid JSON body" }, 400, cors);
   }
 
   const { blueprint_id, session_id, school_id, students: explicitStudents,
@@ -131,12 +132,12 @@ Deno.serve(async (req: Request) => {
   if (!blueprint_id || !session_id || !school_id) {
     return jsonResponse({
       error: "blueprint_id, session_id y school_id son requeridos"
-    }, 400);
+    }, 400, cors);
   }
   if (!explicitStudents?.length && (!grade || !section)) {
     return jsonResponse({
       error: "Debes pasar 'students[]' o 'grade' + 'section' para obtener el roster"
-    }, 400);
+    }, 400, cors);
   }
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
@@ -160,7 +161,7 @@ Deno.serve(async (req: Request) => {
       if (!roster?.length) {
         return jsonResponse({
           error: `No hay estudiantes registrados en ${grade} ${section}. Carga el roster primero.`
-        }, 400);
+        }, 400, cors);
       }
       students = roster.map(s => ({
         id:      s.id,
@@ -174,7 +175,7 @@ Deno.serve(async (req: Request) => {
     const result = await generateInstances(supabase, {
       blueprint_id, session_id, school_id, students, version_count: versions,
     });
-    return jsonResponse(result, 200);
+    return jsonResponse(result, 200, cors);
   } catch (err) {
     await cbfLog(supabase, {
       module: "EXAM", function_name: "exam-instance-generator",
@@ -185,7 +186,7 @@ Deno.serve(async (req: Request) => {
     await notifyTelegram(
       `🚨 ERROR GENERACIÓN EXAMEN\nSesión: ${session_id}\n${err.message}`
     );
-    return jsonResponse({ error: err.message }, 500);
+    return jsonResponse({ error: err.message }, 500, cors);
   }
 });
 
@@ -597,10 +598,19 @@ function jsonResponse(
   });
 }
 
-function corsHeaders(): Record<string, string> {
+const ALLOWED_ORIGINS = [
+  "https://classroomsos.github.io",
+  "http://localhost:5173",
+  "http://localhost:4173",
+];
+
+function corsHeaders(req?: Request): Record<string, string> {
+  const origin = req?.headers.get("Origin") || "";
+  const allowed = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
   return {
-    "Access-Control-Allow-Origin":  "*",
+    "Access-Control-Allow-Origin":  allowed,
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Vary": "Origin",
   };
 }

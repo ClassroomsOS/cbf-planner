@@ -57,7 +57,17 @@ interface PreflightRequest {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const TELEGRAM_BOT_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN")!;
-const TELEGRAM_CHAT_ID = Deno.env.get("TELEGRAM_CHAT_ID") ?? "2041749428";
+const TELEGRAM_CHAT_ID = Deno.env.get("TELEGRAM_CHAT_ID") ?? Deno.env.get("TELEGRAM_ADMIN_CHAT_ID") ?? "2041749428";
+
+const ALLOWED_ORIGINS = [
+  "https://classroomsos.github.io",
+  "http://localhost:5173",
+  "http://localhost:4173",
+];
+function getCorsOrigin(req: Request): string {
+  const origin = req.headers.get("Origin") || "";
+  return ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+}
 
 // Umbrales de performance
 const THRESHOLDS = {
@@ -78,28 +88,31 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, {
       headers: {
-        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Origin": getCorsOrigin(req),
         "Access-Control-Allow-Methods": "POST, OPTIONS",
         "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Vary": "Origin",
       },
     });
   }
 
+  const origin = getCorsOrigin(req);
+
   if (req.method !== "POST") {
-    return jsonResponse({ error: "Method not allowed" }, 405);
+    return jsonResponse({ error: "Method not allowed" }, 405, origin);
   }
 
   let body: PreflightRequest;
   try {
     body = await req.json();
   } catch {
-    return jsonResponse({ error: "Invalid JSON body" }, 400);
+    return jsonResponse({ error: "Invalid JSON body" }, 400, origin);
   }
 
   const { session_id, triggered_by } = body;
 
   if (!session_id || !triggered_by) {
-    return jsonResponse({ error: "session_id and triggered_by are required" }, 400);
+    return jsonResponse({ error: "session_id and triggered_by are required" }, 400, origin);
   }
 
   // Cliente con service role — preflight necesita ver todo
@@ -107,7 +120,7 @@ Deno.serve(async (req: Request) => {
 
   try {
     const results = await runPreflight(supabase, session_id, triggered_by);
-    return jsonResponse(results, 200);
+    return jsonResponse(results, 200, origin);
   } catch (err) {
     await cbfLog(supabase, {
       module: "EXAM",
@@ -117,7 +130,7 @@ Deno.serve(async (req: Request) => {
       error_code: "CBF-EXAM-PRE-001",
       payload_out: { error: err.message, stack: err.stack },
     });
-    return jsonResponse({ error: err.message }, 500);
+    return jsonResponse({ error: err.message }, 500, origin);
   }
 });
 
@@ -743,12 +756,13 @@ async function cbfLog(
 
 // ─── Utilidades ───────────────────────────────────────────────
 
-function jsonResponse(data: unknown, status: number): Response {
+function jsonResponse(data: unknown, status: number, origin = ALLOWED_ORIGINS[0]): Response {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
       "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Origin": origin,
+      "Vary": "Origin",
     },
   });
 }

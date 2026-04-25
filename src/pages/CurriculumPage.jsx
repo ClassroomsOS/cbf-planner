@@ -155,7 +155,7 @@ export default function CurriculumPage({ teacher }) {
                     background: '#4BACC6', color: '#fff',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontWeight: 700, fontSize: '11px', flexShrink: 0,
-                  }}>{t.initials || t.full_name[0]}</div>
+                  }}>{t.initials || t.full_name?.[0] || '?'}</div>
                   <span style={{ color: '#fff', fontWeight: 700, fontSize: '13px' }}>{t.full_name}</span>
                   <span style={{ color: '#9BBB59', fontSize: '11px', marginLeft: 'auto' }}>
                     {Object.keys(teacherGroups).length} grado{Object.keys(teacherGroups).length !== 1 ? 's' : ''}

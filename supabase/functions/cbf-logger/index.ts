@@ -4,7 +4,17 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const TELEGRAM_BOT_TOKEN = Deno.env.get('TELEGRAM_BOT_TOKEN')
-const DEFAULT_ADMIN_CHAT_ID = '2041749428'
+const DEFAULT_ADMIN_CHAT_ID = Deno.env.get('TELEGRAM_ADMIN_CHAT_ID') || '2041749428'
+
+const ALLOWED_ORIGINS = [
+  'https://classroomsos.github.io',
+  'http://localhost:5173',
+  'http://localhost:4173',
+]
+function getCorsOrigin(req: Request): string {
+  const origin = req.headers.get('Origin') || ''
+  return ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0]
+}
 
 interface LogEventPayload {
   module: string
@@ -95,7 +105,7 @@ async function evaluateAlertRules(supabase: ReturnType<typeof createClient>, eve
 
 serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type' } })
+    return new Response('ok', { headers: { 'Access-Control-Allow-Origin': getCorsOrigin(req), 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type', 'Vary': 'Origin' } })
   }
 
   try {

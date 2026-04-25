@@ -31,7 +31,7 @@ export default function LoginPage({ loginError = null }) {
         .from('schools')
         .select('features')
         .limit(1)
-        .single()
+        .maybeSingle()
       const restrict    = schoolData?.features?.restrict_email_domain !== false
       const allowedDomain = schoolData?.features?.email_domain || 'redboston.edu.co'
       const emailDomain   = email.toLowerCase().split('@')[1] || ''

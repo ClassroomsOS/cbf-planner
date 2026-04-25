@@ -140,6 +140,7 @@ export default function ExamPlayerV2Page() {
   const [current,     setCurrent]     = useState(0)
   const [timeLeft,    setTimeLeft]    = useState(null)
   const [violations,  setViolations]  = useState(0)
+  const [showConfirm, setShowConfirm] = useState(false)
   const [submitting,  setSubmitting]  = useState(false)
   const [errorMsg,    setErrorMsg]    = useState('')
   const [loading,     setLoading]     = useState(false)
@@ -508,8 +509,6 @@ export default function ExamPlayerV2Page() {
       </div>
     )
   }
-
-  const [showConfirm, setShowConfirm] = useState(false)
 
   // ── Registro de violaciones ─────────────────────────────────
 
