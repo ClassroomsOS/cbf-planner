@@ -66,9 +66,10 @@ function DashboardInner({ session, teacher, setTeacher }) {
     })
   }, [teacher.id])
 
-  const [unread,         setUnread]         = useState(0)
-  const [unreadMessages, setUnreadMessages] = useState(0)
-  const [pendingReview,  setPendingReview]  = useState(0)
+  const [unread,           setUnread]           = useState(0)
+  const [unreadMessages,   setUnreadMessages]   = useState(0)
+  const [pendingReview,    setPendingReview]    = useState(0)
+  const [pendingAIReview,  setPendingAIReview]  = useState(0)
 
   // Fetch unread counts
   async function fetchUnread() {
@@ -108,6 +109,24 @@ function DashboardInner({ session, teacher, setTeacher }) {
     } catch { setPendingReview(0) }
   }
 
+  async function fetchPendingAIReview() {
+    try {
+      const { data: qRows } = await supabase
+        .from('questions')
+        .select('id')
+        .in('assessment_id',
+          (await supabase.from('assessments').select('id').eq('created_by', teacher.id)).data?.map(a => a.id) || []
+        )
+      if (!qRows?.length) { setPendingAIReview(0); return }
+      const { count } = await supabase
+        .from('ai_evaluations')
+        .select('id', { count: 'exact', head: true })
+        .eq('requires_review', true)
+        .in('question_id', qRows.map(q => q.id))
+      setPendingAIReview(count || 0)
+    } catch { setPendingAIReview(0) }
+  }
+
   // ── Real-time subscriptions ─────────────────────────────────────────────────
   // Replaces 60s polling with instant updates via Supabase Realtime.
   // Subscriptions listen to INSERT/UPDATE/DELETE on notifications and messages.
@@ -122,6 +141,7 @@ function DashboardInner({ session, teacher, setTeacher }) {
     fetchUnread()
     fetchUnreadMessages()
     fetchPendingReview()
+    fetchPendingAIReview()
 
     // Subscribe to notifications changes
     const notificationsChannel = supabase
@@ -235,6 +255,13 @@ function DashboardInner({ session, teacher, setTeacher }) {
             <span className="dot" style={{ background: '#C0504D' }} />
             📝 Evaluaciones
           </NavLink>
+          {pendingAIReview > 0 && (
+            <NavLink to="/exams/review" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
+              <span className="dot" style={{ background: '#F59E0B' }} />
+              👁 Revisión IA
+              <span className="sb-notif-badge">{pendingAIReview}</span>
+            </NavLink>
+          )}
           <NavLink to="/students" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
             <span className="dot" style={{ background: '#8064A2' }} />
             👩‍🎓 Mis Estudiantes

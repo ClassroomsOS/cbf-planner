@@ -30,7 +30,7 @@
 | Pipeline imágenes IA | ⬜ Pendiente | Fotos de textbook → multimodal → prompt |
 | Refactoring (Fase 3) | ⬜ Pendiente | Archivos grandes, CSS modular, TeacherContext |
 | **Módulo de Evaluación — Backend** | ✅ Completo | 10 tablas, triggers, cola AI, corrección Claude, escala colombiana. Probado E2E. |
-| **Módulo de Evaluación — Frontend** | 🔶 Parcial | ~~Pantalla creación~~ ✅ · ~~N versiones anti-copia~~ ✅ · ~~Print CBF-G AC-01~~ ✅ · ~~ExamPlayerV2 email-auth~~ ✅ · ~~Antitrampa 5 capas~~ ✅ · ~~Generar instancias por roster~~ ✅ · ~~Preview+edición preguntas por versión~~ ✅ · ~~Dashboard resultados~~ ✅ · ~~Monitor en vivo~~ ✅ · Revisión humana ❌ |
+| **Módulo de Evaluación — Frontend** | ✅ Completo | ~~Pantalla creación~~ ✅ · ~~N versiones anti-copia~~ ✅ · ~~Print CBF-G AC-01~~ ✅ · ~~ExamPlayerV2 email-auth~~ ✅ · ~~Antitrampa 5 capas~~ ✅ · ~~Generar instancias por roster~~ ✅ · ~~Preview+edición preguntas por versión~~ ✅ · ~~Dashboard resultados~~ ✅ · ~~Monitor en vivo~~ ✅ · ~~Revisión humana~~ ✅ |
 | **Roster de Estudiantes** | ✅ Completo | school_students · StudentsPage · exam-instance-generator auto-query · email auth en /eval |
 | **CBF Observability Layer** | ✅ Completo | 16 códigos error `CBF-[MOD]-[TYPE]-[NNN]`, cbf-logger, alertas Telegram, health snapshots |
 | **CBF Quality Standard** | ✅ Completo | Definition of Done, clasificación bugs, estándares performance y disponibilidad |
