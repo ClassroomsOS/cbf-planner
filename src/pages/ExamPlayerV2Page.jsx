@@ -145,10 +145,18 @@ export default function ExamPlayerV2Page() {
   const [errorMsg,    setErrorMsg]    = useState('')
   const [loading,     setLoading]     = useState(false)
 
+  const [showFsModal, setShowFsModal] = useState(false)
+
   const idbRef       = useRef(null)
   const timerRef     = useRef(null)
   const autosaveRef  = useRef(null)
-  const instanceRef  = useRef(null)  // para closures de eventos
+  const instanceRef  = useRef(null)   // para closures de eventos
+  const sessionRef   = useRef(null)   // para closures de eventos
+  const lastAlertRef = useRef(0)      // timestamp del último Telegram enviado (throttle 60s)
+
+  // Detectar iOS (no soporta requestFullscreen — usar modo quiosco)
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
 
   // Abrir IndexedDB al montar
   useEffect(() => {
@@ -181,7 +189,7 @@ export default function ExamPlayerV2Page() {
         // 1. Buscar sesión activa por access_code
         const { data: sess, error: sErr } = await supabase
           .from('exam_sessions')
-          .select('id, title, subject, grade, period, duration_minutes, status, school_id')
+          .select('id, title, subject, grade, period, duration_minutes, status, school_id, created_by')
           .eq('access_code', code)
           .in('status', ['ready', 'active'])
           .single()
@@ -220,6 +228,7 @@ export default function ExamPlayerV2Page() {
         const qs = inst.generated_questions || []
 
         setSession(sess)
+        sessionRef.current = sess
         setInstance(inst)
         instanceRef.current = inst
         setQuestions(qs)
@@ -315,8 +324,9 @@ export default function ExamPlayerV2Page() {
               style={{ ...styles.btn, marginTop: 8 }}
               onClick={() => {
                 setPhase(PHASE.EXAM)
-                // Intentar fullscreen
-                document.documentElement.requestFullscreen?.().catch(() => {})
+                if (!isIOS) {
+                  document.documentElement.requestFullscreen?.().catch(() => {})
+                }
               }}
             >
               Entendido — Comenzar examen
@@ -330,7 +340,7 @@ export default function ExamPlayerV2Page() {
   // ── ExamPhase ───────────────────────────────────────────────
 
   function ExamPhase() {
-    // Anti-trampa — Capa 1: multi-evento
+    // Anti-trampa — Capa 1: detección multi-evento
     useEffect(() => {
       // a) Tab switch / app switch
       function onVisibilityChange() {
@@ -338,27 +348,32 @@ export default function ExamPlayerV2Page() {
       }
       // b) Ventana pierde foco
       function onBlur() { registerViolation('window_blur') }
-      // c) Salida de fullscreen
+      // c) Salida / entrada de fullscreen → modal de re-ingreso en desktop
       function onFullscreenChange() {
-        if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+        const inFs = !!(document.fullscreenElement || document.webkitFullscreenElement)
+        if (inFs) {
+          setShowFsModal(false)
+        } else {
           registerViolation('fullscreen_exit')
+          if (!isIOS) setShowFsModal(true)
         }
       }
-      // d) DevTools anclado (resize reduce inner window)
+      // d) DevTools anclado (resize reduce el ancho de la ventana)
       function onResize() {
-        if (window.outerWidth - window.innerWidth > 160 ||
+        if (window.outerWidth  - window.innerWidth  > 160 ||
             window.outerHeight - window.innerHeight > 160) {
           registerViolation('devtools_open')
         }
       }
-      // e) Teclas sospechosas
+      // e) Teclas sospechosas — bloquear + registrar
       function onKeyDown(e) {
         const blocked = (
-          e.key === 'F12' ||
-          (e.ctrlKey && e.shiftKey && ['I','J','C'].includes(e.key)) ||
-          (e.ctrlKey && e.key === 'U') ||
-          (e.ctrlKey && e.key === 'W') ||
-          (e.metaKey && ['w','t','n'].includes(e.key))
+          e.key === 'F12' || e.key === 'F5' ||
+          (e.ctrlKey && e.shiftKey && ['I','J','C'].includes(e.key.toUpperCase())) ||
+          (e.ctrlKey && ['u','U','w','W','t','T','n','N'].includes(e.key)) ||
+          (e.metaKey && ['w','t','n'].includes(e.key.toLowerCase())) ||
+          (e.metaKey && (e.key === 'Tab' || e.key === ' ')) ||
+          (e.altKey  && e.key === 'F4')
         )
         if (blocked) {
           e.preventDefault()
@@ -366,17 +381,22 @@ export default function ExamPlayerV2Page() {
           registerViolation('blocked_key')
         }
       }
-      // f) Cerrar/recargar página
+      // f) Cerrar / recargar página
       function onBeforeUnload(e) {
         e.preventDefault()
         e.returnValue = '¿Seguro que quieres salir? Perderás el progreso no guardado.'
+        registerViolation('beforeunload')
       }
       // g) Click derecho
-      function onContextMenu(e) { e.preventDefault() }
-      // h) Copiar / pegar
-      function onCopy(e)  { e.preventDefault() }
-      function onCut(e)   { e.preventDefault() }
-      function onPaste(e) { e.preventDefault() }
+      function onContextMenu(e) { e.preventDefault(); registerViolation('context_menu') }
+      // h) Copiar / cortar — pegar se permite (escribir respuestas)
+      function onCopy(e)  { e.preventDefault(); registerViolation('copy_attempt') }
+      function onCut(e)   { e.preventDefault(); registerViolation('copy_attempt') }
+      // i) Ocultar página en iOS (Home button / app switcher)
+      function onPageHide() { registerViolation('pagehide') }
+
+      // iOS — bloquear scroll y pinch-to-zoom
+      function onTouchMove(e) { if (e.touches.length > 1) e.preventDefault() }
 
       document.addEventListener('visibilitychange', onVisibilityChange)
       window.addEventListener('blur', onBlur)
@@ -388,7 +408,13 @@ export default function ExamPlayerV2Page() {
       document.addEventListener('contextmenu', onContextMenu)
       document.addEventListener('copy', onCopy)
       document.addEventListener('cut', onCut)
-      document.addEventListener('paste', onPaste)
+      window.addEventListener('pagehide', onPageHide)
+      if (isIOS) {
+        document.addEventListener('touchmove', onTouchMove, { passive: false })
+        document.body.style.overflow = 'hidden'
+        document.body.style.position = 'fixed'
+        document.body.style.width    = '100%'
+      }
 
       return () => {
         document.removeEventListener('visibilitychange', onVisibilityChange)
@@ -401,7 +427,13 @@ export default function ExamPlayerV2Page() {
         document.removeEventListener('contextmenu', onContextMenu)
         document.removeEventListener('copy', onCopy)
         document.removeEventListener('cut', onCut)
-        document.removeEventListener('paste', onPaste)
+        window.removeEventListener('pagehide', onPageHide)
+        if (isIOS) {
+          document.removeEventListener('touchmove', onTouchMove)
+          document.body.style.overflow = ''
+          document.body.style.position = ''
+          document.body.style.width    = ''
+        }
       }
     }, [])
 
@@ -436,8 +468,41 @@ export default function ExamPlayerV2Page() {
         {/* Capa 2: Marca de agua canvas */}
         <WatermarkCanvas text={watermarkText} />
 
+        {/* Capa 3 — iOS: banner quiosco fijo */}
+        {isIOS && (
+          <div style={{
+            position: 'fixed', top: 0, left: 0, right: 0, zIndex: 9998,
+            background: '#991B1B', color: '#fff',
+            padding: '7px 16px', fontSize: 12, fontWeight: 700,
+            textAlign: 'center', letterSpacing: 0.3,
+          }}>
+            🔒 MODO EXAMEN — No cambies de app ni presiones el botón Home
+          </div>
+        )}
+
+        {/* Capa 3 — Desktop: modal si sale de fullscreen */}
+        {showFsModal && !isIOS && (
+          <div style={styles.overlay}>
+            <div style={{ background: '#fff', borderRadius: 14, padding: 32, maxWidth: 380, textAlign: 'center', boxShadow: '0 8px 32px rgba(0,0,0,.25)' }}>
+              <div style={{ fontSize: 44, marginBottom: 12 }}>⚠️</div>
+              <h3 style={{ margin: '0 0 10px', color: '#DC2626' }}>Saliste de pantalla completa</h3>
+              <p style={{ color: '#374151', margin: '0 0 6px', fontSize: 14 }}>El examen requiere pantalla completa. Este evento fue registrado y notificado a tu docente.</p>
+              <button
+                type="button"
+                onClick={() => {
+                  document.documentElement.requestFullscreen?.().catch(() => {})
+                  setShowFsModal(false)
+                }}
+                style={{ ...styles.btn, marginTop: 20, background: '#1F3864' }}
+              >
+                🔲 Volver a pantalla completa
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Header */}
-        <div style={styles.examHeader}>
+        <div style={{ ...styles.examHeader, marginTop: isIOS ? 30 : 0 }}>
           <div>
             <strong>{session?.title}</strong>
             <span style={{ marginLeft: 12, fontSize: 13, color: '#93C5FD' }}>
@@ -447,10 +512,14 @@ export default function ExamPlayerV2Page() {
           <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
             {violations > 0 && (
               <span style={{
-                background: violations >= 3 ? '#991B1B' : '#DC2626',
-                color: '#fff', padding: '2px 10px', borderRadius: 12, fontSize: 12,
+                background: violations >= 3 ? '#7F1D1D' : '#DC2626',
+                color: '#fff', padding: '3px 12px', borderRadius: 12, fontSize: 12,
+                fontWeight: 700,
+                boxShadow: violations >= 3 ? '0 0 0 2px #FCA5A5' : 'none',
+                animation: violations >= 3 ? 'pulse 1.5s infinite' : 'none',
               }}>
-                ⚠️ {violations} alerta{violations !== 1 ? 's' : ''}
+                {violations >= 3 ? '🚨' : '⚠️'} {violations} alerta{violations !== 1 ? 's' : ''}
+                {violations >= 3 && ' — RIESGO ALTO'}
               </span>
             )}
             {timeLeft !== null && (
@@ -512,35 +581,43 @@ export default function ExamPlayerV2Page() {
 
   // ── Registro de violaciones ─────────────────────────────────
 
-  const registerViolation = useCallback(async (eventType) => {
+  const registerViolation = useCallback((eventType) => {
     setViolations(n => {
       const next = n + 1
       const inst = instanceRef.current
+      const sess = sessionRef.current
       if (!inst) return next
 
-      // Actualizar en DB
-      supabase.from('exam_instances').update({
-        tab_switches: next,
-        integrity_flags: { high_risk: next >= 3, last_event: eventType, events: [] },
-      }).eq('id', inst.id).then(() => {})
-
-      // Notificar Telegram si alcanza umbral (via exam-integrity-alert)
-      if (next === 3 || next === 5) {
-        fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/exam-preflight`, {
+      // Telegram throttle: máximo 1 alerta cada 60s
+      const now = Date.now()
+      if (now - lastAlertRef.current > 60000) {
+        lastAlertRef.current = now
+        fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/exam-integrity-alert`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
           },
           body: JSON.stringify({
-            alert: true,
-            student_name:    inst.student_name,
-            student_section: inst.student_section || '',
-            session_id:      inst.session_id,
-            event_type:      eventType,
-            violation_count: next,
+            instance_id:  inst.id,
+            session_id:   inst.session_id,
+            student_name: inst.student_name,
+            exam_title:   sess?.title || '',
+            event_type:   eventType,
+            count:        next,
           }),
         }).catch(() => {})
+        // La Edge Function actualiza DB — no duplicar aquí
+      } else {
+        // Throttled: solo actualizar DB localmente
+        supabase.from('exam_instances').update({
+          tab_switches: next,
+          integrity_flags: {
+            high_risk: next >= 3,
+            last_event: eventType,
+            violation_count: next,
+          },
+        }).eq('id', inst.id).then(() => {})
       }
 
       return next
