@@ -1072,6 +1072,78 @@ function ExamDetailModal({ exam, results, onClose, onStatusChange, teacher }) {
   )
 }
 
+// ── TelegramConfigPanel ───────────────────────────────────────────────────────
+function TelegramConfigPanel({ teacher, showToast }) {
+  const [chatId,   setChatId]   = useState(teacher.telegram_chat_id || '')
+  const [editing,  setEditing]  = useState(!teacher.telegram_chat_id)
+  const [saving,   setSaving]   = useState(false)
+  const configured = Boolean(teacher.telegram_chat_id)
+
+  async function handleSave() {
+    const trimmed = chatId.trim()
+    if (!trimmed) { showToast('Ingresa tu Chat ID de Telegram.', 'warning'); return }
+    setSaving(true)
+    const { error } = await supabase.from('teachers').update({ telegram_chat_id: trimmed }).eq('id', teacher.id)
+    setSaving(false)
+    if (error) { showToast('Error al guardar: ' + error.message, 'error'); return }
+    teacher.telegram_chat_id = trimmed   // mutate prop for immediate feedback (page re-renders on next load)
+    setEditing(false)
+    showToast('✅ Telegram configurado — recibirás alertas en tiempo real.', 'success')
+  }
+
+  async function handleRemove() {
+    setSaving(true)
+    await supabase.from('teachers').update({ telegram_chat_id: null }).eq('id', teacher.id)
+    setSaving(false)
+    teacher.telegram_chat_id = null
+    setChatId('')
+    setEditing(true)
+    showToast('Telegram desvinculado.', 'info')
+  }
+
+  if (!editing && configured) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 10, marginBottom: 18, fontSize: 13 }}>
+        <span style={{ color: '#065F46', fontWeight: 700 }}>📬 Alertas Telegram activas</span>
+        <span style={{ color: '#047857', fontSize: 12 }}>Chat ID: <code style={{ background: '#D1FAE5', padding: '1px 6px', borderRadius: 4 }}>{teacher.telegram_chat_id}</code></span>
+        <button type="button" onClick={() => setEditing(true)} style={{ marginLeft: 'auto', background: 'none', border: '1px solid #6EE7B7', borderRadius: 6, color: '#065F46', fontSize: 11, padding: '3px 10px', cursor: 'pointer', fontWeight: 600 }}>✏ Editar</button>
+        <button type="button" onClick={handleRemove} disabled={saving} style={{ background: 'none', border: '1px solid #FCA5A5', borderRadius: 6, color: '#991B1B', fontSize: 11, padding: '3px 10px', cursor: 'pointer', fontWeight: 600 }}>Quitar</button>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ padding: '14px 16px', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 10, marginBottom: 18 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+        <span style={{ fontSize: 15 }}>📬</span>
+        <span style={{ fontWeight: 700, fontSize: 13, color: '#92400E' }}>Configura alertas de integridad en Telegram</span>
+        {configured && (
+          <button type="button" onClick={() => setEditing(false)} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#9CA3AF', fontSize: 18, cursor: 'pointer', lineHeight: 1 }}>✕</button>
+        )}
+      </div>
+      <p style={{ margin: '0 0 10px', fontSize: 12, color: '#78350F', lineHeight: 1.5 }}>
+        Recibe una alerta inmediata cada vez que un estudiante cambie de pestaña, salga del fullscreen o active cualquier evento sospechoso durante el examen.
+      </p>
+      <p style={{ margin: '0 0 10px', fontSize: 11, color: '#92400E' }}>
+        <strong>¿Cómo obtener tu Chat ID?</strong> Abre Telegram → busca <code style={{ background: '#FEF3C7', padding: '1px 4px', borderRadius: 3 }}>@userinfobot</code> → presiona Start → copia el número que te responde.
+      </p>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <input
+          type="text"
+          value={chatId}
+          onChange={e => setChatId(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && handleSave()}
+          placeholder="Ej. 123456789"
+          style={{ flex: 1, padding: '8px 12px', borderRadius: 7, border: '1px solid #FCD34D', fontSize: 13, outline: 'none' }}
+        />
+        <button type="button" onClick={handleSave} disabled={saving} style={{ padding: '8px 16px', borderRadius: 7, background: '#D97706', color: '#fff', border: 'none', fontWeight: 700, fontSize: 13, cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.7 : 1 }}>
+          {saving ? '…' : 'Guardar'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ── MAIN PAGE ─────────────────────────────────────────────────────────────────
 export default function ExamDashboardPage({ teacher }) {
   const { showToast } = useToast()
@@ -1165,6 +1237,8 @@ export default function ExamDashboardPage({ teacher }) {
           </button>
         </div>
       </div>
+
+      <TelegramConfigPanel teacher={teacher} showToast={showToast} />
 
       {loading && <p style={{ color: '#888', fontStyle: 'italic' }}>Cargando exámenes…</p>}
 
