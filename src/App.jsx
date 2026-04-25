@@ -41,7 +41,7 @@ export default function App() {
         const isGoogle = provider === 'google' || providers.includes('google')
         if (isGoogle) {
           const { data: schoolData } = await supabase
-            .from('schools').select('features').limit(1).single()
+            .from('schools').select('features').limit(1).maybeSingle()
           const restrict     = schoolData?.features?.restrict_email_domain !== false
           const allowedDomain = schoolData?.features?.email_domain || 'redboston.edu.co'
           const emailDomain  = session.user.email?.toLowerCase().split('@')[1] || ''
