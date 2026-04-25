@@ -1558,12 +1558,13 @@ function GenerarRosterModal({ exam, teacher, onClose, onDone }) {
 // ── EXAM DETAIL MODAL ─────────────────────────────────────────────────────────
 function ExamDetailModal({ exam, results, onClose, onStatusChange, teacher }) {
   const { showToast } = useToast()
-  const [changing,       setChanging]       = useState(false)
-  const [printing,       setPrinting]       = useState(false)
-  const [versions,       setVersions]       = useState([])
-  const [showGenRoster,  setShowGenRoster]  = useState(false)
-  const [showPreview,    setShowPreview]    = useState(false)
-  const [showResults,    setShowResults]    = useState(false)
+  const [changing,        setChanging]        = useState(false)
+  const [printing,        setPrinting]        = useState(false)
+  const [versions,        setVersions]        = useState([])
+  const [showGenRoster,   setShowGenRoster]   = useState(false)
+  const [showPreview,     setShowPreview]     = useState(false)
+  const [showResults,     setShowResults]     = useState(false)
+  const [showLiveMonitor, setShowLiveMonitor] = useState(false)
   const baseUrl = window.location.origin + window.location.pathname
 
   useEffect(() => {
@@ -1623,6 +1624,13 @@ function ExamDetailModal({ exam, results, onClose, onStatusChange, teacher }) {
         exam={exam}
         teacher={teacher}
         onClose={() => setShowResults(false)}
+      />
+    )}
+    {showLiveMonitor && (
+      <ExamLiveMonitor
+        exam={exam}
+        teacher={teacher}
+        onClose={() => setShowLiveMonitor(false)}
       />
     )}
     {createPortal(
@@ -1692,6 +1700,15 @@ function ExamDetailModal({ exam, results, onClose, onStatusChange, teacher }) {
             )}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {exam.status === 'active' && (
+              <button type="button" onClick={() => setShowLiveMonitor(true)}
+                style={{ width: '100%', padding: '10px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                  background: 'linear-gradient(135deg,#7F1D1D,#DC2626)', color: '#fff', border: 'none',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#FCA5A5', boxShadow: '0 0 0 2px rgba(252,165,165,.5)', animation: 'pulse-dot 1.4s infinite', flexShrink: 0 }} />
+                Monitor en Vivo
+              </button>
+            )}
             <button type="button" onClick={() => setShowResults(true)}
               style={{ width: '100%', padding: '10px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer',
                 background: 'linear-gradient(135deg,#1F3864,#2E5598)', color: '#fff', border: 'none' }}>
@@ -2020,6 +2037,231 @@ function ExamResultsDashboard({ exam, teacher, onClose }) {
               )}
             </>
           )}
+        </div>
+      </div>
+    </div>,
+    document.body
+  )
+}
+
+// ── EXAM LIVE MONITOR ─────────────────────────────────────────────────────────
+function ExamLiveMonitor({ exam, teacher, onClose }) {
+  const [instances,    setInstances]    = useState([])
+  const [loading,      setLoading]      = useState(true)
+  const [lastUpdated,  setLastUpdated]  = useState(null)
+  const sessionIdsRef = useRef([])
+
+  function fmtTime(d) {
+    if (!d) return '—'
+    return new Date(d).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  }
+
+  async function loadInstances(sIds) {
+    const { data } = await supabase
+      .from('exam_instances')
+      .select('id, session_id, student_name, student_email, student_section, student_code, version_label, instance_status, integrity_flags, tab_switches, submitted_at')
+      .in('session_id', sIds)
+      .order('student_section')
+    setInstances(data || [])
+    setLastUpdated(new Date())
+  }
+
+  useEffect(() => {
+    let channel
+    let interval
+
+    async function init() {
+      setLoading(true)
+
+      const { data: examSessions } = await supabase
+        .from('exam_sessions')
+        .select('id')
+        .eq('teacher_id', teacher.id)
+        .filter('service_worker_payload->>assessment_id', 'eq', exam.id)
+
+      if (!examSessions?.length) {
+        setLoading(false)
+        return
+      }
+
+      const sIds = examSessions.map(s => s.id)
+      sessionIdsRef.current = sIds
+
+      await loadInstances(sIds)
+      setLoading(false)
+
+      // Realtime subscription — filter client-side to avoid complex filter syntax
+      channel = supabase
+        .channel(`live-monitor-${exam.id}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'exam_instances' }, (payload) => {
+          const row = payload.new || payload.old
+          if (!row || !sessionIdsRef.current.includes(row.session_id)) return
+          setInstances(prev => {
+            if (payload.eventType === 'INSERT') return [...prev, payload.new]
+            if (payload.eventType === 'UPDATE') return prev.map(i => i.id === payload.new.id ? { ...i, ...payload.new } : i)
+            if (payload.eventType === 'DELETE') return prev.filter(i => i.id !== payload.old.id)
+            return prev
+          })
+          setLastUpdated(new Date())
+        })
+        .subscribe()
+
+      // 30s fallback refresh
+      interval = setInterval(() => {
+        if (sessionIdsRef.current.length) loadInstances(sessionIdsRef.current)
+      }, 30000)
+    }
+
+    init()
+    return () => {
+      channel?.unsubscribe()
+      clearInterval(interval)
+    }
+  }, [exam.id, teacher.id])
+
+  const active    = instances.filter(i => i.instance_status === 'started')
+  const submitted = instances.filter(i => i.instance_status === 'submitted')
+  const waiting   = instances.filter(i => i.instance_status === 'ready')
+
+  const STATUS_STYLE = {
+    started:   { label: '⏳ En curso',    bg: '#FEF9C3', color: '#854D0E' },
+    submitted: { label: '✅ Enviado',      bg: '#DCFCE7', color: '#15803D' },
+    ready:     { label: '⬜ Sin iniciar',  bg: '#F1F5F9', color: '#6B7280' },
+  }
+
+  return createPortal(
+    <div className="lt-modal-overlay" style={{ zIndex: 9999 }}>
+      <div style={{
+        background: '#fff', borderRadius: 14, width: '100%', maxWidth: 700,
+        maxHeight: '88vh', overflow: 'hidden', display: 'flex', flexDirection: 'column',
+        boxShadow: '0 12px 40px rgba(0,0,0,.25)',
+      }}>
+        {/* Header */}
+        <div style={{
+          padding: '14px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          background: 'linear-gradient(135deg,#7F1D1D,#DC2626)', borderRadius: '14px 14px 0 0',
+        }}>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: 15, color: '#fff', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{
+                width: 10, height: 10, borderRadius: '50%', background: '#FCA5A5',
+                boxShadow: '0 0 0 3px rgba(252,165,165,.4)', animation: 'pulse-dot 1.4s infinite',
+                display: 'inline-block', flexShrink: 0,
+              }} />
+              Monitor en Vivo
+            </div>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,.75)', marginTop: 2 }}>
+              {exam.title} · {exam.subject} · {exam.grade}
+            </div>
+          </div>
+          <button type="button" onClick={onClose}
+            style={{ background: 'rgba(255,255,255,.15)', border: 'none', borderRadius: 7, padding: '6px 10px', fontSize: 18, cursor: 'pointer', color: '#fff' }}>
+            ✕
+          </button>
+        </div>
+
+        <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
+
+          {/* Counters */}
+          <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
+            {[
+              { value: active.length,    label: 'En curso',     color: '#854D0E', bg: '#FEF9C3', border: '#FDE68A' },
+              { value: submitted.length, label: 'Enviaron',     color: '#15803D', bg: '#DCFCE7', border: '#A7F3D0' },
+              { value: waiting.length,   label: 'Sin iniciar',  color: '#64748B', bg: '#F1F5F9', border: '#E2E8F0' },
+              { value: instances.length, label: 'Total',        color: '#1F3864', bg: '#EFF6FF', border: '#BFDBFE' },
+            ].map(c => (
+              <div key={c.label} style={{
+                flex: 1, minWidth: 100, background: c.bg, border: `1px solid ${c.border}`,
+                borderRadius: 10, padding: '14px 10px', textAlign: 'center',
+              }}>
+                <div style={{ fontSize: 28, fontWeight: 800, color: c.color, lineHeight: 1 }}>{c.value}</div>
+                <div style={{ fontSize: 11, color: c.color, marginTop: 4, textTransform: 'uppercase', letterSpacing: .3, opacity: .8 }}>{c.label}</div>
+              </div>
+            ))}
+          </div>
+
+          {loading ? (
+            <p style={{ color: '#888', fontStyle: 'italic', textAlign: 'center', padding: 32 }}>Conectando…</p>
+          ) : instances.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '40px 24px', color: '#9CA3AF' }}>
+              <div style={{ fontSize: 40, marginBottom: 10 }}>📋</div>
+              <p style={{ margin: 0 }}>No hay instancias generadas aún.</p>
+              <p style={{ margin: '6px 0 0', fontSize: 12 }}>Usa "Generar por roster" para crear las instancias.</p>
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                <thead>
+                  <tr style={{ background: '#F8FAFC' }}>
+                    {['Nombre', 'Sección', 'Versión', 'Estado', 'Integridad', 'Enviado'].map(h => (
+                      <th key={h} style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 700, color: '#64748B', fontSize: 11, borderBottom: '1px solid #E2E8F0', whiteSpace: 'nowrap' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {instances
+                    .slice()
+                    .sort((a, b) => {
+                      const order = { started: 0, submitted: 1, ready: 2 }
+                      const oa = order[a.instance_status] ?? 3
+                      const ob = order[b.instance_status] ?? 3
+                      if (oa !== ob) return oa - ob
+                      return (a.student_name || '').localeCompare(b.student_name || '')
+                    })
+                    .map((r, i) => {
+                      const st = STATUS_STYLE[r.instance_status] || STATUS_STYLE.ready
+                      const risk = integrityRisk(r.integrity_flags, r.tab_switches)
+                      return (
+                        <tr key={r.id || i} style={{
+                          borderBottom: '1px solid #F1F5F9',
+                          background: risk === 'high' ? '#FFF5F5' : r.instance_status === 'started' ? '#FFFEF0' : 'transparent',
+                        }}>
+                          <td style={{ padding: '9px 10px', fontWeight: 600, color: '#374151' }}>
+                            {r.student_name || r.student_email || '—'}
+                            {r.student_code && <span style={{ color: '#9CA3AF', fontWeight: 400, marginLeft: 5 }}>({r.student_code})</span>}
+                          </td>
+                          <td style={{ padding: '9px 10px', color: '#64748B' }}>{r.student_section || '—'}</td>
+                          <td style={{ padding: '9px 10px' }}>
+                            {r.version_label
+                              ? <span style={{ background: '#F0F4FF', color: '#1F3864', borderRadius: 5, padding: '2px 7px', fontWeight: 700 }}>{r.version_label}</span>
+                              : <span style={{ color: '#9CA3AF' }}>—</span>}
+                          </td>
+                          <td style={{ padding: '9px 10px' }}>
+                            <span style={{ background: st.bg, color: st.color, borderRadius: 5, padding: '2px 8px', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                              {st.label}
+                            </span>
+                          </td>
+                          <td style={{ padding: '9px 10px' }}>
+                            <IntegrityBadge flags={r.integrity_flags} tabSwitches={r.tab_switches} />
+                          </td>
+                          <td style={{ padding: '9px 10px', color: '#64748B', whiteSpace: 'nowrap' }}>
+                            {r.submitted_at ? fmtTime(r.submitted_at) : '—'}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+        </div>
+
+        {/* Footer */}
+        <div style={{
+          borderTop: '1px solid #E2E8F0', padding: '10px 20px',
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          background: '#F8FAFC',
+        }}>
+          <span style={{ fontSize: 11, color: '#9CA3AF' }}>
+            {lastUpdated
+              ? `Actualizado: ${fmtTime(lastUpdated)} · Realtime activo`
+              : 'Conectando al monitor…'}
+          </span>
+          <button type="button" onClick={onClose}
+            style={{ padding: '7px 18px', borderRadius: 7, border: '1px solid #D0D5DD', background: '#fff', color: '#374151', fontSize: 13, cursor: 'pointer' }}>
+            Cerrar
+          </button>
         </div>
       </div>
     </div>,

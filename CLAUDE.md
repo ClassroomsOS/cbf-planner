@@ -1,4 +1,4 @@
-# CBF PLANNER — v5.4
+# CBF PLANNER — v5.5
 ## CLAUDE.md — Documento maestro
 
 > **Principio rector:** *"Nosotros diseñamos. El docente enseña."*
@@ -40,6 +40,18 @@ Libros:      Uncover 4 (8°) · Evolve 4 (9°) · Cambridge One (digital)
   - Mínimo bíblico validado globalmente (suma de todas las secciones)
 - **AIAssistant.js — `generateExamQuestions`:** acepta `sections[]`; una llamada IA por sección (`generateSingleSection` privada); preguntas etiquetadas con `section_name` client-side; merge ordenado; `buildExamPrompt` recibe `sectionName` opcional para contexto temático
 - **exam_instances:** `section_name: q.section_name || ''` — ya no hardcodeado a `''`
+- **Archivado inmutable (Fase 5):**
+  - Migración `20260425000005_archiving.sql` ejecutada en prod: `lesson_plan_versions.storage_path` + tabla `news_project_versions` (snapshot JSON inmutable)
+  - `ReviewRoomPage.handlePublish`: sube HTML con imágenes inlineadas a Storage (`archives/{school_id}/guides/{plan_id}/v{n}.html`), no-blocking (try/catch)
+  - `VersionHistoryModal`: botón "📄 Abrir archivado" abre URL del Storage en nueva pestaña
+  - `NewsProjectEditor`: botón "📦 Archivar versión" + contador de versiones archivadas en footer
+- **Monitor docente en tiempo real (`ExamLiveMonitor`):**
+  - Botón "🔴 En Vivo" en `ExamDetailModal` (solo cuando `exam.status === 'active'`)
+  - Supabase Realtime subscription en `exam_instances` (filtro client-side por `session_id`)
+  - Contadores: 🟢 Activos (`started`) · ✅ Enviaron (`submitted`) · ⏳ Sin iniciar (`ready`)
+  - Tabla per-estudiante: nombre · sección · versión · estado · `IntegrityBadge`
+  - Fallback: `setInterval` 30s para refrescar si Realtime cae
+  - `lastUpdated` timestamp visible al docente
 
 ## 🔜 SPRINT ACTUAL — SESIÓN N
 
@@ -48,7 +60,6 @@ Libros:      Uncover 4 (8°) · Evolve 4 (9°) · Cambridge One (digital)
 - **Sala de Revisión** (`/sala-revision`) — guías publicadas por grado · edición con justificación · notificación al docente
 - **Sincronización local** — `supabase db pull` · copiar Edge Fns `exam-ai-corrector` v3 + `cbf-logger` v1 al local
 - **Email al estudiante** — cuando corrección IA/docente termina → enviar nota final por correo
-- **Monitor docente en tiempo real** — durante el examen: contador estudiantes activos / enviaron
 
 ---
 
@@ -97,7 +108,7 @@ SYLLABUS TOPICS → ACHIEVEMENT GOAL → ACHIEVEMENT INDICATORS
 | **J** | ExamDashboardPage: N versiones + rigor UI · exportExamHtml CBF-G AC-01 · seededShuffle + round-robin en ExamPlayerPage · callout examen en PlannerPage | ✅ prod |
 | **K** | school_students (roster) · StudentsPage (/students) · ExamPlayerV2Page: email auth · exam-instance-generator auto-roster · Migración 20260422000004 | ✅ prod |
 | **L** | Antitrampa 5 capas · exam-integrity-alert Edge Fn · generar instancias por roster · preview+edición preguntas · auth completo (forgot pwd + Resend) · Dashboard resultados · Panel revisión humana · Design system UX | ✅ prod |
-| **M** | ExamPlayerV2: credenciales localStorage · banner violación rojo/blanco · Telegram ciclo (started/resumed/submitted) · score modal nota colombiana · secciones tabs + ReviewModal · Wizard secciones multi-parte · generateExamQuestions sections[] | ✅ prod |
+| **M** | ExamPlayerV2: credenciales localStorage · banner violación rojo/blanco · Telegram ciclo (started/resumed/submitted) · score modal nota colombiana · secciones tabs + ReviewModal · Wizard secciones multi-parte · generateExamQuestions sections[] · Archivado Fase 5 (storage_path + news_project_versions + HTML upload) · Monitor docente en tiempo real (ExamLiveMonitor + Realtime) | ✅ prod |
 
 > Para el roadmap detallado y backlog → `docs/claude/roadmap.md`
 
