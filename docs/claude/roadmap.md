@@ -25,7 +25,7 @@
 | Indicadores / NEWS | ✅ Completo | Modelo A y B, auto-creación NEWS, timelines |
 | Guías semanales | ✅ Completo | Editor completo, SmartBlocks, export HTML+DOCX, IA |
 | Mensajería | 🔶 Básica | Mensajes 1-a-1 funcionan. Falta: salas grupales |
-| Sala de Revisión | ⬜ Pendiente | `/sala-revision` — guías publicadas organizadas por grado |
+| Sala de Revisión | ✅ Completo | Cola submitted + acordeón por grado + stats · Aprobar/Devolver/Publicar · IntentModal + justificación al guardar · snapshot HTML en Storage |
 | Archivado (Fase 5) | ✅ Completo | storage_path en lesson_plan_versions · news_project_versions · HTML inmutable a Storage · "Archivar versión" en NEWS |
 | Pipeline imágenes IA | ⬜ Pendiente | Fotos de textbook → multimodal → prompt |
 | Refactoring (Fase 3) | ⬜ Pendiente | Archivos grandes, CSS modular, TeacherContext |

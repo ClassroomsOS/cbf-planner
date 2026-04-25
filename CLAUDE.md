@@ -57,7 +57,6 @@ Libros:      Uncover 4 (8°) · Evolve 4 (9°) · Cambridge One (digital)
 
 **🔜 Pendiente:**
 - **Google OAuth** — configurar en Supabase Dashboard → Auth → Providers + validar dominio `@redboston.edu.co` post-OAuth en `App.jsx:onAuthStateChange`
-- **Sala de Revisión** (`/sala-revision`) — guías publicadas por grado · edición con justificación · notificación al docente
 - **Sincronización local** — `supabase db pull` · copiar Edge Fns `exam-ai-corrector` v3 + `cbf-logger` v1 al local
 - **Email al estudiante** — cuando corrección IA/docente termina → enviar nota final por correo
 
