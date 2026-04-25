@@ -218,22 +218,19 @@ export default function ExamPlayerV2Page() {
           return
         }
 
-        // 2. Buscar instancia del estudiante por session_id + student_email
+        // 2. Buscar instancia vía RPC seguro — correct_answer NUNCA sale de la DB
+        // get_exam_instance_safe() hace el strip de correct_answer en Postgres
+        // antes de que el JSON cruce la red.
         const { data: inst, error: iErr } = await supabase
-          .from('exam_instances')
-          .select('id, student_name, student_section, version_label, generated_questions, instance_status, delivery_mode, school_id, session_id')
-          .eq('session_id', sess.id)
-          .eq('student_email', emailClean)
-          .in('instance_status', ['ready', 'started'])
-          .maybeSingle()
+          .rpc('get_exam_instance_safe', { p_session_id: sess.id, p_email: emailClean })
 
-        if (!inst) {
-          setErr('Tu correo no está registrado para este examen. Contacta a tu docente.')
+        if (iErr) {
+          setErr('Error al verificar tu acceso. Intenta de nuevo.')
           setLoading(false)
           return
         }
-        if (iErr) {
-          setErr('Error al verificar tu acceso. Intenta de nuevo.')
+        if (!inst) {
+          setErr('Tu correo no está registrado para este examen. Contacta a tu docente.')
           setLoading(false)
           return
         }
