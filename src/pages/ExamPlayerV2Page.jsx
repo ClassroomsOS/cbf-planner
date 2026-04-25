@@ -597,6 +597,44 @@ export default function ExamPlayerV2Page() {
       return () => clearInterval(autosaveRef.current)
     }, [answers])
 
+    // ── Secciones (agrupadas por section_name) ───────────────────
+    const sections = (() => {
+      const result = [], map = new Map()
+      questions.forEach((q, i) => {
+        const name = q.section_name || 'Preguntas'
+        if (!map.has(name)) { const s = { name, indices: [] }; map.set(name, s); result.push(s) }
+        map.get(name).indices.push(i)
+      })
+      return result
+    })()
+    const hasMultipleSections = sections.length > 1
+    const curSecIdx  = Math.max(0, sections.findIndex(s => s.indices.includes(current)))
+    const curSec     = sections[curSecIdx] ?? sections[0]
+    const posInSec   = curSec?.indices.indexOf(current) ?? 0
+    const isLastSec  = curSecIdx === sections.length - 1
+    const isLastInSec = posInSec === (curSec?.indices.length ?? 1) - 1
+
+    function toRoman(n) {
+      return ['I','II','III','IV','V','VI','VII','VIII','IX','X'][n - 1] ?? String(n)
+    }
+    function goNext() {
+      if (isLastInSec) {
+        if (!isLastSec) setCurrent(sections[curSecIdx + 1].indices[0])
+      } else {
+        setCurrent(curSec.indices[posInSec + 1])
+      }
+    }
+    function goPrev() {
+      if (posInSec === 0) {
+        if (curSecIdx > 0) {
+          const prev = sections[curSecIdx - 1]
+          setCurrent(prev.indices[prev.indices.length - 1])
+        }
+      } else {
+        setCurrent(curSec.indices[posInSec - 1])
+      }
+    }
+
     const q   = questions[current]
     const now = new Date()
     const watermarkText = `${instance?.student_name} · V${instance?.version_label} · ${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`
@@ -618,7 +656,7 @@ export default function ExamPlayerV2Page() {
           </div>
         )}
 
-        {/* Capa 3 — Desktop: banner rojo si sale de fullscreen o cambia de app */}
+        {/* Capa 3 — banner rojo bloqueante */}
         {violationAlert && (
           <div style={{
             position: 'fixed', inset: 0, background: '#7F1D1D', zIndex: 99999,
@@ -633,22 +671,14 @@ export default function ExamPlayerV2Page() {
               {violationAlert.message}
             </p>
             {violationAlert.isFullscreen ? (
-              <button
-                type="button"
-                onClick={() => {
-                  document.documentElement.requestFullscreen?.().catch(() => {})
-                  setViolationAlert(null)
-                }}
-                style={{ background: '#fff', color: '#7F1D1D', border: 'none', borderRadius: 10, padding: '14px 32px', fontSize: 16, fontWeight: 700, cursor: 'pointer' }}
-              >
+              <button type="button"
+                onClick={() => { document.documentElement.requestFullscreen?.().catch(() => {}); setViolationAlert(null) }}
+                style={{ background: '#fff', color: '#7F1D1D', border: 'none', borderRadius: 10, padding: '14px 32px', fontSize: 16, fontWeight: 700, cursor: 'pointer' }}>
                 🔲 Regresar a pantalla completa
               </button>
             ) : (
-              <button
-                type="button"
-                onClick={() => setViolationAlert(null)}
-                style={{ background: '#fff', color: '#7F1D1D', border: 'none', borderRadius: 10, padding: '14px 32px', fontSize: 16, fontWeight: 700, cursor: 'pointer' }}
-              >
+              <button type="button" onClick={() => setViolationAlert(null)}
+                style={{ background: '#fff', color: '#7F1D1D', border: 'none', borderRadius: 10, padding: '14px 32px', fontSize: 16, fontWeight: 700, cursor: 'pointer' }}>
                 Entendido — Continuar examen
               </button>
             )}
@@ -667,8 +697,7 @@ export default function ExamPlayerV2Page() {
             {violations > 0 && (
               <span style={{
                 background: violations >= 3 ? '#7F1D1D' : '#DC2626',
-                color: '#fff', padding: '3px 12px', borderRadius: 12, fontSize: 12,
-                fontWeight: 700,
+                color: '#fff', padding: '3px 12px', borderRadius: 12, fontSize: 12, fontWeight: 700,
                 boxShadow: violations >= 3 ? '0 0 0 2px #FCA5A5' : 'none',
                 animation: violations >= 3 ? 'pulse 1.5s infinite' : 'none',
               }}>
@@ -677,28 +706,69 @@ export default function ExamPlayerV2Page() {
               </span>
             )}
             {timeLeft !== null && (
-              <span style={{
-                fontFamily: 'monospace', fontSize: 16, fontWeight: 'bold',
-                color: timeLeft < 300 ? '#EF4444' : '#fff',
-              }}>
+              <span style={{ fontFamily: 'monospace', fontSize: 16, fontWeight: 'bold', color: timeLeft < 300 ? '#EF4444' : '#fff' }}>
                 ⏱ {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
               </span>
             )}
           </div>
         </div>
 
-        {/* Progreso */}
+        {/* Tabs de secciones — siempre visible cuando hay varias partes */}
+        {hasMultipleSections && (
+          <div style={{ background: '#1F3864', borderBottom: '2px solid #2E5598', overflowX: 'auto', display: 'flex', padding: '0 12px', gap: 4 }}>
+            {sections.map((sec, i) => {
+              const answered = sec.indices.filter(qi => answers[questions[qi]?.id]).length
+              const total    = sec.indices.length
+              const isCur    = i === curSecIdx
+              return (
+                <button
+                  key={i} type="button"
+                  onClick={() => setCurrent(sec.indices[0])}
+                  style={{
+                    background: isCur ? '#fff' : 'transparent',
+                    color: isCur ? '#1F3864' : '#93C5FD',
+                    border: 'none', cursor: 'pointer',
+                    padding: '10px 16px', fontSize: 13, fontWeight: isCur ? 700 : 500,
+                    whiteSpace: 'nowrap', borderRadius: '8px 8px 0 0',
+                    borderBottom: isCur ? '2px solid #fff' : 'none',
+                    display: 'flex', alignItems: 'center', gap: 6,
+                  }}
+                >
+                  <span style={{ opacity: 0.7 }}>Parte {toRoman(i + 1)}</span>
+                  <span style={{ fontWeight: 600 }}>{sec.name}</span>
+                  <span style={{
+                    fontSize: 11, padding: '1px 7px', borderRadius: 10,
+                    background: answered === total ? '#DCFCE7' : answered > 0 ? '#FEF9C3' : 'rgba(255,255,255,0.15)',
+                    color: answered === total ? '#166534' : answered > 0 ? '#92400E' : (isCur ? '#1F3864' : '#fff'),
+                    fontWeight: 700,
+                  }}>
+                    {answered}/{total}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Barra de progreso — dentro de la sección actual */}
         <div style={styles.progressBar}>
-          <div style={{ ...styles.progressFill, width: `${((current + 1) / questions.length) * 100}%` }} />
+          <div style={{
+            ...styles.progressFill,
+            width: `${((posInSec + 1) / (curSec?.indices.length || 1)) * 100}%`,
+          }} />
         </div>
 
         {/* Pregunta */}
         <div style={{ maxWidth: 720, margin: '0 auto', padding: '24px 16px 120px' }}>
           <div style={styles.questionCard}>
             <div style={styles.questionMeta}>
-              Pregunta {current + 1} de {questions.length}
+              {hasMultipleSections
+                ? <>Parte {toRoman(curSecIdx + 1)} · Pregunta {posInSec + 1} de {curSec?.indices.length}</>
+                : <>Pregunta {current + 1} de {questions.length}</>
+              }
               <span style={{ marginLeft: 12, color: '#6B7280', fontSize: 13 }}>
-                {q?.points} pt{q?.points !== 1 ? 's' : ''} · {q?.section_name}
+                {q?.points} pt{q?.points !== 1 ? 's' : ''}
+                {!hasMultipleSections && q?.section_name && ` · ${q.section_name}`}
               </span>
               {q?.biblical && <span style={{ marginLeft: 8, color: '#1A6B3A', fontSize: 13 }}>✝</span>}
             </div>
@@ -711,24 +781,36 @@ export default function ExamPlayerV2Page() {
             <button
               style={{ ...styles.navBtn, opacity: current === 0 ? 0.4 : 1 }}
               disabled={current === 0}
-              onClick={() => setCurrent(c => c - 1)}
+              onClick={goPrev}
             >
               ← Anterior
             </button>
-            <span style={{ color: '#6B7280', fontSize: 13 }}>
+            <span style={{ color: '#6B7280', fontSize: 13, textAlign: 'center' }}>
               {Object.keys(answers).length} / {questions.length} respondidas
             </span>
-            {current < questions.length - 1
-              ? <button style={styles.navBtn} onClick={() => setCurrent(c => c + 1)}>Siguiente →</button>
-              : <button style={{ ...styles.navBtn, background: '#1A6B3A' }} onClick={() => setShowConfirm(true)}>
-                  Enviar examen ✓
-                </button>
-            }
+            {isLastSec && isLastInSec ? (
+              <button style={{ ...styles.navBtn, background: '#1A6B3A' }} onClick={() => setShowConfirm(true)}>
+                Revisar y enviar →
+              </button>
+            ) : (
+              <button style={{ ...styles.navBtn, background: isLastInSec ? '#2E5598' : undefined }} onClick={goNext}>
+                {isLastInSec ? `Parte ${toRoman(curSecIdx + 2)} →` : 'Siguiente →'}
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Confirm modal */}
-        {showConfirm && <ConfirmSubmitModal onConfirm={handleSubmit} onCancel={() => setShowConfirm(false)} total={questions.length} answered={Object.keys(answers).length} />}
+        {/* Panel de revisión */}
+        {showConfirm && (
+          <ReviewModal
+            sections={sections}
+            questions={questions}
+            answers={answers}
+            onNavigate={idx => { setCurrent(idx); setShowConfirm(false) }}
+            onCancel={() => setShowConfirm(false)}
+            onSubmit={handleSubmit}
+          />
+        )}
       </div>
     )
   }
@@ -992,7 +1074,7 @@ export default function ExamPlayerV2Page() {
                   <div style={{ background: '#FEF9C3', border: '1px solid #FDE68A', borderRadius: 10, padding: '14px', textAlign: 'left' }}>
                     <strong style={{ color: '#92400E' }}>Puntaje MC: {sc.mcScore}/{sc.mcMax} pts</strong><br />
                     <span style={{ color: '#78350F', fontSize: 13 }}>
-                      ⏳ {sc.openCount} pregunta{sc.openCount !== 1 ? 's' : ''} abierta{sc.openCount !== 1 ? 's' : ''} en revisión IA — la nota final la recibirás después.
+                      ⏳ {sc.openCount} pregunta{sc.openCount !== 1 ? 's' : ''} abierta{sc.openCount !== 1 ? 's' : ''} — serán revisadas por tu docente o la IA. Recibirás tu nota final por correo.
                     </span>
                   </div>
                 )}
@@ -1103,29 +1185,110 @@ function QuestionInput({ q, answers, setAnswers, instance }) {
   )
 }
 
-// ── ConfirmSubmitModal ────────────────────────────────────────
+// ── ReviewModal ───────────────────────────────────────────────
+// Panel de revisión antes de enviar. Muestra cada pregunta por sección
+// con estado respondida / sin responder. El alumno puede navegar a
+// cualquier pregunta o enviar directamente.
 
-function ConfirmSubmitModal({ onConfirm, onCancel, total, answered }) {
-  const missing = total - answered
+function ReviewModal({ sections, questions, answers, onNavigate, onCancel, onSubmit }) {
+  const totalAnswered = Object.keys(answers).length
+  const totalQ        = questions.length
+  const missing       = totalQ - totalAnswered
+
+  function toRoman(n) {
+    return ['I','II','III','IV','V','VI','VII','VIII','IX','X'][n - 1] ?? String(n)
+  }
+
   return (
     <div style={styles.overlay}>
-      <div style={{ ...styles.card, maxWidth: 400, margin: 0 }}>
-        <div style={{ padding: 24, textAlign: 'center' }}>
-          <div style={{ fontSize: 40, marginBottom: 12 }}>📤</div>
-          <h3 style={{ margin: '0 0 8px', color: '#1F3864' }}>¿Enviar examen?</h3>
-          {missing > 0
-            ? <p style={{ color: '#DC2626' }}>Tienes <strong>{missing}</strong> pregunta{missing !== 1 ? 's' : ''} sin responder.</p>
-            : <p style={{ color: '#1A6B3A' }}>Respondiste todas las preguntas.</p>
-          }
-          <p style={{ color: '#6B7280', fontSize: 13 }}>Esta acción no se puede deshacer.</p>
-          <div style={{ display: 'flex', gap: 12, marginTop: 20 }}>
-            <button style={{ ...styles.navBtn, flex: 1, background: '#6B7280' }} onClick={onCancel}>
-              Volver
-            </button>
-            <button style={{ ...styles.navBtn, flex: 1, background: '#1A6B3A' }} onClick={onConfirm}>
-              Enviar ✓
-            </button>
+      <div style={{
+        background: '#fff', borderRadius: 14, width: '100%', maxWidth: 540,
+        maxHeight: '85vh', display: 'flex', flexDirection: 'column',
+        boxShadow: '0 16px 48px rgba(0,0,0,0.25)', overflow: 'hidden',
+      }}>
+        {/* Header */}
+        <div style={{ background: '#1F3864', padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+          <div>
+            <h3 style={{ margin: 0, color: '#fff', fontSize: 17 }}>📋 Revisión del examen</h3>
+            <p style={{ margin: '2px 0 0', color: '#93C5FD', fontSize: 12 }}>
+              {totalAnswered} de {totalQ} respondidas
+              {missing > 0 && <span style={{ color: '#FCA5A5', marginLeft: 8 }}>· {missing} sin responder</span>}
+            </p>
           </div>
+          <button type="button" onClick={onCancel}
+            style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', borderRadius: 8, padding: '6px 12px', cursor: 'pointer', fontSize: 14, fontWeight: 600 }}>
+            ✕ Volver
+          </button>
+        </div>
+
+        {/* Cuerpo desplazable */}
+        <div style={{ overflowY: 'auto', padding: '16px 20px', flex: 1 }}>
+          {sections.map((sec, si) => {
+            const unanswered = sec.indices.filter(qi => !answers[questions[qi]?.id])
+            return (
+              <div key={si} style={{ marginBottom: 20 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                  <span style={{ fontWeight: 700, color: '#1F3864', fontSize: 14 }}>
+                    Parte {toRoman(si + 1)}: {sec.name}
+                  </span>
+                  {unanswered.length > 0 && (
+                    <span style={{ background: '#FEF3C7', color: '#92400E', fontSize: 11, padding: '2px 8px', borderRadius: 10, fontWeight: 700 }}>
+                      {unanswered.length} sin responder
+                    </span>
+                  )}
+                  {unanswered.length === 0 && (
+                    <span style={{ background: '#DCFCE7', color: '#166534', fontSize: 11, padding: '2px 8px', borderRadius: 10, fontWeight: 700 }}>
+                      ✓ Completa
+                    </span>
+                  )}
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {sec.indices.map((qi, j) => {
+                    const q         = questions[qi]
+                    const isAnswered = !!answers[q?.id]
+                    return (
+                      <button key={qi} type="button" onClick={() => onNavigate(qi)}
+                        title={isAnswered ? 'Respondida — clic para revisar' : 'Sin responder — clic para ir'}
+                        style={{
+                          width: 44, height: 44, borderRadius: 10, border: 'none',
+                          background: isAnswered ? '#DCFCE7' : '#FEF3C7',
+                          color: isAnswered ? '#166534' : '#92400E',
+                          fontWeight: 700, cursor: 'pointer', fontSize: 15,
+                          boxShadow: !isAnswered ? '0 0 0 2px #FCD34D inset' : '0 0 0 1.5px #86EFAC inset',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          flexDirection: 'column', gap: 1,
+                        }}
+                      >
+                        <span>{j + 1}</span>
+                        <span style={{ fontSize: 9, fontWeight: 500 }}>{isAnswered ? '✓' : '—'}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Footer */}
+        <div style={{ borderTop: '1px solid #E5E7EB', padding: '16px 20px', flexShrink: 0 }}>
+          {missing > 0 && (
+            <p style={{ color: '#92400E', background: '#FEF3C7', borderRadius: 8, padding: '10px 14px', fontSize: 13, margin: '0 0 14px', textAlign: 'center' }}>
+              ⚠️ Tienes <strong>{missing}</strong> pregunta{missing !== 1 ? 's' : ''} sin responder. Puedes volver a responderlas o enviar de todas formas.
+            </p>
+          )}
+          {missing === 0 && (
+            <p style={{ color: '#166534', background: '#DCFCE7', borderRadius: 8, padding: '10px 14px', fontSize: 13, margin: '0 0 14px', textAlign: 'center' }}>
+              ✅ ¡Respondiste todas las preguntas!
+            </p>
+          )}
+          <button type="button" onClick={onSubmit}
+            style={{ display: 'block', width: '100%', background: '#1A6B3A', color: '#fff', border: 'none', borderRadius: 10, padding: '14px', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>
+            Enviar examen ✓
+          </button>
+          <p style={{ color: '#9CA3AF', fontSize: 11, textAlign: 'center', marginTop: 8 }}>
+            Esta acción no se puede deshacer.
+          </p>
         </div>
       </div>
     </div>
