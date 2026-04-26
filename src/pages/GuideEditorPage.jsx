@@ -206,6 +206,7 @@ export default function GuideEditorPage({ teacher }) {
   const exportWrapRef = useRef(null)
   const [importingDocx, setImportingDocx] = useState(false)
   const [classAccommodations, setClassAccommodations] = useState([])  // students with active plans in this class
+  const [piarData,            setPiarData]            = useState(null) // aggregated accommodations for AI
 
   // ── Load ──
   useEffect(() => {
@@ -432,17 +433,29 @@ export default function GuideEditorPage({ teacher }) {
 
       if (!plans || plans.length === 0) return
 
-      // Build per-student accommodation summary
+      // Build per-student accommodation summary (for callout)
       const byStudent = {}
       plans.forEach(p => {
         if (!byStudent[p.student_id]) byStudent[p.student_id] = { count: 0 }
         byStudent[p.student_id].count += (p.accommodations?.length || 0)
       })
-
       const result = inClass
         .filter(s => byStudent[s.id])
         .map(s => ({ id: s.id, name: s.name, count: byStudent[s.id].count }))
       setClassAccommodations(result)
+
+      // Build aggregated accommodations by category for AI (privacy-safe: no names)
+      const byCat = {}
+      plans.forEach(p => {
+        ;(p.accommodations || []).forEach(a => {
+          const cat = a.category || 'General'
+          if (!byCat[cat]) byCat[cat] = new Set()
+          byCat[cat].add(a.text)
+        })
+      })
+      const byCategory = {}
+      Object.entries(byCat).forEach(([cat, set]) => { byCategory[cat] = [...set] })
+      setPiarData({ studentCount: result.length, byCategory })
     }
     fetchAccommodations()
   }, [plan?.grade, plan?.id, teacher.school_id])
@@ -1909,6 +1922,7 @@ export default function GuideEditorPage({ teacher }) {
           currentContent={contentRef.current}
           principles={principles}
           eleotCoverage={coverage}
+          piarData={piarData}
           onApply={handleApplyGenerated}
           onClose={closeGenerator}
         />

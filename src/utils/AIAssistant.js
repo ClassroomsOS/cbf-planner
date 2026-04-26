@@ -552,7 +552,7 @@ Dame un análisis pedagógico completo. En la sección 🙏 evalúa específicam
 
 // ── Punto 3: Generar estructura completa desde objetivo ───────────────────────
 export async function generateGuideStructure({
-  grade, subject, objective, unit, activeDays, period, planId, achievementGoal, activeNewsProject, principles
+  grade, subject, objective, unit, activeDays, period, planId, achievementGoal, activeNewsProject, principles, piarData
 }) {
   const TAXONOMY_DESC = { recognize: 'Reconocer (identificar, recordar, nombrar)', apply: 'Aplicar (usar, demostrar, resolver)', produce: 'Producir (crear, diseñar, componer)' }
   const v = fmtVerse(principles?.monthVerse) || fmtVerse(principles?.yearVerse)
@@ -731,6 +731,26 @@ Usa inglés en los datos del bloque (colegio bilingüe). Si no hay un bloque cla
     return lines.length ? `\n📋 CONTEXTO DEL PROYECTO NEWS (usa esto para alinear todo el contenido):\n${lines.join('\n')}` : ''
   })() : ''
 
+  // Build PIAR block
+  const piarBlock = (piarData?.studentCount > 0 && piarData?.byCategory) ? (() => {
+    const lines = [
+      `\n♿ PIAR — PLAN INDIVIDUAL DE AJUSTE RAZONABLE (${piarData.studentCount} estudiante${piarData.studentCount !== 1 ? 's' : ''} en este grupo requiere${piarData.studentCount === 1 ? '' : 'n'} acomodaciones):`,
+      '',
+      'MANDATO: Diseña CADA actividad, instrucción y producto de esta guía integrando estas acomodaciones de forma natural e inclusiva.',
+      'No las menciones explícitamente como "acomodaciones" — simplemente diseña la clase para que funcionen.',
+      'Principios de diseño inclusivo que deben reflejarse en la guía:',
+      '- Instrucciones claras, paso a paso, sin múltiples consignas simultáneas',
+      '- Actividades que permitan diferentes formas de participación y demostración',
+      '- Tiempo y espacio para verificar comprensión individual antes de avanzar',
+      '',
+    ]
+    Object.entries(piarData.byCategory).forEach(([cat, items]) => {
+      lines.push(`${cat.toUpperCase()}:`)
+      items.forEach(item => lines.push(`  - ${sanitizeAIInput(item)}`))
+    })
+    return lines.join('\n')
+  })() : ''
+
   const message = `Genera una guía de aprendizaje completa con estos datos:
 
 - Grado: ${safeGrade}
@@ -741,6 +761,7 @@ Usa inglés en los datos del bloque (colegio bilingüe). Si no hay un bloque cla
 - Días de clase ${activeDays.length > 5 ? 'estas dos semanas' : 'esta semana'}: ${daysStr}
 ${achievementBlock}
 ${newsBlock}
+${piarBlock}
 
 IDIOMA: Usa inglés para Language Arts. Usa español para todas las demás materias.
 FORMATO: Texto plano, sin HTML, sin viñetas, sin listas. Texto corrido, directo al punto.

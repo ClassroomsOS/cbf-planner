@@ -51,6 +51,7 @@ export const ConversationalGuideModal = memo(function ConversationalGuideModal({
   grade, subject, period, activeDays,
   indicator, achievementGoal, activeNewsProject,
   currentContent, principles, eleotCoverage,
+  piarData,
   onApply, onClose,
 }) {
   const { showToast } = useToast()
@@ -122,6 +123,7 @@ export const ConversationalGuideModal = memo(function ConversationalGuideModal({
         grade, subject, objective, unit, period, activeDays,
         achievementGoal,
         activeNewsProject, principles,
+        piarData,
         _focusHints: focusHints,
       })
       setPreview(result)
@@ -329,6 +331,23 @@ export const ConversationalGuideModal = memo(function ConversationalGuideModal({
             <div style={{ fontSize: '11px', color: '#2E5598', background: '#f0f4ff', padding: '8px 12px', borderRadius: '8px' }}>
               {selectedBlocks.length} tipo{selectedBlocks.length !== 1 ? 's' : ''} seleccionado{selectedBlocks.length !== 1 ? 's' : ''}:&nbsp;
               {selectedBlocks.map(k => BLOCK_TYPES[k]?.icon + ' ' + BLOCK_TYPES[k]?.label).join(', ')}
+            </div>
+          )}
+
+          {/* PIAR notice */}
+          {piarData?.studentCount > 0 && (
+            <div style={{ background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: '8px', padding: '10px 14px' }}>
+              <div style={{ fontSize: '12px', fontWeight: 700, color: '#92400E', marginBottom: 6 }}>
+                ♿ PIAR detectado — {piarData.studentCount} estudiante{piarData.studentCount !== 1 ? 's' : ''} con ajustes razonables
+              </div>
+              <div style={{ fontSize: '11px', color: '#78350F', lineHeight: 1.6 }}>
+                La IA integrará automáticamente las acomodaciones activas de este grupo en el diseño de la guía:
+                {Object.entries(piarData.byCategory).map(([cat, items]) => (
+                  <div key={cat} style={{ marginTop: 4 }}>
+                    <strong>{cat}:</strong> {items.slice(0, 2).join(' · ')}{items.length > 2 ? ` · +${items.length - 2} más` : ''}
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
