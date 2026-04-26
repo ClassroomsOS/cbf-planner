@@ -57,10 +57,12 @@ export default function StudentsPage({ teacher }) {
   // Grade de este docente (primera asignación como referencia)
   const [myGrade, setMyGrade] = useState('')
   const [confirmingDeleteId, setConfirmingDeleteId] = useState(null)
+  const [psyProfiles, setPsyProfiles] = useState({})  // student_id → { status }
 
   useEffect(() => {
     loadStudents()
     loadMyGrade()
+    loadPsyProfiles()
   }, [])
 
   async function loadMyGrade() {
@@ -76,6 +78,16 @@ export default function StudentsPage({ teacher }) {
       setMyGrade(combined)
       setFilterGrade(combined)
     }
+  }
+
+  async function loadPsyProfiles() {
+    const { data } = await supabase
+      .from('student_psychosocial_profiles')
+      .select('student_id, status')
+      .eq('school_id', teacher.school_id)
+    const map = {}
+    ;(data || []).forEach(p => { map[p.student_id] = p })
+    setPsyProfiles(map)
   }
 
   async function loadStudents() {
@@ -382,7 +394,16 @@ export default function StudentsPage({ teacher }) {
               <tbody>
                 {filtered.map(s => (
                   <tr key={s.id} style={{ borderBottom: '1px solid #F3F4F6' }}>
-                    <td style={td}>{s.name}</td>
+                    <td style={td}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {s.name}
+                        {psyProfiles[s.id] && (() => {
+                          const st = psyProfiles[s.id].status
+                          const dot = st === 'intervention' ? '#ef4444' : st === 'monitoring' ? '#f59e0b' : st === 'no_intervention' ? '#22c55e' : '#9ca3af'
+                          return <span title="Perfil psicosocial activo" style={{ width: 8, height: 8, borderRadius: '50%', background: dot, flexShrink: 0, display: 'inline-block' }} />
+                        })()}
+                      </span>
+                    </td>
                     <td style={{ ...td, color: '#6B7280', fontSize: 13 }}>{s.email}</td>
                     <td style={td}>{s.grade}</td>
                     <td style={td}>{s.section}</td>

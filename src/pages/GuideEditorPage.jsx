@@ -205,6 +205,7 @@ export default function GuideEditorPage({ teacher }) {
   const docxInputRef  = useRef(null)
   const exportWrapRef = useRef(null)
   const [importingDocx, setImportingDocx] = useState(false)
+  const [classAccommodations, setClassAccommodations] = useState([])  // students with active plans in this class
 
   // ── Load ──
   useEffect(() => {
@@ -403,6 +404,48 @@ export default function GuideEditorPage({ teacher }) {
     }
     load()
   }, [id])
+
+  // ── Load class accommodations (students in this grade/section with active plans) ──
+  useEffect(() => {
+    if (!plan?.grade) return
+    async function fetchAccommodations() {
+      // Get all students in this grade+section
+      const gradeStr = plan.grade  // combined e.g. "8.° Blue"
+      const { data: students } = await supabase
+        .from('school_students')
+        .select('id, name, grade, section')
+        .eq('school_id', teacher.school_id)
+      const inClass = (students || []).filter(s => {
+        const combined = s.section ? `${s.grade} ${s.section}` : s.grade
+        return combined === gradeStr
+      })
+      if (inClass.length === 0) return
+
+      const ids = inClass.map(s => s.id)
+      const year = new Date().getFullYear()
+      const { data: plans } = await supabase
+        .from('student_accommodation_plans')
+        .select('student_id, accommodations, subject')
+        .in('student_id', ids)
+        .eq('status', 'active')
+        .eq('academic_year', year)
+
+      if (!plans || plans.length === 0) return
+
+      // Build per-student accommodation summary
+      const byStudent = {}
+      plans.forEach(p => {
+        if (!byStudent[p.student_id]) byStudent[p.student_id] = { count: 0 }
+        byStudent[p.student_id].count += (p.accommodations?.length || 0)
+      })
+
+      const result = inClass
+        .filter(s => byStudent[s.id])
+        .map(s => ({ id: s.id, name: s.name, count: byStudent[s.id].count }))
+      setClassAccommodations(result)
+    }
+    fetchAccommodations()
+  }, [plan?.grade, plan?.id, teacher.school_id])
 
   // ── Load linked achievement_indicator ──
   useEffect(() => {
@@ -1422,6 +1465,35 @@ export default function GuideEditorPage({ teacher }) {
                   </button>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* ── Psychosocial accommodations callout ── */}
+          {classAccommodations.length > 0 && activePanel !== 'header' && activePanel !== 'info' && (
+            <div style={{
+              margin: '8px 0 4px', padding: '10px 14px',
+              background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8,
+              display: 'flex', alignItems: 'flex-start', gap: 10,
+            }}>
+              <span style={{ fontSize: 18, flexShrink: 0 }}>🧠</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#92400e', marginBottom: 4 }}>
+                  {classAccommodations.length === 1
+                    ? '1 estudiante en este grupo tiene acomodaciones activas'
+                    : `${classAccommodations.length} estudiantes en este grupo tienen acomodaciones activas`}
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {classAccommodations.map(s => (
+                    <span key={s.id} style={{ fontSize: 11, fontWeight: 600, color: '#92400e', background: '#fef3c7', borderRadius: 4, padding: '2px 8px', border: '1px solid #fde68a' }}>
+                      {s.name} · {s.count} acomodación{s.count !== 1 ? 'es' : ''}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <button type="button" onClick={() => navigate('/psicosocial')}
+                style={{ fontSize: 12, color: '#92400e', fontWeight: 700, whiteSpace: 'nowrap', cursor: 'pointer', padding: '4px 10px', border: '1px solid #fde68a', borderRadius: 6, background: '#fff' }}>
+                Ver perfiles →
+              </button>
             </div>
           )}
 
