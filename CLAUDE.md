@@ -1,4 +1,4 @@
-# CBF PLANNER — v5.5
+# CBF PLANNER — v5.6
 ## CLAUDE.md — Documento maestro
 
 > **Principio rector:** *"Nosotros diseñamos. El docente enseña."*
@@ -60,12 +60,45 @@ Libros:      Uncover 4 (8°) · Evolve 4 (9°) · Cambridge One (digital)
   - `CLASS_RULES` movidas a `SUBJECT`; `MOTIVATION` ya no las recibe
   - Prompt de retry actualizado para alinearse con la nueva estructura
 
-## 🔜 SPRINT ACTUAL — SESIÓN N
+## ✅ SESIÓN N — COMPLETADA
+
+- **Módulo Psicosocial — completo:**
+  - 3 tablas nuevas: `student_psychosocial_profiles` · `student_observations` · `student_accommodation_plans`
+  - RLS: todos los docentes de la escuela pueden leer · solo `psicopedagoga/admin/superadmin/rector` pueden escribir
+  - `PsicosocialPage` (`/psicosocial`) — panel izquierdo: lista con semáforo 🔴🟡🟢 + búsqueda + filtros por grado/estado
+  - Panel derecho — 3 tabs por estudiante:
+    - **Perfil**: estado caso · nivel apoyo · flags predefinidos por categoría + personalizados · foto (upload 200×200) · notas para docente (visible a todos) + notas confidenciales (solo psico/rector/admin)
+    - **Seguimiento**: timeline de observaciones (fecha · tipo · descripción · acción · próximo paso)
+    - **Plan Docente**: acomodaciones predefinidas por categoría (Evaluación · En clase · Tareas · Comunicación) + personalizadas; agrupadas por materia/período
+  - Sidebar: link "🧠 Área Psicosocial" visible a todos (docentes ven en modo lectura)
+  - `StudentsPage`: punto de semáforo junto al nombre de estudiantes con perfil activo
+  - `GuideEditorPage`: callout ámbar al abrir guía si hay estudiantes del salón con acomodaciones activas → botón "Ver perfiles →" navega a `/psicosocial`
+  - Callout roster vacío en `/psicosocial` con botón directo a `/students`
+
+- **StudentsPage — campos de nombre completo y representante:**
+  - 5 columnas nuevas en `school_students`: `first_name` · `second_name` · `first_lastname` · `second_lastname` · `representative_email`
+  - El campo `name` se mantiene como nombre compuesto (compat. con exámenes y psicosocial)
+  - Formulario uno a uno: 4 campos nombre separados + dropdown Grado (6.°–11.°) + dropdown Sección (Blue/Red) + email estudiante (auto-generado si vacío) + email representante
+  - CSV 8 columnas: `Primer Nombre | Segundo Nombre | Primer Apellido | Segundo Apellido | Grado | Sección | Email | Email Representante`
+  - Parser normaliza grado (`8`, `8°`, `8.°` → `8.°`), auto-completa email, genera nombre compuesto
+  - Vista previa en tabla antes de importar · columnas opcionales pueden quedar vacías
+  - Filtros: búsqueda nombre/código + dropdown grado + dropdown sección
+
+- **Corrección IA de preguntas abiertas — pipeline completo:**
+  - Nueva Edge Function `exam-response-corrector`: recibe `instance_id`, lee `exam_responses` con `ai_correction_status='pending'`, busca criterios del docente en `question_criteria`, llama Claude por cada respuesta abierta, guarda `ai_score + ai_feedback + ai_confidence`, recalcula nota colombiana final y hace upsert en `exam_results`
+  - Columnas nuevas en `exam_responses`: `ai_score · ai_feedback · ai_confidence · requires_human_review`
+  - Columnas nuevas en `exam_results`: `instance_id (UNIQUE) · total_score · max_score · colombian_grade · correction_status`
+  - `ExamPlayerV2Page`: después del submit, si `openCount > 0` → dispara corrector en background (no bloqueante)
+  - `SubmittedPhase`: spinner "🤖 La IA está revisando..." mientras corre; nota se actualiza al terminar; panel de feedback por pregunta (verde/amarillo); botón PDF deshabilitado hasta terminar; PDF incluye feedback IA como fila adicional por pregunta abierta
+  - Fallback graceful: si Claude falla → `score=0`, `requires_human_review=true`, docente revisará desde `ExamReviewPage`
+  - Si el docente definió criterios en `question_criteria` (respuesta modelo · conceptos clave · rúbrica · nivel Bloom) → se inyectan en el prompt; si no → rigor flexible por defecto
+
+## 🔜 PRÓXIMA SESIÓN
 
 **🔜 Pendiente:**
 - **Google OAuth** — configurar en Supabase Dashboard → Auth → Providers + validar dominio `@redboston.edu.co` post-OAuth en `App.jsx:onAuthStateChange`
-- **Sincronización local** — `supabase db pull` · copiar Edge Fns `exam-ai-corrector` v3 + `cbf-logger` v1 al local
-- **Email al estudiante** — cuando corrección IA/docente termina → enviar nota final por correo
+- **Email al estudiante** — cuando corrección IA termina → enviar nota final + feedback por correo al representante
+- **Sincronización local** — `supabase db pull` · copiar Edge Fns nuevas al local
 
 ---
 
@@ -115,6 +148,7 @@ SYLLABUS TOPICS → ACHIEVEMENT GOAL → ACHIEVEMENT INDICATORS
 | **K** | school_students (roster) · StudentsPage (/students) · ExamPlayerV2Page: email auth · exam-instance-generator auto-roster · Migración 20260422000004 | ✅ prod |
 | **L** | Antitrampa 5 capas · exam-integrity-alert Edge Fn · generar instancias por roster · preview+edición preguntas · auth completo (forgot pwd + Resend) · Dashboard resultados · Panel revisión humana · Design system UX | ✅ prod |
 | **M** | ExamPlayerV2: credenciales localStorage · banner violación rojo/blanco · Telegram ciclo (started/resumed/submitted) · score modal nota colombiana · secciones tabs + ReviewModal · Wizard secciones multi-parte · generateExamQuestions sections[] · Archivado Fase 5 (storage_path + news_project_versions + HTML upload) · Monitor docente en tiempo real (ExamLiveMonitor + Realtime) · Sidebar badge Revisión IA · generateGuideStructure secuencia didáctica estructurada | ✅ prod |
+| **N** | Módulo Psicosocial completo (3 tablas · PsicosocialPage · semáforo · perfil/seguimiento/plan docente · foto · callout en GuideEditor) · StudentsPage 8 campos (nombres separados · grado · sección · email rep.) · Corrección IA preguntas abiertas (exam-response-corrector · feedback por pregunta · nota final real · fallback graceful) | ✅ prod |
 
 > Para el roadmap detallado y backlog → `docs/claude/roadmap.md`
 
@@ -250,9 +284,11 @@ exam_ai_queue         — cola corrección AI · status(pending/processing/done/
 cbf_error_log         — errores CBF-[MOD]-[TYPE]-[NNN] · severity · school_id
 health_snapshots      — métricas de salud cada 6h · cron via pg_net
 
-— ROSTER (Ses. K) —
-school_students       — email UNIQUE(school_id,email) · grade(combined) · section
-                        student_code auto (trigger: "9B-001") · teacher_id FK
+— ROSTER (Ses. K+N) —
+school_students       — email UNIQUE(school_id,email) · grade(base) · section
+                        student_code auto (trigger) · teacher_id FK
+                        first_name · second_name · first_lastname · second_lastname
+                        representative_email
 
 — SCHEMA EXAM PLAYER —
 exam_blueprints       — configuración pedagógica inmutable post-publicación
@@ -261,10 +297,23 @@ exam_instances        — generated_questions JSONB (con section_name por pregun
                         student_email · student_id FK · student_section
                         version_label · instance_status · integrity_flags
                         tab_switches · started_at
-exam_responses        — respuestas polimórficas · response_origin · auto/ai/human score
-exam_results          — nota trigger · colombian_grade 1.0–5.0
+exam_responses        — respuestas polimórficas · response_origin · auto_score
+                        ai_score · ai_feedback · ai_confidence · requires_human_review
+                        ai_correction_status (not_needed|pending|done)
+exam_results          — instance_id UNIQUE · colombian_grade 1.0–5.0
+                        total_score · max_score · correction_status (pending|partial|complete)
 exam_preflight_log    — checks T-24h / T-0h / T-30min
 exam_offline_queue    — cola offline → sync al reconectar
+
+— MÓDULO PSICOSOCIAL (Ses. N) —
+student_psychosocial_profiles — student_id PK · status(no_intervention|monitoring|intervention|closed)
+                                support_level(standard|enhanced|intensive) · flags TEXT[]
+                                teacher_notes (visible todos) · confidential_notes (solo psico/rector/admin)
+                                photo_url · created_by
+student_observations          — obs_date · obs_type(academic|behavioral|emotional|family|health|other)
+                                description · action_taken · next_steps · next_followup · created_by
+student_accommodation_plans   — academic_year · subject(null=todas) · period(null=todo el año)
+                                accommodations JSONB · status(draft|active|archived) · created_by
 ```
 
 ---
@@ -314,6 +363,15 @@ exam_offline_queue    — cola offline → sync al reconectar
 | `analyzeGuideCoverage()` | 1800 |
 | `generateStudentRubric()` | 3000 |
 | `generateExamQuestions()` | 9000/sección |
+
+**`exam-response-corrector` Edge Fn** (Ses. N) — corrige respuestas abiertas post-submit:
+- Input: `{ instance_id }` · Lee `exam_responses` con `ai_correction_status='pending'`
+- Busca `question_criteria` (model_answer · key_concepts · rubric · rigor_level · bloom_level) — si no existe → rigor flexible
+- Llama Claude por cada respuesta → `{ score_awarded, feedback, confidence }`
+- Guarda en `exam_responses`: `ai_score · ai_feedback · ai_confidence · requires_human_review`
+- Recalcula nota colombiana → upsert `exam_results` por `instance_id`
+- Confianza < 0.65 → `requires_human_review=true` → aparece en `ExamReviewPage`
+- Fallback: si Claude falla → `score=0, requires_review=true` (no bloquea al estudiante)
 
 **`generateExamQuestions({ subject, grade, indicator, biblicalContext, syllabusTopics, sections, additionalContext })`**
 - `sections: [{ id, name, types: { multiple_choice, true_false, ... } }]` — una llamada IA por sección (función interna `generateSingleSection`)
@@ -394,6 +452,7 @@ Helpers en `src/utils/roles.js`: `canManage` · `isSuperAdmin` · `isRector` · 
 /exams/review  ExamReviewPage           Panel revisión humana confianza < 0.65
 /coverage      PeriodCoverageDashboard  Cobertura eleot® acumulada (admin)
 /observations  ObservationLoggerPage    Observaciones Cognia (admin)
+/psicosocial   PsicosocialPage          Módulo psicosocial (todos leen · psico/admin/rector editan)
 
 // ROLES ESPECIALES
 /agenda        AgendaPage               Homeroom + co-teacher + admin
