@@ -27,11 +27,14 @@
 | Mensajería | 🔶 Básica | Mensajes 1-a-1 funcionan. Falta: salas grupales |
 | Sala de Revisión | ✅ Completo | Cola submitted + acordeón por grado + stats · Aprobar/Devolver/Publicar · IntentModal + justificación al guardar · snapshot HTML en Storage |
 | Archivado (Fase 5) | ✅ Completo | storage_path en lesson_plan_versions · news_project_versions · HTML inmutable a Storage · "Archivar versión" en NEWS |
+| **Módulo Psicosocial** | ✅ Completo | 3 tablas · PsicosocialPage · semáforo · perfil/seguimiento/plan docente · modo consulta docentes · notas confidenciales ocultas |
+| **PIAR en IA** | ✅ Completo | Acomodaciones inyectadas en `generateGuideStructure` sin PII · aviso en ConversationalGuideModal |
+| **Privacidad Telegram** | ✅ Completo | Código anónimo (last-6 instance_id) en alertas y ciclo · columna Código en ExamLiveMonitor |
 | Pipeline imágenes IA | ⬜ Pendiente | Fotos de textbook → multimodal → prompt |
 | Refactoring (Fase 3) | ⬜ Pendiente | Archivos grandes, CSS modular, TeacherContext |
 | **Módulo de Evaluación — Backend** | ✅ Completo | 10 tablas, triggers, cola AI, corrección Claude, escala colombiana. Probado E2E. |
 | **Módulo de Evaluación — Frontend** | ✅ Completo | ~~Pantalla creación~~ ✅ · ~~N versiones anti-copia~~ ✅ · ~~Print CBF-G AC-01~~ ✅ · ~~ExamPlayerV2 email-auth~~ ✅ · ~~Antitrampa 5 capas~~ ✅ · ~~Generar instancias por roster~~ ✅ · ~~Preview+edición preguntas por versión~~ ✅ · ~~Dashboard resultados~~ ✅ · ~~Monitor en vivo~~ ✅ · ~~Revisión humana~~ ✅ |
-| **Roster de Estudiantes** | ✅ Completo | school_students · StudentsPage · exam-instance-generator auto-query · email auth en /eval |
+| **Roster de Estudiantes** | ✅ Completo | school_students · StudentsPage · exam-instance-generator auto-query · email auth en /eval · displayName apellido-nombre · CSV robusto · import row-by-row · ordenamiento columna · eliminación por lotes |
 | **CBF Observability Layer** | ✅ Completo | 16 códigos error `CBF-[MOD]-[TYPE]-[NNN]`, cbf-logger, alertas Telegram, health snapshots |
 | **CBF Quality Standard** | ✅ Completo | Definition of Done, clasificación bugs, estándares performance y disponibilidad |
 
@@ -201,6 +204,20 @@ Cuando el docente sube fotos de textbook en NewsProjectEditor:
 | Deploy directo a producción | Todas las migraciones y Edge Functions | Crear Supabase Branch |
 
 ---
+
+## Completado — sesión 2026-04-25 (N.2 — refinamientos)
+
+- [x] StudentsPage: `displayName()` orden apellido-nombre · checkboxes + eliminación por lotes + confirmación
+- [x] StudentsPage: CSV reordenado (Apellido1 | Apellido2 | Nombre1 | Nombre2 | Grado | Sección...)
+- [x] StudentsPage: parser CSV robusto — mínimo 4 cols, email auto-generado si dominio incorrecto, warnings no bloqueantes
+- [x] StudentsPage: import row-by-row — reintenta fila a fila cuando el batch falla por `23505`
+- [x] StudentsPage: ordenamiento por columna (▲▼) en Nombre, Grado, Sección, Código
+- [x] PsicosocialPage: notas confidenciales ocultas para `role='teacher'` · banner azul "Modo consulta"
+- [x] AIAssistant.generateGuideStructure: bloque `♿ PIAR` — acomodaciones por categoría, sin nombres (privacidad)
+- [x] GuideEditorPage: consulta `student_accommodation_plans` → agrega por categoría → `piarData`
+- [x] ConversationalGuideModal: aviso naranja en paso 3 si hay acomodaciones activas
+- [x] ExamPlayerV2Page + exam-integrity-alert: Telegram anónimo — código last-6 de `instance_id` en lugar de nombre
+- [x] ExamLiveMonitor: columna "Código" para cruzar alertas Telegram con monitor en vivo
 
 ## Completado — sesión 2026-04-22 (continuación)
 

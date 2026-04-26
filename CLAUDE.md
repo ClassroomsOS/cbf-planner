@@ -1,4 +1,4 @@
-# CBF PLANNER — v5.6
+# CBF PLANNER — v5.7
 ## CLAUDE.md — Documento maestro
 
 > **Principio rector:** *"Nosotros diseñamos. El docente enseña."*
@@ -93,11 +93,41 @@ Libros:      Uncover 4 (8°) · Evolve 4 (9°) · Cambridge One (digital)
   - Fallback graceful: si Claude falla → `score=0`, `requires_human_review=true`, docente revisará desde `ExamReviewPage`
   - Si el docente definió criterios en `question_criteria` (respuesta modelo · conceptos clave · rúbrica · nivel Bloom) → se inyectan en el prompt; si no → rigor flexible por defecto
 
+## ✅ SESIÓN N.2 — COMPLETADA (refinamientos post-N)
+
+- **StudentsPage — mejoras UX y robustez:**
+  - `displayName()` muestra `APELLIDO1 [APELLIDO2] NOMBRE1 [NOMBRE2]` (orden apellido-nombre)
+  - CSV reordenado: `Apellido1 | Apellido2 | Nombre1 | Nombre2 | Grado | Sección | Email | Email Rep.`
+  - Parser CSV más robusto: detección de encabezado mejorada · mínimo 4 columnas · filas vacías ignoradas silenciosamente · email con dominio incorrecto auto-genera email escolar en vez de bloquear la fila · warnings en amarillo para situaciones no bloqueantes
+  - Import row-by-row: si el lote falla por `23505` (duplicado), reintenta fila por fila para no descartar todo el batch
+  - Ordenamiento por columna (▲▼): Nombre, Grado, Sección o Código — default alfabético por apellido
+  - Checkboxes por fila + seleccionar-todo + barra de eliminación por lotes con confirmación
+  - `white-space: nowrap` en celda de nombre para evitar salto de línea
+
+- **PsicosocialPage — modo consulta para docentes:**
+  - Notas confidenciales completamente ocultas para `role='teacher'` (antes solo bloqueaba edición)
+  - Banner azul "Modo consulta" visible al docente al abrir cualquier perfil
+  - `canEdit` ya controlaba botones/formularios; ahora también oculta información sensible
+
+- **Integración PIAR en generación IA de guías:**
+  - `GuideEditorPage`: agrega `piarData` — acomodaciones activas del salón agregadas por categoría, **sin nombres de estudiantes** (privacidad)
+  - `ConversationalGuideModal`: recibe `piarData`, lo pasa a `generateGuideStructure`; muestra aviso naranja en paso 3 cuando hay estudiantes con ajustes activos
+  - `AIAssistant.generateGuideStructure`: bloque `♿ PIAR` inyectado en el prompt con mandato de diseño inclusivo + lista de acomodaciones por categoría
+  - El docente no necesita recordar manualmente qué acomodaciones aplicar — la IA las incorpora por defecto
+
+- **Privacidad en alertas Telegram (antitrampa):**
+  - `ExamPlayerV2Page`: elimina `student_name` del payload de `sendTelegramNotification`
+  - `exam-integrity-alert` Edge Fn: reemplaza nombre real por código anónimo (últimos 6 chars de `instance_id`)
+    - Alertas de integridad: "Código: XXXXXX · Busca en Monitor en Vivo"
+    - Notificaciones de ciclo: "Código XXXXXX inició/reanudó/envió el examen"
+  - `ExamLiveMonitor`: columna "Código" (6 chars) para cruzar con alertas Telegram
+  - El docente ve el nombre real internamente vía sesión autenticada de Supabase; nunca se transmite PII a sistemas externos (Telegram Bot API)
+
 ## 🔜 PRÓXIMA SESIÓN
 
 **🔜 Pendiente:**
 - **Google OAuth** — configurar en Supabase Dashboard → Auth → Providers + validar dominio `@redboston.edu.co` post-OAuth en `App.jsx:onAuthStateChange`
-- **Email al estudiante** — cuando corrección IA termina → enviar nota final + feedback por correo al representante
+- **Email al representante** — cuando corrección IA termina → enviar nota final + feedback al `representative_email` del estudiante
 - **Sincronización local** — `supabase db pull` · copiar Edge Fns nuevas al local
 
 ---
@@ -149,6 +179,7 @@ SYLLABUS TOPICS → ACHIEVEMENT GOAL → ACHIEVEMENT INDICATORS
 | **L** | Antitrampa 5 capas · exam-integrity-alert Edge Fn · generar instancias por roster · preview+edición preguntas · auth completo (forgot pwd + Resend) · Dashboard resultados · Panel revisión humana · Design system UX | ✅ prod |
 | **M** | ExamPlayerV2: credenciales localStorage · banner violación rojo/blanco · Telegram ciclo (started/resumed/submitted) · score modal nota colombiana · secciones tabs + ReviewModal · Wizard secciones multi-parte · generateExamQuestions sections[] · Archivado Fase 5 (storage_path + news_project_versions + HTML upload) · Monitor docente en tiempo real (ExamLiveMonitor + Realtime) · Sidebar badge Revisión IA · generateGuideStructure secuencia didáctica estructurada | ✅ prod |
 | **N** | Módulo Psicosocial completo (3 tablas · PsicosocialPage · semáforo · perfil/seguimiento/plan docente · foto · callout en GuideEditor) · StudentsPage 8 campos (nombres separados · grado · sección · email rep.) · Corrección IA preguntas abiertas (exam-response-corrector · feedback por pregunta · nota final real · fallback graceful) | ✅ prod |
+| **N.2** | StudentsPage: displayName apellido-nombre · CSV robusto reordenado · import row-by-row · ordenamiento columna · eliminación por lotes · Psicosocial modo consulta (notas confidenciales ocultas · banner azul) · PIAR en IA: bloque ♿ en `generateGuideStructure` sin PII · Privacidad Telegram: código anónimo en alertas + columna Código en ExamLiveMonitor | ✅ prod |
 
 > Para el roadmap detallado y backlog → `docs/claude/roadmap.md`
 
@@ -385,6 +416,10 @@ student_accommodation_plans   — academic_year · subject(null=todas) · period
 - Progresión semanal obligatoria: Día 1 intro → último día producción autónoma
 - `CLASS_RULES` inyectadas en SUBJECT (no en MOTIVATION); principio bíblico hilo conductor en todas las secciones
 - Prompt retry alineado con la nueva estructura por sección
+- **Bloque PIAR (Ses. N.2):** si el salón tiene estudiantes con acomodaciones activas, se inyecta bloque `♿ PIAR — DISEÑO INCLUSIVO` con acomodaciones agregadas por categoría (sin nombres). La IA incorpora diseño universal por defecto; no requiere acción del docente.
+  - `GuideEditorPage` consulta `student_accommodation_plans` → agrega por categoría → pasa como `piarData` al modal
+  - `ConversationalGuideModal` muestra aviso naranja en paso 3 si `piarData` tiene contenido
+  - Firma: `generateGuideStructure({ ..., piarData?: { [category]: string[] } })`
 
 **Flujo indicator_id → IA (guías):**
 ```
