@@ -52,6 +52,13 @@ Libros:      Uncover 4 (8°) · Evolve 4 (9°) · Cambridge One (digital)
   - Tabla per-estudiante: nombre · sección · versión · estado · `IntegrityBadge`
   - Fallback: `setInterval` 30s para refrescar si Realtime cae
   - `lastUpdated` timestamp visible al docente
+- **Sidebar badge "👁 Revisión IA (N)"** — `fetchPendingAIReview()` cuenta `ai_evaluations.requires_review=true` del docente; visible solo cuando hay pendientes
+- **`generateGuideStructure` — Secuencia didáctica estructurada:**
+  - 6 secciones redefinidas con roles pedagógicos explícitos (Encuadre → Activación → Puente → Núcleo → Cierre → Tarea)
+  - Progresión semanal obligatoria: Día 1 (intro vocabulario) → último día (producción autónoma)
+  - Principio bíblico como hilo conductor real en cada sección, no decorativo
+  - `CLASS_RULES` movidas a `SUBJECT`; `MOTIVATION` ya no las recibe
+  - Prompt de retry actualizado para alinearse con la nueva estructura
 
 ## 🔜 SPRINT ACTUAL — SESIÓN N
 
@@ -107,7 +114,7 @@ SYLLABUS TOPICS → ACHIEVEMENT GOAL → ACHIEVEMENT INDICATORS
 | **J** | ExamDashboardPage: N versiones + rigor UI · exportExamHtml CBF-G AC-01 · seededShuffle + round-robin en ExamPlayerPage · callout examen en PlannerPage | ✅ prod |
 | **K** | school_students (roster) · StudentsPage (/students) · ExamPlayerV2Page: email auth · exam-instance-generator auto-roster · Migración 20260422000004 | ✅ prod |
 | **L** | Antitrampa 5 capas · exam-integrity-alert Edge Fn · generar instancias por roster · preview+edición preguntas · auth completo (forgot pwd + Resend) · Dashboard resultados · Panel revisión humana · Design system UX | ✅ prod |
-| **M** | ExamPlayerV2: credenciales localStorage · banner violación rojo/blanco · Telegram ciclo (started/resumed/submitted) · score modal nota colombiana · secciones tabs + ReviewModal · Wizard secciones multi-parte · generateExamQuestions sections[] · Archivado Fase 5 (storage_path + news_project_versions + HTML upload) · Monitor docente en tiempo real (ExamLiveMonitor + Realtime) | ✅ prod |
+| **M** | ExamPlayerV2: credenciales localStorage · banner violación rojo/blanco · Telegram ciclo (started/resumed/submitted) · score modal nota colombiana · secciones tabs + ReviewModal · Wizard secciones multi-parte · generateExamQuestions sections[] · Archivado Fase 5 (storage_path + news_project_versions + HTML upload) · Monitor docente en tiempo real (ExamLiveMonitor + Realtime) · Sidebar badge Revisión IA · generateGuideStructure secuencia didáctica estructurada | ✅ prod |
 
 > Para el roadmap detallado y backlog → `docs/claude/roadmap.md`
 
@@ -314,6 +321,12 @@ exam_offline_queue    — cola offline → sync al reconectar
 - Preguntas etiquetadas con `section_name` client-side después de la generación
 - `sections` toma precedencia; `questionTypes` plano aceptado como fallback legacy
 - `buildExamPrompt` recibe `sectionName` opcional → instrucción temática al modelo
+
+**`generateGuideStructure` — Secuencia didáctica (actualizado):**
+- 6 secciones con roles pedagógicos fijos: SUBJECT (Encuadre) · MOTIVATION (Activación saberes previos) · ACTIVITY (Dinámica preparatoria) · SKILL (Núcleo + producto del estudiante) · CLOSING (Verificación + reflexión emocional) · ASSIGNMENT (Tarea)
+- Progresión semanal obligatoria: Día 1 intro → último día producción autónoma
+- `CLASS_RULES` inyectadas en SUBJECT (no en MOTIVATION); principio bíblico hilo conductor en todas las secciones
+- Prompt retry alineado con la nueva estructura por sección
 
 **Flujo indicator_id → IA (guías):**
 ```

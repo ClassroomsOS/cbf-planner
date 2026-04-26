@@ -18,7 +18,7 @@
 | Director de Grupo | ✅ Completo | homeroom_grade/section, flujo propio, vista Agenda |
 | Co-teacher | ✅ Completo | coteacher_grade/section, director_absent_until, edición activada por ausencia |
 | DirectorPage | ✅ Completo | 3 tabs (Guías/NEWS/Agendas), FeedbackModal |
-| Feedback/Revisión | ✅ Parcial | FeedbackModal + document_feedback table. **Falta:** sala-revision, interfaz edición con justificación |
+| Feedback/Revisión | ✅ Completo | FeedbackModal + document_feedback · Sala de Revisión completa · IntentModal + justificación obligatoria al guardar |
 | Tests + CI | ✅ Completo | Vitest 71 tests, CI bloqueante en deploy |
 | Error handling | ✅ Completo | 23 escrituras Supabase, safeAsync |
 | Seguridad XSS | ✅ Completo | exportRubricHtml esc(), RichEditor protocolos |
@@ -46,8 +46,8 @@
 | **2** | ✅ | Vitest 71 tests, CI bloqueante |
 | **3** | ⬜ | Refactoring archivos grandes, TeacherContext, CSS modular, a11y |
 | **4** | ⬜ | TypeScript gradual, offline support |
-| **5** | ⬜ | Persistencia/archivado guías+NEWS, versioning, pipeline imágenes libros |
-| **6** | ⬜ | Módulo de Evaluación — Frontend completo + exam player integrado |
+| **5** | ✅ | Archivado inmutable guías+NEWS · storage_path · news_project_versions · HTML a Storage |
+| **6** | ✅ | Módulo de Evaluación — Frontend completo · ExamPlayerV2 · antitrampa · monitor en vivo · revisión humana |
 
 ---
 
@@ -93,8 +93,8 @@ El conteo de tabs existe pero no hay lockdown real. Implementar en `ExamPhase`:
     bloquearse — solo detectarse. Screenshots del sistema tampoco — la marca de agua es la
     única contramedida para fotos con celular.
 
-6. **Dashboard de resultados por examen** — quién presentó, quién no, notas, alertas de integridad
-7. **Panel de revisión humana** — correcciones AI con confianza < 0.65 para revisión del docente
+6. ~~**Dashboard de resultados por examen**~~ ✅
+7. ~~**Panel de revisión humana**~~ ✅
 
 ---
 
@@ -142,10 +142,7 @@ Ver detalles en [`security.md`](security.md).
 
 ### 🟡 Media prioridad
 
-**Sala de Revisión de Guías Publicadas** (`/sala-revision`)
-- Guías publicadas organizadas por grado
-- Coordinador/rector edita con justificación + notificación al docente
-- RLS: UPDATE para `admin` y `rector`
+~~**Sala de Revisión de Guías Publicadas**~~ ✅ completado — `/sala-revision` operativo
 
 **Mensajería expandida**
 - `MessagesPage` → chat 1-a-1 completo + salas grupales
@@ -165,14 +162,13 @@ Ver detalles en [`security.md`](security.md).
 
 ---
 
-## Features pendientes de diseño — Fase 5
+## ~~Features pendientes de diseño — Fase 5~~ ✅ Completado
 
-### Archivado de guías y NEWS publicadas
-Cuando una guía o proyecto NEWS cambia a `published`:
-1. Snapshot JSON inmutable en Supabase Storage: `archives/{school_id}/guides/{plan_id}.json`
-2. PDF automático: `archives/{school_id}/pdfs/{plan_id}.pdf`
-3. Tabla `archived_versions`: `{ entity_type, entity_id, version, storage_path, archived_at, archived_by }`
-4. Campo `locked: bool` en `lesson_plans` y `news_projects` — bloquea edición sin aprobación admin
+### ~~Archivado de guías y NEWS publicadas~~ ✅
+~~Cuando una guía o proyecto NEWS cambia a `published`:~~
+1. ~~Snapshot JSON inmutable en Supabase Storage~~ → implementado: `archives/{school_id}/guides/{plan_id}/v{n}.html`
+2. ~~Tabla `archived_versions`~~ → implementado: `lesson_plan_versions.storage_path` + `news_project_versions`
+3. ~~Campo `locked: bool`~~ → implementado en `lesson_plans`
 
 ### Pipeline de imágenes de libros para IA
 Cuando el docente sube fotos de textbook en NewsProjectEditor:
