@@ -161,8 +161,10 @@ export default function ExamPlayerV2Page() {
   const [loading,     setLoading]     = useState(false)
 
   // violationAlert: { title, message, isFullscreen } | null
-  const [violationAlert, setViolationAlert] = useState(null)
-  const [examScore,      setExamScore]      = useState(null)  // { mcScore, mcMax, total, openCount, colombianGrade }
+  const [violationAlert,  setViolationAlert]  = useState(null)
+  const [examScore,       setExamScore]       = useState(null)  // { mcScore, mcMax, total, openCount, colombianGrade }
+  const [correcting,      setCorrecting]      = useState(false) // IA revisando preguntas abiertas
+  const [aiFeedbacks,     setAiFeedbacks]     = useState([])    // [{ question_id, feedback, score, max, requires_review }]
 
   const idbRef         = useRef(null)
   const timerRef       = useRef(null)
@@ -888,6 +890,34 @@ export default function ExamPlayerV2Page() {
 
   // ── Submit ──────────────────────────────────────────────────
 
+  async function callAICorrector(instanceId) {
+    setCorrecting(true)
+    try {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+      const res = await fetch(`${supabaseUrl}/functions/v1/exam-response-corrector`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` },
+        body:    JSON.stringify({ instance_id: instanceId }),
+      })
+      const data = await res.json()
+      if (data.colombian_grade) {
+        setExamScore(prev => ({
+          ...prev,
+          colombianGrade: String(data.colombian_grade),
+          totalScore:     data.total_score,
+          maxScore:       data.max_score,
+          aiCorrected:    true,
+        }))
+      }
+      if (data.feedbacks?.length) setAiFeedbacks(data.feedbacks)
+    } catch (err) {
+      console.error('[exam-response-corrector] error:', err)
+    } finally {
+      setCorrecting(false)
+    }
+  }
+
   async function handleSubmit() {
     if (submitting) return
     setSubmitting(true)
@@ -949,6 +979,11 @@ export default function ExamPlayerV2Page() {
 
       setExamScore({ mcScore: totalMcScore, mcMax: maxMcScore, total: maxTotal, openCount, colombianGrade })
 
+      // Si hay preguntas abiertas → disparar corrector IA (no bloqueante)
+      if (openCount > 0 && inst?.id) {
+        callAICorrector(inst.id)
+      }
+
       // Telegram al docente: examen enviado
       const submitTime = new Date().toLocaleTimeString('es-CO', {
         timeZone: 'America/Bogota', hour: '2-digit', minute: '2-digit',
@@ -991,17 +1026,26 @@ export default function ExamPlayerV2Page() {
         const answer  = answers[q.id] || '—'
         const isAuto  = q.question_type === 'multiple_choice'
         const correct = isAuto ? correctAnsRef.current[q.id] : null
-        const isRight = isAuto ? answer === correct : null
-        const rowBg   = isRight === true ? '#DCFCE7' : isRight === false ? '#FEE2E2' : '#fff'
+        const isRight  = isAuto ? answer === correct : null
+        const aiFb     = !isAuto ? aiFeedbacks.find(f => String(f.question_id) === String(q.id)) : null
+        const rowBg    = isRight === true ? '#DCFCE7' : isRight === false ? '#FEE2E2' : aiFb ? '#EFF6FF' : '#fff'
+        const resultado = isRight === true
+          ? '✅'
+          : isRight === false
+            ? `❌ Correcta: ${correct}`
+            : aiFb
+              ? `🤖 ${aiFb.score}/${aiFb.max} pts`
+              : '⏳ Pendiente revisión docente'
+        const feedbackRow = aiFb
+          ? `<tr style="background:#F0F9FF"><td colspan="5" style="padding:6px 10px 10px 28px;border:1px solid #E5E7EB;font-size:12px;color:#1E3A8A;font-style:italic">💬 ${aiFb.feedback}${aiFb.requires_review ? ' <span style="color:#D97706">(el docente revisará)</span>' : ''}</td></tr>`
+          : ''
         return `<tr style="background:${rowBg}">
           <td style="padding:8px 10px;border:1px solid #E5E7EB;font-weight:600;color:#374151">${i + 1}</td>
           <td style="padding:8px 10px;border:1px solid #E5E7EB;color:#111827">${q.stem || ''}</td>
           <td style="padding:8px 10px;border:1px solid #E5E7EB;font-weight:600">${answer}</td>
-          <td style="padding:8px 10px;border:1px solid #E5E7EB;text-align:center">
-            ${isRight === true ? '✅' : isRight === false ? `❌ (${correct})` : '⏳ Pendiente IA'}
-          </td>
+          <td style="padding:8px 10px;border:1px solid #E5E7EB;text-align:center">${resultado}</td>
           <td style="padding:8px 10px;border:1px solid #E5E7EB;text-align:center">${q.points || 0}</td>
-        </tr>`
+        </tr>${feedbackRow}`
       }).join('')
 
       const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
@@ -1070,23 +1114,60 @@ export default function ExamPlayerV2Page() {
                         : '❗ Bajo'}
                     </div>
                   </>
+                ) : correcting ? (
+                  <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 10, padding: '18px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 28, marginBottom: 8 }}>🤖</div>
+                    <strong style={{ color: '#1E3A8A', fontSize: 14 }}>La IA está revisando tus respuestas...</strong>
+                    <div style={{ color: '#3B82F6', fontSize: 12, marginTop: 6 }}>
+                      Esto puede tardar unos segundos. No cierres esta ventana.
+                    </div>
+                    <div style={{ marginTop: 12, height: 4, background: '#DBEAFE', borderRadius: 4, overflow: 'hidden' }}>
+                      <div style={{ height: '100%', background: '#3B82F6', borderRadius: 4, animation: 'pulse 1.5s ease-in-out infinite', width: '60%' }} />
+                    </div>
+                  </div>
                 ) : (
                   <div style={{ background: '#FEF9C3', border: '1px solid #FDE68A', borderRadius: 10, padding: '14px', textAlign: 'left' }}>
                     <strong style={{ color: '#92400E' }}>Puntaje MC: {sc.mcScore}/{sc.mcMax} pts</strong><br />
                     <span style={{ color: '#78350F', fontSize: 13 }}>
-                      ⏳ {sc.openCount} pregunta{sc.openCount !== 1 ? 's' : ''} abierta{sc.openCount !== 1 ? 's' : ''} — serán revisadas por tu docente o la IA. Recibirás tu nota final por correo.
+                      ⏳ {sc.openCount} pregunta{sc.openCount !== 1 ? 's' : ''} abierta{sc.openCount !== 1 ? 's' : ''} — el corrector no pudo completarse. Tu docente revisará.
                     </span>
                   </div>
                 )}
               </div>
             )}
 
+            {/* Feedback IA por pregunta abierta */}
+            {aiFeedbacks.length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#555', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 8 }}>
+                  Retroalimentación IA — preguntas abiertas
+                </div>
+                {aiFeedbacks.map((fb, i) => (
+                  <div key={fb.response_id} style={{ background: fb.requires_review ? '#FFF9F0' : '#F0FDF4', border: `1px solid ${fb.requires_review ? '#FDE68A' : '#BBF7D0'}`, borderRadius: 8, padding: '10px 12px', marginBottom: 8 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>Pregunta abierta {i + 1}</span>
+                      <span style={{ fontSize: 13, fontWeight: 800, color: fb.score >= fb.max * 0.6 ? '#1A6B3A' : '#DC2626' }}>
+                        {fb.score}/{fb.max} pts
+                      </span>
+                    </div>
+                    <p style={{ margin: 0, fontSize: 13, color: '#374151', lineHeight: 1.6 }}>{fb.feedback}</p>
+                    {fb.requires_review && (
+                      <p style={{ margin: '4px 0 0', fontSize: 11, color: '#92400E', fontStyle: 'italic' }}>
+                        ⚠️ Tu docente revisará esta corrección.
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
             <button
               type="button"
               onClick={openResultsPdf}
-              style={{ ...styles.btn, background: '#1F3864', marginTop: 8 }}
+              disabled={correcting}
+              style={{ ...styles.btn, background: correcting ? '#9CA3AF' : '#1F3864', marginTop: 8 }}
             >
-              📄 Descargar / guardar resultados como PDF
+              {correcting ? '⏳ Esperando corrección IA...' : '📄 Descargar / guardar resultados como PDF'}
             </button>
 
             <p style={{ color: '#6B7280', fontSize: 13, textAlign: 'center', marginTop: 16 }}>
