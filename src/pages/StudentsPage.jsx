@@ -20,6 +20,14 @@ function composeName(firstName, secondName, firstLastname, secondLastname) {
     .join(' ')
 }
 
+// Apellidos primero: PRIMER APELLIDO [SEGUNDO APELLIDO] PRIMER NOMBRE [SEGUNDO NOMBRE]
+function displayName(s) {
+  return [s.first_lastname, s.second_lastname, s.first_name, s.second_name]
+    .map(v => v?.trim() || '')
+    .filter(Boolean)
+    .join(' ')
+}
+
 function normalizeGrade(raw) {
   const s = raw.trim().replace(/[°.]/g, '').trim()
   if (!s) return ''
@@ -34,65 +42,81 @@ function normalizeEmail(raw, autoCompleteDomain = true) {
 }
 
 // ─── CSV Parser — 8 columnas ──────────────────────────────────
-// Columnas: Primer Nombre | Segundo Nombre | Primer Apellido | Segundo Apellido
+// Columnas: Primer Apellido | Segundo Apellido | Primer Nombre | Segundo Nombre
 //           | Grado | Sección | Email estudiante | Email representante
 
 function parseCSV(text) {
   const rows = text.trim().split(/\r?\n/).filter(r => r.trim())
   const students = []
   const errors   = []
+  const warnings = []
 
-  // Detectar si la primera fila es encabezado (contiene letras no numéricas en col 5)
+  // Detectar encabezado: la primera fila es encabezado si alguna de las primeras 6 cols
+  // contiene texto alfabético (ej. "Nombre", "Grado", "Columna1"...)
+  // Una fila de datos real tiene col 1 y col 3 como nombres (solo letras/tildes) Y col 5 como número
   let startRow = 0
   if (rows.length > 0) {
-    const firstCols = rows[0].split(/[,;\t]/).map(c => c.trim())
+    const firstCols = rows[0].split(/[,;\t]/).map(c => c.trim().replace(/^["']|["']$/g, ''))
     const col5 = firstCols[4] || ''
-    // Si la col 5 no parece un grado (ej. "Grado", "Grade") → saltar encabezado
-    if (!/\d/.test(col5)) startRow = 1
+    // Si col 5 no es un número de grado (8, 9, 10, 8°, 8.°, etc.) → es encabezado
+    if (col5 && !/^\d+/.test(col5.replace(/\s/g, ''))) startRow = 1
+    // Si col 5 está vacía y hay suficientes columnas → asumir que podría ser dato, no saltar
   }
 
   for (let i = startRow; i < rows.length; i++) {
     const cols = rows[i].split(/[,;\t]/).map(c => c.trim().replace(/^["']|["']$/g, ''))
 
-    if (cols.length < 5) {
-      errors.push(`Fila ${i + 1}: se esperan al menos 5 columnas (ver formato abajo)`)
+    // Ignorar filas completamente vacías
+    if (cols.every(c => !c)) continue
+
+    if (cols.length < 4) {
+      errors.push(`Fila ${i + 1}: muy pocas columnas (${cols.length}) — se necesitan al menos Nombre, Apellido, Grado, Sección`)
       continue
     }
 
-    const [firstName, secondName, firstLastname, secondLastname, gradeRaw, sectionRaw, emailRaw, repEmailRaw] = cols
+    const [firstLastname, secondLastname, firstName, secondName, gradeRaw, sectionRaw, emailRaw, repEmailRaw] = cols
 
-    if (!firstName) { errors.push(`Fila ${i + 1}: Primer Nombre vacío`); continue }
-    if (!firstLastname) { errors.push(`Fila ${i + 1}: Primer Apellido vacío`); continue }
-    if (!gradeRaw) { errors.push(`Fila ${i + 1}: Grado vacío`); continue }
+    if (!firstLastname?.trim()) { errors.push(`Fila ${i + 1}: Primer Apellido vacío`); continue }
+    if (!firstName?.trim()) { errors.push(`Fila ${i + 1}: Primer Nombre vacío`); continue }
+    if (!gradeRaw?.trim()) { errors.push(`Fila ${i + 1}: Grado vacío`); continue }
 
     const grade   = normalizeGrade(gradeRaw)
+    if (!grade) { errors.push(`Fila ${i + 1}: Grado inválido "${gradeRaw}"`); continue }
+
     const section = sectionRaw?.trim() || ''
     if (!SECTIONS.map(s => s.toLowerCase()).includes(section.toLowerCase())) {
-      errors.push(`Fila ${i + 1}: Sección inválida "${section}" — debe ser Blue o Red`)
+      errors.push(`Fila ${i + 1}: Sección inválida "${section || '(vacía)'}" — debe ser Blue o Red`)
       continue
     }
 
-    const email = normalizeEmail(emailRaw || '')
-    if (email && !email.endsWith(DOMAIN)) {
-      errors.push(`Fila ${i + 1}: Email "${email}" no es del dominio ${DOMAIN}`)
-      continue
+    // Email: si está vacío o tiene dominio diferente → auto-generar con dominio escolar
+    let email = emailRaw?.trim() || ''
+    if (email) {
+      if (!email.includes('@')) {
+        email = email.toLowerCase() + DOMAIN
+      } else if (!email.toLowerCase().endsWith(DOMAIN)) {
+        // Dominio diferente → auto-generar y avisar
+        const autoEmail = `${firstName.trim().toLowerCase()}.${firstLastname.trim().toLowerCase()}${DOMAIN}`
+        warnings.push(`Fila ${i + 1}: email "${email}" no es del colegio — se usará ${autoEmail}`)
+        email = autoEmail
+      }
     }
 
     const name = composeName(firstName, secondName, firstLastname, secondLastname)
 
     students.push({
-      first_name:          firstName.trim(),
-      second_name:         secondName?.trim() || '',
-      first_lastname:      firstLastname.trim(),
-      second_lastname:     secondLastname?.trim() || '',
+      first_name:           firstName.trim(),
+      second_name:          secondName?.trim() || '',
+      first_lastname:       firstLastname.trim(),
+      second_lastname:      secondLastname?.trim() || '',
       name,
       grade,
-      section: section.charAt(0).toUpperCase() + section.slice(1).toLowerCase(),
+      section:              section.charAt(0).toUpperCase() + section.slice(1).toLowerCase(),
       email,
       representative_email: repEmailRaw?.trim() || '',
     })
   }
-  return { students, errors }
+  return { students, errors, warnings }
 }
 
 // ─── Componente principal ─────────────────────────────────────
@@ -115,12 +139,15 @@ export default function StudentsPage({ teacher }) {
   const [form,    setForm]    = useState(EMPTY_FORM)
   const [formErr, setFormErr] = useState('')
 
-  const [csvText,    setCsvText]    = useState('')
-  const [csvParsed,  setCsvParsed]  = useState(null)
-  const [csvErrors,  setCsvErrors]  = useState([])
-  const [showImport, setShowImport] = useState(false)
+  const [csvText,     setCsvText]     = useState('')
+  const [csvParsed,   setCsvParsed]   = useState(null)
+  const [csvErrors,   setCsvErrors]   = useState([])
+  const [csvWarnings, setCsvWarnings] = useState([])
+  const [showImport,  setShowImport]  = useState(false)
 
   const [confirmingDeleteId, setConfirmingDeleteId] = useState(null)
+  const [selectedIds,        setSelectedIds]        = useState(new Set())
+  const [bulkConfirm,        setBulkConfirm]        = useState(false)
   const [psyProfiles,        setPsyProfiles]        = useState({})
 
   useEffect(() => {
@@ -208,8 +235,9 @@ export default function StudentsPage({ teacher }) {
   // ── Importar CSV ──────────────────────────────────────────────
 
   function handleParseCSV() {
-    const { students: parsed, errors } = parseCSV(csvText)
+    const { students: parsed, errors, warnings } = parseCSV(csvText)
     setCsvParsed(parsed)
+    setCsvWarnings(warnings || [])
     setCsvErrors(errors)
   }
 
@@ -241,7 +269,7 @@ export default function StudentsPage({ teacher }) {
     }
 
     showToast(`${imported} importados · ${skipped} duplicados omitidos${failed ? ` · ${failed} fallidos` : ''}`, 'success')
-    setCsvText(''); setCsvParsed(null); setCsvErrors([]); setShowImport(false)
+    setCsvText(''); setCsvParsed(null); setCsvErrors([]); setCsvWarnings([]); setShowImport(false)
     loadStudents()
     setSaving(false)
   }
@@ -254,6 +282,39 @@ export default function StudentsPage({ teacher }) {
     const { error } = await supabase.from('school_students').delete().eq('id', id)
     if (error) showToast('Error al eliminar', 'error')
     else { showToast(`${name} eliminado`, 'success'); loadStudents() }
+  }
+
+  async function handleBulkDelete() {
+    if (!bulkConfirm) { setBulkConfirm(true); return }
+    setBulkConfirm(false)
+    setSaving(true)
+    const ids = [...selectedIds]
+    const { error } = await supabase.from('school_students').delete().in('id', ids)
+    if (error) showToast('Error al eliminar: ' + error.message, 'error')
+    else {
+      showToast(`${ids.length} estudiante${ids.length !== 1 ? 's' : ''} eliminado${ids.length !== 1 ? 's' : ''}`, 'success')
+      setSelectedIds(new Set())
+    }
+    setSaving(false)
+    loadStudents()
+  }
+
+  function toggleSelect(id) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+    setBulkConfirm(false)
+  }
+
+  function toggleSelectAll() {
+    if (selectedIds.size === filtered.length) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(filtered.map(s => s.id)))
+    }
+    setBulkConfirm(false)
   }
 
   // ── Filtrado ──────────────────────────────────────────────────
@@ -361,10 +422,10 @@ export default function StudentsPage({ teacher }) {
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 4, marginBottom: 8 }}>
                 {[
-                  { col: 'Primer Nombre', req: true },
-                  { col: 'Segundo Nombre', req: false },
                   { col: 'Primer Apellido', req: true },
                   { col: 'Segundo Apellido', req: false },
+                  { col: 'Primer Nombre', req: true },
+                  { col: 'Segundo Nombre', req: false },
                   { col: 'Grado', req: true },
                   { col: 'Sección', req: true },
                   { col: 'Email Estudiante', req: false },
@@ -387,21 +448,26 @@ export default function StudentsPage({ teacher }) {
 
             {/* Ejemplo copiable */}
             <div style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 6, padding: '8px 12px', marginBottom: 10, fontFamily: 'monospace', fontSize: 12, color: '#374151', overflowX: 'auto', whiteSpace: 'nowrap' }}>
-              María	Alejandra	García	López	8	Blue	mariagarcia	padre@gmail.com<br />
-              Pedro		Rodríguez		9	Red	pedrorodriguez	madre@hotmail.com<br />
-              Juan	Carlos	López	Martínez	8	Blue		tutor@gmail.com
+              García	López	María	Alejandra	8	Blue	mariagarcia	padre@gmail.com<br />
+              Rodríguez		Pedro		9	Red	pedrorodriguez	madre@hotmail.com<br />
+              López	Martínez	Juan	Carlos	8	Blue		tutor@gmail.com
             </div>
 
             <textarea
               style={{ ...inp, minHeight: 140, fontFamily: 'monospace', fontSize: 13 }}
               value={csvText}
-              onChange={e => { setCsvText(e.target.value); setCsvParsed(null); setCsvErrors([]) }}
+              onChange={e => { setCsvText(e.target.value); setCsvParsed(null); setCsvErrors([]); setCsvWarnings([]) }}
               placeholder="Pega aquí tu lista desde Excel..."
             />
 
             {csvErrors.length > 0 && (
               <ul style={{ color: '#DC2626', fontSize: 13, margin: '8px 0', paddingLeft: 18 }}>
                 {csvErrors.map((e, i) => <li key={i}>{e}</li>)}
+              </ul>
+            )}
+            {csvWarnings.length > 0 && (
+              <ul style={{ color: '#92400E', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 6, fontSize: 12, margin: '6px 0', padding: '8px 8px 8px 24px' }}>
+                {csvWarnings.map((w, i) => <li key={i}>{w}</li>)}
               </ul>
             )}
 
@@ -422,7 +488,7 @@ export default function StudentsPage({ teacher }) {
                     <tbody>
                       {csvParsed.map((s, i) => (
                         <tr key={i} style={{ borderBottom: '1px solid #bbf7d0' }}>
-                          <td style={{ ...td, padding: '4px 8px', color: '#166534', fontWeight: 600 }}>{s.name}</td>
+                          <td style={{ ...td, padding: '4px 8px', color: '#166534', fontWeight: 600 }}>{displayName(s)}</td>
                           <td style={{ ...td, padding: '4px 8px', color: '#166534' }}>{s.grade}</td>
                           <td style={{ ...td, padding: '4px 8px', color: '#166534' }}>{s.section}</td>
                           <td style={{ ...td, padding: '4px 8px', color: '#166534', fontSize: 11 }}>{s.email}</td>
@@ -454,6 +520,11 @@ export default function StudentsPage({ teacher }) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 16 }}>
           <h3 style={{ ...sectionTitle, margin: 0 }}>
             Lista ({filtered.length} estudiante{filtered.length !== 1 ? 's' : ''})
+            {selectedIds.size > 0 && (
+              <span style={{ marginLeft: 10, fontSize: 13, fontWeight: 400, color: '#6B7280' }}>
+                · {selectedIds.size} seleccionado{selectedIds.size !== 1 ? 's' : ''}
+              </span>
+            )}
           </h3>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <input
@@ -486,6 +557,11 @@ export default function StudentsPage({ teacher }) {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
               <thead>
                 <tr style={{ background: '#F9FAFB' }}>
+                  <th style={{ ...th, width: 36, textAlign: 'center' }}>
+                    <input type="checkbox" title="Seleccionar todos"
+                      checked={filtered.length > 0 && selectedIds.size === filtered.length}
+                      onChange={toggleSelectAll} />
+                  </th>
                   <th style={th}>Nombre completo</th>
                   <th style={th}>Grado</th>
                   <th style={th}>Sección</th>
@@ -497,10 +573,13 @@ export default function StudentsPage({ teacher }) {
               </thead>
               <tbody>
                 {filtered.map(s => (
-                  <tr key={s.id} style={{ borderBottom: '1px solid #F3F4F6' }}>
+                  <tr key={s.id} style={{ borderBottom: '1px solid #F3F4F6', background: selectedIds.has(s.id) ? '#FEF2F2' : undefined }}>
+                    <td style={{ ...td, textAlign: 'center' }}>
+                      <input type="checkbox" checked={selectedIds.has(s.id)} onChange={() => toggleSelect(s.id)} />
+                    </td>
                     <td style={td}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ fontWeight: 600 }}>{s.name}</span>
+                        <span style={{ fontWeight: 600 }}>{displayName(s)}</span>
                         {psyProfiles[s.id] && (() => {
                           const st = psyProfiles[s.id].status
                           const dot = st === 'intervention' ? '#ef4444' : st === 'monitoring' ? '#f59e0b' : st === 'no_intervention' ? '#22c55e' : '#9ca3af'
@@ -519,19 +598,45 @@ export default function StudentsPage({ teacher }) {
                       {confirmingDeleteId === s.id ? (
                         <span style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                           <button style={{ background: '#EF4444', color: '#fff', border: 'none', borderRadius: 4, padding: '2px 8px', cursor: 'pointer', fontSize: 12 }}
-                            onClick={() => handleDelete(s.id, s.name)}>Confirmar</button>
+                            onClick={() => handleDelete(s.id, displayName(s))}>Confirmar</button>
                           <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6B7280', fontSize: 12 }}
                             onClick={() => setConfirmingDeleteId(null)}>Cancelar</button>
                         </span>
                       ) : (
                         <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#EF4444', fontSize: 16 }}
-                          onClick={() => handleDelete(s.id, s.name)} title="Eliminar">🗑</button>
+                          onClick={() => handleDelete(s.id, displayName(s))} title="Eliminar">🗑</button>
                       )}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {selectedIds.size > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14, padding: '10px 14px', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8 }}>
+            <span style={{ fontSize: 13, color: '#991B1B', flex: 1 }}>
+              {selectedIds.size} estudiante{selectedIds.size !== 1 ? 's' : ''} seleccionado{selectedIds.size !== 1 ? 's' : ''}
+            </span>
+            <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6B7280', fontSize: 13 }}
+              onClick={() => { setSelectedIds(new Set()); setBulkConfirm(false) }}>
+              Cancelar
+            </button>
+            {bulkConfirm ? (
+              <>
+                <span style={{ fontSize: 13, color: '#DC2626', fontWeight: 600 }}>¿Confirmar eliminación?</span>
+                <button style={{ background: '#DC2626', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+                  onClick={handleBulkDelete} disabled={saving}>
+                  {saving ? 'Eliminando...' : 'Sí, eliminar'}
+                </button>
+              </>
+            ) : (
+              <button style={{ background: '#EF4444', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+                onClick={handleBulkDelete} disabled={saving}>
+                🗑 Eliminar seleccionados
+              </button>
+            )}
           </div>
         )}
       </div>
