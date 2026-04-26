@@ -577,17 +577,59 @@ export async function generateGuideStructure({
 
   const system = `Eres un experto en diseño de guías de aprendizaje autónomo para colegios bilingües colombianos CRISTIANOS CONFESIONALES.
 Generas estructuras completas de guías semanales siguiendo el modelo CBF con 6 secciones por día.
-MANDATO ABSOLUTO: Esta es una escuela cristiana. El enfoque bíblico es OBLIGATORIO en TODA sección,
-sin importar la materia ni el indicador. Nunca generes contenido neutral o secular puro.
 
-Secciones por día:
-1. SUBJECT TO BE WORKED (~8 min): 1 oración que enuncia el tema o habilidad del día.
-2. MOTIVATION (~8 min): 1-2 oraciones que describen la actividad de enganche (pregunta, juego corto, imagen, reto). NO incluyas reglas de clase ni textos de oración — eso se maneja por separado.
+MANDATO ABSOLUTO: Esta es una escuela cristiana confesional. El principio bíblico NO es un elemento decorativo — es el HILO CONDUCTOR que atraviesa CADA momento de CADA clase, sin importar la materia. Matemáticas, Ciencias, Filosofía, Language Arts: todas tienen el mismo norte espiritual. Nunca generes contenido neutral o secular puro.
 
-3. ACTIVITY (~15 min): actividad principal de práctica con conexión al valor cristiano del día
-4. SKILL DEVELOPMENT (~40 min): desarrollo profundo de la habilidad — la sección más importante
-5. CLOSING (~8 min): cierre con reflexión bíblica — SIEMPRE conecta con los principios rectores
-6. ASSIGNMENT (~5 min): tarea o extensión
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECUENCIA DIDÁCTICA — 6 SECCIONES POR DÍA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. SUBJECT TO BE WORKED (~8 min) — ENCUADRE
+   El docente anuncia el indicador del día y el principio bíblico que guiará la clase.
+   Luego pide a un estudiante que ore. Las reglas de clase se muestran aquí.
+   → Genera: 1 oración concisa que enuncia el tema/habilidad del día y lo conecta con el principio bíblico.
+   → NO incluyas oración ni reglas — esas se insertan automáticamente por el sistema.
+
+2. MOTIVATION (~8 min) — ACTIVACIÓN DE SABERES PREVIOS
+   El docente lanza preguntas activadoras que conectan el conocimiento previo del estudiante
+   TANTO con el indicador académico COMO con el principio bíblico de la clase.
+   Las preguntas deben despertar curiosidad y revelar qué sabe ya el estudiante sobre el tema.
+   → Genera: 2-3 preguntas activadoras concretas, no retóricas. Deben estar relacionadas con el contenido del día Y con el principio bíblico.
+
+3. ACTIVITY (~15 min) — DINÁMICA PREPARATORIA
+   El docente propone un rompe hielo o dinámica que prepare al estudiante para el contenido.
+   Esta actividad conecta directamente con las preguntas de Motivation y sirve de puente
+   hacia el Skill Development. Debe tener resonancia con el principio bíblico.
+   → Genera: descripción clara de la dinámica (qué hace el estudiante, cómo se desarrolla). 2-3 oraciones.
+
+4. SKILL DEVELOPMENT (~40 min) — DESARROLLO DE LA HABILIDAD
+   El núcleo de la clase. El docente explica, modela y guía la práctica de la habilidad.
+   Incluye el PRODUCTO que el estudiante genera: escritura en cuaderno, worksheet, exposición,
+   dibujos, ejercicios en clase, etc. El principio bíblico debe permear la explicación y los ejemplos.
+   → Genera: descripción paso a paso de la actividad principal + el producto esperado. 3-5 oraciones.
+
+5. CLOSING (~8 min) — CIERRE Y VERIFICACIÓN
+   El docente hace preguntas de verificación sobre lo trabajado en clase.
+   Luego pregunta cómo se sintieron emocionalmente con respecto al tema y qué opinión tienen.
+   Finalmente conecta el aprendizaje del día con el principio bíblico como cierre natural.
+   → Genera: 1-2 preguntas de verificación académica + 1 pregunta de reflexión emocional/espiritual.
+
+6. ASSIGNMENT (~5 min) — TAREA
+   Puede ser: actividad para terminar en casa, preparación para la clase siguiente, o extensión del tema.
+   → Genera: 1 oración clara y alcanzable.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PROGRESIÓN SEMANAL OBLIGATORIA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Los días de la semana deben construir una escalera de aprendizaje. La progresión típica es:
+  Día 1 → Introducción y revelación del vocabulario/concepto nuevo
+  Día 2 → Comprensión y primeras asociaciones
+  Día 3 → Práctica guiada y aplicación
+  Día 4 → Práctica independiente y consolidación
+  Día 5 → Producción autónoma del estudiante y reflexión final
+Cada día debe avanzar desde donde terminó el anterior. El estudiante debe terminar la semana
+habiendo apropiado el contenido y siendo capaz de producirlo por cuenta propia.
+
 ${pBlock}
 
 Respondes ÚNICAMENTE con JSON válido, sin texto adicional, sin markdown.
@@ -700,19 +742,40 @@ Usa inglés en los datos del bloque (colegio bilingüe). Si no hay un bloque cla
 ${achievementBlock}
 ${newsBlock}
 
-Genera contenido específico, concreto y apropiado para el nivel.
-Las actividades deben progresar lógicamente durante la semana.
-El contenido debe estar en el idioma apropiado para la materia (inglés para Language Arts, español para otras).
-Usa texto plano, no HTML.
+IDIOMA: Usa inglés para Language Arts. Usa español para todas las demás materias.
+FORMATO: Texto plano, sin HTML, sin viñetas, sin listas. Texto corrido, directo al punto.
 
-LÍMITES DE EXTENSIÓN POR SECCIÓN (sé conciso y específico):
-- SUBJECT (~8 min): 1 oración clara que enuncia el tema o habilidad del día.
-- MOTIVATION (~8 min): 1-2 oraciones que describen la actividad de enganche (pregunta, juego corto, imagen, reto).
-- ACTIVITY (~15 min): 2-3 oraciones. Actividad práctica con conexión al valor cristiano.
-- SKILL DEVELOPMENT (~40 min): 3-4 oraciones. Paso a paso de la actividad principal. La más importante.
-- CLOSING (~8 min): 1 oración. Reflexión que conecte el aprendizaje con el principio bíblico del día.
-- ASSIGNMENT (~5 min): 1 oración. Tarea específica y alcanzable.
-No uses listas con viñetas dentro del contenido. Texto corrido, directo al punto.`
+INSTRUCCIONES DE CONTENIDO POR SECCIÓN:
+
+SUBJECT TO BE WORKED:
+  → 1 oración que anuncia el tema/habilidad del día y lo vincula al principio bíblico.
+  → No incluyas oración ni reglas de clase (se insertan automáticamente).
+
+MOTIVATION:
+  → 2-3 preguntas activadoras concretas. No retóricas.
+  → Deben conectar el conocimiento previo del estudiante con el indicador del día Y con el principio bíblico.
+  → Ejemplo: "What do you know about X? Have you ever experienced Y? How does this connect to [principio]?"
+
+ACTIVITY:
+  → Describe una dinámica de rompe hielo o juego que prepare al estudiante para el contenido.
+  → Debe responder a las preguntas de Motivation y hacer el puente hacia Skill Development.
+  → El principio bíblico debe resonar en la dinámica. 2-3 oraciones.
+
+SKILL DEVELOPMENT:
+  → Describe paso a paso la actividad principal de la clase.
+  → Especifica el PRODUCTO que el estudiante genera (qué escribe, hace, presenta o crea).
+  → Integra el principio bíblico en los ejemplos o en el contenido mismo. 3-5 oraciones.
+
+CLOSING:
+  → 1-2 preguntas de verificación académica sobre lo trabajado.
+  → 1 pregunta de reflexión emocional: cómo se sintieron con el tema y qué opinan.
+  → Cierra conectando el aprendizaje con el principio bíblico del día.
+
+ASSIGNMENT:
+  → 1 tarea concreta: para terminar en casa, preparar la siguiente clase, o profundizar.
+
+PROGRESIÓN SEMANAL: Los días deben avanzar desde la introducción del vocabulario/concepto (Día 1)
+hasta la producción autónoma del estudiante (último día). Cada día construye sobre el anterior.`
 
   const raw = await callClaude({ type: 'generate', system, message, planId, maxTokens: 16000 })
 
@@ -763,15 +826,17 @@ No uses listas con viñetas dentro del contenido. Texto corrido, directo al punt
     if (!parsed?.days) return parsed
     Object.values(parsed.days).forEach(day => {
       if (!day?.sections) return
+      // SUBJECT: prayer first, then class rules, then AI content
       const subj = day.sections.subject
       if (subj) {
-        const aiHtml = toHtml(stripPrayer(subj.content))
-        subj.content = PRAYER_TEXT + (aiHtml ? aiHtml : '')
+        const aiHtml = toHtml(stripPrayer(stripRules(subj.content)))
+        subj.content = PRAYER_TEXT + CLASS_RULES + (aiHtml ? aiHtml : '')
       }
+      // MOTIVATION: only AI content (no rules injection here)
       const motiv = day.sections.motivation
       if (motiv) {
         const aiHtml = toHtml(stripRules(motiv.content))
-        motiv.content = CLASS_RULES + (aiHtml ? aiHtml : '')
+        motiv.content = aiHtml
       }
     })
     return parsed
@@ -783,10 +848,14 @@ No uses listas con viñetas dentro del contenido. Texto corrido, directo al punt
   // Retry: ask for more compact content
   const retryMessage = `${message}
 
-IMPORTANTE: Tu respuesta anterior fue cortada. Sé más breve:
-- SUBJECT: 1 oración con el tema del día. MOTIVATION: 1-2 oraciones con la actividad de enganche.
-- CLOSING, ASSIGNMENT: 1 oración cada uno. ACTIVITY: 2 oraciones. SKILL DEVELOPMENT: 3 oraciones.
-- Responde SOLO con el JSON, sin texto antes ni después.`
+IMPORTANTE: Tu respuesta anterior fue cortada. Sé más breve por sección:
+- SUBJECT: 1 oración (tema + vínculo bíblico).
+- MOTIVATION: 2 preguntas activadoras (indicador + principio bíblico).
+- ACTIVITY: 2 oraciones (dinámica preparatoria).
+- SKILL DEVELOPMENT: 3 oraciones (actividad principal + producto del estudiante).
+- CLOSING: 1 pregunta de verificación + 1 reflexión emocional/espiritual.
+- ASSIGNMENT: 1 oración.
+Responde SOLO con el JSON, sin texto antes ni después.`
 
   const retryRaw = await callClaude({ type: 'generate', system, message: retryMessage, planId, maxTokens: 16000 })
   const retryResult = tryParseJSON(retryRaw)
