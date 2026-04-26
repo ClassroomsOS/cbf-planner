@@ -319,20 +319,21 @@ function PerfilTab({ student, profile, canEdit, onSave, schoolId }) {
           style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: '1px solid #d0d8e8', borderRadius: 8, fontSize: 13, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.6, background: canEdit ? '#fff' : '#f9fafb' }} />
       </div>
 
-      {/* Confidential notes */}
-      <div>
-        <div style={fieldLabel}>
-          Notas confidenciales
-          <span style={{ fontWeight: 400, color: '#C0504D', fontSize: 11, marginLeft: 6 }}>· solo psicopedagoga, rector y coordinador</span>
+      {/* Confidential notes — solo visibles para psico/rector/admin */}
+      {canEdit && (
+        <div>
+          <div style={fieldLabel}>
+            Notas confidenciales
+            <span style={{ fontWeight: 400, color: '#C0504D', fontSize: 11, marginLeft: 6 }}>· solo psicopedagoga, rector y coordinador</span>
+          </div>
+          <textarea
+            value={form.confidential_notes}
+            onChange={e => set('confidential_notes', e.target.value)}
+            rows={4}
+            placeholder="Diagnósticos, situación familiar, información sensible del historial del estudiante..."
+            style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: '1px solid #fecaca', borderRadius: 8, fontSize: 13, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.6 }} />
         </div>
-        <textarea
-          value={form.confidential_notes}
-          onChange={e => set('confidential_notes', e.target.value)}
-          disabled={!canEdit}
-          rows={4}
-          placeholder="Diagnósticos, situación familiar, información sensible del historial del estudiante..."
-          style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: '1px solid #fecaca', borderRadius: 8, fontSize: 13, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.6, background: canEdit ? '#fff' : '#f9fafb' }} />
-      </div>
+      )}
 
       {canEdit && (
         <button onClick={handleSave} disabled={saving}
@@ -805,6 +806,16 @@ function StudentDetail({ student, canEdit, teacher }) {
           ))}
         </div>
       </div>
+
+      {/* Banner solo lectura */}
+      {!canEdit && (
+        <div style={{ padding: '8px 24px', background: '#EFF6FF', borderBottom: '1px solid #BFDBFE', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 14 }}>👁</span>
+          <span style={{ fontSize: 12, color: '#1E3A8A' }}>
+            <strong>Modo consulta</strong> — puedes ver las recomendaciones y el historial, pero solo la psicopedagoga puede editar estos perfiles.
+          </span>
+        </div>
+      )}
 
       {/* Tab content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
