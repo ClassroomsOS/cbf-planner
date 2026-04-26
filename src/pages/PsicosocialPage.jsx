@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { useToast } from '../context/ToastContext'
 
@@ -847,6 +848,7 @@ const inputSt    = { width: '100%', padding: '8px 10px', border: '1px solid #d0d
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function PsicosocialPage({ teacher }) {
   const { showToast } = useToast()
+  const navigate = useNavigate()
   const canEdit = ['psicopedagoga', 'admin', 'superadmin', 'rector'].includes(teacher.role)
 
   const [students,      setStudents]      = useState([])
@@ -967,8 +969,23 @@ export default function PsicosocialPage({ teacher }) {
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {loadingList ? (
             <div style={{ padding: 24, textAlign: 'center', color: '#aaa', fontSize: 13 }}>Cargando...</div>
+          ) : students.length === 0 ? (
+            <div style={{ margin: 16, padding: '18px 16px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10 }}>
+              <div style={{ fontSize: 28, textAlign: 'center', marginBottom: 10 }}>👩‍🎓</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#92400e', marginBottom: 6, textAlign: 'center' }}>
+                No hay estudiantes en el roster
+              </div>
+              <div style={{ fontSize: 12, color: '#b45309', lineHeight: 1.6, marginBottom: 14, textAlign: 'center' }}>
+                Primero debes registrar los estudiantes del colegio en "Mis Estudiantes" para poder crear perfiles psicosociales.
+              </div>
+              <button type="button"
+                onClick={() => navigate('/students')}
+                style={{ display: 'block', width: '100%', padding: '9px 0', border: 'none', borderRadius: 8, background: '#2E5598', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+                Ir a Mis Estudiantes →
+              </button>
+            </div>
           ) : filtered.length === 0 ? (
-            <div style={{ padding: 24, textAlign: 'center', color: '#ccc', fontSize: 13 }}>Sin estudiantes</div>
+            <div style={{ padding: 24, textAlign: 'center', color: '#aaa', fontSize: 13 }}>Sin resultados para este filtro</div>
           ) : filtered.map(s => {
             const p = profilesMap[s.id]
             const sc = STATUS_CFG[p?.status || 'monitoring']
