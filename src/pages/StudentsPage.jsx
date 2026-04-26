@@ -148,6 +148,8 @@ export default function StudentsPage({ teacher }) {
   const [confirmingDeleteId, setConfirmingDeleteId] = useState(null)
   const [selectedIds,        setSelectedIds]        = useState(new Set())
   const [bulkConfirm,        setBulkConfirm]        = useState(false)
+  const [sortCol,            setSortCol]            = useState('name')
+  const [sortAsc,            setSortAsc]            = useState(true)
   const [psyProfiles,        setPsyProfiles]        = useState({})
 
   useEffect(() => {
@@ -332,12 +334,26 @@ export default function StudentsPage({ teacher }) {
 
   // ── Filtrado ──────────────────────────────────────────────────
 
+  function handleSort(col) {
+    if (sortCol === col) setSortAsc(a => !a)
+    else { setSortCol(col); setSortAsc(true) }
+  }
+
   const filtered = students.filter(s => {
     if (filterGrade   && s.grade !== filterGrade) return false
     if (filterSection && s.section?.toLowerCase() !== filterSection.toLowerCase()) return false
     if (searchText    && !s.name.toLowerCase().includes(searchText.toLowerCase()) &&
+        !displayName(s).toLowerCase().includes(searchText.toLowerCase()) &&
         !s.student_code?.toLowerCase().includes(searchText.toLowerCase())) return false
     return true
+  }).sort((a, b) => {
+    let va, vb
+    if (sortCol === 'name')    { va = displayName(a); vb = displayName(b) }
+    else if (sortCol === 'grade')   { va = a.grade;   vb = b.grade }
+    else if (sortCol === 'section') { va = a.section; vb = b.section }
+    else if (sortCol === 'code')    { va = a.student_code || ''; vb = b.student_code || '' }
+    else { va = ''; vb = '' }
+    return sortAsc ? va.localeCompare(vb, 'es') : vb.localeCompare(va, 'es')
   })
 
   const grades = [...new Set(students.map(s => s.grade))].sort()
@@ -575,10 +591,17 @@ export default function StudentsPage({ teacher }) {
                       checked={filtered.length > 0 && selectedIds.size === filtered.length}
                       onChange={toggleSelectAll} />
                   </th>
-                  <th style={th}>Nombre completo</th>
-                  <th style={th}>Grado</th>
-                  <th style={th}>Sección</th>
-                  <th style={th}>Código</th>
+                  {[
+                    { label: 'Nombre completo', col: 'name' },
+                    { label: 'Grado',           col: 'grade' },
+                    { label: 'Sección',         col: 'section' },
+                    { label: 'Código',          col: 'code' },
+                  ].map(({ label, col }) => (
+                    <th key={col} style={{ ...th, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}
+                      onClick={() => handleSort(col)}>
+                      {label} {sortCol === col ? (sortAsc ? '▲' : '▼') : <span style={{ opacity: 0.3 }}>▲</span>}
+                    </th>
+                  ))}
                   <th style={th}>Email estudiante</th>
                   <th style={th}>Email representante</th>
                   <th style={{ ...th, width: 60 }}></th>
