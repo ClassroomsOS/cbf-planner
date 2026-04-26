@@ -263,9 +263,22 @@ export default function StudentsPage({ teacher }) {
     for (let i = 0; i < rows.length; i += 50) {
       const batch = rows.slice(i, i + 50)
       const { error } = await supabase.from('school_students').insert(batch)
-      if (error?.code === '23505') { skipped += batch.length }
-      else if (error) { failed += batch.length; showToast(`Error en fila ${i + 1}: ${error.message}`, 'error') }
-      else imported += batch.length
+      if (!error) {
+        imported += batch.length
+      } else if (error.code === '23505' && batch.length === 1) {
+        skipped += 1
+      } else if (error.code === '23505') {
+        // Reintentar fila por fila para no penalizar el lote completo
+        for (let j = 0; j < batch.length; j++) {
+          const { error: rowErr } = await supabase.from('school_students').insert(batch[j])
+          if (!rowErr) imported++
+          else if (rowErr.code === '23505') skipped++
+          else { failed++; showToast(`Fila ${i + j + 1}: ${rowErr.message}`, 'error') }
+        }
+      } else {
+        failed += batch.length
+        showToast(`Error: ${error.message}`, 'error')
+      }
     }
 
     showToast(`${imported} importados · ${skipped} duplicados omitidos${failed ? ` · ${failed} fallidos` : ''}`, 'success')
@@ -577,7 +590,7 @@ export default function StudentsPage({ teacher }) {
                     <td style={{ ...td, textAlign: 'center' }}>
                       <input type="checkbox" checked={selectedIds.has(s.id)} onChange={() => toggleSelect(s.id)} />
                     </td>
-                    <td style={td}>
+                    <td style={{ ...td, whiteSpace: 'nowrap' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span style={{ fontWeight: 600 }}>{displayName(s)}</span>
                         {psyProfiles[s.id] && (() => {
