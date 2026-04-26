@@ -97,7 +97,6 @@ Deno.serve(async (req: Request) => {
     const {
       session_id,
       instance_id,
-      student_name,
       student_section,
       exam_title,
       event_type,
@@ -154,7 +153,7 @@ Deno.serve(async (req: Request) => {
 
     // ── 4. Construir mensaje según tipo de evento ─────────────────────────────
     const title    = exam_title || sess?.title || "Examen";
-    const student  = student_name  || "Estudiante";
+    const anonCode = instance_id ? instance_id.slice(-6).toUpperCase() : "??????";
     const section  = student_section || "—";
     const timeStr  = start_time || submit_time || bogotaTime();
 
@@ -164,9 +163,9 @@ Deno.serve(async (req: Request) => {
       // ── Notificación de ciclo ──────────────────────────────────────────────
       const meta = CYCLE_META[event_type];
       msgLines = [
-        `${meta.emoji} *${student} ${meta.verb}*`,
+        `${meta.emoji} *Código ${anonCode} ${meta.verb}*`,
         `📝 ${title}`,
-        `👤 Sección: ${section}`,
+        `🏷 Sección: ${section}`,
         `🕐 ${timeStr}`,
       ];
       if (score_info) {
@@ -182,13 +181,13 @@ Deno.serve(async (req: Request) => {
       const label     = INTEGRITY_LABELS[event_type] || event_type;
       msgLines = [
         `${riskEmoji} *ALERTA DE INTEGRIDAD — CBF*`,
-        `👤 *${student}* — Sección: ${section}`,
+        `🔑 Código: *${anonCode}* — Sección: ${section}`,
         `📝 ${title}`,
         `🔍 Evento: ${label}`,
         `📊 Total alertas: *${count}*`,
         `🕐 ${bogotaTime()}`,
       ];
-      if (count >= 3) msgLines.push("🔴 *RIESGO ALTO — Revisar manualmente*");
+      if (count >= 3) msgLines.push("🔴 *RIESGO ALTO — Busca este código en Monitor en Vivo*");
     }
 
     const telegramOk = await sendTelegram(

@@ -2193,7 +2193,7 @@ function ExamLiveMonitor({ exam, teacher, onClose }) {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead>
                   <tr style={{ background: '#F8FAFC' }}>
-                    {['Nombre', 'Sección', 'Versión', 'Estado', 'Integridad', 'Enviado'].map(h => (
+                    {['Nombre', 'Código', 'Sección', 'Versión', 'Estado', 'Integridad', 'Enviado'].map(h => (
                       <th key={h} style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 700, color: '#64748B', fontSize: 11, borderBottom: '1px solid #E2E8F0', whiteSpace: 'nowrap' }}>{h}</th>
                     ))}
                   </tr>
@@ -2219,6 +2219,11 @@ function ExamLiveMonitor({ exam, teacher, onClose }) {
                           <td style={{ padding: '9px 10px', fontWeight: 600, color: '#374151' }}>
                             {r.student_name || r.student_email || '—'}
                             {r.student_code && <span style={{ color: '#9CA3AF', fontWeight: 400, marginLeft: 5 }}>({r.student_code})</span>}
+                          </td>
+                          <td style={{ padding: '9px 10px' }}>
+                            <code style={{ background: '#F1F5F9', color: '#1F3864', borderRadius: 4, padding: '2px 6px', fontSize: 11, fontWeight: 700, letterSpacing: 1 }}>
+                              {r.id ? r.id.slice(-6).toUpperCase() : '—'}
+                            </code>
                           </td>
                           <td style={{ padding: '9px 10px', color: '#64748B' }}>{r.student_section || '—'}</td>
                           <td style={{ padding: '9px 10px' }}>

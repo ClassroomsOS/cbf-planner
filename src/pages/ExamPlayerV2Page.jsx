@@ -840,7 +840,6 @@ export default function ExamPlayerV2Page() {
           body: JSON.stringify({
             instance_id:     inst.id,
             session_id:      inst.session_id,
-            student_name:    inst.student_name,
             student_section: inst.student_section,
             exam_title:      sess?.title || '',
             event_type:      eventType,
@@ -878,7 +877,6 @@ export default function ExamPlayerV2Page() {
       body: JSON.stringify({
         instance_id:     inst.id,
         session_id:      inst.session_id,
-        student_name:    inst.student_name,
         student_section: inst.student_section,
         exam_title:      sess?.title || '',
         event_type:      eventType,
