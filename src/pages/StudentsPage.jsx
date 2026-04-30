@@ -4,120 +4,10 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import { useToast } from '../context/ToastContext'
-
-// ─── Constantes ───────────────────────────────────────────────
-
-const DOMAIN = '@redboston.edu.co'
-const SECTIONS = ['Blue', 'Red']
-const GRADES = ['6.°', '7.°', '8.°', '9.°', '10.°', '11.°']
-
-// ─── Helpers ─────────────────────────────────────────────────
-
-function composeName(firstName, secondName, firstLastname, secondLastname) {
-  return [firstName, secondName, firstLastname, secondLastname]
-    .map(s => s?.trim() || '')
-    .filter(Boolean)
-    .join(' ')
-}
-
-// Apellidos primero: PRIMER APELLIDO [SEGUNDO APELLIDO] PRIMER NOMBRE [SEGUNDO NOMBRE]
-function displayName(s) {
-  return [s.first_lastname, s.second_lastname, s.first_name, s.second_name]
-    .map(v => v?.trim() || '')
-    .filter(Boolean)
-    .join(' ')
-}
-
-function normalizeGrade(raw) {
-  const s = raw.trim().replace(/[°.]/g, '').trim()
-  if (!s) return ''
-  return `${s}.°`
-}
-
-function normalizeEmail(raw, autoCompleteDomain = true) {
-  const e = raw.trim().toLowerCase()
-  if (!e) return ''
-  if (e.includes('@')) return e
-  return autoCompleteDomain ? e + DOMAIN : e
-}
-
-// ─── CSV Parser — 8 columnas ──────────────────────────────────
-// Columnas: Primer Apellido | Segundo Apellido | Primer Nombre | Segundo Nombre
-//           | Grado | Sección | Email estudiante | Email representante
-
-function parseCSV(text) {
-  const rows = text.trim().split(/\r?\n/).filter(r => r.trim())
-  const students = []
-  const errors   = []
-  const warnings = []
-
-  // Detectar encabezado: la primera fila es encabezado si alguna de las primeras 6 cols
-  // contiene texto alfabético (ej. "Nombre", "Grado", "Columna1"...)
-  // Una fila de datos real tiene col 1 y col 3 como nombres (solo letras/tildes) Y col 5 como número
-  let startRow = 0
-  if (rows.length > 0) {
-    const firstCols = rows[0].split(/[,;\t]/).map(c => c.trim().replace(/^["']|["']$/g, ''))
-    const col5 = firstCols[4] || ''
-    // Si col 5 no es un número de grado (8, 9, 10, 8°, 8.°, etc.) → es encabezado
-    if (col5 && !/^\d+/.test(col5.replace(/\s/g, ''))) startRow = 1
-    // Si col 5 está vacía y hay suficientes columnas → asumir que podría ser dato, no saltar
-  }
-
-  for (let i = startRow; i < rows.length; i++) {
-    const cols = rows[i].split(/[,;\t]/).map(c => c.trim().replace(/^["']|["']$/g, ''))
-
-    // Ignorar filas completamente vacías
-    if (cols.every(c => !c)) continue
-
-    if (cols.length < 4) {
-      errors.push(`Fila ${i + 1}: muy pocas columnas (${cols.length}) — se necesitan al menos Nombre, Apellido, Grado, Sección`)
-      continue
-    }
-
-    const [firstLastname, secondLastname, firstName, secondName, gradeRaw, sectionRaw, emailRaw, repEmailRaw] = cols
-
-    if (!firstLastname?.trim()) { errors.push(`Fila ${i + 1}: Primer Apellido vacío`); continue }
-    if (!firstName?.trim()) { errors.push(`Fila ${i + 1}: Primer Nombre vacío`); continue }
-    if (!gradeRaw?.trim()) { errors.push(`Fila ${i + 1}: Grado vacío`); continue }
-
-    const grade   = normalizeGrade(gradeRaw)
-    if (!grade) { errors.push(`Fila ${i + 1}: Grado inválido "${gradeRaw}"`); continue }
-
-    const section = sectionRaw?.trim() || ''
-    if (!SECTIONS.map(s => s.toLowerCase()).includes(section.toLowerCase())) {
-      errors.push(`Fila ${i + 1}: Sección inválida "${section || '(vacía)'}" — debe ser Blue o Red`)
-      continue
-    }
-
-    // Email: si está vacío o tiene dominio diferente → auto-generar con dominio escolar
-    let email = emailRaw?.trim() || ''
-    if (email) {
-      if (!email.includes('@')) {
-        email = email.toLowerCase() + DOMAIN
-      } else if (!email.toLowerCase().endsWith(DOMAIN)) {
-        // Dominio diferente → auto-generar y avisar
-        const autoEmail = `${firstName.trim().toLowerCase()}.${firstLastname.trim().toLowerCase()}${DOMAIN}`
-        warnings.push(`Fila ${i + 1}: email "${email}" no es del colegio — se usará ${autoEmail}`)
-        email = autoEmail
-      }
-    }
-
-    const name = composeName(firstName, secondName, firstLastname, secondLastname)
-
-    students.push({
-      first_name:           firstName.trim(),
-      second_name:          secondName?.trim() || '',
-      first_lastname:       firstLastname.trim(),
-      second_lastname:      secondLastname?.trim() || '',
-      name,
-      grade,
-      section:              section.charAt(0).toUpperCase() + section.slice(1).toLowerCase(),
-      email,
-      representative_email: repEmailRaw?.trim() || '',
-    })
-  }
-  return { students, errors, warnings }
-}
+import {
+  composeName, displayName, normalizeGrade, normalizeEmail, parseCSV,
+  VALID_SECTIONS as SECTIONS, VALID_GRADES as GRADES, DOMAIN,
+} from '../utils/studentUtils'
 
 // ─── Componente principal ─────────────────────────────────────
 
@@ -138,12 +28,14 @@ export default function StudentsPage({ teacher }) {
 
   const [form,    setForm]    = useState(EMPTY_FORM)
   const [formErr, setFormErr] = useState('')
+  const [showAddForm, setShowAddForm] = useState(true)
 
-  const [csvText,     setCsvText]     = useState('')
-  const [csvParsed,   setCsvParsed]   = useState(null)
-  const [csvErrors,   setCsvErrors]   = useState([])
-  const [csvWarnings, setCsvWarnings] = useState([])
-  const [showImport,  setShowImport]  = useState(false)
+  const [csvText,       setCsvText]       = useState('')
+  const [csvParsed,     setCsvParsed]     = useState(null)
+  const [csvErrors,     setCsvErrors]     = useState([])
+  const [csvWarnings,   setCsvWarnings]   = useState([])
+  const [showImport,    setShowImport]    = useState(false)
+  const [csvEditingIdx, setCsvEditingIdx] = useState(null)
 
   const [confirmingDeleteId, setConfirmingDeleteId] = useState(null)
   const [selectedIds,        setSelectedIds]        = useState(new Set())
@@ -151,11 +43,23 @@ export default function StudentsPage({ teacher }) {
   const [sortCol,            setSortCol]            = useState('name')
   const [sortAsc,            setSortAsc]            = useState(true)
   const [psyProfiles,        setPsyProfiles]        = useState({})
+  const [expandedId,         setExpandedId]         = useState(null)
+
+  // ── Edit modal ──
+  const [editingStudent, setEditingStudent] = useState(null)
+  const [editForm,       setEditForm]       = useState(EMPTY_FORM)
+  const [editErr,        setEditErr]        = useState('')
+  const [editSaving,     setEditSaving]     = useState(false)
 
   useEffect(() => {
     loadStudents()
     loadPsyProfiles()
   }, [])
+
+  // Collapse add form once students are loaded
+  useEffect(() => {
+    if (!loading && students.length > 0) setShowAddForm(false)
+  }, [loading])
 
   async function loadPsyProfiles() {
     const { data } = await supabase
@@ -234,6 +138,68 @@ export default function StudentsPage({ teacher }) {
     setSaving(false)
   }
 
+  // ── Editar estudiante ─────────────────────────────────────────
+
+  function openEdit(student) {
+    setEditingStudent(student)
+    setEditForm({
+      first_name:          student.first_name || '',
+      second_name:         student.second_name || '',
+      first_lastname:      student.first_lastname || '',
+      second_lastname:     student.second_lastname || '',
+      grade:               student.grade || '',
+      section:             student.section || '',
+      email:               student.email || '',
+      representative_email: student.representative_email || '',
+    })
+    setEditErr('')
+  }
+
+  async function handleEditSave() {
+    setEditErr('')
+    const firstName     = editForm.first_name.trim()
+    const firstLastname = editForm.first_lastname.trim()
+    const grade         = editForm.grade
+    const section       = editForm.section
+
+    if (!firstName || !firstLastname || !grade || !section) {
+      setEditErr('Primer nombre, primer apellido, grado y sección son obligatorios.')
+      return
+    }
+
+    let email = editForm.email.trim().toLowerCase()
+    if (email && !email.includes('@')) email = email + DOMAIN
+    if (email && !email.endsWith(DOMAIN)) {
+      setEditErr(`El correo del estudiante debe ser ${DOMAIN}`)
+      return
+    }
+
+    const name = composeName(firstName, editForm.second_name, firstLastname, editForm.second_lastname)
+
+    setEditSaving(true)
+    const { error } = await supabase.from('school_students').update({
+      name,
+      first_name:          firstName,
+      second_name:         editForm.second_name.trim() || null,
+      first_lastname:      firstLastname,
+      second_lastname:     editForm.second_lastname.trim() || null,
+      email:               email || `${firstName.toLowerCase()}.${firstLastname.toLowerCase()}${DOMAIN}`,
+      representative_email: editForm.representative_email.trim() || null,
+      grade,
+      section,
+    }).eq('id', editingStudent.id)
+
+    if (error) {
+      if (error.code === '23505') setEditErr('Este correo ya está registrado en el colegio.')
+      else setEditErr('Error al guardar. ' + error.message)
+    } else {
+      showToast(`${name} actualizado`, 'success')
+      setEditingStudent(null)
+      loadStudents()
+    }
+    setEditSaving(false)
+  }
+
   // ── Importar CSV ──────────────────────────────────────────────
 
   function handleParseCSV() {
@@ -241,6 +207,22 @@ export default function StudentsPage({ teacher }) {
     setCsvParsed(parsed)
     setCsvWarnings(warnings || [])
     setCsvErrors(errors)
+    setCsvEditingIdx(null)
+  }
+
+  function updateCsvRow(idx, field, value) {
+    setCsvParsed(prev => prev.map((row, i) => {
+      if (i !== idx) return row
+      const updated = { ...row, [field]: value }
+      updated.name = composeName(updated.first_name, updated.second_name, updated.first_lastname, updated.second_lastname)
+      return updated
+    }))
+  }
+
+  function removeCsvRow(idx) {
+    setCsvParsed(prev => prev.filter((_, i) => i !== idx))
+    if (csvEditingIdx === idx) setCsvEditingIdx(null)
+    else if (csvEditingIdx > idx) setCsvEditingIdx(csvEditingIdx - 1)
   }
 
   async function handleImportCSV() {
@@ -270,7 +252,6 @@ export default function StudentsPage({ teacher }) {
       } else if (error.code === '23505' && batch.length === 1) {
         skipped += 1
       } else if (error.code === '23505') {
-        // Reintentar fila por fila para no penalizar el lote completo
         for (let j = 0; j < batch.length; j++) {
           const { error: rowErr } = await supabase.from('school_students').insert(batch[j])
           if (!rowErr) imported++
@@ -284,7 +265,7 @@ export default function StudentsPage({ teacher }) {
     }
 
     showToast(`${imported} importados · ${skipped} duplicados omitidos${failed ? ` · ${failed} fallidos` : ''}`, 'success')
-    setCsvText(''); setCsvParsed(null); setCsvErrors([]); setCsvWarnings([]); setShowImport(false)
+    setCsvText(''); setCsvParsed(null); setCsvErrors([]); setCsvWarnings([]); setShowImport(false); setCsvEditingIdx(null)
     loadStudents()
     setSaving(false)
   }
@@ -332,7 +313,7 @@ export default function StudentsPage({ teacher }) {
     setBulkConfirm(false)
   }
 
-  // ── Filtrado ──────────────────────────────────────────────────
+  // ── Filtrado y ordenamiento ───────────────────────────────────
 
   function handleSort(col) {
     if (sortCol === col) setSortAsc(a => !a)
@@ -358,79 +339,141 @@ export default function StudentsPage({ teacher }) {
 
   const grades = [...new Set(students.map(s => s.grade))].sort()
 
+  // ── Stats ─────────────────────────────────────────────────────
+
+  const gradeStats = {}
+  const sectionStats = {}
+  students.forEach(s => {
+    gradeStats[s.grade] = (gradeStats[s.grade] || 0) + 1
+    sectionStats[s.section] = (sectionStats[s.section] || 0) + 1
+  })
+  const psyStats = { intervention: 0, monitoring: 0, no_intervention: 0 }
+  Object.values(psyProfiles).forEach(p => {
+    if (psyStats[p.status] !== undefined) psyStats[p.status]++
+  })
+  const hasPsyData = psyStats.intervention + psyStats.monitoring + psyStats.no_intervention > 0
+
+  // ── Agrupación por grado ──────────────────────────────────────
+
+  const showGroupHeaders = !filterGrade && !searchText
+  const grouped = {}
+  if (showGroupHeaders) {
+    filtered.forEach(s => { (grouped[s.grade] ??= []).push(s) })
+  }
+
   // ─────────────────────────────────────────────────────────────
+
+  function handleRowClick(e, student) {
+    if (e.target.closest('input, button')) return
+    setExpandedId(prev => prev === student.id ? null : student.id)
+  }
 
   return (
     <div style={{ maxWidth: 1000, margin: '0 auto', padding: '24px 16px' }}>
 
       {/* Header */}
-      <div style={{ marginBottom: 24 }}>
+      <div style={{ marginBottom: 16 }}>
         <h1 style={{ margin: '0 0 4px', fontSize: 22, color: '#1F3864' }}>
-          👩‍🎓 Roster de Estudiantes
+          Roster de Estudiantes
         </h1>
         <p style={{ margin: 0, color: '#6B7280', fontSize: 14 }}>
           Registra los estudiantes del colegio para exámenes y seguimiento psicosocial.
         </p>
       </div>
 
+      {/* ── Stats bar ── */}
+      {students.length > 0 && (
+        <div className="stu-stats">
+          <span className="stu-stat" style={{ background: '#1F3864', color: '#fff', border: 'none' }}>
+            <span className="stu-stat-count" style={{ color: '#fff' }}>{students.length}</span> estudiante{students.length !== 1 ? 's' : ''}
+          </span>
+          {grades.map(g => (
+            <span key={g} className="stu-stat">
+              {g} <span className="stu-stat-count">{gradeStats[g]}</span>
+            </span>
+          ))}
+          {Object.keys(sectionStats).length > 1 && (
+            <span className="stu-stat" style={{ background: '#EFF6FF', borderColor: '#BFDBFE' }}>
+              {Object.entries(sectionStats).sort((a,b) => a[0].localeCompare(b[0])).map(([sec, count], i) => (
+                <span key={sec}>{i > 0 ? ' · ' : ''}{sec}: <span className="stu-stat-count">{count}</span></span>
+              ))}
+            </span>
+          )}
+          {hasPsyData && (
+            <span className="stu-stat" style={{ background: '#FEF2F2', borderColor: '#FECACA', gap: 6 }}>
+              {psyStats.intervention > 0 && <><span className="stu-stat-dot" style={{ background: '#ef4444' }} /><span className="stu-stat-count">{psyStats.intervention}</span></>}
+              {psyStats.monitoring > 0 && <><span className="stu-stat-dot" style={{ background: '#f59e0b' }} /><span className="stu-stat-count">{psyStats.monitoring}</span></>}
+              {psyStats.no_intervention > 0 && <><span className="stu-stat-dot" style={{ background: '#22c55e' }} /><span className="stu-stat-count">{psyStats.no_intervention}</span></>}
+            </span>
+          )}
+        </div>
+      )}
+
       {/* ── Agregar uno a uno ── */}
       <div style={card}>
-        <h3 style={sectionTitle}>Agregar estudiante</h3>
-        <form onSubmit={handleAddOne}>
-          {/* Fila 1 — nombres */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 10, marginBottom: 10 }}>
-            <div>
-              <label style={lbl}>Primer nombre *</label>
-              <input style={inp} value={form.first_name} onChange={e => setF('first_name', e.target.value)} placeholder="María" />
-            </div>
-            <div>
-              <label style={lbl}>Segundo nombre</label>
-              <input style={inp} value={form.second_name} onChange={e => setF('second_name', e.target.value)} placeholder="Alejandra" />
-            </div>
-            <div>
-              <label style={lbl}>Primer apellido *</label>
-              <input style={inp} value={form.first_lastname} onChange={e => setF('first_lastname', e.target.value)} placeholder="García" />
-            </div>
-            <div>
-              <label style={lbl}>Segundo apellido</label>
-              <input style={inp} value={form.second_lastname} onChange={e => setF('second_lastname', e.target.value)} placeholder="López" />
-            </div>
-          </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+             onClick={() => setShowAddForm(v => !v)}>
+          <h3 style={{ ...sectionTitle, margin: 0 }}>+ Agregar estudiante</h3>
+          <span style={{ fontSize: 14, color: '#9CA3AF', transition: 'transform .2s', transform: showAddForm ? 'rotate(180deg)' : 'rotate(0)' }}>&#9660;</span>
+        </div>
 
-          {/* Fila 2 — grado, sección, email, email representante */}
-          <div style={{ display: 'grid', gridTemplateColumns: '120px 100px 1fr 1fr', gap: 10, marginBottom: 12 }}>
-            <div>
-              <label style={lbl}>Grado *</label>
-              <select style={inp} value={form.grade} onChange={e => setF('grade', e.target.value)}>
-                <option value="">Grado</option>
-                {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
-              </select>
+        {showAddForm && (
+          <form onSubmit={handleAddOne} style={{ marginTop: 16 }}>
+            {/* Fila 1 — nombres */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: 10 }}>
+              <div>
+                <label style={lbl}>Primer nombre *</label>
+                <input style={inp} value={form.first_name} onChange={e => setF('first_name', e.target.value)} placeholder="María" />
+              </div>
+              <div>
+                <label style={lbl}>Segundo nombre</label>
+                <input style={inp} value={form.second_name} onChange={e => setF('second_name', e.target.value)} placeholder="Alejandra" />
+              </div>
+              <div>
+                <label style={lbl}>Primer apellido *</label>
+                <input style={inp} value={form.first_lastname} onChange={e => setF('first_lastname', e.target.value)} placeholder="García" />
+              </div>
+              <div>
+                <label style={lbl}>Segundo apellido</label>
+                <input style={inp} value={form.second_lastname} onChange={e => setF('second_lastname', e.target.value)} placeholder="López" />
+              </div>
             </div>
-            <div>
-              <label style={lbl}>Sección *</label>
-              <select style={inp} value={form.section} onChange={e => setF('section', e.target.value)}>
-                <option value="">Sección</option>
-                {SECTIONS.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
-            <div>
-              <label style={lbl}>Email estudiante</label>
-              <input style={inp} value={form.email} onChange={e => setF('email', e.target.value)}
-                placeholder="mariagarcia (o correo completo)" />
-            </div>
-            <div>
-              <label style={lbl}>Email representante</label>
-              <input style={inp} type="email" value={form.representative_email}
-                onChange={e => setF('representative_email', e.target.value)}
-                placeholder="padre@gmail.com" />
-            </div>
-          </div>
 
-          {formErr && <p style={{ color: '#DC2626', fontSize: 13, margin: '0 0 10px' }}>{formErr}</p>}
-          <button type="submit" style={btnPrimary} disabled={saving}>
-            {saving ? '...' : '+ Agregar estudiante'}
-          </button>
-        </form>
+            {/* Fila 2 — grado, sección, emails */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 12 }}>
+              <div>
+                <label style={lbl}>Grado *</label>
+                <select style={inp} value={form.grade} onChange={e => setF('grade', e.target.value)}>
+                  <option value="">Grado</option>
+                  {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={lbl}>Sección *</label>
+                <select style={inp} value={form.section} onChange={e => setF('section', e.target.value)}>
+                  <option value="">Sección</option>
+                  {SECTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={lbl}>Email estudiante</label>
+                <input style={inp} value={form.email} onChange={e => setF('email', e.target.value)}
+                  placeholder="mariagarcia (o correo completo)" />
+              </div>
+              <div>
+                <label style={lbl}>Email representante</label>
+                <input style={inp} type="email" value={form.representative_email}
+                  onChange={e => setF('representative_email', e.target.value)}
+                  placeholder="padre@gmail.com" />
+              </div>
+            </div>
+
+            {formErr && <p style={{ color: '#DC2626', fontSize: 13, margin: '0 0 10px' }}>{formErr}</p>}
+            <button type="submit" style={btnPrimary} disabled={saving}>
+              {saving ? '...' : '+ Agregar estudiante'}
+            </button>
+          </form>
+        )}
       </div>
 
       {/* ── Importar CSV ── */}
@@ -438,7 +481,7 @@ export default function StudentsPage({ teacher }) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h3 style={{ ...sectionTitle, margin: 0 }}>Importar desde Excel / CSV</h3>
           <button style={{ ...btnSecondary, fontSize: 13 }} onClick={() => setShowImport(v => !v)}>
-            {showImport ? 'Ocultar' : '📋 Importar lista'}
+            {showImport ? 'Ocultar' : 'Importar lista'}
           </button>
         </div>
 
@@ -449,7 +492,7 @@ export default function StudentsPage({ teacher }) {
               <div style={{ fontSize: 12, fontWeight: 700, color: '#0C4A6E', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '.4px' }}>
                 Formato requerido — 8 columnas
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 4, marginBottom: 8 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(80px, 1fr))', gap: 4, marginBottom: 8 }}>
                 {[
                   { col: 'Primer Apellido', req: true },
                   { col: 'Segundo Apellido', req: false },
@@ -470,8 +513,7 @@ export default function StudentsPage({ teacher }) {
                 · Grado: <strong>8</strong>, <strong>8°</strong> o <strong>8.°</strong> — se normaliza automáticamente<br />
                 · Sección: <strong>Blue</strong> o <strong>Red</strong><br />
                 · Email: solo el usuario sin dominio (<strong>mariagarcia</strong>) o correo completo<br />
-                · Si dejas Email vacío se genera automáticamente como <em>primernombre.primerapellido@redboston.edu.co</em><br />
-                · Columnas opcionales pueden quedar vacías pero el separador debe estar
+                · Si dejas Email vacío se genera automáticamente como <em>primernombre.primerapellido@redboston.edu.co</em>
               </div>
             </div>
 
@@ -485,7 +527,7 @@ export default function StudentsPage({ teacher }) {
             <textarea
               style={{ ...inp, minHeight: 140, fontFamily: 'monospace', fontSize: 13 }}
               value={csvText}
-              onChange={e => { setCsvText(e.target.value); setCsvParsed(null); setCsvErrors([]); setCsvWarnings([]) }}
+              onChange={e => { setCsvText(e.target.value); setCsvParsed(null); setCsvErrors([]); setCsvWarnings([]); setCsvEditingIdx(null) }}
               placeholder="Pega aquí tu lista desde Excel..."
             />
 
@@ -503,25 +545,68 @@ export default function StudentsPage({ teacher }) {
             {csvParsed && csvParsed.length > 0 && (
               <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8, padding: 12, marginTop: 8 }}>
                 <strong style={{ color: '#166534', fontSize: 13 }}>Vista previa — {csvParsed.length} estudiante{csvParsed.length !== 1 ? 's' : ''}</strong>
-                <div style={{ maxHeight: 180, overflowY: 'auto', marginTop: 8 }}>
+                <div style={{ maxHeight: 260, overflowY: 'auto', marginTop: 8 }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                     <thead>
                       <tr style={{ background: '#dcfce7' }}>
+                        <th style={{ ...th, fontSize: 10, width: 30 }}></th>
                         <th style={{ ...th, fontSize: 10 }}>Nombre completo</th>
                         <th style={{ ...th, fontSize: 10 }}>Grado</th>
                         <th style={{ ...th, fontSize: 10 }}>Sección</th>
                         <th style={{ ...th, fontSize: 10 }}>Email</th>
                         <th style={{ ...th, fontSize: 10 }}>Rep.</th>
+                        <th style={{ ...th, fontSize: 10, width: 50 }}></th>
                       </tr>
                     </thead>
                     <tbody>
-                      {csvParsed.map((s, i) => (
+                      {csvParsed.map((s, i) => csvEditingIdx === i ? (
+                        <tr key={i} className="stu-csv-row-edit" style={{ borderBottom: '1px solid #bbf7d0', background: '#f0fdf4' }}>
+                          <td style={{ padding: '4px 4px', textAlign: 'center' }}>
+                            <button type="button" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#DC2626', fontSize: 14 }}
+                              onClick={() => removeCsvRow(i)} title="Eliminar fila">x</button>
+                          </td>
+                          <td style={{ padding: '4px 4px' }}>
+                            <div style={{ display: 'flex', gap: 3 }}>
+                              <input value={s.first_lastname} onChange={e => updateCsvRow(i, 'first_lastname', e.target.value)} placeholder="Apellido" style={{ flex: 1 }} />
+                              <input value={s.first_name} onChange={e => updateCsvRow(i, 'first_name', e.target.value)} placeholder="Nombre" style={{ flex: 1 }} />
+                            </div>
+                          </td>
+                          <td style={{ padding: '4px 4px' }}>
+                            <select value={s.grade} onChange={e => updateCsvRow(i, 'grade', e.target.value)}>
+                              {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
+                            </select>
+                          </td>
+                          <td style={{ padding: '4px 4px' }}>
+                            <select value={s.section} onChange={e => updateCsvRow(i, 'section', e.target.value)}>
+                              {SECTIONS.map(sc => <option key={sc} value={sc}>{sc}</option>)}
+                            </select>
+                          </td>
+                          <td style={{ padding: '4px 4px' }}>
+                            <input value={s.email} onChange={e => updateCsvRow(i, 'email', e.target.value)} placeholder="email" />
+                          </td>
+                          <td style={{ padding: '4px 4px' }}>
+                            <input value={s.representative_email} onChange={e => updateCsvRow(i, 'representative_email', e.target.value)} placeholder="rep." />
+                          </td>
+                          <td style={{ padding: '4px 4px', textAlign: 'center' }}>
+                            <button type="button" style={{ background: '#166534', color: '#fff', border: 'none', borderRadius: 4, padding: '2px 8px', cursor: 'pointer', fontSize: 11 }}
+                              onClick={() => setCsvEditingIdx(null)}>OK</button>
+                          </td>
+                        </tr>
+                      ) : (
                         <tr key={i} style={{ borderBottom: '1px solid #bbf7d0' }}>
-                          <td style={{ ...td, padding: '4px 8px', color: '#166534', fontWeight: 600 }}>{displayName(s)}</td>
-                          <td style={{ ...td, padding: '4px 8px', color: '#166534' }}>{s.grade}</td>
-                          <td style={{ ...td, padding: '4px 8px', color: '#166534' }}>{s.section}</td>
-                          <td style={{ ...td, padding: '4px 8px', color: '#166534', fontSize: 11 }}>{s.email}</td>
-                          <td style={{ ...td, padding: '4px 8px', color: '#166534', fontSize: 11 }}>{s.representative_email || '—'}</td>
+                          <td style={{ padding: '4px 4px', textAlign: 'center' }}>
+                            <button type="button" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#DC2626', fontSize: 13, lineHeight: 1 }}
+                              onClick={() => removeCsvRow(i)} title="Eliminar fila">x</button>
+                          </td>
+                          <td style={{ padding: '4px 8px', color: '#166534', fontWeight: 600 }}>{displayName(s)}</td>
+                          <td style={{ padding: '4px 8px', color: '#166534' }}>{s.grade}</td>
+                          <td style={{ padding: '4px 8px', color: '#166534' }}>{s.section}</td>
+                          <td style={{ padding: '4px 8px', color: '#166534', fontSize: 11 }}>{s.email}</td>
+                          <td style={{ padding: '4px 8px', color: '#166534', fontSize: 11 }}>{s.representative_email || '—'}</td>
+                          <td style={{ padding: '4px 4px', textAlign: 'center' }}>
+                            <button type="button" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6B7280', fontSize: 13 }}
+                              onClick={() => setCsvEditingIdx(i)} title="Editar fila">&#9998;</button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -548,7 +633,7 @@ export default function StudentsPage({ teacher }) {
       <div style={card}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 16 }}>
           <h3 style={{ ...sectionTitle, margin: 0 }}>
-            Lista ({filtered.length} estudiante{filtered.length !== 1 ? 's' : ''})
+            Lista ({filtered.length}{filtered.length !== students.length ? ` / ${students.length}` : ''})
             {selectedIds.size > 0 && (
               <span style={{ marginLeft: 10, fontSize: 13, fontWeight: 400, color: '#6B7280' }}>
                 · {selectedIds.size} seleccionado{selectedIds.size !== 1 ? 's' : ''}
@@ -569,7 +654,7 @@ export default function StudentsPage({ teacher }) {
             </select>
             <select style={{ ...inp, padding: '6px 10px', fontSize: 13, width: 110 }}
               value={filterSection} onChange={e => setFilterSection(e.target.value)}>
-              <option value="">Todas las secciones</option>
+              <option value="">Todas</option>
               {SECTIONS.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
@@ -579,7 +664,9 @@ export default function StudentsPage({ teacher }) {
           <p style={{ color: '#9CA3AF', textAlign: 'center', padding: 32 }}>Cargando...</p>
         ) : filtered.length === 0 ? (
           <p style={{ color: '#9CA3AF', textAlign: 'center', padding: 32 }}>
-            No hay estudiantes registrados. Agrega uno arriba o importa desde Excel.
+            {students.length === 0
+              ? 'No hay estudiantes registrados. Agrega uno arriba o importa desde Excel.'
+              : 'Ningún estudiante coincide con los filtros.'}
           </p>
         ) : (
           <div style={{ overflowX: 'auto' }}>
@@ -592,59 +679,38 @@ export default function StudentsPage({ teacher }) {
                       onChange={toggleSelectAll} />
                   </th>
                   {[
-                    { label: 'Nombre completo', col: 'name' },
-                    { label: 'Grado',           col: 'grade' },
-                    { label: 'Sección',         col: 'section' },
-                    { label: 'Código',          col: 'code' },
+                    { label: 'Nombre', col: 'name' },
+                    { label: 'Grado',   col: 'grade' },
+                    { label: 'Sección', col: 'section' },
+                    { label: 'Código',  col: 'code' },
                   ].map(({ label, col }) => (
                     <th key={col} style={{ ...th, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}
                       onClick={() => handleSort(col)}>
                       {label} {sortCol === col ? (sortAsc ? '▲' : '▼') : <span style={{ opacity: 0.3 }}>▲</span>}
                     </th>
                   ))}
-                  <th style={th}>Email estudiante</th>
-                  <th style={th}>Email representante</th>
                   <th style={{ ...th, width: 60 }}></th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(s => (
-                  <tr key={s.id} style={{ borderBottom: '1px solid #F3F4F6', background: selectedIds.has(s.id) ? '#FEF2F2' : undefined }}>
-                    <td style={{ ...td, textAlign: 'center' }}>
-                      <input type="checkbox" checked={selectedIds.has(s.id)} onChange={() => toggleSelect(s.id)} />
-                    </td>
-                    <td style={{ ...td, whiteSpace: 'nowrap' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ fontWeight: 600 }}>{displayName(s)}</span>
-                        {psyProfiles[s.id] && (() => {
-                          const st = psyProfiles[s.id].status
-                          const dot = st === 'intervention' ? '#ef4444' : st === 'monitoring' ? '#f59e0b' : st === 'no_intervention' ? '#22c55e' : '#9ca3af'
-                          return <span title="Perfil psicosocial activo" style={{ width: 8, height: 8, borderRadius: '50%', background: dot, flexShrink: 0, display: 'inline-block' }} />
-                        })()}
-                      </div>
-                    </td>
-                    <td style={td}>{s.grade}</td>
-                    <td style={td}>{s.section}</td>
-                    <td style={{ ...td, fontFamily: 'monospace', color: '#1F3864', fontSize: 12 }}>
-                      {s.student_code}
-                    </td>
-                    <td style={{ ...td, color: '#6B7280', fontSize: 12 }}>{s.email}</td>
-                    <td style={{ ...td, color: '#6B7280', fontSize: 12 }}>{s.representative_email || <span style={{ color: '#D1D5DB' }}>—</span>}</td>
-                    <td style={td}>
-                      {confirmingDeleteId === s.id ? (
-                        <span style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                          <button style={{ background: '#EF4444', color: '#fff', border: 'none', borderRadius: 4, padding: '2px 8px', cursor: 'pointer', fontSize: 12 }}
-                            onClick={() => handleDelete(s.id, displayName(s))}>Confirmar</button>
-                          <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6B7280', fontSize: 12 }}
-                            onClick={() => setConfirmingDeleteId(null)}>Cancelar</button>
-                        </span>
-                      ) : (
-                        <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#EF4444', fontSize: 16 }}
-                          onClick={() => handleDelete(s.id, displayName(s))} title="Eliminar">🗑</button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                {showGroupHeaders
+                  ? Object.entries(grouped).sort((a, b) => a[0].localeCompare(b[0], 'es')).map(([grade, grpStudents]) => (
+                    <GroupRows key={grade} grade={grade} students={grpStudents}
+                      selectedIds={selectedIds} toggleSelect={toggleSelect}
+                      expandedId={expandedId} handleRowClick={handleRowClick}
+                      openEdit={openEdit} psyProfiles={psyProfiles}
+                      confirmingDeleteId={confirmingDeleteId} setConfirmingDeleteId={setConfirmingDeleteId}
+                      handleDelete={handleDelete} />
+                  ))
+                  : filtered.map(s => (
+                    <StudentRows key={s.id} s={s}
+                      selectedIds={selectedIds} toggleSelect={toggleSelect}
+                      expandedId={expandedId} handleRowClick={handleRowClick}
+                      openEdit={openEdit} psyProfiles={psyProfiles}
+                      confirmingDeleteId={confirmingDeleteId} setConfirmingDeleteId={setConfirmingDeleteId}
+                      handleDelete={handleDelete} />
+                  ))
+                }
               </tbody>
             </table>
           </div>
@@ -655,22 +721,22 @@ export default function StudentsPage({ teacher }) {
             <span style={{ fontSize: 13, color: '#991B1B', flex: 1 }}>
               {selectedIds.size} estudiante{selectedIds.size !== 1 ? 's' : ''} seleccionado{selectedIds.size !== 1 ? 's' : ''}
             </span>
-            <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6B7280', fontSize: 13 }}
+            <button type="button" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6B7280', fontSize: 13 }}
               onClick={() => { setSelectedIds(new Set()); setBulkConfirm(false) }}>
               Cancelar
             </button>
             {bulkConfirm ? (
               <>
                 <span style={{ fontSize: 13, color: '#DC2626', fontWeight: 600 }}>¿Confirmar eliminación?</span>
-                <button style={{ background: '#DC2626', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+                <button type="button" style={{ background: '#DC2626', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
                   onClick={handleBulkDelete} disabled={saving}>
                   {saving ? 'Eliminando...' : 'Sí, eliminar'}
                 </button>
               </>
             ) : (
-              <button style={{ background: '#EF4444', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+              <button type="button" style={{ background: '#EF4444', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
                 onClick={handleBulkDelete} disabled={saving}>
-                🗑 Eliminar seleccionados
+                Eliminar seleccionados
               </button>
             )}
           </div>
@@ -687,7 +753,152 @@ export default function StudentsPage({ teacher }) {
           <li>El sistema lo autentica automáticamente y carga su versión personal del examen</li>
         </ol>
       </div>
+
+      {/* ── Edit Modal ── */}
+      {editingStudent && (
+        <div className="sb-modal-overlay" key={editingStudent.id}>
+          <div className="sb-modal" style={{ maxWidth: 560, width: '95vw' }}>
+            <div className="sb-modal-header" style={{ background: '#1F3864' }}>
+              <h2>Editar estudiante</h2>
+              <button type="button" onClick={() => setEditingStudent(null)}>&times;</button>
+            </div>
+            <div className="sb-modal-body">
+              {/* Nombres */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+                <div>
+                  <label style={lbl}>Primer nombre *</label>
+                  <input style={inp} value={editForm.first_name} onChange={e => setEditForm(f => ({ ...f, first_name: e.target.value }))} />
+                </div>
+                <div>
+                  <label style={lbl}>Segundo nombre</label>
+                  <input style={inp} value={editForm.second_name} onChange={e => setEditForm(f => ({ ...f, second_name: e.target.value }))} />
+                </div>
+                <div>
+                  <label style={lbl}>Primer apellido *</label>
+                  <input style={inp} value={editForm.first_lastname} onChange={e => setEditForm(f => ({ ...f, first_lastname: e.target.value }))} />
+                </div>
+                <div>
+                  <label style={lbl}>Segundo apellido</label>
+                  <input style={inp} value={editForm.second_lastname} onChange={e => setEditForm(f => ({ ...f, second_lastname: e.target.value }))} />
+                </div>
+              </div>
+              {/* Grado + Sección */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+                <div>
+                  <label style={lbl}>Grado *</label>
+                  <select style={inp} value={editForm.grade} onChange={e => setEditForm(f => ({ ...f, grade: e.target.value }))}>
+                    <option value="">Grado</option>
+                    {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={lbl}>Sección *</label>
+                  <select style={inp} value={editForm.section} onChange={e => setEditForm(f => ({ ...f, section: e.target.value }))}>
+                    <option value="">Sección</option>
+                    {SECTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+              </div>
+              {/* Emails */}
+              <div style={{ marginBottom: 12 }}>
+                <label style={lbl}>Email estudiante</label>
+                <input style={inp} value={editForm.email} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))} />
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <label style={lbl}>Email representante</label>
+                <input style={inp} type="email" value={editForm.representative_email} onChange={e => setEditForm(f => ({ ...f, representative_email: e.target.value }))} />
+              </div>
+              {editErr && <p style={{ color: '#DC2626', fontSize: 13, margin: '0 0 8px' }}>{editErr}</p>}
+            </div>
+            <div className="sb-modal-footer">
+              <button type="button" style={btnSecondary} onClick={() => setEditingStudent(null)}>Cancelar</button>
+              <button type="button" style={btnPrimary} onClick={handleEditSave} disabled={editSaving}>
+                {editSaving ? 'Guardando...' : 'Guardar cambios'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
+  )
+}
+
+// ── Subcomponentes de tabla ──────────────────────────────────
+
+function GroupRows({ grade, students, ...rowProps }) {
+  return (
+    <>
+      <tr className="stu-group-hdr">
+        <td colSpan={6}>
+          {grade} — {students.length} estudiante{students.length !== 1 ? 's' : ''}
+        </td>
+      </tr>
+      {students.map(s => (
+        <StudentRows key={s.id} s={s} {...rowProps} />
+      ))}
+    </>
+  )
+}
+
+function StudentRows({ s, selectedIds, toggleSelect, expandedId, handleRowClick, openEdit, psyProfiles, confirmingDeleteId, setConfirmingDeleteId, handleDelete }) {
+  return (
+    <>
+      <tr style={{ borderBottom: '1px solid #F3F4F6', background: selectedIds.has(s.id) ? '#FEF2F2' : undefined, cursor: 'pointer' }}
+          onClick={e => handleRowClick(e, s)}>
+        <td style={{ ...td, textAlign: 'center' }}>
+          <input type="checkbox" checked={selectedIds.has(s.id)} onChange={() => toggleSelect(s.id)} />
+        </td>
+        <td style={td}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span className="stu-name-link" onClick={e => { e.stopPropagation(); openEdit(s) }}>
+              {displayName(s)}
+            </span>
+            {psyProfiles[s.id] && (() => {
+              const st = psyProfiles[s.id].status
+              const dot = st === 'intervention' ? '#ef4444' : st === 'monitoring' ? '#f59e0b' : st === 'no_intervention' ? '#22c55e' : '#9ca3af'
+              return <span title="Perfil psicosocial activo" className="stu-stat-dot" style={{ background: dot }} />
+            })()}
+          </div>
+        </td>
+        <td style={td}>{s.grade}</td>
+        <td style={td}>{s.section}</td>
+        <td style={{ ...td, fontFamily: 'monospace', color: '#1F3864', fontSize: 12 }}>
+          {s.student_code}
+        </td>
+        <td style={td}>
+          {confirmingDeleteId === s.id ? (
+            <span style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+              <button type="button" style={{ background: '#EF4444', color: '#fff', border: 'none', borderRadius: 4, padding: '2px 8px', cursor: 'pointer', fontSize: 12 }}
+                onClick={() => handleDelete(s.id, displayName(s))}>Confirmar</button>
+              <button type="button" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6B7280', fontSize: 12 }}
+                onClick={() => setConfirmingDeleteId(null)}>Cancelar</button>
+            </span>
+          ) : (
+            <button type="button" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#EF4444', fontSize: 16 }}
+              onClick={() => handleDelete(s.id, displayName(s))} title="Eliminar">&#128465;</button>
+          )}
+        </td>
+      </tr>
+      {expandedId === s.id && (
+        <tr className="stu-expand-row">
+          <td colSpan={6}>
+            <span style={{ marginRight: 20 }}>
+              <strong style={{ color: '#374151', fontSize: 12 }}>Email:</strong>{' '}
+              <span style={{ color: '#1F3864' }}>{s.email}</span>
+            </span>
+            {s.representative_email && (
+              <span>
+                <strong style={{ color: '#374151', fontSize: 12 }}>Representante:</strong>{' '}
+                <span style={{ color: '#6B7280' }}>{s.representative_email}</span>
+              </span>
+            )}
+            {!s.representative_email && (
+              <span style={{ color: '#D1D5DB', fontSize: 12 }}>Sin email de representante</span>
+            )}
+          </td>
+        </tr>
+      )}
+    </>
   )
 }
 

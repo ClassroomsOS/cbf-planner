@@ -652,7 +652,7 @@ export function exportDayHtml(content, dayKey, newsProject) {
   if (!html) return
   const grade   = (i.grado || 'CBF').replace(/\s/g, '_')
   const subject = (i.asignatura || '').replace(/\s/g, '_').slice(0, 12)
-  const label   = (day.date_label || dayKey).replace(/\s/g, '_').replace(/[^a-zA-Z0-9_\-\.]/g, '')
+  const label   = (day.date_label || dayKey).replace(/\s/g, '_').replace(/[^a-zA-Z0-9_.-]/g, '')
   const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
   const url  = URL.createObjectURL(blob)
   const a    = document.createElement('a')
@@ -698,7 +698,7 @@ export async function exportPdf(content, newsProject) {
     En el diálogo de impresión selecciona<br>
     <em>"Guardar como PDF"</em> como destino.
   </div>
-  <script>setTimeout(()=>{const e=document.getElementById('pdf-tip');if(e)e.style.display='none'},6000)<\/script>`
+  <script>setTimeout(()=>{const e=document.getElementById('pdf-tip');if(e)e.style.display='none'},6000)<\/script>` // eslint-disable-line no-useless-escape
 
   const fullHtml = html.replace('</body>', tip + '</body>')
   const w = window.open('', '_blank')

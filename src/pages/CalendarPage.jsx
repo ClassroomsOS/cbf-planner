@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import { LEVEL_LABELS } from '../utils/roles'
 import { useToast } from '../context/ToastContext'
+import { logError } from '../utils/logger'
 
 const MONTHS_ES = [
   'Enero','Febrero','Marzo','Abril','Mayo','Junio',
@@ -149,7 +150,7 @@ export default function CalendarPage({ teacher }) {
     }
     setSaving(false)
     if (error) {
-      console.error('school_calendar insert error:', error)
+      logError(error, { page: 'CalendarPage', action: 'insertCalendar' })
       const msg = error.code === '23505'
         ? 'Ya existe una entrada para esa fecha.'
         : `Error ${error.code || ''}: ${error.message || 'desconocido'}`

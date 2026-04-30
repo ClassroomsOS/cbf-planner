@@ -30,7 +30,7 @@ const IconButton = forwardRef(function IconButton(
   ref
 ) {
   // Ensure label is provided for accessibility
-  if (!label && process.env.NODE_ENV !== 'production') {
+  if (!label && import.meta.env.DEV) {
     console.warn('IconButton: "label" prop is required for accessibility')
   }
 

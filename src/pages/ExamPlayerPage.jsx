@@ -6,21 +6,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
+import { seededShuffle } from '../utils/examUtils'
 
 const AUTOSAVE_INTERVAL = 30 * 1000 // 30 seconds
-
-// ── Deterministic shuffle (LCG seeded) ────────────────────────────────────────
-// Same seed always produces the same order — so a version is consistent.
-function seededShuffle(arr, seed) {
-  const a = [...arr]
-  let s = Math.abs(seed | 0) || 1
-  for (let i = a.length - 1; i > 0; i--) {
-    s = (Math.imul(s, 1664525) + 1013904223) >>> 0
-    const j = s % (i + 1)
-    ;[a[i], a[j]] = [a[j], a[i]]
-  }
-  return a
-}
 
 // Shuffle MC options and keep correct_answer consistent with the new position.
 // Options arrive as ["A) texto", "B) texto", ...] — we strip the prefix, shuffle,
@@ -181,7 +169,7 @@ function EntryPhase({ initialCode, onStart }) {
   return (
     <div style={{ minHeight: '100vh', background: '#F8FAFC', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
       <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 400, boxShadow: '0 8px 32px rgba(0,0,0,.1)', overflow: 'hidden' }}>
-        <Logo />
+        <InstitutionalHeader />
         <form onSubmit={handleSubmit} style={{ padding: '24px' }}>
           <h2 style={{ margin: '0 0 20px', fontSize: 18, color: '#1F3864', textAlign: 'center' }}>
             Iniciar Examen

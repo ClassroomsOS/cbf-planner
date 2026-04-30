@@ -4,6 +4,7 @@ import { supabase } from '../../supabase'
 import { useToast } from '../../context/ToastContext'
 import { useFocusTrap } from '../../hooks/useFocusTrap'
 import { generateRubric } from '../../utils/AIAssistant'
+import { logError } from '../../utils/logger'
 import { exportRubricHtml, downloadRubricHtml } from '../../utils/exportRubricHtml'
 import { MODELO_B_SUBJECTS } from '../../utils/constants'
 import ImageUploader from '../ImageUploader'
@@ -130,7 +131,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
           .eq('subject', form.subject)
           .eq('grade', g)
           .eq('period', form.period)
-        if (error) console.error('[NewsProjectEditor] goals query error:', error)
+        if (error) logError(error, { page: 'NewsProjectEditor', action: 'fetchGoals' })
         if (data?.length) { goalsData = data; break }
       }
 
@@ -142,7 +143,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
         .select('id, goal_id, dimension, skill_area, text, student_text, weight, order_index')
         .in('goal_id', goalIds)
         .order('order_index')
-      if (indsErr) console.error('[NewsProjectEditor] indicators query error:', indsErr)
+      if (indsErr) logError(indsErr, { page: 'NewsProjectEditor', action: 'fetchIndicators' })
 
       const goalMap = Object.fromEntries(goalsData.map(g => [g.id, g.text]))
       setAchievementIndicators(
@@ -362,7 +363,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
         showToast('La AI no pudo generar la rúbrica. Intenta de nuevo.', 'error')
       }
     } catch (error) {
-      console.error('Error generating rubric:', error)
+      logError(error, { page: 'NewsProjectEditor', action: 'generateRubric' })
       showToast(error.message || 'Error al generar la rúbrica con IA', 'error')
     } finally {
       setGeneratingRubric(false)

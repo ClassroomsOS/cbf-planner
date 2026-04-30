@@ -16,6 +16,7 @@ import {
   AlignmentType, BorderStyle, WidthType, VerticalAlign, ImageRun, UnderlineType, ShadingType,
 } from 'docx'
 import { saveAs } from 'file-saver'
+import { logError } from './logger'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const PW   = 10800   // content width DXA (Letter − margins)
@@ -193,7 +194,7 @@ async function buildHeaderTable(header) {
           })],
         })
       }
-    } catch {}
+    } catch { /* logo image failed to load — falls back to text placeholder below */ }
   }
   if (!logoCell) {
     logoCell = new TableCell({
@@ -433,7 +434,7 @@ export async function exportLegacyDocx(content, plan) {
     const filename = `Legacy_${grade}_${subject}_Sem${week}.docx`
     saveAs(blob, filename)
   } catch (err) {
-    console.error('exportLegacyDocx error', err)
+    logError(err, { page: 'exportLegacyDocx', action: 'export' })
     throw err
   }
 }

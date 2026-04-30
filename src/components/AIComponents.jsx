@@ -301,26 +301,26 @@ export const AIGeneratorModal = memo(function AIGeneratorModal({ grade, subject,
     }
     // GuideEditorPage: merge preview into existing content
     // objetivo.general e indicadores NO se sobreescriben — vienen de achievement_indicators (read-only)
-    var base = JSON.parse(JSON.stringify(currentContent))
+    const base = JSON.parse(JSON.stringify(currentContent))
     if (preview.days) {
-      var dKeys = Object.keys(preview.days)
-      for (var di = 0; di < dKeys.length; di++) {
-        var dIso = dKeys[di]
-        var pDay = preview.days[dIso]
+      const dKeys = Object.keys(preview.days)
+      for (let di = 0; di < dKeys.length; di++) {
+        const dIso = dKeys[di]
+        const pDay = preview.days[dIso]
         if (!base.days[dIso]) continue
         if (pDay.unit) base.days[dIso].unit = pDay.unit
         if (pDay.sections) {
-          var sKeys = Object.keys(pDay.sections)
-          for (var si = 0; si < sKeys.length; si++) {
-            var sKey = sKeys[si]
-            var pSec = pDay.sections[sKey]
+          const sKeys = Object.keys(pDay.sections)
+          for (let si = 0; si < sKeys.length; si++) {
+            const sKey = sKeys[si]
+            const pSec = pDay.sections[sKey]
             if (base.days[dIso].sections && base.days[dIso].sections[sKey]) {
               if (pSec.content) {
                 base.days[dIso].sections[sKey].content = pSec.content
               }
               // Convierte smartBlock (singular, de la IA) → smartBlocks[] (array del editor)
               if (pSec.smartBlock && pSec.smartBlock.type && pSec.smartBlock.model) {
-                var newBlock = Object.assign({}, pSec.smartBlock, { id: Date.now() + si })
+                const newBlock = Object.assign({}, pSec.smartBlock, { id: Date.now() + si })
                 base.days[dIso].sections[sKey].smartBlocks = [newBlock]
               }
             }

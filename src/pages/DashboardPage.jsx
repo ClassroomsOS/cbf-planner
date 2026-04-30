@@ -14,8 +14,10 @@ import SuperAdminPage      from './SuperAdminPage'
 import ObjectivesPage           from './ObjectivesPage'
 import SyllabusPage             from './SyllabusPage'
 import NewsPage                 from './NewsPage'
+import NewsTimelinePage         from './NewsTimelinePage'
 import ReviewRoomPage           from './ReviewRoomPage'
 import ExamDashboardPage        from './ExamDashboardPage'
+import ExamCreatorPage          from './ExamCreatorPage'
 import ExamReviewPage           from './ExamReviewPage'
 import StudentsPage             from './StudentsPage'
 import PsicosocialPage          from './PsicosocialPage'
@@ -443,14 +445,16 @@ function DashboardInner({ session, teacher, setTeacher }) {
           <Route path="/"            element={<PlannerPage          teacher={teacher} />} />
           <Route path="/plans"       element={<MyPlansPage          teacher={teacher} />} />
           <Route path="/editor/:id"  element={<GuideEditorPage      teacher={teacher} />} />
+          <Route path="/news/timeline" element={<NewsTimelinePage    teacher={teacher} />} />
           <Route path="/news"        element={<NewsPage             teacher={teacher} />} />
           <Route path="/objectives"  element={<ObjectivesPage      teacher={teacher} />} />
           <Route path="/syllabus"    element={<SyllabusPage        teacher={teacher} />} />
           <Route path="/principles"  element={<PrinciplesPage       teacher={teacher} />} />
           <Route path="/ai-usage"    element={<AIUsagePage          teacher={teacher} />} />
           <Route path="/library"     element={<GuideLibraryPage        teacher={teacher} />} />
-          <Route path="/exams"        element={<ExamDashboardPage       teacher={teacher} />} />
-          <Route path="/exams/review" element={<ExamReviewPage         teacher={teacher} />} />
+          <Route path="/exams"         element={<ExamDashboardPage       teacher={teacher} />} />
+          <Route path="/exams/create"  element={<ExamCreatorPage        teacher={teacher} />} />
+          <Route path="/exams/review"  element={<ExamReviewPage         teacher={teacher} />} />
           <Route path="/students"      element={<StudentsPage            teacher={teacher} />} />
           <Route path="/psicosocial"   element={<PsicosocialPage         teacher={teacher} />} />
           <Route path="/coverage"    element={<PeriodCoverageDashboard teacher={teacher} />} />

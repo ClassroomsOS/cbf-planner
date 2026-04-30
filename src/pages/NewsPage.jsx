@@ -1,8 +1,10 @@
 import { useState, useMemo, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import useNewsProjects from '../hooks/useNewsProjects'
 import useRubricTemplates from '../hooks/useRubricTemplates'
 import NewsProjectEditor from '../components/news/NewsProjectEditor'
 import NewsProjectCard from '../components/news/NewsProjectCard'
+import NewsPeriodTimeline from '../components/news/NewsPeriodTimeline'
 import { supabase } from '../supabase'
 import { ACADEMIC_PERIODS, combinedGrade } from '../utils/constants'
 import { useToast } from '../context/ToastContext'
@@ -15,6 +17,7 @@ const PERIODS = ACADEMIC_PERIODS.map((p, i) => ({
 
 export default function NewsPage({ teacher }) {
   const { showToast } = useToast()
+  const navigate = useNavigate()
   const school = teacher.schools || {}
   const [selectedPeriod, setSelectedPeriod] = useState(1)
   const [editorOpen, setEditorOpen] = useState(false)
@@ -172,11 +175,15 @@ export default function NewsPage({ teacher }) {
             Define los proyectos que guiarán la planificación de cada período
           </p>
         </div>
-        <button
-          onClick={handleNew}
-          style={styles.btnPrimary}>
-          + Nuevo Proyecto NEWS
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={() => navigate('/news/timeline')}
+            style={{ ...styles.btnPrimary, background: '#2E5598' }}>
+            🗓 Timeline
+          </button>
+          <button onClick={handleNew} style={styles.btnPrimary}>
+            + Nuevo Proyecto NEWS
+          </button>
+        </div>
       </div>
 
       {/* Period tabs + filters */}
@@ -234,6 +241,15 @@ export default function NewsPage({ teacher }) {
           </div>
         ))}
       </div>
+
+      {/* Compact timeline */}
+      {!loading && projects.length > 0 && (
+        <NewsPeriodTimeline
+          projects={projects}
+          compact
+          onNavigateToFull={() => navigate('/news/timeline')}
+        />
+      )}
 
       {/* Loading / Error / Empty */}
       {loading && (

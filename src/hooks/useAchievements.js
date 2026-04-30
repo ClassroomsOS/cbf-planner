@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../supabase'
+import { logError } from '../utils/logger'
 
 // ── useAchievements ───────────────────────────────────────────────────────────
 // CRUD para achievement_goals + achievement_indicators.
@@ -79,7 +80,7 @@ export default function useAchievements(teacher, filters = {}) {
 
       setGoals(normalized)
     } catch (err) {
-      console.error('[useAchievements] fetch error:', err)
+      logError(err, { page: 'useAchievements', action: 'fetch' })
       setError(err.message)
     } finally {
       setLoading(false)
@@ -109,7 +110,7 @@ export default function useAchievements(teacher, filters = {}) {
       setGoals(prev => [...prev, normalized])
       return { data: normalized, error: null }
     } catch (err) {
-      console.error('[useAchievements] createGoal error:', err)
+      logError(err, { page: 'useAchievements', action: 'createGoal' })
       return { data: null, error: err.message }
     }
   }
@@ -129,7 +130,7 @@ export default function useAchievements(teacher, filters = {}) {
       ))
       return { data: updated, error: null }
     } catch (err) {
-      console.error('[useAchievements] updateGoal error:', err)
+      logError(err, { page: 'useAchievements', action: 'updateGoal' })
       return { data: null, error: err.message }
     }
   }
@@ -145,7 +146,7 @@ export default function useAchievements(teacher, filters = {}) {
       setGoals(prev => prev.filter(g => g.id !== id))
       return { error: null }
     } catch (err) {
-      console.error('[useAchievements] deleteGoal error:', err)
+      logError(err, { page: 'useAchievements', action: 'deleteGoal' })
       return { error: err.message }
     }
   }
@@ -182,7 +183,7 @@ export default function useAchievements(teacher, filters = {}) {
       ))
       return { data: created, error: null }
     } catch (err) {
-      console.error('[useAchievements] createIndicator error:', err)
+      logError(err, { page: 'useAchievements', action: 'createIndicator' })
       return { data: null, error: err.message }
     }
   }
@@ -206,7 +207,7 @@ export default function useAchievements(teacher, filters = {}) {
       })))
       return { data: updated, error: null }
     } catch (err) {
-      console.error('[useAchievements] updateIndicator error:', err)
+      logError(err, { page: 'useAchievements', action: 'updateIndicator' })
       return { data: null, error: err.message }
     }
   }
@@ -226,7 +227,7 @@ export default function useAchievements(teacher, filters = {}) {
       })))
       return { error: null }
     } catch (err) {
-      console.error('[useAchievements] deleteIndicator error:', err)
+      logError(err, { page: 'useAchievements', action: 'deleteIndicator' })
       return { error: err.message }
     }
   }
@@ -255,7 +256,7 @@ export default function useAchievements(teacher, filters = {}) {
       }))
       return { error: null }
     } catch (err) {
-      console.error('[useAchievements] reorderIndicators error:', err)
+      logError(err, { page: 'useAchievements', action: 'reorderIndicators' })
       return { error: err.message }
     }
   }
@@ -290,7 +291,7 @@ export default function useAchievements(teacher, filters = {}) {
         percentage: total > 0 ? Math.round((evaluated / total) * 100) : 0,
       }
     } catch (err) {
-      console.error('[useAchievements] getPeriodProgress error:', err)
+      logError(err, { page: 'useAchievements', action: 'getPeriodProgress' })
       return { evaluated: 0, total: 0, percentage: 0 }
     }
   }, [teacher?.id, teacher?.school_id, goals])

@@ -2,6 +2,7 @@
 // Custom hook for form state management with validation
 
 import { useState, useCallback } from 'react'
+import { logError } from '../utils/logger'
 
 /**
  * Custom hook for managing form state
@@ -89,7 +90,7 @@ export function useForm(initialValues = {}, onSubmit = null, validationSchema = 
       try {
         await onSubmit(values)
       } catch (error) {
-        console.error('Form submission error:', error)
+        logError(error, { page: 'useForm', action: 'submit' })
       } finally {
         setIsSubmitting(false)
       }

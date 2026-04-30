@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { AIGeneratorModal } from '../components/AIComponents'
 import CheckpointModal from '../components/CheckpointModal'
-import { SECTIONS } from '../utils/constants'
+import { SECTIONS, SKILL_COLOR, detectActivityType, isoMonday, formatWeekRange } from '../utils/constants'
 import {
   getMondayOf, getWeekDays, toISO, getSchoolWeek, formatRange, formatDateEN,
   MONTHS_ES, DAYS_ES
@@ -806,42 +806,6 @@ export default function PlannerPage({ teacher }) {
 }
 
 // ── PlannerPeriodTimeline ──────────────────────────────────────────────────────
-const SKILL_COLOR = {
-  Speaking: '#8064A2', Listening: '#4BACC6', Reading: '#F79646', Writing: '#9BBB59'
-}
-
-function detectActivityType(nombre) {
-  const n = (nombre || '').toLowerCase()
-  if (n.includes('dict'))                                    return { icon: '🎤', color: '#4BACC6', label: 'Dictation',    tier: 'routine'    }
-  if (n.includes('exam'))                                    return { icon: '📋', color: '#B91C1C', label: 'Exam',         tier: 'high-stakes' }
-  if (n.includes('quiz') || n.includes('test'))              return { icon: '📝', color: '#C0504D', label: 'Quiz',         tier: 'assessment'  }
-  if (n.includes('present') || n.includes('expo'))           return { icon: '🎙', color: '#7C3AED', label: 'Presentation', tier: 'assessment'  }
-  if (n.includes('reading') || n.includes('lectura'))        return { icon: '📖', color: '#F79646', label: 'Reading',      tier: 'routine'     }
-  if (n.includes('speaking') || n.includes('oral'))          return { icon: '🗣', color: '#8064A2', label: 'Speaking',     tier: 'assessment'  }
-  if (n.includes('listening'))                               return { icon: '🎧', color: '#4BACC6', label: 'Listening',    tier: 'routine'     }
-  if (n.includes('writing') || n.includes('escrit'))         return { icon: '✍️', color: '#9BBB59', label: 'Writing',      tier: 'routine'     }
-  if (n.includes('vocab'))                                   return { icon: '🔤', color: '#9BBB59', label: 'Vocab',        tier: 'routine'     }
-  if (n.includes('exit') || n.includes('ticket'))            return { icon: '🚪', color: '#C55A11', label: 'Exit Ticket',  tier: 'routine'     }
-  if (n.includes('workshop'))                                return { icon: '🔧', color: '#F79646', label: 'Workshop',     tier: 'routine'     }
-  return                                                            { icon: '📌', color: '#1A3A8F', label: 'Actividad',    tier: 'routine'     }
-}
-
-function isoMonday(dateStr) {
-  const d = new Date(dateStr + 'T12:00:00')
-  const day = d.getDay()
-  const diff = day === 0 ? -6 : 1 - day
-  d.setDate(d.getDate() + diff)
-  return d.toISOString().slice(0, 10)
-}
-
-function formatWeekRange(monStr) {
-  const mon = new Date(monStr + 'T12:00:00')
-  const fri = new Date(mon)
-  fri.setDate(fri.getDate() + 4)
-  const opts = { day: 'numeric', month: 'short' }
-  return `${mon.toLocaleDateString('es-CO', opts)} – ${fri.toLocaleDateString('es-CO', opts)}`
-}
-
 function PlannerPeriodTimeline({ projects, currentMonday, weekCount }) {
   const allEvents = useMemo(() => {
     const events = []

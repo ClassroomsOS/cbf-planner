@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../supabase'
 import { sanitizeAIInput } from '../utils/validationSchemas'
+import { logError } from '../utils/logger'
 
 // ── useActiveNews ─────────────────────────────────────────────────────────────
 // Resuelve el NEWS Project activo para una combinación subject/grade/period.
@@ -161,7 +162,7 @@ export default function useActiveNews({ teacher, subject, grade, period, referen
         setWeekContext(null)
       }
     } catch (err) {
-      console.error('[useActiveNews] Error fetching active NEWS project:', err)
+      logError(err, { page: 'useActiveNews', action: 'fetch' })
       setNews(null)
       setWeekContext(null)
     } finally {

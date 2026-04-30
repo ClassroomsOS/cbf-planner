@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../supabase'
+import { logError } from '../utils/logger'
 
 export default function useNewsProjects(teacher, filters = {}) {
   const [projects, setProjects] = useState([])
@@ -32,7 +33,7 @@ export default function useNewsProjects(teacher, filters = {}) {
       if (fetchError) throw fetchError
       setProjects(data || [])
     } catch (err) {
-      console.error('Error fetching NEWS projects:', err)
+      logError(err, { page: 'useNewsProjects', action: 'fetch' })
       setError(err.message)
     } finally {
       setLoading(false)
@@ -63,7 +64,7 @@ export default function useNewsProjects(teacher, filters = {}) {
       }))
       return { data, error: null }
     } catch (err) {
-      console.error('Error creating NEWS project:', err)
+      logError(err, { page: 'useNewsProjects', action: 'create' })
       return { data: null, error: err.message }
     }
   }
@@ -81,7 +82,7 @@ export default function useNewsProjects(teacher, filters = {}) {
       setProjects(prev => prev.map(p => p.id === id ? data : p))
       return { data, error: null }
     } catch (err) {
-      console.error('Error updating NEWS project:', err)
+      logError(err, { page: 'useNewsProjects', action: 'update' })
       return { data: null, error: err.message }
     }
   }
@@ -97,7 +98,7 @@ export default function useNewsProjects(teacher, filters = {}) {
       setProjects(prev => prev.filter(p => p.id !== id))
       return { error: null }
     } catch (err) {
-      console.error('Error deleting NEWS project:', err)
+      logError(err, { page: 'useNewsProjects', action: 'delete' })
       return { error: err.message }
     }
   }

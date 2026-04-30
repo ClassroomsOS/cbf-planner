@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../supabase'
+import { logError } from '../utils/logger'
 
 // ── useSyllabus ───────────────────────────────────────────────────────────────
 // CRUD para syllabus_topics.
@@ -52,7 +53,7 @@ export default function useSyllabus(teacher, filters = {}) {
       if (err) throw err
       setTopics(data || [])
     } catch (err) {
-      console.error('[useSyllabus] fetch error:', err)
+      logError(err, { page: 'useSyllabus', action: 'fetch' })
       setError(err.message)
     } finally {
       setLoading(false)
@@ -95,7 +96,7 @@ export default function useSyllabus(teacher, filters = {}) {
       })
       return { data: created, error: null }
     } catch (err) {
-      console.error('[useSyllabus] createTopic error:', err)
+      logError(err, { page: 'useSyllabus', action: 'createTopic' })
       return { data: null, error: err.message }
     }
   }
@@ -113,7 +114,7 @@ export default function useSyllabus(teacher, filters = {}) {
       setTopics(prev => prev.map(t => t.id === id ? updated : t))
       return { data: updated, error: null }
     } catch (err) {
-      console.error('[useSyllabus] updateTopic error:', err)
+      logError(err, { page: 'useSyllabus', action: 'updateTopic' })
       return { data: null, error: err.message }
     }
   }
@@ -129,7 +130,7 @@ export default function useSyllabus(teacher, filters = {}) {
       setTopics(prev => prev.filter(t => t.id !== id))
       return { error: null }
     } catch (err) {
-      console.error('[useSyllabus] deleteTopic error:', err)
+      logError(err, { page: 'useSyllabus', action: 'deleteTopic' })
       return { error: err.message }
     }
   }

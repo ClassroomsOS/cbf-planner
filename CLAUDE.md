@@ -1,8 +1,8 @@
-# CBF PLANNER — v5.7
+# CBF PLANNER — v5.9
 ## CLAUDE.md — Documento maestro
 
 > **Principio rector:** *"Nosotros diseñamos. El docente enseña."*
-> Léelo completo antes de escribir código. · Última actualización: Abril 25, 2026
+> Léelo completo antes de escribir código. · Última actualización: Abril 26, 2026
 
 ---
 
@@ -15,127 +15,28 @@ Plataforma:  CBF Planner → ETA Platform (Experiencia Total de Aprendizaje)
 Repo:        ClassroomsOS/cbf-planner  ('ClassroomsOS' con 's' — typo original, no cambiar)
 Deploy:      https://classroomsos.github.io/cbf-planner/
 Local:       C:\BOSTON FLEX\ClassroomOS\cbf-planner
-Supabase:    vouxrqsiyoyllxgcriic
+Supabase:    prod=vouxrqsiyoyllxgcriic · dev=gfjiicfnwpkbkptwgnte
 School ID:   a21e681b-5898-4647-8ad9-bdb5f9844094
 Admin:       edoardoortiz@redboston.edu.co (role: admin)
 Tema 2026:   "AÑO DE LA PUREZA" · Génesis 1:27-28a (TLA)
-Notas:       1.0–5.0 · (puntaje/total)×4+1 · Superior≥4.6 · Alto≥4.0 · Básico≥3.0
+Notas:       1.0–5.0 · (puntaje/total)×4+1 · Superior≥4.50 · Alto≥4.00 · Básico≥3.50 · Bajo<3.50
 Libros:      Uncover 4 (8°) · Evolve 4 (9°) · Cambridge One (digital)
 ```
 
 ---
 
-## ✅ SESIÓN M — COMPLETADA
-
-- **ExamPlayerV2Page — UX completo:**
-  - Credenciales persistentes en `localStorage` (`cbf_exam_entry`) → si iOS mata la pestaña, el estudiante regresa a pantalla de entrada pre-rellenada con "🔄 Continuar examen"
-  - Banner rojo/blanco `position:fixed inset:0 z:99999` al detectar cualquier violación (tab switch, fullscreen exit, screen lock, Home button); botón "Regresar a pantalla completa" o "Entendido" según tipo
-  - Notificaciones Telegram de ciclo: `exam_started` (hora+nombre+sección) · `exam_resumed` · `exam_submitted` (nota parcial) — sin throttle, bypasan la lógica de violaciones
-  - Modal de score post-envío: nota colombiana 1.0–5.0 calculada en cliente para preguntas MCQ; botón descarga PDF del examen corregido
-  - Navegación por secciones: tabs "Parte I / Parte II…" cuando `section_name` difiere entre preguntas; botón Siguiente dentro de cada sección; "Enviar examen" solo aparece en la última pregunta de la última sección; `ReviewModal` (grid preguntas verde/amarillo por sección) antes de enviar
-- **exam-integrity-alert Edge Fn:** `CYCLE_EVENTS = Set(['exam_started','exam_resumed','exam_submitted'])` — eventos de ciclo no actualizan `integrity_flags`, usan formato de notificación distinto (`CYCLE_META`)
-- **ExamDashboardPage — Wizard Paso 2 — Secciones:**
-  - Estado `sections: [{id, name, types}]` reemplaza `questionTypes` plano
-  - UI: tarjetas por sección con input de nombre + TypeCard grids propios; `➕ Agregar sección` para exámenes multi-parte
-  - Mínimo bíblico validado globalmente (suma de todas las secciones)
-- **AIAssistant.js — `generateExamQuestions`:** acepta `sections[]`; una llamada IA por sección (`generateSingleSection` privada); preguntas etiquetadas con `section_name` client-side; merge ordenado; `buildExamPrompt` recibe `sectionName` opcional para contexto temático
-- **exam_instances:** `section_name: q.section_name || ''` — ya no hardcodeado a `''`
-- **Archivado inmutable (Fase 5):**
-  - Migración `20260425000005_archiving.sql` ejecutada en prod: `lesson_plan_versions.storage_path` + tabla `news_project_versions` (snapshot JSON inmutable)
-  - `ReviewRoomPage.handlePublish`: sube HTML con imágenes inlineadas a Storage (`archives/{school_id}/guides/{plan_id}/v{n}.html`), no-blocking (try/catch)
-  - `VersionHistoryModal`: botón "📄 Abrir archivado" abre URL del Storage en nueva pestaña
-  - `NewsProjectEditor`: botón "📦 Archivar versión" + contador de versiones archivadas en footer
-- **Monitor docente en tiempo real (`ExamLiveMonitor`):**
-  - Botón "🔴 En Vivo" en `ExamDetailModal` (solo cuando `exam.status === 'active'`)
-  - Supabase Realtime subscription en `exam_instances` (filtro client-side por `session_id`)
-  - Contadores: 🟢 Activos (`started`) · ✅ Enviaron (`submitted`) · ⏳ Sin iniciar (`ready`)
-  - Tabla per-estudiante: nombre · sección · versión · estado · `IntegrityBadge`
-  - Fallback: `setInterval` 30s para refrescar si Realtime cae
-  - `lastUpdated` timestamp visible al docente
-- **Sidebar badge "👁 Revisión IA (N)"** — `fetchPendingAIReview()` cuenta `ai_evaluations.requires_review=true` del docente; visible solo cuando hay pendientes
-- **`generateGuideStructure` — Secuencia didáctica estructurada:**
-  - 6 secciones redefinidas con roles pedagógicos explícitos (Encuadre → Activación → Puente → Núcleo → Cierre → Tarea)
-  - Progresión semanal obligatoria: Día 1 (intro vocabulario) → último día (producción autónoma)
-  - Principio bíblico como hilo conductor real en cada sección, no decorativo
-  - `CLASS_RULES` movidas a `SUBJECT`; `MOTIVATION` ya no las recibe
-  - Prompt de retry actualizado para alinearse con la nueva estructura
-
-## ✅ SESIÓN N — COMPLETADA
-
-- **Módulo Psicosocial — completo:**
-  - 3 tablas nuevas: `student_psychosocial_profiles` · `student_observations` · `student_accommodation_plans`
-  - RLS: todos los docentes de la escuela pueden leer · solo `psicopedagoga/admin/superadmin/rector` pueden escribir
-  - `PsicosocialPage` (`/psicosocial`) — panel izquierdo: lista con semáforo 🔴🟡🟢 + búsqueda + filtros por grado/estado
-  - Panel derecho — 3 tabs por estudiante:
-    - **Perfil**: estado caso · nivel apoyo · flags predefinidos por categoría + personalizados · foto (upload 200×200) · notas para docente (visible a todos) + notas confidenciales (solo psico/rector/admin)
-    - **Seguimiento**: timeline de observaciones (fecha · tipo · descripción · acción · próximo paso)
-    - **Plan Docente**: acomodaciones predefinidas por categoría (Evaluación · En clase · Tareas · Comunicación) + personalizadas; agrupadas por materia/período
-  - Sidebar: link "🧠 Área Psicosocial" visible a todos (docentes ven en modo lectura)
-  - `StudentsPage`: punto de semáforo junto al nombre de estudiantes con perfil activo
-  - `GuideEditorPage`: callout ámbar al abrir guía si hay estudiantes del salón con acomodaciones activas → botón "Ver perfiles →" navega a `/psicosocial`
-  - Callout roster vacío en `/psicosocial` con botón directo a `/students`
-
-- **StudentsPage — campos de nombre completo y representante:**
-  - 5 columnas nuevas en `school_students`: `first_name` · `second_name` · `first_lastname` · `second_lastname` · `representative_email`
-  - El campo `name` se mantiene como nombre compuesto (compat. con exámenes y psicosocial)
-  - Formulario uno a uno: 4 campos nombre separados + dropdown Grado (6.°–11.°) + dropdown Sección (Blue/Red) + email estudiante (auto-generado si vacío) + email representante
-  - CSV 8 columnas: `Primer Nombre | Segundo Nombre | Primer Apellido | Segundo Apellido | Grado | Sección | Email | Email Representante`
-  - Parser normaliza grado (`8`, `8°`, `8.°` → `8.°`), auto-completa email, genera nombre compuesto
-  - Vista previa en tabla antes de importar · columnas opcionales pueden quedar vacías
-  - Filtros: búsqueda nombre/código + dropdown grado + dropdown sección
-
-- **Corrección IA de preguntas abiertas — pipeline completo:**
-  - Nueva Edge Function `exam-response-corrector`: recibe `instance_id`, lee `exam_responses` con `ai_correction_status='pending'`, busca criterios del docente en `question_criteria`, llama Claude por cada respuesta abierta, guarda `ai_score + ai_feedback + ai_confidence`, recalcula nota colombiana final y hace upsert en `exam_results`
-  - Columnas nuevas en `exam_responses`: `ai_score · ai_feedback · ai_confidence · requires_human_review`
-  - Columnas nuevas en `exam_results`: `instance_id (UNIQUE) · total_score · max_score · colombian_grade · correction_status`
-  - `ExamPlayerV2Page`: después del submit, si `openCount > 0` → dispara corrector en background (no bloqueante)
-  - `SubmittedPhase`: spinner "🤖 La IA está revisando..." mientras corre; nota se actualiza al terminar; panel de feedback por pregunta (verde/amarillo); botón PDF deshabilitado hasta terminar; PDF incluye feedback IA como fila adicional por pregunta abierta
-  - Fallback graceful: si Claude falla → `score=0`, `requires_human_review=true`, docente revisará desde `ExamReviewPage`
-  - Si el docente definió criterios en `question_criteria` (respuesta modelo · conceptos clave · rúbrica · nivel Bloom) → se inyectan en el prompt; si no → rigor flexible por defecto
-
-## ✅ SESIÓN N.2 — COMPLETADA (refinamientos post-N)
-
-- **StudentsPage — mejoras UX y robustez:**
-  - `displayName()` muestra `APELLIDO1 [APELLIDO2] NOMBRE1 [NOMBRE2]` (orden apellido-nombre)
-  - CSV reordenado: `Apellido1 | Apellido2 | Nombre1 | Nombre2 | Grado | Sección | Email | Email Rep.`
-  - Parser CSV más robusto: detección de encabezado mejorada · mínimo 4 columnas · filas vacías ignoradas silenciosamente · email con dominio incorrecto auto-genera email escolar en vez de bloquear la fila · warnings en amarillo para situaciones no bloqueantes
-  - Import row-by-row: si el lote falla por `23505` (duplicado), reintenta fila por fila para no descartar todo el batch
-  - Ordenamiento por columna (▲▼): Nombre, Grado, Sección o Código — default alfabético por apellido
-  - Checkboxes por fila + seleccionar-todo + barra de eliminación por lotes con confirmación
-  - `white-space: nowrap` en celda de nombre para evitar salto de línea
-
-- **PsicosocialPage — modo consulta para docentes:**
-  - Notas confidenciales completamente ocultas para `role='teacher'` (antes solo bloqueaba edición)
-  - Banner azul "Modo consulta" visible al docente al abrir cualquier perfil
-  - `canEdit` ya controlaba botones/formularios; ahora también oculta información sensible
-
-- **Integración PIAR en generación IA de guías:**
-  - `GuideEditorPage`: agrega `piarData` — acomodaciones activas del salón agregadas por categoría, **sin nombres de estudiantes** (privacidad)
-  - `ConversationalGuideModal`: recibe `piarData`, lo pasa a `generateGuideStructure`; muestra aviso naranja en paso 3 cuando hay estudiantes con ajustes activos
-  - `AIAssistant.generateGuideStructure`: bloque `♿ PIAR` inyectado en el prompt con mandato de diseño inclusivo + lista de acomodaciones por categoría
-  - El docente no necesita recordar manualmente qué acomodaciones aplicar — la IA las incorpora por defecto
-
-- **Privacidad en alertas Telegram (antitrampa):**
-  - `ExamPlayerV2Page`: elimina `student_name` del payload de `sendTelegramNotification`
-  - `exam-integrity-alert` Edge Fn: reemplaza nombre real por código anónimo (últimos 6 chars de `instance_id`)
-    - Alertas de integridad: "Código: XXXXXX · Busca en Monitor en Vivo"
-    - Notificaciones de ciclo: "Código XXXXXX inició/reanudó/envió el examen"
-  - `ExamLiveMonitor`: columna "Código" (6 chars) para cruzar con alertas Telegram
-  - El docente ve el nombre real internamente vía sesión autenticada de Supabase; nunca se transmite PII a sistemas externos (Telegram Bot API)
-
 ## 🔜 PRÓXIMA SESIÓN
 
-**🔜 Pendiente:**
 - **Google OAuth** — configurar en Supabase Dashboard → Auth → Providers + validar dominio `@redboston.edu.co` post-OAuth en `App.jsx:onAuthStateChange`
-- **Email al representante** — cuando corrección IA termina → enviar nota final + feedback al `representative_email` del estudiante
-- **Sincronización local** — `supabase db pull` · copiar Edge Fns nuevas al local
+- **Email al representante** — corrección IA termina → nota final + feedback a `representative_email`
+- **DB horizonte** (no urgente): DROP tablas DEPRECATED · normalizar `grade`/`section` a `school_grades` · validación JSONB con triggers
 
 ---
 
-## 🏛️ VISIÓN ETA — 5 CAPAS
+## 🏛️ VISIÓN ETA — SCOPE DE DESARROLLO
 
 ```
-CAPA 1 — DISEÑO DOCENTE           ← activa (sprint actual)
+CAPA 1 — DISEÑO DOCENTE           ← activa — no diseñar para capas superiores
 CAPA 2 — PRODUCCIÓN MULTIMEDIA    ← pendiente
 CAPA 3 — EXPERIENCIA ESTUDIANTIL  ← pendiente
 CAPA 4 — EVALUACIÓN INTEGRADA     ← pendiente
@@ -151,77 +52,55 @@ SYLLABUS TOPICS → ACHIEVEMENT GOAL → ACHIEVEMENT INDICATORS
   → NEWS PROJECT → LESSON PLAN → CHECKPOINT → EVALUACIÓN
 ```
 
-- **ACHIEVEMENT INDICATORS** — dimension (cognitivo/procedimental/actitudinal) + skill_area: `speaking|listening|reading|writing|general|null`
-  - Si skill_area tiene valor → NEWS hereda rubric_template automáticamente
-- **NEWS PROJECT** — indicator_id FK · rubric pre-seleccionada por skill_area
-- **LESSON PLAN** — indicator_id · syllabus_topic_id · smart_blocks (duration_minutes + eleot_items) · session_agenda auto-generada
-- **EVALUACIÓN** — rúbrica → nota 1.0–5.0 · indicador marcado "evaluado"
-
----
-
-## ✅ HISTORIAL DE SESIONES
-
-| Sesión | Entregables principales | Estado |
-|---|---|---|
-| **BASE** | Auth · perfiles · dashboard · sidebar · GuideEditor · Export DOCX/HTML/PDF · IA · NEWS · Comunicación · Admin · Roles · Checkpoints | ✅ prod |
-| **A** | achievement_goals + achievement_indicators (skill_area) · syllabus_topics · lesson_plans.indicator_id · useAchievements · useSyllabus · ObjectivesPage · SyllabusPage | ✅ prod |
-| **B** | NewsProjectEditor: indicator_id + filtro rubric por skill_area · GuideEditorPage: pre-fill indicator + topic · CheckpointModal: dual-write | ✅ prod |
-| **C** | eleot_domains/items/block_mapping (seed inmutable) · useEleot · EleotCoveragePanel | ✅ prod |
-| **D** | 16 Smart Blocks + duration_minutes · guessSmartBlock() · DOCX para los 16 tipos | ✅ prod |
-| **E** | AgendaGenerator · ConversationalGuideModal (wizard 5 pasos) · analyzeGuideCoverage · generateStudentRubric · DOCX 7 nuevos tipos | ✅ prod |
-| **F** | Grade+Section fix sistémico · N logros por período · combinedGrade() · SyllabusPage dinámico · Duplicar para sección · NewsProjectEditor fix indicadores | ✅ prod |
-| **G** | indicator_id fluye en guías · repair automático load() · botón 🔄 re-vincular · AIGeneratorModal con nuevo sistema · CheckpointModal check-then-write | ✅ prod |
-| **H** | SubjectManagerPage · GuideLibraryPage · PeriodCoverageDashboard · ObservationLoggerPage · ReviewRoomPage · CurriculumPage · AgendaPage · PrinciplesPage | ✅ prod |
-| **LEGACY** | learning_targets eliminado del frontend · LearningTargetsPage/Selector eliminados · isModeloB derivado de MODELO_B_SUBJECTS · checkpoints.target_id NOT NULL eliminado · learning_targets eliminado de DB | ✅ prod |
-| **I** | suggestSectionActivity enriquecida (textbook + archetypes) · DOCX single-column fix · Legacy DOCX secciones+imágenes · Preview modal todos los formatos · downloadRubricHtml | ✅ prod |
-| **J** | ExamDashboardPage: N versiones + rigor UI · exportExamHtml CBF-G AC-01 · seededShuffle + round-robin en ExamPlayerPage · callout examen en PlannerPage | ✅ prod |
-| **K** | school_students (roster) · StudentsPage (/students) · ExamPlayerV2Page: email auth · exam-instance-generator auto-roster · Migración 20260422000004 | ✅ prod |
-| **L** | Antitrampa 5 capas · exam-integrity-alert Edge Fn · generar instancias por roster · preview+edición preguntas · auth completo (forgot pwd + Resend) · Dashboard resultados · Panel revisión humana · Design system UX | ✅ prod |
-| **M** | ExamPlayerV2: credenciales localStorage · banner violación rojo/blanco · Telegram ciclo (started/resumed/submitted) · score modal nota colombiana · secciones tabs + ReviewModal · Wizard secciones multi-parte · generateExamQuestions sections[] · Archivado Fase 5 (storage_path + news_project_versions + HTML upload) · Monitor docente en tiempo real (ExamLiveMonitor + Realtime) · Sidebar badge Revisión IA · generateGuideStructure secuencia didáctica estructurada | ✅ prod |
-| **N** | Módulo Psicosocial completo (3 tablas · PsicosocialPage · semáforo · perfil/seguimiento/plan docente · foto · callout en GuideEditor) · StudentsPage 8 campos (nombres separados · grado · sección · email rep.) · Corrección IA preguntas abiertas (exam-response-corrector · feedback por pregunta · nota final real · fallback graceful) | ✅ prod |
-| **N.2** | StudentsPage: displayName apellido-nombre · CSV robusto reordenado · import row-by-row · ordenamiento columna · eliminación por lotes · Psicosocial modo consulta (notas confidenciales ocultas · banner azul) · PIAR en IA: bloque ♿ en `generateGuideStructure` sin PII · Privacidad Telegram: código anónimo en alertas + columna Código en ExamLiveMonitor | ✅ prod |
-
-> Para el roadmap detallado y backlog → `docs/claude/roadmap.md`
+> Historial de sesiones y roadmap completo → `docs/claude/roadmap.md`
 
 ---
 
 ## ⚠️ REGLAS CRÍTICAS — NUNCA VIOLAR
 
 ```
-1. minify: false en vite.config.js — NUNCA reactivar
-2. Edge Functions: siempre deploy con --no-verify-jwt
-3. RLS teachers: SIEMPRE usar get_my_school_id() SECURITY DEFINER
-4. JSONB: patrón preferido para datos flexibles
-5. supabase.exe: en raíz del proyecto, en .gitignore
-6. Modelo IA: claude-sonnet-4-20250514 — no cambiar sin avisar
-7. Migraciones: numeradas cronológicamente, nunca editar una ya ejecutada en prod
-8. Nunca borrar datos de producción sin backup explícito
-9. news_legacy: LEGACY — no borrar (datos históricos de proyectos)
+1.  minify: false en vite.config.js — NUNCA reactivar
+2.  Edge Functions: siempre deploy con --no-verify-jwt
+3.  RLS teachers: SIEMPRE usar get_my_school_id() SECURITY DEFINER
+4.  JSONB: patrón preferido para datos flexibles
+5.  supabase.exe: en raíz del proyecto, en .gitignore
+6.  Modelo IA: claude-sonnet-4-20250514 — no cambiar sin avisar
+7.  Migraciones: numeradas cronológicamente, nunca editar una ya ejecutada en prod
+8.  Nunca borrar datos de producción sin backup explícito
+9.  news_legacy: LEGACY — no borrar (datos históricos de proyectos)
 10. NUNCA usar window.alert — usar showToast() del ToastContext
-11. Grade SIEMPRE combined: ver sección GRADE+SECTION abajo
+11. Grade: ver tabla GRADE+SECTION — hay CHECKs activos en DB, violarlos da error 23514
+12. seededShuffle: función canónica en examUtils.js — NUNCA duplicar en componentes
+13. helpers de estudiantes: funciones canónicas en studentUtils.js — no duplicar inline
+14. Migraciones a prod: siempre link a vouxrqsiyoyllxgcriic antes de db push/query
+    Restaurar link a dev (gfjiicfnwpkbkptwgnte) al terminar
+15. Tablas DEPRECATED (assessments/questions/student_exam_sessions/assessment_results):
+    No crear nuevos registros. Para evaluaciones usar exam_blueprints → exam_sessions
 ```
 
 ---
 
 ## 📐 GRADE+SECTION — CONVENCIÓN (LEY DEL SISTEMA)
 
-`teacher_assignments` almacena `grade="8.°"` + `section="Blue"` por separado.
-**En todas las demás tablas el grade es SIEMPRE combinado: `"8.° Blue"`.**
+**Confirmado contra datos reales de prod. Hay CHECK constraints activos en DB.**
 
 ```
-COMBINED →  achievement_goals · achievement_indicators · syllabus_topics · lesson_plans · checkpoints
-SEPARADOS → teacher_assignments (grade + section)
-            news_projects (excepción histórica: grade base + section)
+COMBINED "8.° Blue" →  lesson_plans · achievement_goals · achievement_indicators · syllabus_topics · checkpoints
+                        CHECK activo: LIKE '%.° %'
+
+BASE "8.°" + section →  teacher_assignments · news_projects · school_students
+                         CHECK activo: LIKE '%.°' AND NOT LIKE '% %'
 ```
 
-**Reglas de código:**
+- `lesson_plans` tiene AMBAS: `grade = "8.° Blue"` (combined) Y columna `section = "Blue"` separada.
+- `lesson_plans` NO tiene columna `week TEXT` — usa `week_number INTEGER` + `date_range TEXT`.
 - Dropdowns: SIEMPRE `<select>` con `assignments.map(a => \`${a.grade} ${a.section}\`)` — NUNCA `<input>` libre
-- Queries: `.eq('grade', combinedGrade)` — NUNCA `.ilike` ni `.split(' ')[0]`
-- NewsProjectEditor construye `gradeFull = form.grade + ' ' + form.section` para buscar en `achievement_goals`
+- Queries a `lesson_plans`/`achievement_goals`: `.eq('grade', combinedGrade)` — NUNCA `.ilike` ni `.split`
+- Queries a `school_students`: `.eq('grade', baseGrade).eq('section', section)`
 
 **NUNCA hacer:**
 ```js
-grade.replace(/\s+[A-Z]$/, '').trim()   // ❌ stripea la sección
+grade.replace(/\s+[A-Z]$/, '').trim()   // ❌
 plan.grade.split(' ')[0]                 // ❌
 q.ilike('grade', gradeBase + '%')        // ❌
 ```
@@ -231,19 +110,17 @@ q.ilike('grade', gradeBase + '%')        // ❌
 ## 🐛 GOTCHAS — REGLAS DERIVADAS DE BUGS RESUELTOS
 
 ### 1. Editor/modal con entity por prop → siempre `key={entity.id}`
-Sin `key`, React reutiliza la instancia y los `useEffect` no disparan si las deps no cambiaron.
+Sin `key`, React reutiliza la instancia y los `useEffect` no disparan.
 ```jsx
 <NewsProjectEditor key={editingProject?.id || 'new'} project={editingProject} />
 ```
-Deps del useEffect que carga datos secundarios deben incluir TODAS las fields del entity relevantes (incl. `form.section`, `teacher.school_id`).
 
 ### 2. `indicator_id` FK y `target_indicador` texto siempre sincronizados juntos
-El botón IA verifica `form.target_indicador`. Al seleccionar indicador del nuevo sistema:
 ```js
 updateForm('indicator_id', ind.id)
 updateForm('target_indicador', ind.text || '')  // ← habilita botón IA
 ```
-Agregar useEffect de sincronización para proyectos existentes que tengan `indicator_id` pero `target_indicador` vacío.
+Agregar useEffect de sincronización para proyectos existentes con `indicator_id` pero `target_indicador` vacío.
 
 ### 3. LEY DE LA CASCADA — fuente de indicator_id en guías
 ```
@@ -251,136 +128,89 @@ Agregar useEffect de sincronización para proyectos existentes que tengan `indic
 2. NEWS project con due_date más cercano ≥ primer día de la guía
 3. Fallback: primer indicador del achievement_goal del período
 ```
-NUNCA usar solo el período como fuente primaria. En el repair de `load()` no filtrar por `indicator_id IS NOT NULL` — tomar el proyecto más próximo y verificar después.
+NUNCA usar solo el período como fuente primaria.
 
 ### 4. Gate de IA = `activeIndicator || achievementGoal` — sin legacies
 ```jsx
 {!activeIndicator && !achievementGoal ? <aviso> : <formulario + botón Generar>}
 ```
-Nunca agregar un tercer gate que dependa de una tabla legacy.
 
 ### 5. `upsert(onConflict)` solo si la constraint UNIQUE existe en prod
-Para operaciones críticas (checkpoints, logs) usar check-then-write:
-```js
-// busca existente → update si existe, insert si no
-```
+Para operaciones críticas usar check-then-write (busca → update/insert).
 
 ### 6. ExamPlayerV2 — `section_name` en `exam_instances.generated_questions`
-Cada pregunta en el JSONB tiene `section_name: string`. Si es `''` → todas las preguntas en un grupo → sin tabs en el player. Si hay valores distintos → tabs automáticos. **NUNCA hardcodear `section_name: ''` al construir instancias** — usar `q.section_name || ''` para preservar lo que generó la IA.
+Si `section_name === ''` → preguntas sin tabs. Si hay valores distintos → tabs automáticos. **NUNCA hardcodear `section_name: ''`** — usar `q.section_name || ''`.
 
 ### 7. exam-integrity-alert — eventos de ciclo vs. violaciones
-`CYCLE_EVENTS = ['exam_started', 'exam_resumed', 'exam_submitted']` NO actualizan `integrity_flags` y usan formato Telegram distinto (emoji verde/check, sin "ALERTA"). Cualquier otro `event_type` es violación → actualiza `tab_switches` + `integrity_flags` + mensaje rojo.
+`CYCLE_EVENTS = ['exam_started', 'exam_resumed', 'exam_submitted']` NO actualizan `integrity_flags`; usan formato Telegram distinto. Cualquier otro `event_type` → violación → actualiza `tab_switches` + mensaje rojo.
 
 ---
 
 ## 🗄️ BASE DE DATOS — TABLAS EN PRODUCCIÓN
 
 ```
-teachers              — RLS via get_my_school_id() SECURITY DEFINER
-                        telegram_chat_id text (para alertas antitrampa)
+teachers              — RLS via get_my_school_id() SECURITY DEFINER · telegram_chat_id text
 schools               — features JSONB · year_verse · logo_url · dane · resolution
-teacher_assignments   — asignaciones materia/grado/sección/horario JSONB
-lesson_plans          — content JSONB · indicator_id · syllabus_topic_id
-                        eleot_coverage {} · session_agenda [] · week_count · status
-news_projects         — indicator_id FK → achievement_indicators · actividades_evaluativas
-                        biblical_principle · indicator_verse_ref · biblical_reflection
+teacher_assignments   — grade(base) · section · subject · horario JSONB
+lesson_plans          — content JSONB · indicator_id · syllabus_topic_id · week_count · status
+news_projects         — indicator_id FK · actividades_evaluativas · biblical_principle
 rubric_templates      — 5 plantillas institucionales sembradas
 achievement_goals     — UNIQUE(teacher_id, subject, grade, period, academic_year)
 achievement_indicators— dimension + skill_area · teacher_id (denorm. para RLS)
 syllabus_topics       — contenidos por semana · indicator_id FK
 checkpoints           — indicator_id · target_id nullable (legacy) · plan_id
-eleot_domains         — 7 dominios A–G (seed inmutable)
-eleot_items           — 28 ítems A1–G3 (seed inmutable)
-eleot_block_mapping   — block_type → item_id + weight (seed inmutable)
+eleot_domains/items/block_mapping — seed inmutable (7 dominios · 28 ítems)
 eleot_observations    — historial observaciones Cognia
 school_monthly_principles — year_verse · month_verse · indicator_principle por mes
 weekly_agendas        — grade · section · week_start · content JSONB · status
-schedule_slots        — franjas del horario institucional por nivel
-school_calendar       — días hábiles · is_school_day · affects_planning
+schedule_slots        — franjas horario institucional por nivel
+school_calendar       — is_school_day · affects_planning
 news_legacy           — LEGACY — no borrar
-error_log · activity_log · ai_usage
+error_log · activity_log · ai_usage · cbf_error_log · health_snapshots
 
-— MÓDULO DE EVALUACIÓN (backend completo, probado E2E) —
-assessments           — title · grade · subject · access_code · status · rubric_criteria JSONB · biblical_min
-questions             — question_type · stem · options JSONB · correct_answer
-                        rigor_level ENUM('strict'|'flexible'|'conceptual') · points · position
-question_criteria     — criterio corrección pregunta abierta · rubric_level · rigor_level
-assessment_versions   — version_number · version_label ('A'/'B'/'C'/'D') · is_base
-                        shuffle_questions · shuffle_options
-student_exam_sessions — access_code join · started_at · submitted_at · total_score
-                        integrity_flags JSONB · assessment_version_id FK
-student_submissions   — answer_text · is_correct · ai_score · ai_confidence · ai_feedback
-                        needs_human_review · human_score · human_reviewer_id
-exam_ai_queue         — cola corrección AI · status(pending/processing/done/failed) · retry_count
-cbf_error_log         — errores CBF-[MOD]-[TYPE]-[NNN] · severity · school_id
-health_snapshots      — métricas de salud cada 6h · cron via pg_net
+— DEPRECATED (no crear registros nuevos) —
+assessments · questions · assessment_versions · student_exam_sessions · student_submissions
 
-— ROSTER (Ses. K+N) —
-school_students       — email UNIQUE(school_id,email) · grade(base) · section
-                        student_code auto (trigger) · teacher_id FK
-                        first_name · second_name · first_lastname · second_lastname
-                        representative_email
+— ROSTER —
+school_students       — email UNIQUE(school_id,email) · grade(base) · section · student_code(auto)
+                        first_name · second_name · first_lastname · second_lastname · representative_email
 
-— SCHEMA EXAM PLAYER —
-exam_blueprints       — configuración pedagógica inmutable post-publicación
-exam_sessions         — access_code · status · service_worker_payload · teacher_id
-exam_instances        — generated_questions JSONB (con section_name por pregunta)
-                        student_email · student_id FK · student_section
-                        version_label · instance_status · integrity_flags
-                        tab_switches · started_at
-exam_responses        — respuestas polimórficas · response_origin · auto_score
-                        ai_score · ai_feedback · ai_confidence · requires_human_review
-                        ai_correction_status (not_needed|pending|done)
-exam_results          — instance_id UNIQUE · colombian_grade 1.0–5.0
-                        total_score · max_score · correction_status (pending|partial|complete)
-exam_preflight_log    — checks T-24h / T-0h / T-30min
-exam_offline_queue    — cola offline → sync al reconectar
+— EXAM PLAYER —
+exam_blueprints       — config pedagógica inmutable post-publicación
+exam_sessions         — access_code · status · teacher_id
+exam_instances        — generated_questions JSONB (section_name por pregunta)
+                        student_email · student_id FK · student_section · version_label
+                        instance_status · integrity_flags · tab_switches · started_at
+exam_responses        — auto_score · ai_score · ai_feedback · ai_confidence
+                        requires_human_review · ai_correction_status(not_needed|pending|done)
+exam_results          — instance_id UNIQUE · colombian_grade · total_score · max_score
+                        correction_status(pending|partial|complete)
+exam_preflight_log · exam_offline_queue · exam_ai_queue
 
-— MÓDULO PSICOSOCIAL (Ses. N) —
-student_psychosocial_profiles — student_id PK · status(no_intervention|monitoring|intervention|closed)
-                                support_level(standard|enhanced|intensive) · flags TEXT[]
-                                teacher_notes (visible todos) · confidential_notes (solo psico/rector/admin)
-                                photo_url · created_by
-student_observations          — obs_date · obs_type(academic|behavioral|emotional|family|health|other)
-                                description · action_taken · next_steps · next_followup · created_by
-student_accommodation_plans   — academic_year · subject(null=todas) · period(null=todo el año)
-                                accommodations JSONB · status(draft|active|archived) · created_by
+— MÓDULO PSICOSOCIAL —
+student_psychosocial_profiles — status · support_level · flags TEXT[]
+                                teacher_notes(visible todos) · confidential_notes(solo psico/rector/admin)
+student_observations          — obs_date · obs_type · description · action_taken · next_steps
+student_accommodation_plans   — accommodations JSONB · status(draft|active|archived)
 ```
 
 ---
 
-## 🧩 SMART BLOCKS — 16 TIPOS ACTIVOS
+## 🧩 SMART BLOCKS — 16 TIPOS
 
-| Tipo | Color | eleot® principales |
-|---|---|---|
-| `DICTATION` | 4BACC6 | D3, E3, F4 |
-| `QUIZ` | C0504D | B2, E1, E3, B4 |
-| `VOCAB` | 9BBB59 | D3, B2, E3 |
-| `WORKSHOP` | F79646 | D3, D4, B4, C3 |
-| `SPEAKING` | 8064A2 | D1, B4, D3, G3 |
-| `NOTICE` | 1F3864 | F4, F3 |
-| `READING` | 17375E | D3, B4, D2, E3 |
-| `GRAMMAR` | 375623 | B2, E3, D3, E1 |
-| `EXIT_TICKET` | C55A11 | E1, E4, B5 |
-| `WRITING` | 70AD47 | D3, B4, B3, E2 |
-| `SELF_ASSESSMENT` | E1A24A | E1, E2, E4, B5 |
-| `PEER_REVIEW` | C3785B | C3, E2, D1, C2 |
-| `DIGITAL_RESOURCE` | 4BACC6 | G1, G2, D3 |
-| `COLLABORATIVE_TASK` | 4F81BD | D4, D1, C3, A2 |
-| `REAL_LIFE_CONNECTION` | 70AD47 | D2, D3, B4 |
-| `TEACHER_NOTE` | 767171 | A1, A3 |
+`DICTATION · QUIZ · VOCAB · WORKSHOP · SPEAKING · NOTICE · READING · GRAMMAR · EXIT_TICKET · WRITING · SELF_ASSESSMENT · PEER_REVIEW · DIGITAL_RESOURCE · COLLABORATIVE_TASK · REAL_LIFE_CONNECTION · TEACHER_NOTE`
 
 ```json
-{ "id": 1234, "type": "WORKSHOP", "model": "stations", "duration_minutes": 20, "data": { "stations": [...] } }
+{ "id": 1234, "type": "WORKSHOP", "model": "stations", "duration_minutes": 20, "data": {...} }
 ```
 
-**Archivos:** `src/utils/smartBlockHtml.js` (BLOCK_TYPES + preview/interactive HTML) · `src/components/SmartBlocks.jsx` (modal 3 pasos + BlockForm)
+Colores, eleot® items y modelos → `src/utils/smartBlockHtml.js` · `src/components/SmartBlocks.jsx`
 
 ---
 
 ## 🤖 IA — Edge Function `claude-proxy`
 
-**Passthrough puro** — prompt en `AIAssistant.js` → `claude-sonnet-4-20250514`. No cambiar modelo sin avisar.
+**Passthrough puro** → `claude-sonnet-4-20250514`. Detalle completo → `docs/claude/ai-integration.md`.
 
 | Función | Tokens |
 |---|---|
@@ -395,47 +225,11 @@ student_accommodation_plans   — academic_year · subject(null=todas) · period
 | `generateStudentRubric()` | 3000 |
 | `generateExamQuestions()` | 9000/sección |
 
-**`exam-response-corrector` Edge Fn** (Ses. N) — corrige respuestas abiertas post-submit:
-- Input: `{ instance_id }` · Lee `exam_responses` con `ai_correction_status='pending'`
-- Busca `question_criteria` (model_answer · key_concepts · rubric · rigor_level · bloom_level) — si no existe → rigor flexible
-- Llama Claude por cada respuesta → `{ score_awarded, feedback, confidence }`
-- Guarda en `exam_responses`: `ai_score · ai_feedback · ai_confidence · requires_human_review`
-- Recalcula nota colombiana → upsert `exam_results` por `instance_id`
-- Confianza < 0.65 → `requires_human_review=true` → aparece en `ExamReviewPage`
-- Fallback: si Claude falla → `score=0, requires_review=true` (no bloquea al estudiante)
-
-**`generateExamQuestions({ subject, grade, indicator, biblicalContext, syllabusTopics, sections, additionalContext })`**
-- `sections: [{ id, name, types: { multiple_choice, true_false, ... } }]` — una llamada IA por sección (función interna `generateSingleSection`)
-- Si sección tiene >25 preguntas → multi-batch interno (bíblicas en batch 1)
-- Preguntas etiquetadas con `section_name` client-side después de la generación
-- `sections` toma precedencia; `questionTypes` plano aceptado como fallback legacy
-- `buildExamPrompt` recibe `sectionName` opcional → instrucción temática al modelo
-
-**`generateGuideStructure` — Secuencia didáctica (actualizado):**
-- 6 secciones con roles pedagógicos fijos: SUBJECT (Encuadre) · MOTIVATION (Activación saberes previos) · ACTIVITY (Dinámica preparatoria) · SKILL (Núcleo + producto del estudiante) · CLOSING (Verificación + reflexión emocional) · ASSIGNMENT (Tarea)
-- Progresión semanal obligatoria: Día 1 intro → último día producción autónoma
-- `CLASS_RULES` inyectadas en SUBJECT (no en MOTIVATION); principio bíblico hilo conductor en todas las secciones
-- Prompt retry alineado con la nueva estructura por sección
-- **Bloque PIAR (Ses. N.2):** si el salón tiene estudiantes con acomodaciones activas, se inyecta bloque `♿ PIAR — DISEÑO INCLUSIVO` con acomodaciones agregadas por categoría (sin nombres). La IA incorpora diseño universal por defecto; no requiere acción del docente.
-  - `GuideEditorPage` consulta `student_accommodation_plans` → agrega por categoría → pasa como `piarData` al modal
-  - `ConversationalGuideModal` muestra aviso naranja en paso 3 si `piarData` tiene contenido
-  - Firma: `generateGuideStructure({ ..., piarData?: { [category]: string[] } })`
-
-**Flujo indicator_id → IA (guías):**
-```
-NEWS project más próximo → indicator_id → achievement_indicator → achievement_goal
-  → generateGuideStructure recibe achievementGoal { text, period, indicators[] }
-  → bloque 🎯 LOGRO E INDICADORES DEL PERÍODO en el prompt
-```
-
-**`suggestSectionActivity` — contexto enriquecido:**
-- Recibe `newsProject` (GuideEditorPage → DayPanel → AISuggestButton)
-- Bloque `📚 TEXTBOOK & PROJECT CONTEXT`: book, units[], grammar[], vocabulary[], skill
-- Lengua automática: `MODELO_B_SUBJECTS` → inglés; resto → español
-- `ACTIVITY_ARCHETYPES[lang][section]` — 10-15 arquetipos; selección vía `variantSeed = Math.random()*10000`
-- Botón "🔄 Otra sugerencia" llama IA directamente (no solo limpia estado)
-
-**AIGeneratorModal gate:** `(!activeIndicator && !achievementGoal)` — sin legacies. Ver Gotcha #4.
+**Reglas de comportamiento no documentadas en ai-integration.md:**
+- `generateGuideStructure` acepta `piarData?: { [category]: string[] }` — acomodaciones sin nombres de estudiantes. `GuideEditorPage` las consulta y pasa al modal; `ConversationalGuideModal` muestra aviso naranja en paso 3.
+- `generateExamQuestions` acepta `sections: [{id, name, types}]` — una llamada IA por sección; preguntas etiquetadas con `section_name` client-side. `sections` toma precedencia sobre `questionTypes` plano (legacy).
+- `AIGeneratorModal` gate: `(!activeIndicator && !achievementGoal)` — sin legacies. Ver Gotcha #4.
+- `exam-response-corrector` Edge Fn: confianza < 0.65 → `requires_human_review=true`. Fallback Claude falla → `score=0, requires_review=true` (no bloquea al estudiante).
 
 ---
 
@@ -445,8 +239,6 @@ NEWS project más próximo → indicator_id → achievement_indicator → achiev
 ALTER TABLE [tabla] ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "[tabla]_owner" ON [tabla] FOR ALL USING (teacher_id = auth.uid());
 CREATE POLICY "[tabla]_school" ON [tabla] FOR SELECT USING (school_id = get_my_school_id());
--- Tablas estáticas eleot® → lectura pública:
-CREATE POLICY "eleot_read_all" ON eleot_domains FOR SELECT USING (true);
 ```
 
 ---
@@ -463,105 +255,53 @@ CREATE POLICY "eleot_read_all" ON eleot_domains FOR SELECT USING (true);
 | Coordinador | `admin` | Gestión docentes, roles, feature flags |
 | Superadmin | `superadmin` | Todo + identidad institucional + seguridad |
 
-Helpers en `src/utils/roles.js`: `canManage` · `isSuperAdmin` · `isRector` · `canAccessCalendar` · `canReadAllPlans` · `canManageAgendas` · `canGiveFeedback` · `canEditOthersDocs` · `isCoteacherActive` · `canChangeRole` · `roleLabel` · `ROLE_STYLES`
+Helpers → `src/utils/roles.js`: `canManage · isSuperAdmin · isRector · canAccessCalendar · canReadAllPlans · canManageAgendas · canGiveFeedback · canEditOthersDocs · isCoteacherActive · canChangeRole · roleLabel · ROLE_STYLES`
 
 ---
 
 ## 🔗 CÓDIGO — ESTADO ACTUAL
 
 ### Rutas activas — DashboardPage.jsx
-```javascript
-// FLUJO PEDAGÓGICO (todos los roles)
-/principles    PrinciplesPage           Versículo Año + Versículo Mes
-/objectives    ObjectivesPage           CRUD achievement_goals + indicators
-/syllabus      SyllabusPage             CRUD syllabus_topics por semana
-/news          NewsPage                 Listado + NewsProjectEditor (wizard 8 pasos)
-/              PlannerPage              Crear guía
-/plans         MyPlansPage              Mis guías
-/editor/:id    GuideEditorPage          Editor completo
-/library       GuideLibraryPage         Biblioteca de guías aprobadas
-/ai-usage      AIUsagePage              Monitor de tokens IA
-/messages      MessagesPage             Mensajería 1-a-1
-/students      StudentsPage             Roster de alumnos (agregar / CSV)
-/exams         ExamDashboardPage        Crear examen con IA · Detalle · Instancias
-/exams/review  ExamReviewPage           Panel revisión humana confianza < 0.65
-/coverage      PeriodCoverageDashboard  Cobertura eleot® acumulada (admin)
-/observations  ObservationLoggerPage    Observaciones Cognia (admin)
-/psicosocial   PsicosocialPage          Módulo psicosocial (todos leen · psico/admin/rector editan)
+```
+// PEDAGÓGICO (todos los roles)
+/              PlannerPage              /plans         MyPlansPage
+/editor/:id    GuideEditorPage          /library       GuideLibraryPage
+/principles    PrinciplesPage           /objectives    ObjectivesPage
+/syllabus      SyllabusPage             /news          NewsPage
+/messages      MessagesPage             /ai-usage      AIUsagePage
+/students      StudentsPage             /exams         ExamDashboardPage
+/exams/review  ExamReviewPage           /psicosocial   PsicosocialPage
+/coverage      PeriodCoverageDashboard  /observations  ObservationLoggerPage
 
 // ROLES ESPECIALES
-/agenda        AgendaPage               Homeroom + co-teacher + admin
-/director      DirectorPage             Rector
-/schedule      SchedulePage             Admin + rector + psicopedagoga
-/calendar      CalendarPage             Admin + psicopedagoga
+/agenda        AgendaPage    /director  DirectorPage
+/schedule      SchedulePage  /calendar  CalendarPage
 
 // SOLO ADMIN
-/teachers      AdminTeachersPage        CRUD docentes + asignaciones
-/notifications NotificationsPage        Centro de notificaciones
-/curriculum    CurriculumPage           Malla curricular
-/sala-revision ReviewRoomPage           Revisión de guías publicadas (pendiente Ses. N)
-/subjects      SubjectManagerPage       Gestión de materias
-/settings      SettingsPage             Feature flags + horario institucional
+/teachers      AdminTeachersPage   /notifications  NotificationsPage
+/curriculum    CurriculumPage      /sala-revision  ReviewRoomPage
+/subjects      SubjectManagerPage  /settings       SettingsPage
 
-// SOLO SUPERADMIN
-/superadmin    SuperAdminPage           Identidad institucional + seguridad
-
-// PÚBLICO (sin auth)
-/eval          ExamPlayerV2Page         Estudiante: acceso por email + código
-```
-
-### Hooks — src/hooks/
-```javascript
-useAchievements.js    // CRUD achievement_goals + indicators + getPeriodProgress()
-useSyllabus.js        // CRUD syllabus_topics · byWeek Map · getTopicsForWeek(week)
-useActiveNews.js      // NEWS activo · buildNewsPromptContext()
-useEleot.js           // computeCoverage · domainStatus · suggestions
-useNewsProjects.js    // CRUD news_projects
-useRubricTemplates.js // CRUD rubric_templates (5 plantillas sembradas)
-useAsync.js · useAutoSave.js · useForm.js · useFocusTrap.js · usePersistentState.js · useToggle.js
-```
-
-### Componentes clave
-```javascript
-// Editor:  GuideEditorPage · ConversationalGuideModal · EleotCoveragePanel · DayPanel
-// Bloques: SmartBlocks.jsx · smartBlockHtml.js
-// Export:  exportDocx.js · exportHtml.js · exportRubricHtml.js · AgendaGenerator.js
-// NEWS:    NewsProjectEditor · NewsProjectCard · NewsTimeline · NewsWeekBadge
-// System:  CheckpointModal · ProfileModal · ErrorBoundary · logger.js
-//          FeedbackModal · CommentsPanel · CorrectionRequestModal · VersionHistoryModal
-// AI:      AIAssistant.js · AIComponents.jsx (AISuggestButton · AIAnalyzerModal · AIGeneratorModal)
-// ctx:     FeaturesContext (useFeatures) · ToastContext (useToast → createPortal)
-// NOTA:    GoalCard / IndicatorList / PeriodProgress están inline en ObjectivesPage.jsx
-// EXAMEN:  ExamDashboardPage · ExamDetailModal · ExamResultsDashboard · ExamPlayerV2Page
-//          ExamReviewPage · exportExamHtml.js · exam-integrity-alert (Edge Fn)
-//          exam-instance-generator (Edge Fn) · exam-ai-corrector (Edge Fn v3)
+// SOLO SUPERADMIN → /superadmin    SuperAdminPage
+// PÚBLICO (sin auth) → /eval       ExamPlayerV2Page
 ```
 
 ### Estado clave — ExamPlayerV2Page
 ```javascript
-// EntryPhase
 localStorage['cbf_exam_entry'] = { code, email, name, section } // persiste para iOS
-// ExamPhase
 violationAlert  // { title, message, isFullscreen } | null — banner rojo bloqueante
-examScore       // { colombianGrade, totalMcScore, maxTotal, openCount } | null
 sections        // [{ name, indices[] }] — de q.section_name; hasMultipleSections
-curSecIdx       // índice de sección actual
-isLastSec / isLastInSec // controlan visibilidad del botón "Enviar"
-// Telegram
-sendTelegramNotification(eventType, extra) // useCallback, sin throttle, para ciclo
+// Telegram: código last-6 de instance_id, nunca PII
+sendTelegramNotification(eventType, extra) // sin throttle, para ciclo
 ```
 
-### Estado clave — GuideEditorPage
+### Estado clave — GuideEditorPage / PlannerPage
 ```javascript
 linkedAchievementGoal       // achievement_goal completo + indicators[]
 linkedAchievementIndicator  // indicator vinculado (indicator_id)
-relinkLoading / relinkOptions // booleano + null|indicator[] para re-vinculación inline
-```
-
-### Estado clave — PlannerPage
-```javascript
-activeAchievementGoal    // { id, text, period, indicators[] } — fetched async
-plannerActiveNewsProject // NEWS activo — fuente primaria de indicator_id
+relinkLoading / relinkOptions
+activeAchievementGoal       // PlannerPage — fetched async
+plannerActiveNewsProject    // PlannerPage — fuente primaria de indicator_id
 ```
 
 ### Provider pattern — CRÍTICO (no romper)
@@ -583,13 +323,11 @@ export default function DashboardPage({ session, teacher, setTeacher }) {
 ## 💻 COMANDOS
 
 ```bash
-cd "C:\BOSTON FLEX\ClassroomOS\cbf-planner"
-npm run dev                                                        # localhost:5173/cbf-planner/
-git add . && git commit -m "feat: ..." && git push                 # deploy automático ~2 min
-.\supabase.exe functions deploy exam-integrity-alert --no-verify-jwt
-.\supabase.exe functions deploy claude-proxy --no-verify-jwt
-.\supabase.exe functions logs exam-integrity-alert
-.\supabase.exe functions logs claude-proxy
+npm run dev          # localhost:5173/cbf-planner/ — dev DB
+npm run dev:prod     # localhost:5173/cbf-planner/ — prod DB
+git add . && git commit -m "feat: ..." && git push   # deploy automático ~2 min
+.\supabase.exe functions deploy <fn> --no-verify-jwt
+.\supabase.exe functions logs <fn>
 ```
 
 ---
@@ -608,4 +346,4 @@ git add . && git commit -m "feat: ..." && git push                 # deploy auto
 ---
 
 *CBF Planner · ETA Platform · Edoardo Ortiz + Claude Sonnet · Barranquilla 2026*
-*"Nosotros diseñamos. El docente enseña." · CLAUDE.md v5.4 — Abril 25, 2026*
+*"Nosotros diseñamos. El docente enseña." · CLAUDE.md v5.9 — Abril 26, 2026*

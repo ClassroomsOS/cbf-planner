@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../supabase'
+import { logError } from '../utils/logger'
 
 export default function useRubricTemplates(teacher) {
   const [templates, setTemplates] = useState([])
@@ -20,7 +21,7 @@ export default function useRubricTemplates(teacher) {
       if (error) throw error
       setTemplates(data || [])
     } catch (err) {
-      console.error('Error fetching rubric templates:', err)
+      logError(err, { page: 'useRubricTemplates', action: 'fetch' })
     } finally {
       setLoading(false)
     }

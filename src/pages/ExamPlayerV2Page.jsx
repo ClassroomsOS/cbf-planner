@@ -5,6 +5,8 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../supabase'
+import { colombianGrade as calcColombianGrade, gradeLevel, gradeColor } from '../utils/examUtils'
+import { logError } from '../utils/logger'
 
 // ── IndexedDB helper ──────────────────────────────────────────────────────────
 
@@ -184,7 +186,7 @@ export default function ExamPlayerV2Page() {
 
   // Abrir IndexedDB al montar
   useEffect(() => {
-    openIDB().then(db => { idbRef.current = db }).catch(console.error)
+    openIDB().then(db => { idbRef.current = db }).catch(err => logError(err, { page: 'ExamPlayerV2', action: 'openIDB' }))
   }, [])
 
   // ── EntryPhase ──────────────────────────────────────────────
@@ -280,7 +282,7 @@ export default function ExamPlayerV2Page() {
         setTimeLeft(remaining)
 
         // Guardar credenciales en localStorage para reanudación si iOS mata la tab
-        try { localStorage.setItem('cbf_exam_entry', JSON.stringify({ code, email: emailClean })) } catch {}
+        try { localStorage.setItem('cbf_exam_entry', JSON.stringify({ code, email: emailClean })) } catch { /* storage unavailable in private mode */ }
 
         setPhase(PHASE.INSTRUCTIONS)
 
@@ -303,7 +305,7 @@ export default function ExamPlayerV2Page() {
         }, 0)
       } catch (ex) {
         setErr('Error al conectar. Intenta de nuevo.')
-        console.error(ex)
+        logError(ex, { page: 'ExamPlayerV2', action: 'entrySubmit' })
       }
       setLoading(false)
     }
@@ -910,7 +912,7 @@ export default function ExamPlayerV2Page() {
       }
       if (data.feedbacks?.length) setAiFeedbacks(data.feedbacks)
     } catch (err) {
-      console.error('[exam-response-corrector] error:', err)
+      logError(err, { page: 'ExamPlayerV2', action: 'aiCorrector' })
     } finally {
       setCorrecting(false)
     }
@@ -971,9 +973,7 @@ export default function ExamPlayerV2Page() {
           openCount++
         }
       }
-      const colombianGrade = (openCount === 0 && maxTotal > 0)
-        ? ((totalMcScore / maxTotal) * 4 + 1).toFixed(1)
-        : null
+      const colombianGrade = openCount === 0 ? calcColombianGrade(totalMcScore, maxTotal) : null
 
       setExamScore({ mcScore: totalMcScore, mcMax: maxMcScore, total: maxTotal, openCount, colombianGrade })
 
@@ -995,7 +995,7 @@ export default function ExamPlayerV2Page() {
 
       // Limpiar IndexedDB + credenciales guardadas (examen terminado)
       if (idbRef.current) await idbClear(idbRef.current, inst.id).catch(() => {})
-      try { localStorage.removeItem('cbf_exam_entry') } catch {}
+      try { localStorage.removeItem('cbf_exam_entry') } catch { /* storage unavailable in private mode */ }
 
       // Salir de fullscreen
       document.exitFullscreen?.().catch(() => {})
@@ -1003,7 +1003,7 @@ export default function ExamPlayerV2Page() {
 
       setPhase(PHASE.SUBMITTED)
     } catch (ex) {
-      console.error(ex)
+      logError(ex, { page: 'ExamPlayerV2', action: 'submitExam' })
       setSubmitting(false)
     }
   }
@@ -1012,11 +1012,7 @@ export default function ExamPlayerV2Page() {
 
   function SubmittedPhase() {
     const sc = examScore
-    const gradeColor = !sc?.colombianGrade ? '#6B7280'
-      : parseFloat(sc.colombianGrade) >= 4.6 ? '#1A6B3A'
-      : parseFloat(sc.colombianGrade) >= 4.0 ? '#2563EB'
-      : parseFloat(sc.colombianGrade) >= 3.0 ? '#D97706'
-      : '#DC2626'
+    const gcol = !sc?.colombianGrade ? '#6B7280' : gradeColor(parseFloat(sc.colombianGrade))
 
     function openResultsPdf() {
       const now = new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota' })
@@ -1055,7 +1051,7 @@ export default function ExamPlayerV2Page() {
           table { width: 100%; border-collapse: collapse; font-size: 14px; }
           th { background: #1F3864; color: #fff; padding: 10px; text-align: left; }
           .score-box { background: #F0F4F8; border: 2px solid #1F3864; border-radius: 12px; padding: 20px 28px; margin-bottom: 24px; display: inline-block; }
-          .grade { font-size: 48px; font-weight: 800; color: ${gradeColor}; }
+          .grade { font-size: 48px; font-weight: 800; color: ${gcol}; }
           .verse { margin-top: 32px; font-style: italic; color: #6B7280; font-size: 13px; }
           @media print { button { display: none; } }
         </style>
@@ -1098,18 +1094,15 @@ export default function ExamPlayerV2Page() {
               <div style={{ textAlign: 'center', marginBottom: 20 }}>
                 {sc.colombianGrade ? (
                   <>
-                    <div style={{ fontSize: 56, fontWeight: 800, color: gradeColor, lineHeight: 1 }}>
+                    <div style={{ fontSize: 56, fontWeight: 800, color: gcol, lineHeight: 1 }}>
                       {sc.colombianGrade}
                       <span style={{ fontSize: 24, color: '#9CA3AF', fontWeight: 400 }}>/5.0</span>
                     </div>
                     <div style={{ color: '#6B7280', fontSize: 14, marginTop: 4 }}>
                       {sc.mcScore} / {sc.total} puntos
                     </div>
-                    <div style={{ marginTop: 8, fontSize: 13, fontWeight: 600, color: gradeColor }}>
-                      {parseFloat(sc.colombianGrade) >= 4.6 ? '⭐ Superior'
-                        : parseFloat(sc.colombianGrade) >= 4.0 ? '✅ Alto'
-                        : parseFloat(sc.colombianGrade) >= 3.0 ? '📘 Básico'
-                        : '❗ Bajo'}
+                    <div style={{ marginTop: 8, fontSize: 13, fontWeight: 600, color: gcol }}>
+                      {(() => { const lv = gradeLevel(parseFloat(sc.colombianGrade)); return lv ? `${lv.icon} ${lv.label}` : '❗ Bajo' })()}
                     </div>
                   </>
                 ) : correcting ? (

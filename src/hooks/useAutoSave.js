@@ -2,6 +2,7 @@
 // Custom hook for auto-saving data with debounce
 
 import { useEffect, useRef, useCallback } from 'react'
+import { logError } from '../utils/logger'
 
 /**
  * Auto-save hook with debounce
@@ -32,7 +33,7 @@ export function useAutoSave(data, onSave, options = {}) {
       await onSave(data)
       previousDataRef.current = data
     } catch (error) {
-      console.error('Auto-save error:', error)
+      logError(error, { page: 'useAutoSave', action: 'save' })
       throw error
     } finally {
       isSavingRef.current = false
@@ -89,7 +90,7 @@ export function useLocalStorageAutoSave(key, data, delay = 1000) {
       try {
         localStorage.setItem(key, JSON.stringify(dataToSave))
       } catch (error) {
-        console.error('localStorage save error:', error)
+        console.warn('localStorage save error:', error) // storage quota issue, non-critical
       }
     },
     [key]

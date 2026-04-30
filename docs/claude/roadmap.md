@@ -139,9 +139,6 @@ Ver detalles en [`security.md`](security.md).
 - [ ] Verificar que los backups de Supabase están activos
 - [ ] Instrumentar `claude-proxy` con `cbf-logger`
 
-**Ambiente de desarrollo separado**
-- Crear Supabase Branch para dejar de trabajar directo en producción
-- Hoy todo fue directo a producción — riesgo real que hay que cerrar
 
 ### 🟡 Media prioridad
 
@@ -201,7 +198,7 @@ Cuando el docente sube fotos de textbook en NewsProjectEditor:
 | Props drilling `teacher` | App → 15 páginas | `TeacherContext` en Fase 3 |
 | Race condition GuideEditor | `contentRef.current` mutado en 5+ lugares | Fase 3 |
 | `claude-proxy` sin observabilidad | `supabase/functions/claude-proxy/` | Instrumentar con cbf-logger |
-| Deploy directo a producción | Todas las migraciones y Edge Functions | Crear Supabase Branch |
+| Deploy directo a producción | Todas las migraciones y Edge Functions | ✅ Supabase Branch creado |
 
 ---
 

@@ -583,18 +583,16 @@ function updateTotals() {
 }
 
 function gradeColor(g) {
-  if (g >= 4.5) return '#1A6B3A';
-  if (g >= 3.5) return '#2B8A45';
-  if (g >= 3.0) return '#B8860B';
-  if (g >= 2.0) return '#CC4E10';
-  return '#CC1F27';
+  if (g >= 4.50) return '#15803D';
+  if (g >= 4.00) return '#1D4ED8';
+  if (g >= 3.50) return '#D97706';
+  return '#DC2626';
 }
 function gradeLabel(g) {
-  if (g >= 4.5) return 'Excelente';
-  if (g >= 3.5) return 'Bueno';
-  if (g >= 3.0) return 'Satisfactorio';
-  if (g >= 2.0) return 'En Desarrollo';
-  return 'Inicial';
+  if (g >= 4.50) return 'Superior';
+  if (g >= 4.00) return 'Alto';
+  if (g >= 3.50) return 'Básico';
+  return 'Bajo';
 }
 
 function applyOverride() {
@@ -652,7 +650,7 @@ document.getElementById('eval-date').addEventListener('input', e => {
   const d = e.target.value ? new Date(e.target.value + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' }) : '\\u00a0';
   document.getElementById('pi-date').textContent = d;
 });
-<\/script>
+</script>
 </body>
 </html>`
 

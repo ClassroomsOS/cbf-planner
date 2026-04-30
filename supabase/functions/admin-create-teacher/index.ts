@@ -158,20 +158,41 @@ Deno.serve(async (req) => {
       })
     }
 
+    const cleanEmail = email.toLowerCase().trim()
+    const schoolName = school?.name || 'Colegio Boston Flexible'
+    const hasResend  = !!Deno.env.get('RESEND_API_KEY')
+
     // 2. Create auth user
-    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-      email: email.toLowerCase().trim(),
-      email_confirm: true,
-      user_metadata: { full_name },
-    })
+    // If no Resend key, use inviteUserByEmail so Supabase sends the email automatically.
+    // If Resend is available, create normally and send via Resend below.
+    let userId: string
+    let recoveryUrl: string | null = null
 
-    if (authError) {
-      return new Response(JSON.stringify({ error: authError.message }), {
-        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    if (!hasResend) {
+      // inviteUserByEmail creates the user AND sends the invite email via Supabase's SMTP
+      const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
+        cleanEmail,
+        { data: { full_name } },
+      )
+      if (inviteError) {
+        return new Response(JSON.stringify({ error: inviteError.message }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+      userId = inviteData.user.id
+    } else {
+      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        email: cleanEmail,
+        email_confirm: true,
+        user_metadata: { full_name },
       })
+      if (authError) {
+        return new Response(JSON.stringify({ error: authError.message }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+      userId = authData.user.id
     }
-
-    const userId = authData.user.id
 
     // 3. Build initials
     const initials = full_name
@@ -184,7 +205,7 @@ Deno.serve(async (req) => {
     // 4. Insert teacher row
     const { error: dbError } = await supabaseAdmin.from('teachers').insert({
       id:        userId,
-      email:     email.toLowerCase().trim(),
+      email:     cleanEmail,
       full_name: full_name.trim(),
       initials,
       role:      role || 'teacher',
@@ -200,19 +221,21 @@ Deno.serve(async (req) => {
       })
     }
 
-    // 5. Generate recovery link
-    const { data: linkData } = await supabaseAdmin.auth.admin.generateLink({
-      type:  'recovery',
-      email: email.toLowerCase().trim(),
-    })
-
-    const recoveryUrl = linkData?.properties?.action_link ?? null
-
-    // 6. Send welcome email via Resend (best-effort — no falla la operación si falla el email)
-    const schoolName = school?.name || 'Colegio Boston Flexible'
-    const emailSent  = recoveryUrl
-      ? await sendWelcomeEmail(email, full_name, recoveryUrl, schoolName)
-      : false
+    // 5. If Resend is available, generate recovery link and send custom email
+    let emailSent = false
+    if (hasResend) {
+      const { data: linkData } = await supabaseAdmin.auth.admin.generateLink({
+        type:  'recovery',
+        email: cleanEmail,
+      })
+      recoveryUrl = linkData?.properties?.action_link ?? null
+      if (recoveryUrl) {
+        emailSent = await sendWelcomeEmail(cleanEmail, full_name, recoveryUrl, schoolName)
+      }
+    } else {
+      // Supabase already sent the invite email automatically
+      emailSent = true
+    }
 
     return new Response(JSON.stringify({
       success:      true,

@@ -110,7 +110,7 @@ function loadDraftLocal(planId) {
 }
 
 function clearDraftLocal(planId) {
-  try { localStorage.removeItem(DRAFT_PREFIX + planId) } catch {}
+  try { localStorage.removeItem(DRAFT_PREFIX + planId) } catch { /* storage unavailable in private mode */ }
 }
 
 

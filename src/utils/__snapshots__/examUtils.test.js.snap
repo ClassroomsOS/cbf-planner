@@ -1,0 +1,11 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`seededShuffle > version seeds produce stable order — regression guard 1`] = `
+[
+  2,
+  3,
+  1,
+  0,
+  4,
+]
+`;

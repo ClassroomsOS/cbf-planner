@@ -822,7 +822,7 @@ export async function exportGuideDocx(content, filename) {
           })],
         })], hCols[0], { borders: allB(bBlue), margins: { top: 60, bottom: 60, left: 80, right: 80 } })
       }
-    } catch {}
+    } catch { /* logo image failed to load — falls back to text placeholder below */ }
   }
   if (!logoCell) {
     logoCell = mkCell([mkP(mkR('LOGO', { size: 18, color: '999999' }), AlignmentType.CENTER)],

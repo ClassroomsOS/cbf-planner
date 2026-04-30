@@ -8,6 +8,19 @@ import GroupChat from '../components/GroupChat'
 export default function MessagesPage({ teacher }) {
   const { features } = useFeatures()
   const { showToast } = useToast()
+
+  // Hooks siempre primero — nunca después de un return condicional
+  const [messages,    setMessages]    = useState([])
+  const [teachers,    setTeachers]    = useState([])
+  const [loading,     setLoading]     = useState(true)
+  const [showCompose, setShowCompose] = useState(false)
+  const [selected,    setSelected]    = useState(null)
+  const [form,        setForm]        = useState({ to_id: '', subject: '', body: '' })
+  const [sending,     setSending]     = useState(false)
+  const [tab,         setTab]         = useState('inbox') // inbox | sent | rooms
+
+  useEffect(() => { fetchMessages(); fetchTeachers() }, [teacher.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
   if (features.messages === false) return (
     <div className="planner-wrap">
       <div className="card">
@@ -18,16 +31,6 @@ export default function MessagesPage({ teacher }) {
       </div>
     </div>
   )
-  const [messages,    setMessages]    = useState([])
-  const [teachers,    setTeachers]    = useState([])
-  const [loading,     setLoading]     = useState(true)
-  const [showCompose, setShowCompose] = useState(false)
-  const [selected,    setSelected]    = useState(null)
-  const [form,        setForm]        = useState({ to_id: '', subject: '', body: '' })
-  const [sending,     setSending]     = useState(false)
-  const [tab,         setTab]         = useState('inbox') // inbox | sent | rooms
-
-  useEffect(() => { fetchMessages(); fetchTeachers() }, [teacher.id])
 
   async function fetchMessages() {
     setLoading(true)

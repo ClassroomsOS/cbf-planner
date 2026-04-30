@@ -28,6 +28,9 @@ const LAYOUT_OPTIONS = [
   },
 ]
 
+// Normaliza layouts viejos (layout_mode) al nuevo formato
+const normalize = l => l === 'stack' ? 'below' : l === 'side' ? 'right' : (l || 'below')
+
 const LayoutSelectorModal = memo(function LayoutSelectorModal({
   isOpen,
   onClose,
@@ -35,11 +38,7 @@ const LayoutSelectorModal = memo(function LayoutSelectorModal({
   sectionLabel,
   currentLayout = 'below',
 }) {
-  if (!isOpen) return null
-
-  // Normaliza layouts viejos (layout_mode) al nuevo formato
-  const normalize = l => l === 'stack' ? 'below' : l === 'side' ? 'right' : (l || 'below')
-
+  // Hooks siempre primero — nunca después de un return condicional
   const [selected, setSelected] = useState(normalize(currentLayout))
   const modalRef = useFocusTrap(isOpen, onClose)
 
@@ -47,6 +46,8 @@ const LayoutSelectorModal = memo(function LayoutSelectorModal({
     onConfirm({ image_layout: selected })
     onClose()
   }, [selected, onConfirm, onClose])
+
+  if (!isOpen) return null
 
   return (
     <div style={S.overlay}>
