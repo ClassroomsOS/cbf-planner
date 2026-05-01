@@ -128,17 +128,40 @@ async function fetchSectionImage(url) {
   } catch { return null }
 }
 
-// Right column usable width: 8651 dxa − 240 dxa padding = 8411 dxa → EMU
+// ── Dimension constraints ──────────────────────────────────────────────────────
 // 1 dxa = 635 EMU  (914400 EMU/in ÷ 1440 dxa/in)
-const MAX_IMG_EMU = 8411 * 635   // ≈ 5 340 985
+// Right column usable width: 8651 dxa − 240 dxa padding = 8411 dxa
+const MAX_W_EMU = 8411 * 635          // ≈ 5 341 000  (~14.8 cm)
+// Page: 20160 dxa − margins 2834 − header ~708 = 16618 dxa usable
+// Single image should never use more than ~55% of page height
+const MAX_H_1_EMU  = 9000 * 635      // ≈ 5 715 000  (~15.8 cm) — 1 image
+const MAX_H_2_EMU  = 5500 * 635      // ≈ 3 493 000  (~9.7 cm)  — 2 images
+const MAX_H_N_EMU  = 4000 * 635      // ≈ 2 540 000  (~7.0 cm)  — 3+ images
 
 /**
- * Fit image into maxEmu width, maintaining aspect ratio.
- * Returns { cx, cy } in EMU.
+ * Fit image into both maxW and maxH, maintaining aspect ratio.
+ * The image is scaled down to whichever constraint is tighter — never up.
+ *
+ * @param {number} natW     Natural width in px
+ * @param {number} natH     Natural height in px
+ * @param {number} imgCount Total images in this section (determines height budget)
+ * @returns {{ cx: number, cy: number }} dimensions in EMU
  */
-function calcEmu(natW, natH, maxEmu = MAX_IMG_EMU) {
-  const cx = maxEmu
-  const cy = Math.round(maxEmu * natH / natW)
+function calcEmu(natW, natH, imgCount = 1) {
+  const maxH = imgCount <= 1 ? MAX_H_1_EMU
+             : imgCount === 2 ? MAX_H_2_EMU
+             : MAX_H_N_EMU
+
+  // Scale to fit width first
+  let cx = MAX_W_EMU
+  let cy = Math.round(MAX_W_EMU * natH / natW)
+
+  // If too tall for height budget, shrink to fit height
+  if (cy > maxH) {
+    cy = maxH
+    cx = Math.round(maxH * natW / natH)
+  }
+
   return { cx, cy }
 }
 
@@ -281,23 +304,21 @@ async function buildDayRow(iso, day, imageRefs) {
 
     rightContent += contentParas(section.content)
 
-    // ── Embed images ──────────────────────────────────────────────────────────
-    const images = section.images || []
+    // ── Embed images — smart sizing per section image count ─────────────────
+    const images = (section.images || []).filter(img => img?.url)
     for (let i = 0; i < images.length; i++) {
-      const imgUrl = images[i]?.url
-      if (!imgUrl) continue
-      const fetched = await fetchSectionImage(imgUrl)
+      const fetched = await fetchSectionImage(images[i].url)
       if (!fetched) continue
 
-      // Stable IDs — base 100 to avoid conflicts with header logo (rId25, rId1–rId7)
+      // Stable IDs — base 100 to avoid conflicts with header/logo rIds
       const idx       = imageRefs.length
       const rId       = `rId${100 + idx}`
       const ext       = fetched.type === 'jpeg' ? 'jpg' : fetched.type
       const mediaPath = `word/media/simg${idx}.${ext}`
       imageRefs.push({ rId, data: fetched.data, type: fetched.type, mediaPath })
 
-      const imgId       = 100 + idx   // Word docPr id — must be unique positive int
-      const { cx, cy }  = calcEmu(fetched.natW, fetched.natH)
+      const imgId       = 100 + idx
+      const { cx, cy }  = calcEmu(fetched.natW, fetched.natH, images.length)
       const imgName     = `Image_${s.key}_${i}`
 
       rightContent += emptyP()
