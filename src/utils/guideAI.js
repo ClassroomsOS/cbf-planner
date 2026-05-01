@@ -134,27 +134,29 @@ export async function suggestSectionActivity({
     ? archetypeList[(variantSeed || Math.floor(Math.random() * 10000)) % archetypeList.length]
     : null
 
+  // Limits are strict: guide content = direct student-facing instruction, not descriptive prose.
+  // Rule: imperative voice, no preamble, no meta-commentary. Student reads → student acts.
   const SECTION_LIMITS = {
     'ENCUENTRO · VOCABULARY LIST': isModeloB
-      ? '2-3 sentences. Describe a greeting ritual + a vocabulary list warm-up (5 words with repetition, gestures, or a short game). Connect one word to the biblical principle naturally.'
-      : '2-3 oraciones. Describe el saludo + la lista de vocabulario del día (5 palabras con repetición coral, gestos o juego breve). Conecta una palabra con el principio bíblico de forma natural.',
+      ? 'Exactly 5 vocabulary words (word — definition — example sentence). Then 1 line describing the warm-up activity (choral repeat / gesture / quick game). Max 40 words total.'
+      : 'Exactamente 5 palabras (palabra — significado — ejemplo). Luego 1 línea con la actividad breve (repetición coral / gesto / juego). Máx. 40 palabras.',
     'TEMA DEL DÍA': isModeloB
-      ? '1-2 sentences. State the specific language skill or grammar/vocabulary topic of the day. Mention what the student will be able to do by the end of class.'
-      : '1-2 oraciones. Enuncia el tema del día y el objetivo que el estudiante logrará. Menciona cómo se relaciona con el principio bíblico.',
+      ? '1 sentence max. Direct statement of today\'s topic and skill. No preamble.'
+      : '1 oración. Enuncia el tema del día. Sin introducciones.',
     'MOTIVACIÓN': isModeloB
-      ? '2-3 sentences. Describe an engaging hook that activates prior knowledge: a provocative question, a short game, a visual stimulus, a real-life scenario. Link it to the topic and the biblical principle.'
-      : '2-3 oraciones. Describe la actividad de enganche que activa saberes previos (pregunta provocadora, juego corto, imagen, reto). Conecta con el tema y el principio bíblico.',
+      ? '1 direct question or 1-step game instruction. Max 25 words. Imperative or interrogative — no descriptive sentences.'
+      : '1 pregunta directa o 1 instrucción de juego breve. Máx. 25 palabras. Imperativo o interrogativo — sin oraciones descriptivas.',
     'DESARROLLO DE HABILIDADES': isModeloB
-      ? '4-6 sentences. Describe the main skill-development task step by step. Be specific to the grammar point, vocabulary set, or textbook unit. Include at least one pair/group dynamic and one concrete language production task. State what the student will produce.'
-      : '4-5 oraciones. Paso a paso de la actividad principal. Especifica el PRODUCTO que el estudiante genera. Integra el principio bíblico en los ejemplos o el contenido.',
+      ? 'Numbered steps (max 4). Each step = 1 action verb + what the student does. Specify the concrete output (write / say / circle / match). Max 60 words.'
+      : 'Lista numerada (máx. 4 pasos). Cada paso = 1 verbo de acción + qué hace el estudiante. Especifica el producto concreto (escribe / dibuja / subraya / responde). Máx. 60 palabras.',
     'CIERRE Y REFLEXIÓN': isModeloB
-      ? '2 sentences. First: 1 academic verification question about today\'s content. Second: 1 reflection question connecting today\'s learning to the biblical principle. Invite students to share one thing they learned today in English.'
-      : '1-2 oraciones. Pregunta de verificación académica + pregunta de reflexión emocional/espiritual que conecte el aprendizaje con el principio bíblico del período.',
+      ? '1 check question + 1 biblical reflection question. Max 30 words total.'
+      : '1 pregunta de verificación + 1 pregunta de reflexión bíblica. Máx. 30 palabras en total.',
     'TAREA / ASSIGNMENT': isModeloB
-      ? '2 sentences. Give a specific, achievable homework task using the studied language. It must produce written or spoken output (e.g. write 5 sentences, record a voice note, complete p.XX of the textbook).'
-      : '1-2 oraciones. Tarea específica y alcanzable para terminar en casa o preparar la siguiente clase.',
+      ? '1 sentence. Specific task with a concrete deliverable (write X sentences / complete p.XX / record 1 minute). Max 20 words.'
+      : '1 oración. Tarea concreta con entregable específico (escribe X / completa p.XX / graba 1 minuto). Máx. 20 palabras.',
   }
-  const limit = SECTION_LIMITS[section.label] || (isModeloB ? '2-4 sentences.' : '2-3 oraciones.')
+  const limit = SECTION_LIMITS[section.label] || (isModeloB ? 'Max 40 words. Direct instruction only.' : 'Máx. 40 palabras. Solo instrucción directa.')
 
   const isClosing = section.label === 'CIERRE Y REFLEXIÓN'
   const langInstruction = isModeloB
@@ -162,11 +164,10 @@ export async function suggestSectionActivity({
     : 'Respondes SIEMPRE en español.'
 
   const system = `Eres un asistente pedagógico experto para colegios bilingües colombianos (CBF — Colegio Boston Flexible).
-Generas sugerencias de actividades para guías de aprendizaje autónomo, concretas, variadas y apropiadas para el nivel y la materia.
+Generas instrucciones de actividades para guías de aprendizaje. Tu salida va DIRECTAMENTE a la guía que el estudiante lee en clase.
 ${langInstruction}
-Formato: texto corrido, listo para pegar en la guía. Sin listas, sin viñetas, sin markdown.
-Sé específico: menciona el tema gramatical, vocabulario o unidad del libro cuando esté disponible.
-LÍMITE para esta sección: ${limit}
+REGLA ABSOLUTA DE FORMATO: Instrucción directa, no descripción. El estudiante lee y actúa — no necesita saber que "el docente propone". Sin prosa introductoria, sin "En esta sección…", sin "Se recomienda…". Usa imperativo o interrogativo. Si la sección tiene pasos, usa lista numerada. Sin markdown extra.
+LÍMITE estricto para esta sección: ${limit}
 ${biblicalBlock(principles, isClosing
   ? (isModeloB
     ? 'The CLOSING section ALWAYS ends with a question or reflection connecting today\'s learning to this biblical principle. This is the faith-learning integration moment.'
@@ -413,6 +414,18 @@ export async function generateGuideStructure({
   const system = `Eres un experto en diseño de guías de aprendizaje autónomo para colegios bilingües colombianos CRISTIANOS CONFESIONALES.
 Generas estructuras completas de guías semanales siguiendo el modelo CBF con 6 secciones por día.
 
+MANDATO DE BREVEDAD — REGLA N°1:
+El contenido de cada sección va DIRECTAMENTE a la guía que el estudiante lee en clase.
+No escribas prosa que describe lo que hace el docente. Escribe la instrucción que el estudiante ejecuta.
+Cada sección debe ser: imperativo directo, sin introducción, sin meta-comentario.
+  - ENCUENTRO: lista de 5 palabras + 1 línea de actividad (máx. 40 palabras)
+  - TEMA DEL DÍA: 1 oración con el tema y el objetivo (máx. 20 palabras)
+  - MOTIVACIÓN: 1 pregunta directa o 1 instrucción de juego (máx. 25 palabras)
+  - DESARROLLO: lista numerada 3-4 pasos con verbo de acción + producto concreto (máx. 60 palabras)
+  - CIERRE: 1 pregunta académica + 1 pregunta de reflexión bíblica (máx. 30 palabras)
+  - TAREA: 1 oración con entregable específico (máx. 20 palabras)
+Violar estos límites es un error — el alumno no debe leer más de lo necesario para saber qué hacer.
+
 MANDATO ABSOLUTO: Esta es una escuela cristiana confesional. El principio bíblico NO es un elemento decorativo — es el HILO CONDUCTOR que atraviesa CADA momento de CADA clase, sin importar la materia. Matemáticas, Ciencias, Filosofía, Language Arts: todas tienen el mismo norte espiritual. Nunca generes contenido neutral o secular puro.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -609,37 +622,35 @@ ${piarBlock}
 IDIOMA: Usa inglés para Language Arts. Usa español para todas las demás materias.
 FORMATO: Texto plano, sin HTML, sin viñetas, sin listas. Texto corrido, directo al punto.
 
-INSTRUCCIONES DE CONTENIDO POR SECCIÓN (ABC del Encuentro Didáctico):
+INSTRUCCIONES DE CONTENIDO POR SECCIÓN — INSTRUCCIÓN DIRECTA, NO DESCRIPCIÓN:
 
-ENCUENTRO · VOCABULARY LIST (key: subject):
-  → Describe el ritual de saludo + la Vocabulary List del día (5 palabras con repetición coral,
-    gestos o juego breve). Conecta una palabra con el principio bíblico de forma natural.
-  → 1 oración de saludo + 2-3 oraciones sobre el manejo del vocabulario.
+ENCUENTRO · VOCABULARY LIST (key: subject) — máx. 40 palabras:
+  → Lista: 5 palabras con formato "palabra — significado — ejemplo de uso".
+  → 1 línea: instrucción de la actividad breve (repetición coral / gesto / minijuego).
   → NO incluyas oración ni reglas de clase (se insertan automáticamente).
+  → Ejemplo: "1. habitat — natural home — 'Bears live in forest habitats.' | Actividad: repite con gesto."
 
-TEMA DEL DÍA (key: motivation):
-  → 1-2 oraciones que describen cómo el docente anuncia el tema y el objetivo del día.
-  → Menciona qué se escribe en el tablero (fecha, tema, objetivo, principio bíblico).
-  → Conecta el indicador con el principio desde el inicio de la clase.
+TEMA DEL DÍA (key: motivation) — máx. 20 palabras:
+  → 1 oración que enuncia el tema del día y qué logrará el estudiante.
+  → Ejemplo: "Hoy aprenderás a usar el Present Perfect para hablar de experiencias de vida."
 
-MOTIVACIÓN (key: activity):
-  → Describe la dinámica de activación de saberes previos (pregunta provocadora, dilema, imagen,
-    juego corto). Debe despertar curiosidad y conectar con la clase anterior.
-  → 2-3 oraciones. El principio bíblico debe resonar en la pregunta o dinámica.
+MOTIVACIÓN (key: activity) — máx. 25 palabras:
+  → 1 pregunta directa O 1 instrucción de juego/dinámica corta. Solo eso.
+  → Ejemplo (pregunta): "¿Alguna vez le mentiste a alguien para protegerlo? ¿Fue lo correcto?"
+  → Ejemplo (juego): "En parejas: 30 segundos — nombra 5 animales en inglés sin repetir. ¡Ya!"
 
-DESARROLLO DE HABILIDADES (key: skill):
-  → Describe paso a paso la actividad principal. Especifica el PRODUCTO que el estudiante genera
-    (qué escribe, hace, presenta o crea — no solo "practicar").
-  → Integra el principio bíblico en los ejemplos o en el contenido. 3-5 oraciones.
+DESARROLLO DE HABILIDADES (key: skill) — máx. 60 palabras, lista numerada:
+  → Pasos numerados (3-4 máx.), cada uno = verbo de acción + qué hace el estudiante exactamente.
+  → El último paso especifica el PRODUCTO concreto (escribe / dibuja / completa / presenta).
+  → Ejemplo: "1. Lee el texto p.45. | 2. Subraya los verbos en past simple. | 3. Escribe 3 oraciones usando esos verbos en tu cuaderno."
 
-CIERRE Y REFLEXIÓN (key: closing):
-  → 1 pregunta de verificación académica concreta sobre lo trabajado hoy.
-  → 1 pregunta de reflexión emocional/espiritual: cómo se sintieron + conexión con el principio bíblico.
-  → Este cierre ES el momento de integración fe-aprendizaje — no lo omitas ni lo hagas superficial.
+CIERRE Y REFLEXIÓN (key: closing) — máx. 30 palabras:
+  → 1 pregunta de verificación académica + 1 pregunta de reflexión bíblica. Nada más.
+  → Ejemplo: "¿Cuándo usamos el Present Perfect? — ¿Cómo conectas lo aprendido hoy con [principio bíblico]?"
 
-TAREA / ASSIGNMENT (key: assignment):
-  → 1 tarea concreta: para terminar en casa, preparar la siguiente clase, o ejercicio del libro.
-  → Debe ser alcanzable y específica (no solo "repasar el tema").
+TAREA / ASSIGNMENT (key: assignment) — máx. 20 palabras:
+  → 1 oración con entregable específico. Nada vago.
+  → Ejemplo: "Completa el ejercicio 3 de la p.47 del libro. Trae respondido para la próxima clase."
 
 PROGRESIÓN SEMANAL: Los días deben avanzar desde la introducción del vocabulario/concepto (Día 1)
 hasta la producción autónoma del estudiante (último día). Cada día construye sobre el anterior.`
@@ -715,13 +726,13 @@ hasta la producción autónoma del estudiante (último día). Cada día construy
   // Retry: ask for more compact content
   const retryMessage = `${message}
 
-IMPORTANTE: Tu respuesta anterior fue cortada. Sé más breve por sección:
-- subject (ENCUENTRO · VOCABULARY LIST): 2 oraciones (saludo + vocabulary list del día).
-- motivation (TEMA DEL DÍA): 1 oración (tema + objetivo + principio bíblico en el tablero).
-- activity (MOTIVACIÓN): 2 oraciones (dinámica de activación de saberes previos).
-- skill (DESARROLLO DE HABILIDADES): 3 oraciones (actividad principal + producto del estudiante).
-- closing (CIERRE Y REFLEXIÓN): 1 pregunta verificación + 1 reflexión bíblica.
-- assignment (TAREA): 1 oración concreta.
+IMPORTANTE: Tu respuesta anterior fue cortada. Sé MÁS BREVE — límites estrictos por sección:
+- subject: 5 palabras con formato (máx. 40 palabras total).
+- motivation: 1 oración (el tema del día). Máx. 20 palabras.
+- activity: 1 pregunta o 1 instrucción directa. Máx. 25 palabras.
+- skill: lista 3 pasos numerados + producto concreto. Máx. 60 palabras.
+- closing: 1 pregunta académica + 1 reflexión bíblica. Máx. 30 palabras.
+- assignment: 1 oración con entregable. Máx. 20 palabras.
 Responde SOLO con el JSON, sin texto antes ni después.`
 
   const retryRaw = await callClaude({ type: 'generate', system, message: retryMessage, planId, maxTokens: 16000 })
