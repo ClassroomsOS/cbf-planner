@@ -6,28 +6,35 @@ import { sanitizeAIInput } from './validationSchemas'
 import { MODELO_B_SUBJECTS } from './constants'
 
 // ── Activity archetypes per section — used to force variety on each call ──────
+// Keys match SECTIONS[].label from constants.js (ABC del Encuentro Didáctico)
 const ACTIVITY_ARCHETYPES = {
   // English / Modelo B
   en: {
-    'SYNCHRONIC CLASS · MEET': [
-      'a one-sentence announcement of the synchronous session topic',
+    'ENCUENTRO · VOCABULARY LIST': [
+      'a greeting ritual + 5-word vocabulary list with gestures or choral repetition',
+      'a vocab flash-card warm-up: teacher shows word, students call out definition or example sentence',
+      'a "word of the day" spotlight: one word, its meaning, a bible-principle connection, and a student-generated sentence',
+      'a vocabulary matching race: 5 words on the board, students draw lines to definitions',
+      'a daily phrase practice: teach one functional phrase (e.g. "I can argue that…"), model it, choral repeat, one student uses it in context',
     ],
-    'SUBJECT TO BE WORKED:': [
-      'a one-sentence skill/grammar/topic statement for the day',
+    'TEMA DEL DÍA': [
+      'a one-sentence board announcement connecting today\'s topic to the biblical principle',
+      'state the learning goal in student-friendly language: "Today we will… so that we can…"',
+      'a brief agenda preview: topic, objective, biblical connection — one sentence each',
     ],
-    'MOTIVATION': [
-      'a provocative real-life question or "Would you rather?" dilemma',
-      'a short image/headline prediction activity',
-      'a word association chain or brainstorm web',
-      'a mystery object or realia reveal',
-      'a personal anecdote prompt ("Tell your partner about a time when...")',
+    'MOTIVACIÓN': [
+      'a provocative real-life question or "Would you rather?" dilemma connected to the topic',
+      'a short image/headline prediction activity: "What do you think this is about?"',
+      'a word association chain or brainstorm web on the board',
+      'a mystery object or realia reveal related to the unit',
+      'a personal anecdote prompt: "Tell your partner about a time when…"',
       'a quick class poll with hands-up voting and brief justification',
       'a short song lyric or poem excerpt with a guiding question',
       'a "what do you notice?" visual stimulus (photo, infographic, meme)',
-      'a true/false warm-up quiz about the topic',
-      'a "complete the sentence" prediction game',
+      'a true/false warm-up quiz about prior knowledge of the topic',
+      'a "complete the sentence" prediction game using target vocabulary',
     ],
-    'SKILLS DEVELOPMENT': [
+    'DESARROLLO DE HABILIDADES': [
       'a hot seat roleplay (one student in character, others interview)',
       'a four corners debate using opinion phrases and target grammar',
       'a jigsaw reading where groups reconstruct a story and report back',
@@ -44,16 +51,16 @@ const ACTIVITY_ARCHETYPES = {
       'a vocabulary ranking and justification activity',
       'an error correction hunt on a printed or projected paragraph',
     ],
-    'CLOSING': [
-      'an exit-ticket sentence using the target structure',
+    'CIERRE Y REFLEXIÓN': [
+      'an exit-ticket sentence using the target structure + one faith-connection sentence',
       'a "three things I learned / one question I still have" reflection',
       'a pair share: "Explain today\'s grammar rule to your partner in your own words"',
-      'a "ticket out the door" — write one sentence connecting today\'s topic to real life',
-      'a quick vocabulary recap: partners quiz each other on 5 new words',
+      'a "ticket out the door" — write one sentence connecting today\'s topic to the biblical principle',
+      'a quick vocabulary recap: partners quiz each other on 5 words from today',
       'a silent written reflection on a faith-connection prompt',
       'a "what would I tell a friend about today\'s lesson?" one-sentence summary',
     ],
-    'ASSIGNMENT': [
+    'TAREA / ASSIGNMENT': [
       'a written production task (5-8 sentences using target grammar)',
       'a voice recording assignment (1-minute monologue or dialogue)',
       'a textbook exercise on the grammar point (specific page)',
@@ -65,23 +72,29 @@ const ACTIVITY_ARCHETYPES = {
   },
   // Spanish
   es: {
-    'SYNCHRONIC CLASS · MEET': [
-      'una oración que anuncia el tema de la sesión sincrónica del día',
+    'ENCUENTRO · VOCABULARY LIST': [
+      'saludo + lista de 5 palabras clave del día con repetición coral y gestos',
+      'ritual de bienvenida + palabra del día: significado, conexión bíblica y oración del estudiante',
+      'tarjetas de vocabulario: el docente muestra la palabra, los estudiantes dicen la definición o un ejemplo',
+      'carrera de asociación: 5 palabras en el tablero, los estudiantes las relacionan con imágenes o definiciones',
+      'frase funcional del día: el docente la modela, el grupo la repite coralmente, un estudiante la usa en contexto',
     ],
-    'SUBJECT TO BE WORKED:': [
-      'una oración que enuncia el tema o habilidad del día',
+    'TEMA DEL DÍA': [
+      'una oración que enuncia el tema del día y lo conecta con el principio bíblico del mes',
+      'anuncia el objetivo en lenguaje amigable: "Hoy vamos a… para poder…"',
+      'resumen de la agenda del día: tema, objetivo, conexión bíblica — una oración por ítem',
     ],
-    'MOTIVATION': [
-      'una pregunta provocadora o dilema de la vida real',
-      'una lluvia de ideas cronometrada con una imagen o título',
-      'un juego de asociación de palabras o mapa mental rápido',
-      'un acertijo o misterio relacionado con el tema',
-      'una encuesta rápida con justificación breve',
-      'una predicción: ¿qué creen que va a pasar?',
-      'una conexión personal: ¿cuándo has vivido algo así?',
+    'MOTIVACIÓN': [
+      'una pregunta provocadora o dilema de la vida real relacionado con el tema',
+      'una lluvia de ideas cronometrada con una imagen o titular de noticia',
+      'un juego de asociación de palabras o mapa mental rápido en el tablero',
+      'un acertijo o misterio relacionado con el contenido del día',
+      'una encuesta rápida con manos arriba y justificación breve',
+      'una predicción: ¿qué creen que va a pasar? ¿Por qué?',
+      'una conexión personal: ¿cuándo has vivido algo parecido a esto?',
       'un video corto o imagen impactante con pregunta guía',
     ],
-    'SKILLS DEVELOPMENT': [
+    'DESARROLLO DE HABILIDADES': [
       'un roleplay de situación real usando el vocabulario del tema',
       'un debate estructurado con rondas de argumento y réplica',
       'una actividad jigsaw: grupos expertos que enseñan a otros',
@@ -92,18 +105,18 @@ const ACTIVITY_ARCHETYPES = {
       'un análisis de caso con preguntas guía y presentación breve',
       'un taller de corrección entre pares con rúbrica sencilla',
     ],
-    'CLOSING': [
-      'una pregunta de reflexión que conecte lo aprendido con el principio bíblico',
-      'un ticket de salida: una frase que resume el aprendizaje del día',
-      'una ronda final: cada estudiante dice una palabra clave aprendida',
+    'CIERRE Y REFLEXIÓN': [
+      'una pregunta de reflexión que conecte lo aprendido con el principio bíblico + ticket de salida',
+      'ronda de cierre: cada estudiante dice una palabra clave aprendida hoy',
+      'pregunta emocional: ¿cómo se sintieron con el tema? + conexión bíblica como cierre',
       'una conexión personal: ¿dónde aplico esto fuera del aula?',
-      'un resumen en cadena: un estudiante comienza, el siguiente continúa',
+      'un resumen en cadena: un estudiante comienza la frase, el siguiente la continúa',
     ],
-    'ASSIGNMENT': [
-      'una tarea escrita específica y alcanzable relacionada con el tema',
-      'una actividad de investigación breve con entregable concreto',
+    'TAREA / ASSIGNMENT': [
+      'una tarea escrita específica y alcanzable relacionada con el tema del día',
+      'una actividad de investigación breve con entregable concreto para la siguiente clase',
       'un ejercicio del libro de texto (página y punto específico)',
-      'una reflexión escrita de media página con pregunta guía',
+      'una reflexión escrita de media página con pregunta guía relacionada con el principio bíblico',
     ],
   },
 }
@@ -122,28 +135,28 @@ export async function suggestSectionActivity({
     : null
 
   const SECTION_LIMITS = {
-    'SYNCHRONIC CLASS · MEET': isModeloB
-      ? '1 sentence. Announce the synchronous session topic or skill focus.'
-      : '1 oración. Anuncia el tema de la sesión sincrónica del día.',
-    'SUBJECT TO BE WORKED:': isModeloB
-      ? '1 sentence. State the specific language skill or grammar/vocabulary topic of the day.'
-      : '1 oración. Enuncia el tema o habilidad del día.',
-    'MOTIVATION': isModeloB
-      ? '2-3 sentences. Describe an engaging hook: a question, a short game, a visual stimulus, a real-life scenario, or a challenge that activates prior knowledge.'
-      : '2-3 oraciones. Describe la actividad de enganche (pregunta, juego corto, imagen, reto).',
-    'SKILLS DEVELOPMENT': isModeloB
-      ? '4-6 sentences. Describe the main skill-development task in detail — step by step. Make it specific to the grammar point, vocabulary set, or textbook unit. Suggest at least one pair/group dynamic and one concrete language production task.'
-      : '4-5 oraciones. Paso a paso de la actividad principal. Esta es la sección más importante.',
-    'CLOSING': isModeloB
-      ? '2 sentences. Pose a reflection question that connects today\'s language skill to the biblical principle. Then ask students to share one thing they learned today in English.'
-      : '1-2 oraciones. Pregunta de reflexión que conecte el aprendizaje del día con el principio bíblico del período.',
-    'ASSIGNMENT': isModeloB
+    'ENCUENTRO · VOCABULARY LIST': isModeloB
+      ? '2-3 sentences. Describe a greeting ritual + a vocabulary list warm-up (5 words with repetition, gestures, or a short game). Connect one word to the biblical principle naturally.'
+      : '2-3 oraciones. Describe el saludo + la lista de vocabulario del día (5 palabras con repetición coral, gestos o juego breve). Conecta una palabra con el principio bíblico de forma natural.',
+    'TEMA DEL DÍA': isModeloB
+      ? '1-2 sentences. State the specific language skill or grammar/vocabulary topic of the day. Mention what the student will be able to do by the end of class.'
+      : '1-2 oraciones. Enuncia el tema del día y el objetivo que el estudiante logrará. Menciona cómo se relaciona con el principio bíblico.',
+    'MOTIVACIÓN': isModeloB
+      ? '2-3 sentences. Describe an engaging hook that activates prior knowledge: a provocative question, a short game, a visual stimulus, a real-life scenario. Link it to the topic and the biblical principle.'
+      : '2-3 oraciones. Describe la actividad de enganche que activa saberes previos (pregunta provocadora, juego corto, imagen, reto). Conecta con el tema y el principio bíblico.',
+    'DESARROLLO DE HABILIDADES': isModeloB
+      ? '4-6 sentences. Describe the main skill-development task step by step. Be specific to the grammar point, vocabulary set, or textbook unit. Include at least one pair/group dynamic and one concrete language production task. State what the student will produce.'
+      : '4-5 oraciones. Paso a paso de la actividad principal. Especifica el PRODUCTO que el estudiante genera. Integra el principio bíblico en los ejemplos o el contenido.',
+    'CIERRE Y REFLEXIÓN': isModeloB
+      ? '2 sentences. First: 1 academic verification question about today\'s content. Second: 1 reflection question connecting today\'s learning to the biblical principle. Invite students to share one thing they learned today in English.'
+      : '1-2 oraciones. Pregunta de verificación académica + pregunta de reflexión emocional/espiritual que conecte el aprendizaje con el principio bíblico del período.',
+    'TAREA / ASSIGNMENT': isModeloB
       ? '2 sentences. Give a specific, achievable homework task using the studied language. It must produce written or spoken output (e.g. write 5 sentences, record a voice note, complete p.XX of the textbook).'
-      : '1-2 oraciones. Tarea específica y alcanzable.',
+      : '1-2 oraciones. Tarea específica y alcanzable para terminar en casa o preparar la siguiente clase.',
   }
   const limit = SECTION_LIMITS[section.label] || (isModeloB ? '2-4 sentences.' : '2-3 oraciones.')
 
-  const isClosing = section.label === 'CLOSING'
+  const isClosing = section.label === 'CIERRE Y REFLEXIÓN'
   const langInstruction = isModeloB
     ? 'You respond ALWAYS in English. This is a bilingual school where language subjects are fully taught in English.'
     : 'Respondes SIEMPRE en español.'
@@ -403,42 +416,50 @@ Generas estructuras completas de guías semanales siguiendo el modelo CBF con 6 
 MANDATO ABSOLUTO: Esta es una escuela cristiana confesional. El principio bíblico NO es un elemento decorativo — es el HILO CONDUCTOR que atraviesa CADA momento de CADA clase, sin importar la materia. Matemáticas, Ciencias, Filosofía, Language Arts: todas tienen el mismo norte espiritual. Nunca generes contenido neutral o secular puro.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-SECUENCIA DIDÁCTICA — 6 SECCIONES POR DÍA
+ABC DEL ENCUENTRO DIDÁCTICO — 6 SECCIONES POR DÍA
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-1. SUBJECT TO BE WORKED (~8 min) — ENCUADRE
-   El docente anuncia el indicador del día y el principio bíblico que guiará la clase.
-   Luego pide a un estudiante que ore. Las reglas de clase se muestran aquí.
-   → Genera: 1 oración concisa que enuncia el tema/habilidad del día y lo conecta con el principio bíblico.
+1. ENCUENTRO · VOCABULARY LIST (~8 min) — key: "subject"
+   El docente saluda a presenciales y virtuales. Presenta la Vocabulary List del día (5 palabras
+   clave de la unidad) con repetición coral, gestos o un juego breve. Anuncia el Principio Bíblico.
+   Un estudiante ora. Las Reglas de clase se recuerdan visualmente.
+   → Genera: descripción del ritual de saludo + la lista de 5 palabras con una breve actividad de
+     práctica (repetición, gestos, asociación). Conecta naturalmente con el principio bíblico.
+     1 oración sobre el saludo + 2-3 oraciones sobre el manejo de la vocabulary list.
    → NO incluyas oración ni reglas — esas se insertan automáticamente por el sistema.
 
-2. MOTIVATION (~8 min) — ACTIVACIÓN DE SABERES PREVIOS
-   El docente lanza preguntas activadoras que conectan el conocimiento previo del estudiante
-   TANTO con el indicador académico COMO con el principio bíblico de la clase.
-   Las preguntas deben despertar curiosidad y revelar qué sabe ya el estudiante sobre el tema.
-   → Genera: 2-3 preguntas activadoras concretas, no retóricas. Deben estar relacionadas con el contenido del día Y con el principio bíblico.
+2. TEMA DEL DÍA (~7 min) — key: "motivation"
+   El docente escribe en el tablero: fecha, tema a trabajar, objetivo de la lección, principio bíblico.
+   Enuncia el indicador del día en lenguaje amigable: "Hoy vamos a… para poder…"
+   → Genera: 1-2 oraciones que describen cómo el docente anuncia el tema y el objetivo.
+     Menciona cómo conecta el indicador con el principio bíblico desde el inicio de la clase.
 
-3. ACTIVITY (~15 min) — DINÁMICA PREPARATORIA
-   El docente propone un rompe hielo o dinámica que prepare al estudiante para el contenido.
-   Esta actividad conecta directamente con las preguntas de Motivation y sirve de puente
-   hacia el Skill Development. Debe tener resonancia con el principio bíblico.
-   → Genera: descripción clara de la dinámica (qué hace el estudiante, cómo se desarrolla). 2-3 oraciones.
+3. MOTIVACIÓN (~10 min) — key: "activity"
+   Pre-conocimiento: el docente activa los saberes previos del estudiante con una pregunta
+   provocadora, un dilema, un juego corto o una imagen impactante. Conecta temáticamente
+   con la clase anterior y sirve de puente hacia el Desarrollo de Habilidades.
+   Las Reglas Whole Brain Teaching se practican aquí si es necesario.
+   → Genera: descripción clara de la dinámica de activación (qué hace el estudiante, cómo se
+     desarrolla). Debe responder: ¿qué saben ya? ¿Qué les genera curiosidad? 2-3 oraciones.
 
-4. SKILL DEVELOPMENT (~40 min) — DESARROLLO DE LA HABILIDAD
+4. DESARROLLO DE HABILIDADES (~25 min) — key: "skill"
    El núcleo de la clase. El docente explica, modela y guía la práctica de la habilidad.
-   Incluye el PRODUCTO que el estudiante genera: escritura en cuaderno, worksheet, exposición,
-   dibujos, ejercicios en clase, etc. El principio bíblico debe permear la explicación y los ejemplos.
-   → Genera: descripción paso a paso de la actividad principal + el producto esperado. 3-5 oraciones.
+   El estudiante genera un PRODUCTO concreto: escritura en cuaderno, ejercicio, exposición,
+   dibujo, etc. El principio bíblico impregna los ejemplos y el contenido.
+   → Genera: descripción paso a paso de la actividad principal + el producto esperado.
+     Especifica qué escribe, hace, presenta o crea el estudiante. 3-5 oraciones.
 
-5. CLOSING (~8 min) — CIERRE Y VERIFICACIÓN
-   El docente hace preguntas de verificación sobre lo trabajado en clase.
-   Luego pregunta cómo se sintieron emocionalmente con respecto al tema y qué opinión tienen.
-   Finalmente conecta el aprendizaje del día con el principio bíblico como cierre natural.
-   → Genera: 1-2 preguntas de verificación académica + 1 pregunta de reflexión emocional/espiritual.
+5. CIERRE Y REFLEXIÓN (~5 min) — key: "closing"
+   El docente verifica la asimilación con 1-2 preguntas académicas concretas.
+   Pregunta cómo se sintieron emocionalmente con el tema y qué opinan.
+   Cierra conectando el aprendizaje del día con el principio bíblico como cierre natural — no como
+   añadido artificial, sino como la conclusión lógica de la experiencia de aprendizaje.
+   → Genera: 1 pregunta de verificación académica + 1 pregunta de reflexión emocional/espiritual.
 
-6. ASSIGNMENT (~5 min) — TAREA
-   Puede ser: actividad para terminar en casa, preparación para la clase siguiente, o extensión del tema.
-   → Genera: 1 oración clara y alcanzable.
+6. TAREA / ASSIGNMENT (~3 min) — key: "assignment"
+   Tarea concreta y alcanzable: actividad para terminar en casa, preparación para la siguiente
+   clase, ejercicio del libro de texto, o extensión del tema.
+   → Genera: 1 oración clara. Debe ser realista y específica.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 PROGRESIÓN SEMANAL OBLIGATORIA
@@ -588,34 +609,37 @@ ${piarBlock}
 IDIOMA: Usa inglés para Language Arts. Usa español para todas las demás materias.
 FORMATO: Texto plano, sin HTML, sin viñetas, sin listas. Texto corrido, directo al punto.
 
-INSTRUCCIONES DE CONTENIDO POR SECCIÓN:
+INSTRUCCIONES DE CONTENIDO POR SECCIÓN (ABC del Encuentro Didáctico):
 
-SUBJECT TO BE WORKED:
-  → 1 oración que anuncia el tema/habilidad del día y lo vincula al principio bíblico.
-  → No incluyas oración ni reglas de clase (se insertan automáticamente).
+ENCUENTRO · VOCABULARY LIST (key: subject):
+  → Describe el ritual de saludo + la Vocabulary List del día (5 palabras con repetición coral,
+    gestos o juego breve). Conecta una palabra con el principio bíblico de forma natural.
+  → 1 oración de saludo + 2-3 oraciones sobre el manejo del vocabulario.
+  → NO incluyas oración ni reglas de clase (se insertan automáticamente).
 
-MOTIVATION:
-  → 2-3 preguntas activadoras concretas. No retóricas.
-  → Deben conectar el conocimiento previo del estudiante con el indicador del día Y con el principio bíblico.
-  → Ejemplo: "What do you know about X? Have you ever experienced Y? How does this connect to [principio]?"
+TEMA DEL DÍA (key: motivation):
+  → 1-2 oraciones que describen cómo el docente anuncia el tema y el objetivo del día.
+  → Menciona qué se escribe en el tablero (fecha, tema, objetivo, principio bíblico).
+  → Conecta el indicador con el principio desde el inicio de la clase.
 
-ACTIVITY:
-  → Describe una dinámica de rompe hielo o juego que prepare al estudiante para el contenido.
-  → Debe responder a las preguntas de Motivation y hacer el puente hacia Skill Development.
-  → El principio bíblico debe resonar en la dinámica. 2-3 oraciones.
+MOTIVACIÓN (key: activity):
+  → Describe la dinámica de activación de saberes previos (pregunta provocadora, dilema, imagen,
+    juego corto). Debe despertar curiosidad y conectar con la clase anterior.
+  → 2-3 oraciones. El principio bíblico debe resonar en la pregunta o dinámica.
 
-SKILL DEVELOPMENT:
-  → Describe paso a paso la actividad principal de la clase.
-  → Especifica el PRODUCTO que el estudiante genera (qué escribe, hace, presenta o crea).
-  → Integra el principio bíblico en los ejemplos o en el contenido mismo. 3-5 oraciones.
+DESARROLLO DE HABILIDADES (key: skill):
+  → Describe paso a paso la actividad principal. Especifica el PRODUCTO que el estudiante genera
+    (qué escribe, hace, presenta o crea — no solo "practicar").
+  → Integra el principio bíblico en los ejemplos o en el contenido. 3-5 oraciones.
 
-CLOSING:
-  → 1-2 preguntas de verificación académica sobre lo trabajado.
-  → 1 pregunta de reflexión emocional: cómo se sintieron con el tema y qué opinan.
-  → Cierra conectando el aprendizaje con el principio bíblico del día.
+CIERRE Y REFLEXIÓN (key: closing):
+  → 1 pregunta de verificación académica concreta sobre lo trabajado hoy.
+  → 1 pregunta de reflexión emocional/espiritual: cómo se sintieron + conexión con el principio bíblico.
+  → Este cierre ES el momento de integración fe-aprendizaje — no lo omitas ni lo hagas superficial.
 
-ASSIGNMENT:
-  → 1 tarea concreta: para terminar en casa, preparar la siguiente clase, o profundizar.
+TAREA / ASSIGNMENT (key: assignment):
+  → 1 tarea concreta: para terminar en casa, preparar la siguiente clase, o ejercicio del libro.
+  → Debe ser alcanzable y específica (no solo "repasar el tema").
 
 PROGRESIÓN SEMANAL: Los días deben avanzar desde la introducción del vocabulario/concepto (Día 1)
 hasta la producción autónoma del estudiante (último día). Cada día construye sobre el anterior.`
@@ -692,12 +716,12 @@ hasta la producción autónoma del estudiante (último día). Cada día construy
   const retryMessage = `${message}
 
 IMPORTANTE: Tu respuesta anterior fue cortada. Sé más breve por sección:
-- SUBJECT: 1 oración (tema + vínculo bíblico).
-- MOTIVATION: 2 preguntas activadoras (indicador + principio bíblico).
-- ACTIVITY: 2 oraciones (dinámica preparatoria).
-- SKILL DEVELOPMENT: 3 oraciones (actividad principal + producto del estudiante).
-- CLOSING: 1 pregunta de verificación + 1 reflexión emocional/espiritual.
-- ASSIGNMENT: 1 oración.
+- subject (ENCUENTRO · VOCABULARY LIST): 2 oraciones (saludo + vocabulary list del día).
+- motivation (TEMA DEL DÍA): 1 oración (tema + objetivo + principio bíblico en el tablero).
+- activity (MOTIVACIÓN): 2 oraciones (dinámica de activación de saberes previos).
+- skill (DESARROLLO DE HABILIDADES): 3 oraciones (actividad principal + producto del estudiante).
+- closing (CIERRE Y REFLEXIÓN): 1 pregunta verificación + 1 reflexión bíblica.
+- assignment (TAREA): 1 oración concreta.
 Responde SOLO con el JSON, sin texto antes ni después.`
 
   const retryRaw = await callClaude({ type: 'generate', system, message: retryMessage, planId, maxTokens: 16000 })

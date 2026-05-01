@@ -5,12 +5,12 @@
 import { blockPreviewHTML, blockInteractiveHTML, BLOCK_TYPES } from './smartBlockHtml'
 
 const SECTIONS = [
-  { key: 'subject',    label: 'SUBJECT TO BE WORKED', hex: '4F81BD', time: '~8 min'  },
-  { key: 'motivation', label: 'MOTIVATION',            hex: '4BACC6', time: '~8 min'  },
-  { key: 'activity',   label: 'ACTIVITY',              hex: 'F79646', time: '~15 min' },
-  { key: 'skill',      label: 'SKILL DEVELOPMENT',     hex: '8064A2', time: '~40 min' },
-  { key: 'closing',    label: 'CLOSING',               hex: '9BBB59', time: '~8 min'  },
-  { key: 'assignment', label: 'ASSIGNMENT',             hex: '4E84A2', time: '~5 min'  },
+  { key: 'subject',    label: 'ENCUENTRO · VOCABULARY LIST', hex: 'C0504D', time: '~8 min'  },
+  { key: 'motivation', label: 'TEMA DEL DÍA',                hex: '4F81BD', time: '~7 min'  },
+  { key: 'activity',   label: 'MOTIVACIÓN',                  hex: 'F79646', time: '~10 min' },
+  { key: 'skill',      label: 'DESARROLLO DE HABILIDADES',   hex: '8064A2', time: '~25 min' },
+  { key: 'closing',    label: 'CIERRE Y REFLEXIÓN',          hex: '9BBB59', time: '~5 min'  },
+  { key: 'assignment', label: 'TAREA / ASSIGNMENT',          hex: '4BACC6', time: '~3 min'  },
 ]
 
 // ── Base64 image inlining ─────────────────────────────────────────────────────

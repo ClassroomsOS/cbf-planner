@@ -95,12 +95,12 @@ async function fetchImageData(url) {
 // ── Section keys + labels ─────────────────────────────────────────────────────
 const SECTION_ORDER = ['subject', 'motivation', 'activity', 'skill', 'closing', 'assignment']
 const SECTION_LABELS = {
-  subject:    'SUBJECT TO BE WORKED',
-  motivation: 'MOTIVATION',
-  activity:   'ACTIVITY',
-  skill:      'SKILL DEVELOPMENT',
-  closing:    'CLOSING',
-  assignment: 'ASSIGNMENT',
+  subject:    'ENCUENTRO · VOCABULARY LIST',
+  motivation: 'TEMA DEL DÍA',
+  activity:   'MOTIVACIÓN',
+  skill:      'DESARROLLO DE HABILIDADES',
+  closing:    'CIERRE Y REFLEXIÓN',
+  assignment: 'TAREA / ASSIGNMENT',
 }
 
 // Builds paragraph array for one day: section label (bold) + text + images, per section

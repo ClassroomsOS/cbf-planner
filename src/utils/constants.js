@@ -1,18 +1,68 @@
 // ── constants.js ──────────────────────────────────────────────────────────────
 // Shared constants across CBF Planner
 
-// ── CBF Section Configuration ─────────────────────────────────────────────────
+// ── CBF Section Configuration — ABC del Encuentro Didáctico ──────────────────
+//
+// Cada sección mapea un paso del ABC institucional Boston Flex:
+// Paradigma: docs/institutional/boston-flex-methodological-approach-2026.md
+//
 export const SECTIONS = [
-  { key: 'subject',    label: 'SYNCHRONIC CLASS · MEET', short: 'MEET',    hex: '#FF0000', time: '~8 min'  },
-  { key: 'motivation', label: 'SUBJECT TO BE WORKED:',   short: 'SUBJECT', hex: '#008F00', time: '~8 min',  sublevel: 'Meeting Topic' },
-  { key: 'activity',   label: 'MOTIVATION',               short: 'MOTIV.',  hex: '#1F497D', time: '~8 min',  sublevel: 'Activity' },
-  { key: 'skill',      label: 'SKILLS DEVELOPMENT',       short: 'SKILLS',  hex: '#1F497D', time: '~40 min' },
-  { key: 'closing',    label: 'CLOSING',                  short: 'CLOSING', hex: '#1F497D', time: '~8 min',  sublevel: 'Motivational Reflection' },
-  { key: 'assignment', label: 'ASSIGNMENT',               short: 'ASSIGN.', hex: '#1F497D', time: '~5 min'  },
+  {
+    key: 'subject',
+    label: 'ENCUENTRO · VOCABULARY LIST',
+    short: 'VOCAB',
+    hex: '#C0504D',
+    time: '~8 min',
+    abc: 'Saluda a presenciales y virtuales · Presenta la Vocabulary List del día · Anuncia el Principio Bíblico del mes',
+  },
+  {
+    key: 'motivation',
+    label: 'TEMA DEL DÍA',
+    short: 'TEMA',
+    hex: '#4F81BD',
+    time: '~7 min',
+    sublevel: 'Tablero: Fecha · Tema · Objetivo · Principio',
+    abc: 'Escribe en el tablero: fecha, tema a trabajar, objetivo de la lección, principio bíblico · Enuncia el indicador del día',
+  },
+  {
+    key: 'activity',
+    label: 'MOTIVACIÓN',
+    short: 'MOTIV.',
+    hex: '#F79646',
+    time: '~10 min',
+    sublevel: 'Pre-conocimiento · Conexión temática',
+    abc: 'Pre-conocimiento: conecta temáticamente con la clase anterior · Reglas Whole Brain Teaching · Activa saberes previos',
+  },
+  {
+    key: 'skill',
+    label: 'DESARROLLO DE HABILIDADES',
+    short: 'SKILLS',
+    hex: '#8064A2',
+    time: '~25 min',
+    abc: 'Desarrolla la habilidad del día: explica, modela, practica · El estudiante produce un producto concreto · Integra el principio bíblico en ejemplos y contenido',
+  },
+  {
+    key: 'closing',
+    label: 'CIERRE Y REFLEXIÓN',
+    short: 'CIERRE',
+    hex: '#9BBB59',
+    time: '~5 min',
+    sublevel: 'Verificación · Reflexión bíblica',
+    abc: 'Verifica asimilación con preguntas · Reflexión emocional sobre el tema · Conecta el aprendizaje del día con el principio bíblico como cierre natural',
+  },
+  {
+    key: 'assignment',
+    label: 'TAREA / ASSIGNMENT',
+    short: 'TAREA',
+    hex: '#4BACC6',
+    time: '~3 min',
+    abc: 'Tarea concreta y alcanzable: actividad para terminar en casa, preparación para la siguiente clase, o plataforma virtual',
+  },
 ]
 
 // Sections that support rich content (images, SmartBlocks, videos, AI suggestions)
-export const RICH_SECTIONS = ['motivation', 'activity', 'skill']
+// subject y closing ahora incluidos: subject necesita VOCAB block, closing necesita EXIT_TICKET
+export const RICH_SECTIONS = ['subject', 'motivation', 'activity', 'skill', 'closing']
 
 // ── School Schedule ───────────────────────────────────────────────────────────
 export const PERIODS = [
