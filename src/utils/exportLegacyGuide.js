@@ -78,6 +78,118 @@ function htmlToText(html) {
     .trim()
 }
 
+// ── Image helpers ─────────────────────────────────────────────────────────────
+
+// Map URL extension → docx-safe type + file extension
+const EXT_MAP = {
+  jpg: 'jpeg', jpeg: 'jpeg', png: 'png', gif: 'gif',
+  tiff: 'tiff', tif: 'tiff', webp: 'webp',
+}
+
+function imgExtFromUrl(url) {
+  return url.toLowerCase().split('?')[0].split('.').pop()
+}
+
+/**
+ * Fetches one image, converts WebP→PNG (Word can't render WebP),
+ * reads natural dimensions via createImageBitmap.
+ * Returns { data: ArrayBuffer, type: string, natW: number, natH: number } | null
+ */
+async function fetchSectionImage(url) {
+  try {
+    const res = await fetch(url)
+    if (!res.ok) return null
+    let data = await res.arrayBuffer()
+    const ext  = imgExtFromUrl(url)
+    let type   = EXT_MAP[ext] || 'png'
+
+    // Read natural size (works in all modern browsers including Safari)
+    const blob = new Blob([data], { type: `image/${type}` })
+    const bmp  = await createImageBitmap(blob)
+    const natW = bmp.width
+    const natH = bmp.height
+    bmp.close()
+
+    // WebP → PNG (full-resolution canvas round-trip, no quality loss on PNG)
+    if (type === 'webp') {
+      const canvas = document.createElement('canvas')
+      canvas.width  = natW
+      canvas.height = natH
+      const ctx = canvas.getContext('2d')
+      const bmp2 = await createImageBitmap(new Blob([data], { type: 'image/webp' }))
+      ctx.drawImage(bmp2, 0, 0)
+      bmp2.close()
+      const pngBlob = await new Promise(r => canvas.toBlob(r, 'image/png'))
+      data = await pngBlob.arrayBuffer()
+      type = 'png'
+    }
+
+    return { data, type, natW, natH }
+  } catch { return null }
+}
+
+// Right column usable width: 8651 dxa − 240 dxa padding = 8411 dxa → EMU
+// 1 dxa = 635 EMU  (914400 EMU/in ÷ 1440 dxa/in)
+const MAX_IMG_EMU = 8411 * 635   // ≈ 5 340 985
+
+/**
+ * Fit image into maxEmu width, maintaining aspect ratio.
+ * Returns { cx, cy } in EMU.
+ */
+function calcEmu(natW, natH, maxEmu = MAX_IMG_EMU) {
+  const cx = maxEmu
+  const cy = Math.round(maxEmu * natH / natW)
+  return { cx, cy }
+}
+
+/**
+ * Generates the <w:drawing> XML for an inline image.
+ * Namespaces declared inline so the document root stays unchanged.
+ */
+function drawingXml(rId, cx, cy, imgId, name) {
+  const esc = xe(name)
+  return `<w:r><w:rPr/><w:drawing>
+    <wp:inline xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+               distT="0" distB="0" distL="0" distR="0">
+      <wp:extent cx="${cx}" cy="${cy}"/>
+      <wp:effectExtent l="0" t="0" r="0" b="0"/>
+      <wp:docPr id="${imgId}" name="${esc}"/>
+      <wp:cNvGraphicFramePr>
+        <a:graphicFrameLocks xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" noChangeAspect="1"/>
+      </wp:cNvGraphicFramePr>
+      <a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+        <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
+          <pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+            <pic:nvPicPr>
+              <pic:cNvPr id="${imgId}" name="${esc}"/>
+              <pic:cNvPicPr>
+                <a:picLocks xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+                            noChangeAspect="1" noChangeArrowheads="1"/>
+              </pic:cNvPicPr>
+            </pic:nvPicPr>
+            <pic:blipFill>
+              <a:blip xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+                      r:embed="${rId}"
+                      xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"/>
+              <a:stretch xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+                <a:fillRect/>
+              </a:stretch>
+            </pic:blipFill>
+            <pic:spPr bwMode="auto">
+              <a:xfrm xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+                <a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/>
+              </a:xfrm>
+              <a:prstGeom xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+                          prst="rect"><a:avLst/></a:prstGeom>
+              <a:noFill xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"/>
+            </pic:spPr>
+          </pic:pic>
+        </a:graphicData>
+      </a:graphic>
+    </wp:inline>
+  </w:drawing></w:r>`
+}
+
 // ── Word XML primitives ────────────────────────────────────────────────────────
 
 const FONT = `<w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>`
@@ -117,7 +229,12 @@ function contentParas(html) {
 
 // ── Day row (activities table row) ────────────────────────────────────────────
 
-function buildDayRow(iso, day) {
+/**
+ * imageRefs: shared array mutated here — each pushed entry:
+ *   { rId, data: ArrayBuffer, type: string, mediaPath: string }
+ * Caller uses this to wire up ZIP files + rels after all rows are built.
+ */
+async function buildDayRow(iso, day, imageRefs) {
   const { dayName, monthName, dayNum, ordinal } = parseDateDocx(iso)
 
   const leftCell = `<w:tc>
@@ -147,7 +264,6 @@ function buildDayRow(iso, day) {
     const hexColor = s.hex.replace('#', '')
     const time     = section.time || s.time
 
-    // Header label — SKILLS DEVELOPMENT uses blank time per institutional rule
     const headerLabel = s.key === 'skill'
       ? `${s.label} (___min)`
       : `${s.label} (${time})`
@@ -164,6 +280,30 @@ function buildDayRow(iso, day) {
     }
 
     rightContent += contentParas(section.content)
+
+    // ── Embed images ──────────────────────────────────────────────────────────
+    const images = section.images || []
+    for (let i = 0; i < images.length; i++) {
+      const imgUrl = images[i]?.url
+      if (!imgUrl) continue
+      const fetched = await fetchSectionImage(imgUrl)
+      if (!fetched) continue
+
+      // Stable IDs — base 100 to avoid conflicts with header logo (rId25, rId1–rId7)
+      const idx       = imageRefs.length
+      const rId       = `rId${100 + idx}`
+      const ext       = fetched.type === 'jpeg' ? 'jpg' : fetched.type
+      const mediaPath = `word/media/simg${idx}.${ext}`
+      imageRefs.push({ rId, data: fetched.data, type: fetched.type, mediaPath })
+
+      const imgId       = 100 + idx   // Word docPr id — must be unique positive int
+      const { cx, cy }  = calcEmu(fetched.natW, fetched.natH)
+      const imgName     = `Image_${s.key}_${i}`
+
+      rightContent += emptyP()
+      rightContent += `<w:p><w:pPr>${SP}<w:jc w:val="center"/></w:pPr>${drawingXml(rId, cx, cy, imgId, imgName)}</w:p>`
+    }
+
     rightContent += emptyP()
   }
 
@@ -180,7 +320,7 @@ function buildDayRow(iso, day) {
 
 // ── Week block ─────────────────────────────────────────────────────────────────
 
-function buildWeekXml({ plan, newsProject, indicator }) {
+async function buildWeekXml({ plan, newsProject, indicator }, imageRefs) {
   const content = plan?.content || {}
   const days    = content.days || {}
 
@@ -322,7 +462,12 @@ function buildWeekXml({ plan, newsProject, indicator }) {
     </w:tc>
   </w:tr>`
 
-  const dayRows = activeDayKeys.map(k => buildDayRow(k, days[k])).join('\n')
+  // Sequential fetch (imageRefs mutated — must not run in parallel)
+  const dayRowArray = []
+  for (const k of activeDayKeys) {
+    dayRowArray.push(await buildDayRow(k, days[k], imageRefs))
+  }
+  const dayRows = dayRowArray.join('\n')
 
   const activitiesTable = `<w:tbl>
     <w:tblPr>
@@ -482,8 +627,13 @@ export async function buildWeeklyGuideDocx(weeks) {
     } catch (_) { /* logo unavailable — header renders without image */ }
   }
 
-  // Build document body
-  const weekBlocks = weeks.map(w => buildWeekXml(w)).filter(Boolean)
+  // Build document body — imageRefs accumulated during async row building
+  const imageRefs = []  // { rId, data, type, mediaPath }
+  const weekBlocks = []
+  for (const w of weeks) {
+    const xml = await buildWeekXml(w, imageRefs)
+    if (xml) weekBlocks.push(xml)
+  }
   const bodyContent = weekBlocks.join(`\n${PAGE_BREAK}\n`)
 
   const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -494,12 +644,33 @@ export async function buildWeeklyGuideDocx(weeks) {
   </w:body>
 </w:document>`
 
+  // ── Embed section images in ZIP ───────────────────────────────────────────
+  const usedTypes = new Set()
+  for (const ref of imageRefs) {
+    zip.file(ref.mediaPath, ref.data)
+    usedTypes.add(ref.type)
+  }
+
+  // Build extra content-type defaults for image extensions actually used
+  const CT_MAP = {
+    jpeg: '<Default Extension="jpg"  ContentType="image/jpeg"/>',
+    gif:  '<Default Extension="gif"  ContentType="image/gif"/>',
+    tiff: '<Default Extension="tif"  ContentType="image/tiff"/>',
+    bmp:  '<Default Extension="bmp"  ContentType="image/bmp"/>',
+  }
+  const extraCT = [...usedTypes]
+    .filter(t => t !== 'png')
+    .map(t => CT_MAP[t] || '')
+    .filter(Boolean)
+    .join('\n  ')
+
   // [Content_Types].xml
   zip.file('[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
   <Default Extension="xml" ContentType="application/xml"/>
   <Default Extension="png" ContentType="image/png"/>
+  ${extraCT}
   <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
   <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
   <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>
@@ -524,6 +695,13 @@ export async function buildWeeklyGuideDocx(weeks) {
   // word/header1.xml — exact institutional header (CBF-G AC-01)
   zip.file('word/header1.xml', HEADER_XML)
 
+  // Build image relationships (rId100+) for section images
+  const imgRels = imageRefs.map(ref => {
+    // mediaPath is "word/media/simg0.png" — Target is relative to word/
+    const target = ref.mediaPath.replace('word/', '')
+    return `  <Relationship Id="${ref.rId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="${target}"/>`
+  }).join('\n')
+
   // word/_rels/document.xml.rels
   zip.file('word/_rels/document.xml.rels', `<?xml version="1.0" encoding="utf-8"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
@@ -536,6 +714,7 @@ export async function buildWeeklyGuideDocx(weeks) {
   <Relationship Id="rId7" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes" Target="endnotes.xml"/>
   <Relationship Id="rId26" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable" Target="fontTable.xml"/>
   <Relationship Id="rId27" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/theme1.xml"/>
+${imgRels}
 </Relationships>`)
 
   // word/_rels/header1.xml.rels — points to logo if fetched
