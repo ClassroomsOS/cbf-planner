@@ -11,7 +11,7 @@ import GuideEditorPage     from './GuideEditorPage'
 import MessagesPage        from './MessagesPage'
 import SettingsPage        from './SettingsPage'
 import SuperAdminPage      from './SuperAdminPage'
-import ObjectivesPage           from './ObjectivesPage'
+import AchievementsPage         from './AchievementsPage'
 import SyllabusPage             from './SyllabusPage'
 import NewsPage                 from './NewsPage'
 import NewsTimelinePage         from './NewsTimelinePage'
@@ -234,9 +234,9 @@ function DashboardInner({ session, teacher, setTeacher }) {
             <span className="dot" style={{ background: '#C9A84C' }} />
             📖 Principios
           </NavLink>
-          <NavLink to="/objectives" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
+          <NavLink to="/achievements" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
             <span className="dot" style={{ background: '#C9A84C' }} />
-            🎯 Objetivos
+            🎯 Logros
           </NavLink>
           <NavLink to="/syllabus" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
             <span className="dot" style={{ background: '#8064A2' }} />
@@ -447,7 +447,7 @@ function DashboardInner({ session, teacher, setTeacher }) {
           <Route path="/editor/:id"  element={<GuideEditorPage      teacher={teacher} />} />
           <Route path="/news/timeline" element={<NewsTimelinePage    teacher={teacher} />} />
           <Route path="/news"        element={<NewsPage             teacher={teacher} />} />
-          <Route path="/objectives"  element={<ObjectivesPage      teacher={teacher} />} />
+          <Route path="/achievements"  element={<AchievementsPage     teacher={teacher} />} />
           <Route path="/syllabus"    element={<SyllabusPage        teacher={teacher} />} />
           <Route path="/principles"  element={<PrinciplesPage       teacher={teacher} />} />
           <Route path="/ai-usage"    element={<AIUsagePage          teacher={teacher} />} />

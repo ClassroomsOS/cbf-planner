@@ -1620,8 +1620,8 @@ export default function GuideEditorPage({ teacher }) {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8, flexWrap: 'wrap' }}>
                     <span style={{ fontSize: 10, color: '#888' }}>
                       Para editar el indicador ve a{' '}
-                      <a href="#" onClick={e => { e.preventDefault(); navigate('/objectives') }} style={{ color: '#1A6B3A' }}>
-                        Objetivos →
+                      <a href="#" onClick={e => { e.preventDefault(); navigate('/achievements') }} style={{ color: '#1A6B3A' }}>
+                        Logros →
                       </a>
                     </span>
                     <button
@@ -1670,9 +1670,9 @@ export default function GuideEditorPage({ teacher }) {
                       {relinkLoading ? '…' : '🔄 Vincular indicador'}
                     </button>
                     <button
-                      onClick={() => navigate('/objectives')}
+                      onClick={() => navigate('/achievements')}
                       style={{ fontSize: 11, padding: '4px 12px', borderRadius: 4, border: '1px solid #c5d5f0', background: '#fff', color: '#2E5598', cursor: 'pointer' }}>
-                      Ir a Objetivos →
+                      Ir a Logros →
                     </button>
                   </div>
                   {relinkOptions && (
@@ -1759,8 +1759,8 @@ export default function GuideEditorPage({ teacher }) {
                 })()}
                 <div style={{ fontSize: '11px', color: '#999', marginTop: '4px' }}>
                   Para editar los indicadores ve a{' '}
-                  <a href="#" onClick={e => { e.preventDefault(); navigate('/objectives') }} style={{ color: '#2E5598' }}>
-                    Objetivos →
+                  <a href="#" onClick={e => { e.preventDefault(); navigate('/achievements') }} style={{ color: '#2E5598' }}>
+                    Logros →
                   </a>
                 </div>
               </div>

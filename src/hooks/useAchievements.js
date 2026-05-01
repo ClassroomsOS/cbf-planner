@@ -261,6 +261,39 @@ export default function useAchievements(teacher, filters = {}) {
     }
   }
 
+  // ── Connections — NEWS, guides, checkpoints linked to a goal ────────────────
+  const getGoalConnections = useCallback(async (goalId) => {
+    try {
+      const goal = goals.find(g => g.id === goalId)
+      const indicatorIds = (goal?.indicators || []).map(i => i.id)
+      if (!indicatorIds.length) return { news: [], guides: 0, checkpoints: [] }
+
+      const [newsRes, guidesRes, checkRes] = await Promise.all([
+        supabase.from('news_projects')
+          .select('id, title, status, skill')
+          .eq('school_id', teacher.school_id)
+          .in('indicator_id', indicatorIds),
+        supabase.from('lesson_plans')
+          .select('id', { count: 'exact', head: true })
+          .eq('school_id', teacher.school_id)
+          .in('indicator_id', indicatorIds),
+        supabase.from('checkpoints')
+          .select('indicator_id, achievement')
+          .eq('teacher_id', teacher.id)
+          .in('indicator_id', indicatorIds),
+      ])
+
+      return {
+        news: newsRes.data || [],
+        guides: guidesRes.count || 0,
+        checkpoints: checkRes.data || [],
+      }
+    } catch (err) {
+      logError(err, { page: 'useAchievements', action: 'getGoalConnections' })
+      return { news: [], guides: 0, checkpoints: [] }
+    }
+  }, [teacher?.id, teacher?.school_id, goals])
+
   // ── Progress helpers ────────────────────────────────────────────────────────
   // Returns how many indicators of a goal have been evaluated (via checkpoints)
   const getPeriodProgress = useCallback(async (subj, grd, per) => {
@@ -309,6 +342,7 @@ export default function useAchievements(teacher, filters = {}) {
     updateIndicator,
     deleteIndicator,
     reorderIndicators,
+    getGoalConnections,
     getPeriodProgress,
   }
 }

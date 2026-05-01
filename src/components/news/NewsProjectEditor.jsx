@@ -935,7 +935,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
                         <div style={{ paddingLeft: 34 }}>
                           <button
                             type="button"
-                            onClick={() => { onClose(); navigate('/objectives') }}
+                            onClick={() => { onClose(); navigate('/achievements') }}
                             style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: '#F79646', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
                           >
                             Ir a Objetivos de Desempeño →
