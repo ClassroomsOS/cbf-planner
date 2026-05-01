@@ -1,7 +1,7 @@
 # Roadmap y Estado del Proyecto
 
 > Extraído de `CLAUDE.md` + auditoría `docs/auditoria/2026-04-04-auditoria-sistema.md`
-> Última actualización: 2026-04-22
+> Última actualización: 2026-05-01
 
 ---
 
@@ -37,6 +37,8 @@
 | **Roster de Estudiantes** | ✅ Completo | school_students · StudentsPage · exam-instance-generator auto-query · email auth en /eval · displayName apellido-nombre · CSV robusto · import row-by-row · ordenamiento columna · eliminación por lotes |
 | **CBF Observability Layer** | ✅ Completo | 16 códigos error `CBF-[MOD]-[TYPE]-[NNN]`, cbf-logger, alertas Telegram, health snapshots |
 | **CBF Quality Standard** | ✅ Completo | Definition of Done, clasificación bugs, estándares performance y disponibilidad |
+| **Quiz vs Examen Final** | ✅ Completo | EXAM_PRESETS (quiz/final_lower/final_upper) · ExamCreatorPage wizard · prompt IA diferenciado · metadata exam_type · badge en dashboard · 23 tests |
+| **Módulo Logros — Rediseño** | ✅ Completo | ObjectivesPage → AchievementsPage · ruta /achievements · header gradiente · stat cards · agrupación por materia+grado · GoalCard borde coloreado · 3 columnas por dimensión · WeightBar · CompletenessChecklist · CascadePanel · modales mejorados · empty state con diagrama |
 
 ---
 
@@ -201,6 +203,32 @@ Cuando el docente sube fotos de textbook en NewsProjectEditor:
 | Deploy directo a producción | Todas las migraciones y Edge Functions | ✅ Supabase Branch creado |
 
 ---
+
+## Completado — sesión 2026-05-01 (N.3 — Quiz/Final + Logros rediseño)
+
+- [x] examUtils.js: `EXAM_PRESETS` (quiz/final_lower/final_upper), `extractGradeNumber()`, `getExamPreset()`, `finalExamGrade()`
+- [x] ExamCreatorPage: selector Quiz / Examen Final en Step 1, banner protocolo en Step 2, sección Extra Points
+- [x] ExamCreatorPage: preset auto-ajusta cuando cambia el grado y examType=final
+- [x] examAI.js: `buildExamPrompt` diferenciado por tipo — final comprehensivo, quiz parcial
+- [x] ExamDashboardPage: badge Quiz/Final en cada examen (vía `metadata.exam_type`)
+- [x] examUtils.test.js: 23 tests nuevos (total 161, todos pasando)
+- [x] ObjectivesPage.jsx → AchievementsPage.jsx · ruta /objectives → /achievements
+- [x] DashboardPage: import + ruta + sidebar "🎯 Logros"
+- [x] GuideEditorPage + NewsProjectEditor: referencias /objectives → /achievements
+- [x] useAchievements: `getGoalConnections(goalId)` — NEWS, guías y checkpoints vinculados
+- [x] AchievementsPage: header gradiente navy + 4 stat cards
+- [x] AchievementsPage: filtros tab-group períodos + selects materia/grado
+- [x] AchievementsPage: agrupación automática por materia+grado
+- [x] GoalCard: borde izquierdo coloreado por estado (verde=publicado, azul=completo, gris=borrador)
+- [x] GoalCard: indicadores en 3 columnas por dimensión (cognitivo/procedimental/actitudinal)
+- [x] WeightBar: barra visual de peso total (verde=100%, ámbar=incompleto, rojo=excede)
+- [x] CompletenessChecklist: 5 ítems (3 dimensiones + peso + NEWS vinculado)
+- [x] CascadePanel: NEWS projects, conteo guías y checkpoints evaluados
+- [x] GoalFormModal: header gradiente navy, showToast() en vez de alert(), year_verse auto desde schools
+- [x] IndicatorFormModal: gradiente del color de dimensión, contexto del logro padre en header
+- [x] Empty state: diagrama visual 3 pasos de la cascada pedagógica
+- [x] index.css: ~280 líneas de clases `.ach-*` con responsive
+- [x] Build limpio + 161 tests pasando
 
 ## Completado — sesión 2026-04-25 (N.2 — refinamientos)
 

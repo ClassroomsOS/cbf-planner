@@ -1,8 +1,8 @@
-# CBF PLANNER — v5.9
+# CBF PLANNER — v6.0
 ## CLAUDE.md — Documento maestro
 
 > **Principio rector:** *"Nosotros diseñamos. El docente enseña."*
-> Léelo completo antes de escribir código. · Última actualización: Abril 26, 2026
+> Léelo completo antes de escribir código. · Última actualización: Mayo 1, 2026
 
 ---
 
@@ -29,6 +29,7 @@ Libros:      Uncover 4 (8°) · Evolve 4 (9°) · Cambridge One (digital)
 
 - **Google OAuth** — configurar en Supabase Dashboard → Auth → Providers + validar dominio `@redboston.edu.co` post-OAuth en `App.jsx:onAuthStateChange`
 - **Email al representante** — corrección IA termina → nota final + feedback a `representative_email`
+- **Quiz/Examen Final** — EXAM_PRESETS implementado; pendiente: UI de puntos extra en ExamPlayerV2 (scoring separado base vs. extra points)
 - **DB horizonte** (no urgente): DROP tablas DEPRECATED · normalizar `grade`/`section` a `school_grades` · validación JSONB con triggers
 
 ---
@@ -266,7 +267,7 @@ Helpers → `src/utils/roles.js`: `canManage · isSuperAdmin · isRector · canA
 // PEDAGÓGICO (todos los roles)
 /              PlannerPage              /plans         MyPlansPage
 /editor/:id    GuideEditorPage          /library       GuideLibraryPage
-/principles    PrinciplesPage           /objectives    ObjectivesPage
+/principles    PrinciplesPage           /achievements  AchievementsPage
 /syllabus      SyllabusPage             /news          NewsPage
 /messages      MessagesPage             /ai-usage      AIUsagePage
 /students      StudentsPage             /exams         ExamDashboardPage
@@ -346,4 +347,4 @@ git add . && git commit -m "feat: ..." && git push   # deploy automático ~2 min
 ---
 
 *CBF Planner · ETA Platform · Edoardo Ortiz + Claude Sonnet · Barranquilla 2026*
-*"Nosotros diseñamos. El docente enseña." · CLAUDE.md v5.9 — Abril 26, 2026*
+*"Nosotros diseñamos. El docente enseña." · CLAUDE.md v6.0 — Mayo 1, 2026*
