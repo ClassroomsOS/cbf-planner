@@ -9,6 +9,12 @@ import { MODELO_B_SUBJECTS } from './constants'
 const ACTIVITY_ARCHETYPES = {
   // English / Modelo B
   en: {
+    'SYNCHRONIC CLASS · MEET': [
+      'a one-sentence announcement of the synchronous session topic',
+    ],
+    'SUBJECT TO BE WORKED:': [
+      'a one-sentence skill/grammar/topic statement for the day',
+    ],
     'MOTIVATION': [
       'a provocative real-life question or "Would you rather?" dilemma',
       'a short image/headline prediction activity',
@@ -21,19 +27,7 @@ const ACTIVITY_ARCHETYPES = {
       'a true/false warm-up quiz about the topic',
       'a "complete the sentence" prediction game',
     ],
-    'ACTIVITY': [
-      'a sentence transformation drill (pairs, then share)',
-      'a timed grammar race (teams rewrite sentences correctly)',
-      'a peer correction activity with deliberate error cards',
-      'an information gap — each partner has half the data',
-      'a matching or sorting activity using vocabulary/grammar cards',
-      'a dictation race (teacher dictates, pairs reconstruct)',
-      'a "grammar auction" — vote if each sentence is correct',
-      'a jumbled-sentence reconstruction challenge',
-      'a "find someone who" class survey using the target structure',
-      'a controlled substitution drill with cue cards',
-    ],
-    'SKILL DEVELOPMENT': [
+    'SKILLS DEVELOPMENT': [
       'a hot seat roleplay (one student in character, others interview)',
       'a four corners debate using opinion phrases and target grammar',
       'a jigsaw reading where groups reconstruct a story and report back',
@@ -68,12 +62,15 @@ const ACTIVITY_ARCHETYPES = {
       'a reading comprehension from the textbook with written answers',
       'a creative writing prompt using vocabulary from the unit',
     ],
-    'SUBJECT TO BE WORKED': [
-      'a one-sentence skill/grammar/topic statement for the day',
-    ],
   },
   // Spanish
   es: {
+    'SYNCHRONIC CLASS · MEET': [
+      'una oración que anuncia el tema de la sesión sincrónica del día',
+    ],
+    'SUBJECT TO BE WORKED:': [
+      'una oración que enuncia el tema o habilidad del día',
+    ],
     'MOTIVATION': [
       'una pregunta provocadora o dilema de la vida real',
       'una lluvia de ideas cronometrada con una imagen o título',
@@ -84,17 +81,7 @@ const ACTIVITY_ARCHETYPES = {
       'una conexión personal: ¿cuándo has vivido algo así?',
       'un video corto o imagen impactante con pregunta guía',
     ],
-    'ACTIVITY': [
-      'una práctica guiada en parejas con tarjetas de ejemplos',
-      'una actividad de completar con retroalimentación entre pares',
-      'una clasificación o mapa conceptual colaborativo',
-      'un dictado cooperativo (parejas reconstruyen el texto)',
-      'una ronda de preguntas y respuestas con el tema del día',
-      'un ejercicio de identificar errores en oraciones proyectadas',
-      'un juego de tarjetas: relacionar conceptos con definiciones',
-      'una actividad de encuesta de clase usando el vocabulario del día',
-    ],
-    'SKILL DEVELOPMENT': [
+    'SKILLS DEVELOPMENT': [
       'un roleplay de situación real usando el vocabulario del tema',
       'un debate estructurado con rondas de argumento y réplica',
       'una actividad jigsaw: grupos expertos que enseñan a otros',
@@ -118,9 +105,6 @@ const ACTIVITY_ARCHETYPES = {
       'un ejercicio del libro de texto (página y punto específico)',
       'una reflexión escrita de media página con pregunta guía',
     ],
-    'SUBJECT TO BE WORKED': [
-      'una oración que enuncia el tema o habilidad del día',
-    ],
   },
 }
 
@@ -138,16 +122,16 @@ export async function suggestSectionActivity({
     : null
 
   const SECTION_LIMITS = {
-    'SUBJECT TO BE WORKED': isModeloB
+    'SYNCHRONIC CLASS · MEET': isModeloB
+      ? '1 sentence. Announce the synchronous session topic or skill focus.'
+      : '1 oración. Anuncia el tema de la sesión sincrónica del día.',
+    'SUBJECT TO BE WORKED:': isModeloB
       ? '1 sentence. State the specific language skill or grammar/vocabulary topic of the day.'
       : '1 oración. Enuncia el tema o habilidad del día.',
     'MOTIVATION': isModeloB
       ? '2-3 sentences. Describe an engaging hook: a question, a short game, a visual stimulus, a real-life scenario, or a challenge that activates prior knowledge.'
       : '2-3 oraciones. Describe la actividad de enganche (pregunta, juego corto, imagen, reto).',
-    'ACTIVITY': isModeloB
-      ? '3-5 sentences. Describe a concrete, interactive practice activity using the specific grammar or vocabulary of the week. Include a clear example or model sentence.'
-      : '3-4 oraciones. Instrucción clara de la actividad práctica con un ejemplo concreto.',
-    'SKILL DEVELOPMENT': isModeloB
+    'SKILLS DEVELOPMENT': isModeloB
       ? '4-6 sentences. Describe the main skill-development task in detail — step by step. Make it specific to the grammar point, vocabulary set, or textbook unit. Suggest at least one pair/group dynamic and one concrete language production task.'
       : '4-5 oraciones. Paso a paso de la actividad principal. Esta es la sección más importante.',
     'CLOSING': isModeloB

@@ -237,6 +237,19 @@ export default function DayPanel({ iso, day, setContentField, toggleDayActive, o
                         onChange={e => setContentField([...base,'sections',s.key,'time'], e.target.value)} />
                     </div>
 
+                    {s.sublevel && (
+                      <div style={{
+                        fontWeight: 700,
+                        fontSize: '13px',
+                        color: '#111',
+                        paddingLeft: '14px',
+                        marginBottom: '6px',
+                        borderLeft: '3px solid #ccc',
+                      }}>
+                        {s.sublevel}
+                      </div>
+                    )}
+
                     <div className="ge-field">
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                         <label style={{ margin: 0 }}>Contenido / Actividades</label>

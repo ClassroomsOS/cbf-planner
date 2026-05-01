@@ -3,12 +3,12 @@
 
 // ── CBF Section Configuration ─────────────────────────────────────────────────
 export const SECTIONS = [
-  { key: 'subject',    label: 'SUBJECT TO BE WORKED', short: 'SUBJECT',  hex: '#4F81BD', time: '~8 min'  },
-  { key: 'motivation', label: 'MOTIVATION',            short: 'MOTIV.',   hex: '#4BACC6', time: '~8 min'  },
-  { key: 'activity',   label: 'ACTIVITY',              short: 'ACTIVITY', hex: '#F79646', time: '~15 min' },
-  { key: 'skill',      label: 'SKILL DEVELOPMENT',     short: 'SKILL',    hex: '#8064A2', time: '~40 min' },
-  { key: 'closing',    label: 'CLOSING',               short: 'CLOSING',  hex: '#9BBB59', time: '~8 min'  },
-  { key: 'assignment', label: 'ASSIGNMENT',            short: 'ASSIGN.',  hex: '#4E84A2', time: '~5 min'  },
+  { key: 'subject',    label: 'SYNCHRONIC CLASS · MEET', short: 'MEET',    hex: '#FF0000', time: '~8 min'  },
+  { key: 'motivation', label: 'SUBJECT TO BE WORKED:',   short: 'SUBJECT', hex: '#008F00', time: '~8 min',  sublevel: 'Meeting Topic' },
+  { key: 'activity',   label: 'MOTIVATION',               short: 'MOTIV.',  hex: '#1F497D', time: '~8 min',  sublevel: 'Activity' },
+  { key: 'skill',      label: 'SKILLS DEVELOPMENT',       short: 'SKILLS',  hex: '#1F497D', time: '~40 min' },
+  { key: 'closing',    label: 'CLOSING',                  short: 'CLOSING', hex: '#1F497D', time: '~8 min',  sublevel: 'Motivational Reflection' },
+  { key: 'assignment', label: 'ASSIGNMENT',               short: 'ASSIGN.', hex: '#1F497D', time: '~5 min'  },
 ]
 
 // Sections that support rich content (images, SmartBlocks, videos, AI suggestions)
@@ -158,45 +158,6 @@ export const COLORS = {
     800: '#222',
     900: '#111',
   },
-}
-
-// ── Skill Colors (Modelo B) ──────────────────────────────────────────────────
-export const SKILL_COLOR = {
-  Speaking: '#8064A2', Listening: '#4BACC6', Reading: '#F79646', Writing: '#9BBB59'
-}
-
-// ── Activity Type Detection ──────────────────────────────────────────────────
-export function detectActivityType(nombre) {
-  const n = (nombre || '').toLowerCase()
-  if (n.includes('dict'))                                    return { icon: '🎤', color: '#4BACC6', label: 'Dictation',    tier: 'routine'    }
-  if (n.includes('exam'))                                    return { icon: '📋', color: '#B91C1C', label: 'Exam',         tier: 'high-stakes' }
-  if (n.includes('quiz') || n.includes('test'))              return { icon: '📝', color: '#C0504D', label: 'Quiz',         tier: 'assessment'  }
-  if (n.includes('present') || n.includes('expo'))           return { icon: '🎙', color: '#7C3AED', label: 'Presentation', tier: 'assessment'  }
-  if (n.includes('reading') || n.includes('lectura'))        return { icon: '📖', color: '#F79646', label: 'Reading',      tier: 'routine'     }
-  if (n.includes('speaking') || n.includes('oral'))          return { icon: '🗣', color: '#8064A2', label: 'Speaking',     tier: 'assessment'  }
-  if (n.includes('listening'))                               return { icon: '🎧', color: '#4BACC6', label: 'Listening',    tier: 'routine'     }
-  if (n.includes('writing') || n.includes('escrit'))         return { icon: '✍️', color: '#9BBB59', label: 'Writing',      tier: 'routine'     }
-  if (n.includes('vocab'))                                   return { icon: '🔤', color: '#9BBB59', label: 'Vocab',        tier: 'routine'     }
-  if (n.includes('exit') || n.includes('ticket'))            return { icon: '🚪', color: '#C55A11', label: 'Exit Ticket',  tier: 'routine'     }
-  if (n.includes('workshop'))                                return { icon: '🔧', color: '#F79646', label: 'Workshop',     tier: 'routine'     }
-  return                                                            { icon: '📌', color: '#1A3A8F', label: 'Actividad',    tier: 'routine'     }
-}
-
-// ── Week Helpers ─────────────────────────────────────────────────────────────
-export function isoMonday(dateStr) {
-  const d = new Date(dateStr + 'T12:00:00')
-  const day = d.getDay()
-  const diff = day === 0 ? -6 : 1 - day
-  d.setDate(d.getDate() + diff)
-  return d.toISOString().slice(0, 10)
-}
-
-export function formatWeekRange(monStr) {
-  const mon = new Date(monStr + 'T12:00:00')
-  const fri = new Date(mon)
-  fri.setDate(fri.getDate() + 4)
-  const opts = { day: 'numeric', month: 'short' }
-  return `${mon.toLocaleDateString('es-CO', opts)} – ${fri.toLocaleDateString('es-CO', opts)}`
 }
 
 // ── API Constants ─────────────────────────────────────────────────────────────
