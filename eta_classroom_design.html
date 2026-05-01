@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ETA Classroom — Entorno Integrado</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #04060d;
+    --s1: #090d1a;
+    --s2: #0e1424;
+    --s3: #14192e;
+    --b1: #1e2540;
+    --b2: #283060;
+    --acc: #4361ee;
+    --acc2: #7209b7;
+    --acc3: #4cc9f0;
+    --grn: #06d6a0;
+    --amb: #ffd166;
+    --red: #ef233c;
+    --txt: #dde4ff;
+    --t2: #8892c4;
+    --t3: #3d4878;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Outfit',sans-serif; background:var(--bg); color:var(--txt); height:100vh; display:grid; grid-template-rows:48px 1fr 90px; overflow:hidden; }
+
+  /* ── TOPBAR ── */
+  .topbar {
+    background:var(--s1); border-bottom:1px solid var(--b1);
+    display:flex; align-items:center; padding:0 14px; gap:10px;
+  }
+  .logo { font-weight:800; font-size:13px; color:var(--acc3); letter-spacing:.1em; }
+  .ctx-chip { background:var(--s2); border:1px solid var(--b1); border-radius:6px; padding:3px 10px; font-size:11px; color:var(--t2); }
+  .sep { width:1px; height:20px; background:var(--b1); }
+
+  /* MOMENTO PILLS */
+  .moms { display:flex; gap:4px; }
+  .mp { padding:4px 10px; border-radius:14px; font-size:11px; font-weight:600; cursor:pointer; transition:.15s; color:var(--t3); border:1.5px solid transparent; }
+  .mp:hover { color:var(--t2); border-color:var(--b2); }
+  .mp.done { color:var(--grn); border-color:rgba(6,214,160,.25); }
+  .mp.active { background:var(--acc); color:#fff; border-color:var(--acc); box-shadow:0 0 12px rgba(67,97,238,.4); }
+
+  /* STATUS ROW RIGHT */
+  .status-r { margin-left:auto; display:flex; align-items:center; gap:10px; }
+  .status-item { display:flex; align-items:center; gap:5px; font-size:11px; color:var(--t2); }
+  .badge-dot { width:6px; height:6px; border-radius:50%; }
+  .mono { font-family:'Space Mono',monospace; font-size:12px; }
+  .rec-pill { display:flex; align-items:center; gap:5px; background:rgba(239,35,60,.1); border:1px solid rgba(239,35,60,.3); border-radius:10px; padding:3px 9px; font-size:10px; font-weight:700; color:var(--red); }
+  .blink { animation:blink 1.2s infinite; }
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+
+  /* ── MAIN GRID ── */
+  .main { display:grid; grid-template-columns:42px 1fr 52px 270px; overflow:hidden; }
+
+  /* LEFT TOOLBAR */
+  .ltool { background:var(--s1); border-right:1px solid var(--b1); display:flex; flex-direction:column; align-items:center; padding:8px 0; gap:3px; }
+  .ti { width:32px; height:32px; display:flex; align-items:center; justify-content:center; border-radius:7px; font-size:15px; cursor:pointer; color:var(--t3); transition:.15s; }
+  .ti:hover { background:var(--s3); color:var(--t2); }
+  .ti.act { background:var(--acc); color:#fff; box-shadow:0 0 8px rgba(67,97,238,.4); }
+  .tsep { width:22px; height:1px; background:var(--b1); margin:4px 0; }
+
+  /* CANVAS */
+  .canvas { position:relative; background:radial-gradient(ellipse at 30% 40%, rgba(67,97,238,.06) 0%, transparent 60%), radial-gradient(ellipse at 70% 70%, rgba(114,9,183,.04) 0%, transparent 60%), var(--bg); display:flex; align-items:center; justify-content:center; overflow:hidden; }
+
+  .canvas-bg-grid {
+    position:absolute; inset:0;
+    background-image: linear-gradient(rgba(255,255,255,.015) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.015) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+
+  /* MOMENT CHIP */
+  .mom-chip {
+    position:absolute; top:14px; left:50%; transform:translateX(-50%);
+    background:rgba(4,6,13,.75); border:1px solid var(--b2);
+    backdrop-filter:blur(12px); border-radius:20px;
+    padding:5px 16px; font-size:11px; font-weight:700; color:var(--t2);
+    white-space:nowrap; letter-spacing:.04em; z-index:20;
+    display:flex; align-items:center; gap:8px;
+  }
+  .mom-chip-dot { width:6px; height:6px; border-radius:50%; background:var(--amb); animation:blink 1.4s infinite; }
+
+  /* CENTER CONTENT */
+  .canvas-content { position:relative; z-index:10; text-align:center; }
+  .canvas-main-icon { font-size:48px; opacity:.08; }
+  .canvas-hint { font-size:14px; color:var(--t3); margin-top:8px; }
+
+  /* SLIDE OVERLAY */
+  .slide-overlay {
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center; z-index:10;
+  }
+  .slide-card {
+    width:580px; max-width:88%; aspect-ratio:16/9;
+    background:linear-gradient(135deg,rgba(14,20,36,.97) 0%,rgba(20,25,46,.97) 100%);
+    border:1px solid var(--b2); border-radius:14px;
+    box-shadow: 0 0 0 1px rgba(67,97,238,.1), 0 24px 80px rgba(0,0,0,.6);
+    display:flex; flex-direction:column; align-items:center; justify-content:center; padding:36px;
+    text-align:center;
+  }
+  .s-tag { font-size:10px; font-weight:700; color:var(--acc3); letter-spacing:.15em; text-transform:uppercase; margin-bottom:10px; }
+  .s-title { font-size:26px; font-weight:800; color:var(--txt); margin-bottom:8px; }
+  .s-body { font-size:13px; color:var(--t2); line-height:1.65; }
+  .s-ex { margin-top:18px; font-family:'Space Mono',monospace; font-size:12px; color:var(--acc3); background:rgba(76,201,240,.06); border:1px solid rgba(76,201,240,.15); border-radius:8px; padding:12px 18px; line-height:1.7; }
+  .s-nav { position:absolute; bottom:16px; left:50%; transform:translateX(-50%); display:flex; align-items:center; gap:10px; z-index:15; }
+  .s-btn { padding:5px 14px; background:rgba(4,6,13,.8); border:1px solid var(--b2); border-radius:7px; font-size:11px; color:var(--t2); cursor:pointer; backdrop-filter:blur(8px); }
+  .s-btn:hover { border-color:var(--acc); color:var(--acc); }
+  .s-count { font-family:'Space Mono',monospace; font-size:11px; color:var(--t3); }
+
+  /* TIMER PANEL */
+  .timer-panel {
+    position:absolute; bottom:16px; right:16px;
+    background:rgba(4,6,13,.85); border:1px solid var(--b2);
+    backdrop-filter:blur(12px); border-radius:12px;
+    padding:10px 14px; display:flex; flex-direction:column; align-items:center; gap:4px; z-index:15;
+  }
+  .tp-lbl { font-size:9px; font-weight:700; color:var(--t3); text-transform:uppercase; letter-spacing:.1em; }
+  .tp-val { font-family:'Space Mono',monospace; font-size:28px; color:var(--txt); line-height:1; }
+  .tp-btns { display:flex; gap:6px; margin-top:4px; }
+  .tp-btn { padding:4px 10px; background:var(--s2); border:1px solid var(--b1); border-radius:6px; font-size:10px; color:var(--t2); cursor:pointer; }
+  .tp-btn.go { background:var(--acc); color:#fff; border-color:var(--acc); }
+
+  /* RIGHT MINI TOOLS */
+  .rtool { background:var(--s1); border-left:1px solid var(--b1); display:flex; flex-direction:column; align-items:center; padding:8px 0; gap:4px; }
+
+  /* RIGHT PANEL */
+  .rpanel { background:var(--s1); border-left:1px solid var(--b1); display:flex; flex-direction:column; overflow:hidden; }
+  .rtabs { display:flex; border-bottom:1px solid var(--b1); }
+  .rtab { flex:1; padding:9px 0; text-align:center; font-size:10px; font-weight:700; color:var(--t3); cursor:pointer; transition:.15s; border-bottom:2px solid transparent; letter-spacing:.04em; text-transform:uppercase; }
+  .rtab.on { color:var(--acc3); border-bottom-color:var(--acc3); }
+  .rscroll { flex:1; overflow-y:auto; padding:10px; }
+  .rscroll::-webkit-scrollbar { width:3px; }
+  .rscroll::-webkit-scrollbar-thumb { background:var(--b1); border-radius:2px; }
+  .rsh { font-size:9px; font-weight:700; color:var(--t3); text-transform:uppercase; letter-spacing:.12em; margin:10px 0 6px; }
+
+  /* PLAN ITEMS */
+  .pi { background:var(--s2); border:1px solid var(--b1); border-radius:8px; padding:8px 10px; margin-bottom:6px; cursor:pointer; transition:.15s; }
+  .pi:hover { border-color:var(--b2); }
+  .pi.on { border-color:var(--acc); background:rgba(67,97,238,.06); }
+  .pi-row { display:flex; align-items:center; gap:7px; }
+  .pi-num { width:18px; height:18px; border-radius:50%; font-size:9px; font-weight:800; color:#fff; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .pi-ttl { font-size:12px; font-weight:600; }
+  .pi-meta { font-size:10px; color:var(--t3); margin-top:3px; margin-left:25px; }
+
+  /* AI BOX */
+  .ai-box { background:var(--s2); border:1px solid var(--b1); border-radius:8px; padding:10px; margin-bottom:8px; }
+  .ai-head { display:flex; align-items:center; gap:6px; margin-bottom:6px; }
+  .ai-pulse { width:6px; height:6px; background:var(--grn); border-radius:50%; animation:blink 2s infinite; }
+  .ai-lbl { font-size:9px; font-weight:800; color:var(--grn); letter-spacing:.1em; text-transform:uppercase; }
+  .ai-body { font-size:11px; color:var(--t2); line-height:1.6; }
+  .ai-chips { margin-top:8px; display:flex; flex-wrap:wrap; gap:4px; }
+  .ai-chip { padding:3px 8px; background:rgba(67,97,238,.1); border:1px solid rgba(67,97,238,.2); border-radius:10px; font-size:10px; color:var(--acc); cursor:pointer; }
+  .ai-inp { width:100%; background:var(--bg); border:1px solid var(--b1); border-radius:6px; padding:6px 8px; font-size:11px; color:var(--txt); margin-top:8px; outline:none; font-family:'Outfit',sans-serif; }
+  .ai-inp:focus { border-color:var(--acc); }
+
+  /* ── STUDENT STRIP ── */
+  .strip { background:var(--s1); border-top:1px solid var(--b1); display:flex; align-items:center; padding:8px 12px; gap:8px; overflow-x:auto; }
+  .strip::-webkit-scrollbar { height:3px; }
+  .strip::-webkit-scrollbar-thumb { background:var(--b1); }
+  .stu-tile {
+    flex-shrink:0; width:64px; text-align:center; cursor:pointer;
+    background:var(--s2); border:1px solid var(--b1); border-radius:10px;
+    padding:6px 4px; transition:.15s;
+  }
+  .stu-tile:hover { border-color:var(--b2); }
+  .stu-tile.virtual { border-color:rgba(67,97,238,.4); }
+  .stu-avatar { width:36px; height:36px; border-radius:50%; background:var(--s3); margin:0 auto 4px; display:flex; align-items:center; justify-content:center; font-size:14px; border:2px solid var(--b1); position:relative; }
+  .stu-avatar.live { border-color:var(--grn); box-shadow:0 0 8px rgba(6,214,160,.3); }
+  .stu-avatar.virtual-a { border-color:var(--acc); box-shadow:0 0 8px rgba(67,97,238,.3); }
+  .stu-name { font-size:9px; color:var(--t2); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .stu-stat { font-size:8px; color:var(--t3); margin-top:1px; }
+  .virtual-badge { position:absolute; bottom:-2px; right:-2px; width:12px; height:12px; background:var(--acc); border-radius:50%; border:1px solid var(--s2); font-size:7px; display:flex; align-items:center; justify-content:center; color:#fff; }
+
+  /* STRIP INFO */
+  .strip-info { display:flex; flex-direction:column; justify-content:center; padding-right:8px; border-right:1px solid var(--b1); margin-right:4px; min-width:70px; }
+  .strip-stat { font-size:10px; color:var(--t2); margin-bottom:3px; }
+  .strip-stat span { color:var(--grn); font-weight:700; }
+  .strip-btn { padding:4px 8px; background:var(--s3); border:1px solid var(--b1); border-radius:6px; font-size:10px; color:var(--t2); cursor:pointer; margin-top:4px; }
+  .strip-btn:hover { border-color:var(--acc); color:var(--acc); }
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <span class="logo">ETA·CLASSROOM</span>
+  <div class="ctx-chip">9.° Red · Language Arts · P2 S4</div>
+  <div class="sep"></div>
+
+  <div class="moms">
+    <div class="mp done" onclick="goM(0,this)">🙏 Apertura</div>
+    <div class="mp done" onclick="goM(1,this)">📖 Contenido</div>
+    <div class="mp active" onclick="goM(2,this)">✏️ Práctica</div>
+    <div class="mp" onclick="goM(3,this)">🤝 Aplicación</div>
+    <div class="mp" onclick="goM(4,this)">🎯 Cierre</div>
+  </div>
+
+  <div class="status-r">
+    <div class="status-item"><div class="badge-dot" style="background:var(--grn)"></div><span>22 presentes</span></div>
+    <div class="status-item"><div class="badge-dot" style="background:var(--acc)"></div><span>3 virtuales</span></div>
+    <div class="sep"></div>
+    <div class="status-item mono" id="clock">--:--</div>
+    <div class="rec-pill"><div class="badge-dot blink" style="background:var(--red)"></div>REC</div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- LEFT TOOLS -->
+  <div class="ltool">
+    <div class="ti act">🖊️</div>
+    <div class="ti">T</div>
+    <div class="ti">⬜</div>
+    <div class="ti">🎨</div>
+    <div class="tsep"></div>
+    <div class="ti" onclick="toggleSlides()">📊</div>
+    <div class="ti">🖼️</div>
+    <div class="ti">🔊</div>
+    <div class="tsep"></div>
+    <div class="ti">🎲</div>
+    <div class="ti">📱</div>
+    <div class="ti">✂️</div>
+  </div>
+
+  <!-- CANVAS -->
+  <div class="canvas" id="canvas">
+    <div class="canvas-bg-grid"></div>
+
+    <div class="mom-chip">
+      <div class="mom-chip-dot"></div>
+      <span id="mom-label">✏️ Práctica guiada · 20 min</span>
+    </div>
+
+    <!-- DEFAULT STATE -->
+    <div class="canvas-content" id="canvas-default">
+      <div class="canvas-main-icon">🖊️</div>
+      <div class="canvas-hint">Pizarra libre — usa las herramientas de la izquierda</div>
+    </div>
+
+    <!-- SLIDES OVERLAY -->
+    <div class="slide-overlay" id="slide-overlay" style="display:none">
+      <div class="slide-card" id="slide-card">
+        <div class="s-tag">Evolve Unit 1 · Used to / Would</div>
+        <div class="s-title">Hábitos del Pasado</div>
+        <div class="s-body">Usamos <strong>used to</strong> y <strong>would</strong> para hablar de acciones<br>habituales en el pasado que ya no ocurren.</div>
+        <div class="s-ex">I used to play soccer every day.<br>We would go to the beach every summer.</div>
+      </div>
+      <div class="s-nav">
+        <button class="s-btn" onclick="pSlide()">← Ant</button>
+        <div class="s-count" id="s-count">1 / 4</div>
+        <button class="s-btn" onclick="nSlide()">Sig →</button>
+        <button class="s-btn" onclick="toggleSlides()" style="color:var(--red)">✕ Cerrar</button>
+      </div>
+    </div>
+
+    <!-- TIMER -->
+    <div class="timer-panel">
+      <div class="tp-lbl">Tiempo momento</div>
+      <div class="tp-val" id="timer">18:43</div>
+      <div class="tp-btns">
+        <button class="tp-btn" onclick="toggleT()">⏸</button>
+        <button class="tp-btn go" onclick="nextM()">→ Sig.</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT MINI -->
+  <div class="rtool">
+    <div class="ti" title="Plan" onclick="showRP('plan')" style="font-size:12px;color:var(--t2)">📋</div>
+    <div class="ti" title="Testigo IA" onclick="showRP('ia')" style="font-size:12px;color:var(--t2)">🤖</div>
+    <div class="ti" title="Notas" onclick="showRP('notas')" style="font-size:12px;color:var(--t2)">📝</div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="rpanel">
+    <div class="rtabs">
+      <div class="rtab on" onclick="rpTab('plan',this)">Plan</div>
+      <div class="rtab" onclick="rpTab('ia',this)">IA</div>
+      <div class="rtab" onclick="rpTab('notas',this)">Notas</div>
+    </div>
+
+    <!-- PLAN -->
+    <div class="rscroll" id="rp-plan">
+      <div class="rsh">Momentos de sesión</div>
+      <div class="pi" onclick="selPI(this,0)"><div class="pi-row"><div class="pi-num" style="background:var(--grn)">1</div><div class="pi-ttl">Apertura devocional</div></div><div class="pi-meta">✅ 10 min · Completado 9:02</div></div>
+      <div class="pi" onclick="selPI(this,1)"><div class="pi-row"><div class="pi-num" style="background:var(--grn)">2</div><div class="pi-ttl">Presentación de contenido</div></div><div class="pi-meta">✅ 15 min · Completado 9:18</div></div>
+      <div class="pi on" onclick="selPI(this,2)"><div class="pi-row"><div class="pi-num" style="background:var(--acc)">3</div><div class="pi-ttl">Práctica guiada</div></div><div class="pi-meta">🔄 20 min · En curso · Workbook pp.5–7</div></div>
+      <div class="pi" onclick="selPI(this,3)"><div class="pi-row"><div class="pi-num" style="background:var(--b1)">4</div><div class="pi-ttl">Aplicación oral</div></div><div class="pi-meta">⏳ 10 min · Pendiente</div></div>
+      <div class="pi" onclick="selPI(this,4)"><div class="pi-row"><div class="pi-num" style="background:var(--b1)">5</div><div class="pi-ttl">Cierre y exit ticket</div></div><div class="pi-meta">⏳ 5 min · Pendiente</div></div>
+    </div>
+
+    <!-- IA -->
+    <div class="rscroll" id="rp-ia" style="display:none">
+      <div class="rsh">Testigo IA</div>
+      <div class="ai-box">
+        <div class="ai-head"><div class="ai-pulse"></div><span class="ai-lbl">Observando en vivo</span></div>
+        <div class="ai-body" id="ai-body">Momento 3 — 18 min transcurridos de 20.<br><br>Sugerencia: si los grupos terminan antes, tengo un ejercicio extra con <em>would</em> listo para proyectar.</div>
+        <div class="ai-chips">
+          <div class="ai-chip" onclick="aiQ('ej')">+ ejercicio</div>
+          <div class="ai-chip" onclick="aiQ('err')">error común</div>
+          <div class="ai-chip" onclick="aiQ('dif')">used to vs would</div>
+          <div class="ai-chip" onclick="aiQ('tiempo')">¿voy a tiempo?</div>
+        </div>
+        <input class="ai-inp" placeholder="Pregunta al Testigo..." onkeydown="aiAsk(event)">
+      </div>
+      <div class="rsh">Log automático</div>
+      <div class="ai-box">
+        <div class="ai-body">✅ 9:02 Apertura (10 min)<br>✅ 9:18 Contenido (16 min)<br>🔄 9:34 Práctica (en curso)</div>
+      </div>
+    </div>
+
+    <!-- NOTAS -->
+    <div class="rscroll" id="rp-notas" style="display:none">
+      <div class="rsh">Nota rápida</div>
+      <textarea style="width:100%;background:var(--bg);border:1px solid var(--b1);border-radius:7px;padding:8px;font-size:11px;color:var(--txt);resize:none;height:80px;outline:none;font-family:'Outfit',sans-serif" placeholder="Escribe aquí..."></textarea>
+      <button style="width:100%;margin-top:6px;padding:7px;background:var(--acc2);color:#fff;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer">💾 Guardar</button>
+      <div class="rsh" style="margin-top:14px">Notas previas</div>
+      <div class="ai-box"><div class="ai-body">📝 <strong>S3</strong> — El ejercicio de would fue confuso. Replantear con más ejemplos de infancia.</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- STUDENT STRIP -->
+<div class="strip">
+  <div class="strip-info">
+    <div class="strip-stat"><span>22</span> presentes</div>
+    <div class="strip-stat"><span>3</span> virtuales</div>
+    <button class="strip-btn">Lista ↗</button>
+  </div>
+
+  <!-- STUDENTS -->
+  <div class="stu-tile"><div class="stu-avatar live">👧</div><div class="stu-name">A. García</div><div class="stu-stat">Presente</div></div>
+  <div class="stu-tile virtual"><div class="stu-avatar virtual-a">👦<div class="virtual-badge">📡</div></div><div class="stu-name">B. Martínez</div><div class="stu-stat">Virtual</div></div>
+  <div class="stu-tile"><div class="stu-avatar live">👧</div><div class="stu-name">C. López</div><div class="stu-stat">Presente</div></div>
+  <div class="stu-tile"><div class="stu-avatar" style="border-color:var(--amb)">👦</div><div class="stu-name">D. Pérez</div><div class="stu-stat">Tardanza</div></div>
+  <div class="stu-tile"><div class="stu-avatar live">👧</div><div class="stu-name">E. Torres</div><div class="stu-stat">Presente</div></div>
+  <div class="stu-tile"><div class="stu-avatar" style="border-color:var(--red);opacity:.5">👦</div><div class="stu-name">F. Ríos</div><div class="stu-stat">Ausente</div></div>
+  <div class="stu-tile virtual"><div class="stu-avatar virtual-a">👧<div class="virtual-badge">📡</div></div><div class="stu-name">G. Vargas</div><div class="stu-stat">Virtual</div></div>
+  <div class="stu-tile"><div class="stu-avatar live">👦</div><div class="stu-name">H. Castro</div><div class="stu-stat">Presente</div></div>
+  <div class="stu-tile"><div class="stu-avatar live">👧</div><div class="stu-name">I. Mendez</div><div class="stu-stat">Presente</div></div>
+  <div class="stu-tile"><div class="stu-avatar live">👦</div><div class="stu-name">J. Ramos</div><div class="stu-stat">Presente</div></div>
+  <div class="stu-tile virtual"><div class="stu-avatar virtual-a">👧<div class="virtual-badge">📡</div></div><div class="stu-name">K. Diaz</div><div class="stu-stat">Virtual</div></div>
+  <div class="stu-tile"><div class="stu-avatar live">👦</div><div class="stu-name">L. Suárez</div><div class="stu-stat">Presente</div></div>
+</div>
+
+<script>
+  // CLOCK
+  function tick(){ const n=new Date(); document.getElementById('clock').textContent=String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0'); }
+  tick(); setInterval(tick,15000);
+
+  // TIMER
+  let secs=1123, run=true;
+  setInterval(()=>{ if(run){ secs++; const m=Math.floor(secs/60),s=secs%60; document.getElementById('timer').textContent=String(m).padStart(2,'0')+':'+String(s).padStart(2,'0'); } },1000);
+  function toggleT(){ run=!run; }
+
+  // MOMENTOS
+  const mLabels=['🙏 Apertura devocional · 10 min','📖 Presentación de contenido · 15 min','✏️ Práctica guiada · 20 min','🤝 Aplicación oral · 10 min','🎯 Cierre y exit ticket · 5 min'];
+  let curM=2;
+  function goM(i,el){
+    curM=i; secs=0;
+    document.querySelectorAll('.mp').forEach((m,idx)=>{ m.classList.remove('active','done'); if(idx<i) m.classList.add('done'); });
+    el.classList.add('active');
+    document.getElementById('mom-label').textContent=mLabels[i];
+  }
+  function nextM(){ if(curM<4){ const pills=document.querySelectorAll('.mp'); goM(curM+1,pills[curM+1]); } }
+
+  // SLIDES
+  let slidesOn=false;
+  const slides=[
+    {tag:'Evolve Unit 1 · Used to / Would',title:'Hábitos del Pasado',body:'Usamos <strong>used to</strong> y <strong>would</strong> para hablar de acciones habituales en el pasado que ya no ocurren.',ex:'I used to play soccer every day.\nWe would go to the beach every summer.'},
+    {tag:'Used to — Estructura',title:'Forma afirmativa y negativa',body:'Sujeto + <strong>used to</strong> + verbo base<br>Aplica para hábitos, estados y rutinas pasadas.',ex:'She used to live in Bogotá.\nHe didn\'t use to like English.'},
+    {tag:'Would — Límites de uso',title:'Would ≠ Estados',body:'<strong>Would</strong> solo aplica para acciones repetidas, NO para estados.<br>❌ I would live in Bogotá. ✅ I used to live in Bogotá.',ex:'Every summer, we would visit grandma.\nHe would wake up at 5am every day.'},
+    {tag:'Práctica — Tu turno',title:'3 oraciones sobre tu infancia',body:'Usa <em>used to</em> o <em>would</em>. Comparte con tu compañero y corríganse mutuamente.',ex:'When I was a child, I used to...\nEvery weekend, I would...\nI used to... but now I...'}
+  ];
+  let curSlide=0;
+  function toggleSlides(){
+    slidesOn=!slidesOn;
+    document.getElementById('slide-overlay').style.display=slidesOn?'flex':'none';
+    document.getElementById('canvas-default').style.display=slidesOn?'none':'block';
+    if(slidesOn) renderS();
+  }
+  function renderS(){
+    const s=slides[curSlide];
+    document.getElementById('slide-card').innerHTML=`<div class="s-tag">${s.tag}</div><div class="s-title">${s.title}</div><div class="s-body">${s.body}</div><div class="s-ex">${s.ex.replace(/\n/g,'<br>')}</div>`;
+    document.getElementById('s-count').textContent=(curSlide+1)+' / '+slides.length;
+  }
+  function pSlide(){ if(curSlide>0){ curSlide--; renderS(); } }
+  function nSlide(){ if(curSlide<slides.length-1){ curSlide++; renderS(); } }
+
+  // RIGHT PANEL
+  function rpTab(t,el){
+    ['plan','ia','notas'].forEach(n=>{ document.getElementById('rp-'+n).style.display=n===t?'block':'none'; });
+    document.querySelectorAll('.rtab').forEach(tab=>tab.classList.remove('on'));
+    el.classList.add('on');
+  }
+  function showRP(t){ rpTab(t,document.querySelector(`.rtab[onclick*="${t}"]`)); }
+
+  // PLAN SELECT
+  function selPI(el,i){ document.querySelectorAll('.pi').forEach(p=>p.classList.remove('on')); el.classList.add('on'); goM(i,document.querySelectorAll('.mp')[i]); }
+
+  // AI
+  const aiR={ ej:'Ejercicio extra: escribe 5 oraciones sobre hábitos de tu primaria con <em>used to</em>. Luego intercambia con un compañero.', err:'Error más frecuente: usar <em>would</em> con verbos de estado como live, like, know. Solo <em>used to</em> funciona con estados.', dif:'<em>Used to</em> = estados Y acciones pasadas.<br><em>Would</em> = solo acciones repetidas del pasado.', tiempo:'Llevas 18 min en el momento 3 de 20. Vas bien. Si terminas en los próximos 2 min, el ritmo es exactamente el planeado.' };
+  function aiQ(k){ document.getElementById('ai-body').innerHTML=aiR[k]; }
+  function aiAsk(e){ if(e.key==='Enter'){ document.getElementById('ai-body').textContent='Procesando... el Testigo está analizando el contexto de la clase.'; e.target.value=''; } }
+</script>
+</body>
+</html>

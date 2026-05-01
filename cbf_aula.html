@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CBF Aula — Entorno Completo del Docente</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #080b12;
+    --surface: #111520;
+    --surface2: #181d2e;
+    --surface3: #1e2438;
+    --border: #252d48;
+    --border2: #2e3a5c;
+    --accent: #3b82f6;
+    --accent2: #8b5cf6;
+    --accent3: #06b6d4;
+    --green: #10b981;
+    --amber: #f59e0b;
+    --red: #f43f5e;
+    --text: #e2e8f8;
+    --text2: #94a3c8;
+    --text3: #4a5580;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text); height:100vh; display:flex; flex-direction:column; overflow:hidden; user-select:none; }
+
+  /* ═══════════════ TOPBAR ═══════════════ */
+  .topbar {
+    height:52px; background:var(--surface); border-bottom:1px solid var(--border);
+    display:flex; align-items:center; padding:0 12px; gap:8px; flex-shrink:0; z-index:100;
+  }
+  .logo { font-family:'Syne',sans-serif; font-weight:800; font-size:14px; color:var(--accent); letter-spacing:.05em; padding-right:10px; }
+  .ctx { font-size:11px; color:var(--text3); white-space:nowrap; }
+  .sep { width:1px; height:22px; background:var(--border); margin:0 4px; }
+
+  /* MOMENTOS */
+  .moments { display:flex; gap:4px; }
+  .mom {
+    padding:4px 12px; border-radius:16px; font-size:11px; font-weight:600;
+    cursor:pointer; transition:all .18s; border:1.5px solid transparent;
+    color:var(--text3); background:transparent; white-space:nowrap;
+  }
+  .mom:hover { color:var(--text2); border-color:var(--border2); }
+  .mom.done { color:var(--green); border-color:rgba(16,185,129,.3); }
+  .mom.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+
+  /* VIEW SWITCHER */
+  .view-sw { display:flex; background:var(--surface2); border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+  .view-btn { padding:5px 10px; font-size:11px; font-weight:600; color:var(--text3); cursor:pointer; transition:all .15s; }
+  .view-btn.active { background:var(--accent); color:#fff; }
+  .view-btn:hover:not(.active) { color:var(--text2); }
+
+  .topbar-r { margin-left:auto; display:flex; align-items:center; gap:8px; }
+  .prog-wrap { display:flex; align-items:center; gap:6px; }
+  .prog-track { width:80px; height:3px; background:var(--surface3); border-radius:2px; overflow:hidden; }
+  .prog-fill { height:100%; background:linear-gradient(90deg,var(--accent),var(--accent2)); border-radius:2px; transition:width .5s; }
+  .prog-label { font-size:10px; color:var(--text3); font-family:'JetBrains Mono',monospace; }
+  .clock { font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--text2); background:var(--surface2); border:1px solid var(--border); padding:4px 8px; border-radius:6px; }
+  .rec-badge { display:flex; align-items:center; gap:5px; font-size:10px; font-weight:700; color:var(--red); }
+  .rec-dot { width:7px; height:7px; background:var(--red); border-radius:50%; animation:pulse 1.4s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.3;transform:scale(.8)} }
+
+  /* ═══════════════ MAIN AREA ═══════════════ */
+  .main { flex:1; display:flex; overflow:hidden; }
+
+  /* LEFT TOOLS */
+  .left-tools {
+    width:44px; background:var(--surface); border-right:1px solid var(--border);
+    display:flex; flex-direction:column; align-items:center; padding:8px 0; gap:4px; flex-shrink:0;
+  }
+  .tool-ico {
+    width:34px; height:34px; display:flex; align-items:center; justify-content:center;
+    border-radius:8px; font-size:16px; cursor:pointer; transition:all .15s; color:var(--text3);
+  }
+  .tool-ico:hover { background:var(--surface2); color:var(--text); }
+  .tool-ico.active { background:var(--accent); color:#fff; }
+  .tool-sep { width:24px; height:1px; background:var(--border); margin:4px 0; }
+
+  /* CENTER CANVAS */
+  .center { flex:1; position:relative; overflow:hidden; background:#050810; }
+
+  /* VIEW MODES */
+  .canvas-main { width:100%; height:100%; display:flex; align-items:center; justify-content:center; position:relative; }
+  .split-view { width:100%; height:100%; display:grid; grid-template-columns:1fr 1fr; gap:2px; }
+  .split-pane { background:#08091a; display:flex; align-items:center; justify-content:center; position:relative; }
+  .split-label { position:absolute; top:8px; left:8px; font-size:10px; font-weight:700; color:var(--text3); text-transform:uppercase; letter-spacing:.08em; background:rgba(5,8,16,.7); padding:3px 8px; border-radius:4px; }
+
+  .slides-view { width:100%; height:100%; display:flex; flex-direction:column; background:#06080f; }
+  .slides-nav { display:flex; align-items:center; justify-content:center; gap:16px; padding:10px; border-bottom:1px solid var(--border); }
+  .slides-nav button { padding:5px 16px; background:var(--surface2); border:1px solid var(--border); border-radius:6px; color:var(--text2); font-size:12px; cursor:pointer; }
+  .slides-nav button:hover { border-color:var(--accent); color:var(--accent); }
+  .slide-counter { font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--text3); }
+  .slide-stage { flex:1; display:flex; align-items:center; justify-content:center; }
+  .slide-card {
+    width:640px; max-width:90%; aspect-ratio:16/9;
+    background:linear-gradient(135deg,#0d1535 0%,#12204a 100%);
+    border:1px solid var(--border2); border-radius:12px;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    padding:40px; text-align:center; box-shadow:0 20px 60px rgba(0,0,0,.5);
+  }
+  .slide-tag { font-size:10px; font-weight:700; color:var(--accent); letter-spacing:.15em; text-transform:uppercase; margin-bottom:12px; }
+  .slide-title { font-family:'Syne',sans-serif; font-size:28px; font-weight:800; color:var(--text); margin-bottom:10px; }
+  .slide-subtitle { font-size:14px; color:var(--text2); line-height:1.6; }
+  .slide-example { margin-top:20px; background:rgba(59,130,246,.1); border:1px solid rgba(59,130,246,.3); border-radius:8px; padding:12px 20px; font-family:'JetBrains Mono',monospace; font-size:14px; color:var(--accent3); }
+
+  .board-canvas { width:100%; height:100%; position:relative; cursor:crosshair; }
+  .board-hint { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); text-align:center; color:var(--text3); pointer-events:none; }
+  .board-hint .ico { font-size:40px; opacity:.2; }
+  .board-hint p { font-size:13px; opacity:.3; margin-top:8px; }
+
+  /* FLOATING MOMENTO BADGE */
+  .momento-badge {
+    position:absolute; top:12px; left:50%; transform:translateX(-50%);
+    background:rgba(8,11,18,.8); border:1px solid var(--border2);
+    backdrop-filter:blur(10px); border-radius:20px;
+    padding:5px 14px; font-size:11px; font-weight:700; color:var(--text2);
+    white-space:nowrap; letter-spacing:.04em; z-index:10;
+  }
+  .momento-badge span { color:var(--accent); }
+
+  /* TIMER FLOAT */
+  .timer-float {
+    position:absolute; bottom:14px; left:50%; transform:translateX(-50%);
+    background:rgba(8,11,18,.85); border:1px solid var(--border2);
+    backdrop-filter:blur(10px); border-radius:12px;
+    padding:8px 20px; display:flex; align-items:center; gap:14px; z-index:10;
+  }
+  .timer-val { font-family:'JetBrains Mono',monospace; font-size:26px; color:var(--text); }
+  .timer-sub { font-size:10px; color:var(--text3); text-align:center; }
+  .t-btn { padding:5px 12px; background:var(--surface2); border:1px solid var(--border2); border-radius:7px; font-size:11px; color:var(--text2); cursor:pointer; transition:all .15s; }
+  .t-btn:hover { border-color:var(--accent); color:var(--accent); }
+  .t-btn.next { background:var(--accent); color:#fff; border-color:var(--accent); }
+
+  /* ═══════════════ RIGHT PANEL ═══════════════ */
+  .right-panel {
+    width:260px; background:var(--surface); border-left:1px solid var(--border);
+    display:flex; flex-direction:column; overflow:hidden; flex-shrink:0;
+  }
+  .r-tabs { display:flex; border-bottom:1px solid var(--border); }
+  .r-tab { flex:1; padding:9px 0; text-align:center; font-size:11px; font-weight:600; color:var(--text3); cursor:pointer; transition:all .15s; border-bottom:2px solid transparent; }
+  .r-tab.active { color:var(--accent); border-bottom-color:var(--accent); }
+  .r-tab:hover:not(.active) { color:var(--text2); }
+  .r-scroll { flex:1; overflow-y:auto; padding:10px; }
+  .r-scroll::-webkit-scrollbar { width:3px; }
+  .r-scroll::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+
+  .sh { font-size:9px; font-weight:700; color:var(--text3); text-transform:uppercase; letter-spacing:.12em; margin:10px 0 6px; }
+
+  /* PLAN ITEMS */
+  .pi {
+    background:var(--surface2); border:1px solid var(--border); border-radius:8px;
+    padding:9px 10px; margin-bottom:6px; cursor:pointer; transition:all .18s;
+  }
+  .pi:hover { border-color:var(--border2); }
+  .pi.act { border-color:var(--accent); background:rgba(59,130,246,.07); }
+  .pi-head { display:flex; align-items:center; gap:7px; }
+  .pi-n { width:18px; height:18px; border-radius:50%; background:var(--accent); font-size:9px; font-weight:800; color:#fff; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .pi-n.done { background:var(--green); }
+  .pi-n.pend { background:var(--surface3); }
+  .pi-title { font-size:12px; font-weight:600; }
+  .pi-time { font-size:10px; color:var(--text3); margin-top:2px; margin-left:25px; }
+  .pi-stat { display:flex; align-items:center; gap:4px; margin-top:5px; margin-left:25px; }
+  .sd { width:5px; height:5px; border-radius:50%; }
+  .sl { font-size:10px; color:var(--text3); }
+
+  /* STUDENTS STRIP */
+  .students-strip { display:flex; flex-wrap:wrap; gap:6px; }
+  .stu-card { background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:6px 8px; flex:0 0 calc(50% - 3px); }
+  .stu-name { font-size:10px; font-weight:600; color:var(--text2); }
+  .stu-status { font-size:9px; color:var(--text3); margin-top:2px; }
+  .stu-dot { display:inline-block; width:5px; height:5px; border-radius:50%; margin-right:3px; }
+
+  /* AI PANEL */
+  .ai-box { background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:10px; margin-bottom:8px; }
+  .ai-head { display:flex; align-items:center; gap:6px; margin-bottom:6px; }
+  .ai-live { width:6px; height:6px; background:var(--green); border-radius:50%; animation:pulse 2s infinite; }
+  .ai-lbl { font-size:10px; font-weight:700; color:var(--green); letter-spacing:.05em; }
+  .ai-body { font-size:11px; color:var(--text2); line-height:1.55; }
+  .ai-inp { width:100%; background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:7px 9px; font-size:11px; color:var(--text); margin-top:8px; outline:none; font-family:'DM Sans',sans-serif; }
+  .ai-inp:focus { border-color:var(--accent); }
+  .ai-chip { display:inline-block; padding:3px 8px; background:rgba(59,130,246,.12); border:1px solid rgba(59,130,246,.25); border-radius:10px; font-size:10px; color:var(--accent); cursor:pointer; margin:2px; }
+
+  /* NOTE QUICK */
+  .note-area { width:100%; background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:7px; font-size:11px; color:var(--text); resize:none; height:70px; outline:none; font-family:'DM Sans',sans-serif; }
+  .note-area:focus { border-color:var(--accent2); }
+  .save-btn { width:100%; margin-top:6px; padding:6px; background:var(--accent2); color:#fff; border:none; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; }
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <span class="logo">CBF AULA</span>
+  <span class="ctx">9.° Red · Language Arts · P2 · Semana 4</span>
+  <div class="sep"></div>
+
+  <!-- MOMENTOS -->
+  <div class="moments">
+    <div class="mom done" onclick="goMom(0,this)">🙏 Apertura</div>
+    <div class="mom done" onclick="goMom(1,this)">📖 Contenido</div>
+    <div class="mom active" onclick="goMom(2,this)">✏️ Práctica</div>
+    <div class="mom" onclick="goMom(3,this)">🤝 Aplicación</div>
+    <div class="mom" onclick="goMom(4,this)">🎯 Cierre</div>
+  </div>
+
+  <div class="sep"></div>
+
+  <!-- VISTAS -->
+  <div class="view-sw">
+    <div class="view-btn active" onclick="setView('canvas',this)" title="Pizarra libre">🖊️</div>
+    <div class="view-btn" onclick="setView('slides',this)" title="Diapositivas">📊</div>
+    <div class="view-btn" onclick="setView('split',this)" title="Split screen">↔️</div>
+  </div>
+
+  <div class="topbar-r">
+    <div class="prog-wrap">
+      <div class="prog-track"><div class="prog-fill" id="prog" style="width:40%"></div></div>
+      <span class="prog-label" id="prog-lbl">3/5</span>
+    </div>
+    <div class="clock" id="clock">--:--</div>
+    <div class="rec-badge"><div class="rec-dot"></div>REC</div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- LEFT TOOLS -->
+  <div class="left-tools">
+    <div class="tool-ico active" title="Pizarra">🖊️</div>
+    <div class="tool-ico" title="Texto">T</div>
+    <div class="tool-ico" title="Figuras">⬜</div>
+    <div class="tool-ico" title="Color">🎨</div>
+    <div class="tool-sep"></div>
+    <div class="tool-ico" title="Imagen">🖼️</div>
+    <div class="tool-ico" title="Audio">🔊</div>
+    <div class="tool-ico" title="Timer">⏱️</div>
+    <div class="tool-sep"></div>
+    <div class="tool-ico" title="Lista random">🎲</div>
+    <div class="tool-ico" title="QR">📱</div>
+  </div>
+
+  <!-- CENTER -->
+  <div class="center">
+
+    <!-- BADGE MOMENTO -->
+    <div class="momento-badge" id="mom-badge">✏️ Momento 3 — <span>Práctica guiada</span> · 20 min</div>
+
+    <!-- VIEW: CANVAS (default) -->
+    <div id="view-canvas" class="canvas-main">
+      <div class="board-canvas" id="board">
+        <div class="board-hint">
+          <div class="ico">✍️</div>
+          <p>Pizarra libre — dibuja, escribe, proyecta</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- VIEW: SLIDES -->
+    <div id="view-slides" class="slides-view" style="display:none">
+      <div class="slides-nav">
+        <button onclick="prevSlide()">← Anterior</button>
+        <div class="slide-counter" id="slide-counter">Diapositiva 1 / 4</div>
+        <button onclick="nextSlide()">Siguiente →</button>
+      </div>
+      <div class="slide-stage">
+        <div class="slide-card" id="slide-content">
+          <div class="slide-tag">Evolve Unit 1 · Used to / Would</div>
+          <div class="slide-title">Hábitos del Pasado</div>
+          <div class="slide-subtitle">Usamos <strong>used to</strong> y <strong>would</strong> para hablar de acciones<br>que eran habituales en el pasado pero ya no ocurren.</div>
+          <div class="slide-example">I used to play soccer every day.<br>We would go to the beach every summer.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- VIEW: SPLIT -->
+    <div id="view-split" class="split-view" style="display:none">
+      <div class="split-pane">
+        <div class="split-label">DOCENTE</div>
+        <div style="text-align:center;color:#4a5580">
+          <div style="font-size:36px;opacity:.3">🖊️</div>
+          <p style="font-size:12px;opacity:.3;margin-top:8px">Pizarra del docente</p>
+        </div>
+      </div>
+      <div class="split-pane">
+        <div class="split-label">CONTENIDO</div>
+        <div style="text-align:center;color:#4a5580">
+          <div style="font-size:36px;opacity:.3">📊</div>
+          <p style="font-size:12px;opacity:.3;margin-top:8px">Diapositiva activa</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- TIMER FLOAT -->
+    <div class="timer-float">
+      <div>
+        <div class="timer-sub">MOMENTO ACTIVO</div>
+        <div class="timer-val" id="timer">15:22</div>
+      </div>
+      <button class="t-btn" onclick="toggleTimer()">⏸</button>
+      <button class="t-btn next" onclick="advanceMom()">→ Siguiente</button>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="right-panel">
+    <div class="r-tabs">
+      <div class="r-tab active" onclick="showRTab('plan',this)">Plan</div>
+      <div class="r-tab" onclick="showRTab('alumnos',this)">Alumnos</div>
+      <div class="r-tab" onclick="showRTab('ia',this)">IA</div>
+      <div class="r-tab" onclick="showRTab('notas',this)">Notas</div>
+    </div>
+
+    <!-- PLAN -->
+    <div class="r-scroll" id="rt-plan">
+      <div class="sh">Sesión de hoy</div>
+
+      <div class="pi" onclick="selectPI(this,0)">
+        <div class="pi-head"><div class="pi-n done">1</div><div class="pi-title">Apertura devocional</div></div>
+        <div class="pi-time">⏱ 10 min</div>
+        <div class="pi-stat"><div class="sd" style="background:var(--green)"></div><span class="sl">Completado · 9:02</span></div>
+      </div>
+      <div class="pi" onclick="selectPI(this,1)">
+        <div class="pi-head"><div class="pi-n done">2</div><div class="pi-title">Presentación de contenido</div></div>
+        <div class="pi-time">⏱ 15 min</div>
+        <div class="pi-stat"><div class="sd" style="background:var(--green)"></div><span class="sl">Completado · 9:16</span></div>
+      </div>
+      <div class="pi act" onclick="selectPI(this,2)">
+        <div class="pi-head"><div class="pi-n">3</div><div class="pi-title">Práctica guiada</div></div>
+        <div class="pi-time">⏱ 20 min · Workbook pp.5–7</div>
+        <div class="pi-stat"><div class="sd" style="background:var(--amber);animation:pulse 1.2s infinite"></div><span class="sl">En curso</span></div>
+      </div>
+      <div class="pi" onclick="selectPI(this,3)">
+        <div class="pi-head"><div class="pi-n pend">4</div><div class="pi-title">Aplicación oral</div></div>
+        <div class="pi-time">⏱ 10 min</div>
+        <div class="pi-stat"><div class="sd" style="background:var(--border)"></div><span class="sl">Pendiente</span></div>
+      </div>
+      <div class="pi" onclick="selectPI(this,4)">
+        <div class="pi-head"><div class="pi-n pend">5</div><div class="pi-title">Cierre y exit ticket</div></div>
+        <div class="pi-time">⏱ 5 min</div>
+        <div class="pi-stat"><div class="sd" style="background:var(--border)"></div><span class="sl">Pendiente</span></div>
+      </div>
+    </div>
+
+    <!-- ALUMNOS -->
+    <div class="r-scroll" id="rt-alumnos" style="display:none">
+      <div class="sh">Lista de clase (9.° Red)</div>
+      <div class="students-strip">
+        <div class="stu-card"><div class="stu-name">A. García</div><div class="stu-status"><span class="stu-dot" style="background:var(--green)"></span>Presente</div></div>
+        <div class="stu-card"><div class="stu-name">B. Martínez</div><div class="stu-status"><span class="stu-dot" style="background:var(--accent)"></span>Virtual</div></div>
+        <div class="stu-card"><div class="stu-name">C. López</div><div class="stu-status"><span class="stu-dot" style="background:var(--green)"></span>Presente</div></div>
+        <div class="stu-card"><div class="stu-name">D. Pérez</div><div class="stu-status"><span class="stu-dot" style="background:var(--amber)"></span>Tardanza</div></div>
+        <div class="stu-card"><div class="stu-name">E. Torres</div><div class="stu-status"><span class="stu-dot" style="background:var(--green)"></span>Presente</div></div>
+        <div class="stu-card"><div class="stu-name">F. Ríos</div><div class="stu-status"><span class="stu-dot" style="background:var(--red)"></span>Ausente</div></div>
+        <div class="stu-card"><div class="stu-name">G. Castro</div><div class="stu-status"><span class="stu-dot" style="background:var(--green)"></span>Presente</div></div>
+        <div class="stu-card"><div class="stu-name">H. Vargas</div><div class="stu-status"><span class="stu-dot" style="background:var(--accent)"></span>Virtual</div></div>
+      </div>
+    </div>
+
+    <!-- IA -->
+    <div class="r-scroll" id="rt-ia" style="display:none">
+      <div class="sh">Testigo IA</div>
+      <div class="ai-box">
+        <div class="ai-head"><div class="ai-live"></div><span class="ai-lbl">OBSERVANDO</span></div>
+        <div class="ai-body" id="ai-text">
+          Momento 3 activo — 15 min transcurridos de 20.<br><br>
+          Los estudiantes trabajan en pp.5–7. Sugerencia: si algún grupo termina antes, tengo ejercicio extra con <em>would</em> listo.
+        </div>
+        <div style="margin-top:8px">
+          <div class="ai-chip" onclick="aiSuggest('ejercicio')">+ ejercicio</div>
+          <div class="ai-chip" onclick="aiSuggest('error')">error común</div>
+          <div class="ai-chip" onclick="aiSuggest('diferencia')">used to vs would</div>
+        </div>
+        <input class="ai-inp" id="ai-inp" placeholder="Pregunta al Testigo..." onkeydown="aiAsk(event)">
+      </div>
+      <div class="sh">Registro automático</div>
+      <div class="ai-box">
+        <div class="ai-body">
+          ✅ 9:02 — Apertura (10 min)<br>
+          ✅ 9:16 — Contenido (14 min)<br>
+          🔄 9:30 — Práctica (en curso)
+        </div>
+      </div>
+    </div>
+
+    <!-- NOTAS -->
+    <div class="r-scroll" id="rt-notas" style="display:none">
+      <div class="sh">Notas de la sesión</div>
+      <textarea class="note-area" placeholder="Escribe una nota rápida..."></textarea>
+      <button class="save-btn">💾 Guardar nota</button>
+      <div class="sh" style="margin-top:12px">Notas anteriores</div>
+      <div class="ai-box">
+        <div class="ai-body">
+          📝 <strong>Semana 3</strong> — El ejercicio de would fue confuso. Revisar con ejemplos de infancia.
+        </div>
+      </div>
+      <div class="ai-box">
+        <div class="ai-body">
+          📝 <strong>Semana 2</strong> — A. García necesita apoyo extra en vocabulary.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // CLOCK
+  function tick(){ const n=new Date(); document.getElementById('clock').textContent=String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0'); }
+  tick(); setInterval(tick,20000);
+
+  // TIMER
+  let secs=922, running=true;
+  setInterval(()=>{ if(running){ secs++; const m=Math.floor(secs/60),s=secs%60; document.getElementById('timer').textContent=String(m).padStart(2,'0')+':'+String(s).padStart(2,'0'); } },1000);
+  function toggleTimer(){ running=!running; }
+
+  // VIEWS
+  function setView(v,el){
+    ['canvas','slides','split'].forEach(n=>{ document.getElementById('view-'+n).style.display=n===v?(n==='slides'?'flex':n==='split'?'grid':'flex'):'none'; });
+    document.querySelectorAll('.view-btn').forEach(b=>b.classList.remove('active'));
+    el.classList.add('active');
+  }
+
+  // MOMENTOS
+  const moms=['🙏 Apertura','📖 Contenido','✏️ Práctica guiada','🤝 Aplicación oral','🎯 Cierre'];
+  let curMom=2;
+  function goMom(i,el){
+    curMom=i;
+    document.querySelectorAll('.mom').forEach((m,idx)=>{ m.classList.remove('active'); if(idx<i) m.classList.add('done'); });
+    el.classList.add('active');
+    el.classList.remove('done');
+    document.getElementById('mom-badge').innerHTML=moms[i]+' · <span>'+['10','15','20','10','5'][i]+' min</span>';
+    document.getElementById('prog').style.width=((i+1)/5*100)+'%';
+    document.getElementById('prog-lbl').textContent=(i+1)+'/5';
+    secs=0;
+  }
+  function advanceMom(){ if(curMom<4){ const pills=document.querySelectorAll('.mom'); goMom(curMom+1,pills[curMom+1]); } }
+
+  // TABS
+  function showRTab(t,el){
+    ['plan','alumnos','ia','notas'].forEach(n=>{ document.getElementById('rt-'+n).style.display=n===t?'block':'none'; });
+    document.querySelectorAll('.r-tab').forEach(tab=>tab.classList.remove('active'));
+    el.classList.add('active');
+  }
+
+  function selectPI(el,idx){ document.querySelectorAll('.pi').forEach(p=>p.classList.remove('act')); el.classList.add('act'); goMom(idx,document.querySelectorAll('.mom')[idx]); }
+
+  // SLIDES
+  const slides=[
+    {tag:'Evolve Unit 1',title:'Hábitos del Pasado',sub:'Usamos <strong>used to</strong> y <strong>would</strong> para hablar de acciones que eran habituales en el pasado pero ya no ocurren.',ex:'I used to play soccer every day.\nWe would go to the beach every summer.'},
+    {tag:'Used to — Forma',title:'Estructura',sub:'Sujeto + <strong>used to</strong> + verbo base<br>Aplica para hábitos, estados y rutinas pasadas.',ex:'She used to live in Bogotá.\nHe didn\'t use to like English.'},
+    {tag:'Would — Uso',title:'Would para rutinas',sub:'<strong>Would</strong> solo aplica para acciones repetidas, NO para estados.<br>❌ I would live in Bogotá. ✅ I used to live in Bogotá.',ex:'Every summer, we would visit grandma.\nHe would wake up at 5am every day.'},
+    {tag:'Práctica',title:'Turno tuyo',sub:'Escribe 3 oraciones sobre hábitos de tu infancia usando <em>used to</em> o <em>would</em>.',ex:'When I was a child...\nEvery weekend, I would...\nI used to...'}
+  ];
+  let curSlide=0;
+  function renderSlide(){ const s=slides[curSlide]; document.getElementById('slide-content').innerHTML=`<div class="slide-tag">${s.tag}</div><div class="slide-title">${s.title}</div><div class="slide-subtitle">${s.sub}</div><div class="slide-example">${s.ex.replace(/\n/g,'<br>')}</div>`; document.getElementById('slide-counter').textContent='Diapositiva '+(curSlide+1)+' / '+slides.length; }
+  function prevSlide(){ if(curSlide>0){ curSlide--; renderSlide(); } }
+  function nextSlide(){ if(curSlide<slides.length-1){ curSlide++; renderSlide(); } }
+
+  // AI
+  const aiResponses={
+    'ejercicio':'Ejercicio extra: escribe 5 oraciones sobre tus hábitos de primaria usando <em>used to</em>. Luego intercambia con un compañero.',
+    'error':'Error más frecuente: usar <em>would</em> con verbos de estado como live, like, know. Solo <em>used to</em> funciona con estados.',
+    'diferencia':'<em>Used to</em> = estados Y acciones del pasado.<br><em>Would</em> = solo acciones repetidas del pasado, no estados.'
+  };
+  function aiSuggest(k){ document.getElementById('ai-text').innerHTML=aiResponses[k]; }
+  function aiAsk(e){ if(e.key==='Enter'){ document.getElementById('ai-text').textContent='Analizando tu pregunta... Respuesta generada en tiempo real.'; document.getElementById('ai-inp').value=''; } }
+</script>
+</body>
+</html>
