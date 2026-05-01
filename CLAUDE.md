@@ -25,12 +25,10 @@ Libros:      Uncover 4 (8°) · Evolve 4 (9°) · Cambridge One (digital)
 
 ---
 
-## 🔜 PRÓXIMA SESIÓN
+## 📋 HISTORIAL Y PENDIENTES
 
-- **Google OAuth** — configurar en Supabase Dashboard → Auth → Providers + validar dominio `@redboston.edu.co` post-OAuth en `App.jsx:onAuthStateChange`
-- **Email al representante** — corrección IA termina → nota final + feedback a `representative_email`
-- **Quiz/Examen Final** — EXAM_PRESETS implementado; pendiente: UI de puntos extra en ExamPlayerV2 (scoring separado base vs. extra points)
-- **DB horizonte** (no urgente): DROP tablas DEPRECATED · normalizar `grade`/`section` a `school_grades` · validación JSONB con triggers
+- Changelog completo → `docs/claude/changelog.md`
+- Roadmap y estado por área → `docs/claude/roadmap.md`
 
 ---
 
