@@ -106,6 +106,13 @@ export const NEWS_SKILL_LABELS = {
   writing: '✍️ Writing',
 }
 
+export const SKILL_COLOR = {
+  Speaking: '#8064A2',
+  Listening: '#4BACC6',
+  Reading: '#F79646',
+  Writing: '#9BBB59',
+}
+
 // ── Teacher Status ────────────────────────────────────────────────────────────
 export const TEACHER_STATUS = {
   pending: { label: 'Pendiente', color: '#F79646', bg: '#fff9f0' },
