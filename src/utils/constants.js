@@ -160,6 +160,49 @@ export const COLORS = {
   },
 }
 
+// ── Week / Date Helpers ───────────────────────────────────────────────────────
+const MONTHS_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
+  'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+
+/** Returns the ISO date string (YYYY-MM-DD) of the Monday of the week containing dateStr */
+export function isoMonday(dateStr) {
+  if (!dateStr) return ''
+  const d = new Date(dateStr + 'T12:00:00')
+  const day = d.getDay()
+  d.setDate(d.getDate() + (day === 0 ? -6 : 1 - day))
+  return d.toISOString().slice(0, 10)
+}
+
+/** Returns "9–13 de Marzo" or "31 Mar – 4 Abr" for a given Monday ISO string */
+export function formatWeekRange(mondayStr) {
+  const monday = new Date(mondayStr + 'T12:00:00')
+  const dates = Array.from({ length: 5 }, (_, i) => {
+    const d = new Date(monday)
+    d.setDate(monday.getDate() + i)
+    return d.toISOString().slice(0, 10)
+  })
+  const [, ms, md]  = dates[0].split('-').map(Number)
+  const [, me, mde] = dates[4].split('-').map(Number)
+  if (ms === me) return `${md}–${mde} de ${MONTHS_ES[ms - 1]}`
+  return `${md} ${MONTHS_ES[ms - 1].slice(0, 3)} – ${mde} ${MONTHS_ES[me - 1].slice(0, 3)}`
+}
+
+/** Detects activity type from name keywords → { icon, color, label, tier } */
+export function detectActivityType(nombre = '') {
+  const n = nombre.toLowerCase()
+  if (n.includes('dict'))                          return { icon: '🎤', color: '#4BACC6', label: 'Dictation',   tier: 'routine' }
+  if (n.includes('quiz') || n.includes('test'))   return { icon: '📝', color: '#C0504D', label: 'Quiz/Test',   tier: 'high-stakes' }
+  if (n.includes('reading') || n.includes('lectura')) return { icon: '📖', color: '#F79646', label: 'Reading', tier: 'assessment' }
+  if (n.includes('speaking') || n.includes('oral'))   return { icon: '🗣', color: '#8064A2', label: 'Speaking', tier: 'assessment' }
+  if (n.includes('listen'))                        return { icon: '🎧', color: '#4BACC6', label: 'Listening',   tier: 'assessment' }
+  if (n.includes('writ') || n.includes('escrit'))  return { icon: '✍️', color: '#9BBB59', label: 'Writing',    tier: 'assessment' }
+  if (n.includes('vocab'))                         return { icon: '🔤', color: '#9BBB59', label: 'Vocabulary', tier: 'routine' }
+  if (n.includes('workshop') || n.includes('taller')) return { icon: '🔧', color: '#F79646', label: 'Workshop', tier: 'routine' }
+  if (n.includes('exit') || n.includes('ticket'))  return { icon: '🚪', color: '#1F497D', label: 'Exit Ticket', tier: 'routine' }
+  if (n.includes('entrega') || n.includes('due') || n.includes('submit')) return { icon: '🏁', color: '#C0504D', label: 'Entrega', tier: 'entrega' }
+  return { icon: '📋', color: '#888', label: 'Actividad', tier: 'routine' }
+}
+
 // ── API Constants ─────────────────────────────────────────────────────────────
 export const AI_MODEL = 'claude-sonnet-4-20250514'
 export const MAX_AI_TOKENS = {
