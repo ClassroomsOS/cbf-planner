@@ -3,10 +3,7 @@ import { createPortal } from 'react-dom'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import RichEditor from '../components/RichEditor'
-import { exportGuideDocx } from '../utils/exportDocx'
-import { exportLegacyDocx } from '../utils/exportLegacyDocx'
 import { buildWeeklyGuideDocx } from '../utils/exportLegacyGuide'
-import { exportHtml, exportPdf, exportDayHtml, getActiveDays, buildHtml, buildDayHtml, inlineImages } from '../utils/exportHtml'
 import ImageUploader from '../components/ImageUploader'
 import { SmartBlocksList } from '../components/SmartBlocks'
 import { AISuggestButton, AIAnalyzerModal } from '../components/AIComponents'
@@ -966,7 +963,6 @@ export default function GuideEditorPage({ teacher }) {
       filled: d.filled, total: d.total,
     })),
     { key: 'summary', label: '★ Resumen', dot: '#8064A2' },
-    { key: 'legacy',  label: '📄 Legacy',  dot: '#F79646' },
   ]
 
   // ── Días activos (para AIGeneratorModal) ──
@@ -1241,93 +1237,24 @@ export default function GuideEditorPage({ teacher }) {
               🔧 Correcciones
             </button>
           )}
-          {/* Botón principal: Imprimir / PDF */}
+          {/* Botón principal — único formato de exportación institucional */}
           <button className="ge-print-btn"
-            onClick={() => openExportPreview({
-              title: 'Vista previa — PDF',
-              buildFn: async () => { const inlined = await inlineImages(contentRef.current); return buildHtml(inlined, activeNewsProject) },
-              confirmLabel: '🖨️ Imprimir / Guardar PDF',
-              isForPrint: true,
-            })}
-            title="Vista previa antes de imprimir">
-            🖨️ <span className="ge-print-label">Imprimir / PDF</span>
-          </button>
-
-          {/* Exportar Guía CBF — formato oficial institucional, siempre visible */}
-          <button
             onClick={handleExportLegacy}
-            style={{
-              fontSize: '12px', padding: '5px 12px', borderRadius: '7px',
-              border: '1px solid #1F497D', background: '#1F497D',
-              color: '#fff', cursor: 'pointer', fontWeight: 600,
-            }}
             title="Exportar en formato institucional CBF-G AC-01">
-            📄 Exportar Guía CBF
+            📄 <span className="ge-print-label">Exportar Guía CBF</span>
           </button>
 
           <div className="ge-export-wrap" ref={exportWrapRef}>
             <button className="btn-secondary"
               style={{ fontSize: '12px' }}
               onClick={toggleExport}>
-              ⋯ Más opciones ▾
+              ⋯ Opciones ▾
             </button>
             {exportOpen && (
               <div className="ge-export-menu">
                 <div style={{ padding: '4px 12px 6px', fontSize: '10px', fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '.5px' }}>
-                  Exportar como
+                  Estado
                 </div>
-                <button onClick={() => openExportPreview({
-                  title: 'Vista previa — Word CBF (.docx)',
-                  buildFn: async () => { const inlined = await inlineImages(contentRef.current); return buildHtml(inlined, activeNewsProject) },
-                  onConfirm: () => exportGuideDocx(contentRef.current),
-                  confirmLabel: '⬇️ Descargar Word',
-                  note: 'Vista previa HTML — el archivo Word puede variar levemente en tipografía.',
-                })}>
-                  📄 Word (.docx) — formato CBF
-                </button>
-                <button onClick={() => openExportPreview({
-                  title: 'Vista previa — Legacy Format (.docx)',
-                  buildFn: async () => { const inlined = await inlineImages(contentRef.current); return buildHtml(inlined, activeNewsProject) },
-                  onConfirm: async () => {
-                    const planWithLegacy = { ...plan, weekly_label: weeklyLabelRef.current || null, weekly_biblical_principle: weeklyBiblicalRef.current || null }
-                    await exportLegacyDocx(contentRef.current, planWithLegacy)
-                  },
-                  confirmLabel: '⬇️ Descargar Legacy',
-                  note: 'Vista previa HTML — el archivo Word puede variar levemente en tipografía.',
-                })}>
-                  📋 Legacy Format (.docx)
-                </button>
-                <button onClick={() => openExportPreview({
-                  title: 'Vista previa — HTML',
-                  buildFn: async () => { const inlined = await inlineImages(contentRef.current); return buildHtml(inlined, activeNewsProject) },
-                  onConfirm: () => exportHtml(contentRef.current, activeNewsProject),
-                  confirmLabel: '⬇️ Descargar HTML',
-                })}>
-                  🌐 HTML — archivo web
-                </button>
-                <button onClick={() => setDayPickerOpen(v => !v)}>
-                  🏫 Campus Virtual — por jornada {dayPickerOpen ? '▴' : '▾'}
-                </button>
-                {dayPickerOpen && (
-                  <>
-                    {getActiveDays(contentRef.current).map(({ key, label }) => (
-                      <button key={key}
-                        style={{ paddingLeft: '24px', color: '#2E5598', fontWeight: 600 }}
-                        onClick={() => {
-                          setDayPickerOpen(false)
-                          openExportPreview({
-                            title: `Vista previa — Campus Virtual: ${label}`,
-                            buildFn: async () => { const inlined = await inlineImages(contentRef.current); return buildDayHtml(inlined, key, activeNewsProject) },
-                            onConfirm: () => exportDayHtml(contentRef.current, key, activeNewsProject),
-                            confirmLabel: '⬇️ Descargar HTML Campus',
-                          })
-                        }}>
-                        📅 {label}
-                      </button>
-                    ))}
-                  </>
-                )}
-                <hr style={{ margin: '4px 0', border: 'none', borderTop: '1px solid #e0e6f0' }} />
                 {/* Enviar para revisión — solo docente dueño, no admin editando ajeno */}
                 {!isOtherTeacher && plan?.status !== 'approved' && (
                   <button onClick={async () => {
@@ -1830,57 +1757,6 @@ export default function GuideEditorPage({ teacher }) {
             </div>
           )}
 
-          {/* LEGACY FORMAT */}
-          {activePanel === 'legacy' && (
-            <div className="card">
-              <div className="card-title"><div className="badge" style={{ background: '#F79646' }}>📄</div> Legacy Format</div>
-              <div style={{ background: '#FFF9F0', border: '1px solid #F79646', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#7C4A00' }}>
-                Estos campos se incluyen en el <strong>Legacy Format (.docx)</strong> — formato Word libre, sin Smart Blocks ni colores. Válido para todos los grados (7°–11°). Exporta desde <strong>⋯ Más opciones → 📋 Legacy Format</strong>.
-              </div>
-              <div className="ge-field">
-                <label>Etiqueta temática de la semana</label>
-                <input
-                  type="text"
-                  placeholder='Ej: "SPEAKING WEEK", "READING WEEK", "GRAMMAR REVIEW"…'
-                  value={weeklyLabel}
-                  onChange={e => {
-                    setWeeklyLabel(e.target.value)
-                    weeklyLabelRef.current = e.target.value
-                    dirtyRef.current = true
-                    setSaveStatus('unsaved')
-                  }}
-                />
-              </div>
-              <div className="ge-field" style={{ marginTop: 12 }}>
-                <label>Principio bíblico semanal</label>
-                <textarea
-                  rows={6}
-                  placeholder={'Ej:\nGod\'s plan: A dream worth waiting for\nGénesis 50:20 (NIV)\n"You intended to harm me, but God intended it for good…"'}
-                  value={weeklyBiblical}
-                  style={{ width: '100%', fontFamily: 'inherit', fontSize: 14, borderRadius: 6, border: '1.5px solid #dde5f0', padding: '8px 10px', resize: 'vertical', boxSizing: 'border-box' }}
-                  onChange={e => {
-                    setWeeklyBiblical(e.target.value)
-                    weeklyBiblicalRef.current = e.target.value
-                    dirtyRef.current = true
-                    setSaveStatus('unsaved')
-                  }}
-                />
-              </div>
-              <div style={{ marginTop: 20 }}>
-                <button
-                  type="button"
-                  className="ge-print-btn"
-                  style={{ background: 'linear-gradient(135deg,#C55A11,#E8722E)', padding: '10px 20px', fontSize: 14 }}
-                  onClick={async () => {
-                    await doSave()
-                    const planWithLegacy = { ...plan, weekly_label: weeklyLabelRef.current || null, weekly_biblical_principle: weeklyBiblicalRef.current || null }
-                    await exportLegacyDocx(contentRef.current, planWithLegacy)
-                  }}>
-                  📋 Exportar Legacy Format (.docx)
-                </button>
-              </div>
-            </div>
-          )}
 
         </div>
       </div>
