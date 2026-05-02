@@ -1,14 +1,14 @@
 // ── RadarChart.jsx ─────────────────────────────────────────────────────────────
-// SVG hexagonal radar chart for 6 stats (FIFA-style).
-// Props: stats = { aca, par, cre, lid, dis, col } — each 0-99
+// SVG hexagonal radar chart for 6 stats.
+// Adapted for glass/acrylic cards (dark text on semi-transparent background).
 
 const LABELS = [
-  { key: 'aca', label: 'ACA', full: 'Académico' },
-  { key: 'par', label: 'PAR', full: 'Participación' },
+  { key: 'aca', label: 'ACA', full: 'Academico' },
+  { key: 'par', label: 'PAR', full: 'Participacion' },
   { key: 'cre', label: 'CRE', full: 'Creatividad' },
   { key: 'lid', label: 'LID', full: 'Liderazgo' },
   { key: 'dis', label: 'DIS', full: 'Disciplina' },
-  { key: 'col', label: 'COL', full: 'Colaboración' },
+  { key: 'col', label: 'COL', full: 'Colaboracion' },
 ]
 
 const SIZE = 140
@@ -35,14 +35,12 @@ export default function RadarChart({ stats = {}, tier = 'base', size = SIZE }) {
   const polygon = dataPoints.map(p => p.join(',')).join(' ')
 
   const tierColors = {
-    gold: { stroke: '#FFD700', fill: 'rgba(255,215,0,0.15)', glow: 'rgba(255,215,0,0.4)' },
-    silver: { stroke: '#A0AEC0', fill: 'rgba(160,174,192,0.12)', glow: 'rgba(160,174,192,0.3)' },
-    bronze: { stroke: '#CD7F32', fill: 'rgba(205,127,50,0.12)', glow: 'rgba(205,127,50,0.3)' },
-    base: { stroke: '#60A5FA', fill: 'rgba(96,165,250,0.12)', glow: 'rgba(96,165,250,0.3)' },
+    gold:   { stroke: '#b8860b', fill: 'rgba(255,215,0,0.18)', glow: 'rgba(255,215,0,0.3)' },
+    silver: { stroke: '#475569', fill: 'rgba(71,85,105,0.12)', glow: 'rgba(71,85,105,0.2)' },
+    bronze: { stroke: '#92400e', fill: 'rgba(205,127,50,0.15)', glow: 'rgba(205,127,50,0.25)' },
+    base:   { stroke: '#1d4ed8', fill: 'rgba(29,78,216,0.12)', glow: 'rgba(29,78,216,0.2)' },
   }
   const tc = tierColors[tier] || tierColors.base
-
-  const scale = size / SIZE
 
   return (
     <svg width={size} height={size} viewBox={`0 0 ${SIZE} ${SIZE}`} className="sp-radar-svg">
@@ -57,8 +55,8 @@ export default function RadarChart({ stats = {}, tier = 'base', size = SIZE }) {
             key={li}
             points={pts}
             fill="none"
-            stroke="rgba(255,255,255,0.1)"
-            strokeWidth="0.5"
+            stroke="rgba(0,0,0,0.06)"
+            strokeWidth="0.6"
           />
         )
       })}
@@ -72,7 +70,7 @@ export default function RadarChart({ stats = {}, tier = 'base', size = SIZE }) {
             key={i}
             x1={CENTER} y1={CENTER}
             x2={x} y2={y}
-            stroke="rgba(255,255,255,0.08)"
+            stroke="rgba(0,0,0,0.05)"
             strokeWidth="0.5"
           />
         )
@@ -83,8 +81,8 @@ export default function RadarChart({ stats = {}, tier = 'base', size = SIZE }) {
         points={polygon}
         fill={tc.fill}
         stroke={tc.stroke}
-        strokeWidth="1.5"
-        style={{ filter: `drop-shadow(0 0 4px ${tc.glow})` }}
+        strokeWidth="1.8"
+        style={{ filter: `drop-shadow(0 0 6px ${tc.glow})` }}
       />
 
       {/* Data points */}
@@ -102,7 +100,7 @@ export default function RadarChart({ stats = {}, tier = 'base', size = SIZE }) {
             x={x} y={y}
             textAnchor="middle"
             dominantBaseline="middle"
-            fill="rgba(255,255,255,0.7)"
+            fill="rgba(0,0,0,0.5)"
             fontSize="7"
             fontWeight="600"
             fontFamily="system-ui, sans-serif"
@@ -122,7 +120,7 @@ export default function RadarChart({ stats = {}, tier = 'base', size = SIZE }) {
             x={x} y={y}
             textAnchor="middle"
             dominantBaseline="middle"
-            fill="rgba(255,255,255,0.5)"
+            fill="rgba(0,0,0,0.35)"
             fontSize="6"
             fontFamily="system-ui, sans-serif"
           >
