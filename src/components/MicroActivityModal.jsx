@@ -9,6 +9,7 @@ import { displayName } from '../utils/studentUtils'
 import { useToast } from '../context/ToastContext'
 
 const CATEGORY_OPTIONS = [
+  { value: 'general',     label: '📋 General',      desc: 'Cuaderno, participación, tareas' },
   { value: 'cognitiva',   label: '📝 Cognitiva',   desc: 'Talleres, Quiz, Proyectos' },
   { value: 'digital',     label: '💻 Digital',      desc: 'Cambridge, plataformas digitales' },
   { value: 'axiologica',  label: '✝️ Axiológica',   desc: 'Valores, comportamiento, identidad' },

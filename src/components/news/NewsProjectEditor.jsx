@@ -1503,6 +1503,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
                         onChange={e => setNewActividad(p => ({ ...p, categoria: e.target.value }))}
                         style={{ ...styles.input, padding: '8px 6px' }}
                       >
+                        <option value="general">📋 General</option>
                         <option value="cognitiva">📝 Cognitiva</option>
                         <option value="digital">💻 Digital</option>
                         <option value="axiologica">✝️ Axiológica</option>

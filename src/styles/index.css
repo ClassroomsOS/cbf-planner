@@ -3840,7 +3840,7 @@ input:not(:placeholder-shown):not(:focus):not([type=password]):valid {
    ═══════════════════════════════════════════════════════════════════════════════ */
 
 /* ── GradebookPage (.gb-*) ──────────────────────────────────────────────────── */
-.gb-page { padding: 20px 16px; max-width: 100%; overflow-x: hidden; }
+.gb-page { padding: 20px 16px; max-width: 100%; overflow: hidden; display: flex; flex-direction: column; height: calc(100vh - 64px); }
 .gb-header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 16px; }
 .gb-header h2 { font-size: 20px; font-weight: 700; color: #1e293b; margin: 0; white-space: nowrap; }
 .gb-selectors { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -3867,14 +3867,15 @@ input:not(:placeholder-shown):not(:focus):not([type=password]):valid {
 
 .gb-loading, .gb-empty { text-align: center; padding: 60px 20px; color: #94a3b8; font-size: 15px; }
 
-.gb-table-wrap { overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 10px; }
+.gb-table-wrap { overflow: auto; border: 1px solid #e2e8f0; border-radius: 10px; flex: 1; min-height: 0; }
 .gb-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.gb-table thead { position: sticky; top: 0; z-index: 4; }
 
 /* Category header row */
-.gb-cat-row th { padding: 8px 6px; text-align: center; font-size: 12px; font-weight: 700; letter-spacing: .3px; }
+.gb-cat-row th { padding: 8px 6px; text-align: center; font-size: 12px; font-weight: 700; letter-spacing: .3px; background: #f8fafc; }
 .gb-th-cat-pct { font-weight: 400; font-size: 10px; opacity: .85; }
-.gb-th-num { width: 30px; background: #f8fafc; text-align: center; font-size: 11px; color: #94a3b8; }
-.gb-th-student { text-align: left; min-width: 180px; background: #f8fafc; position: sticky; left: 0; z-index: 3; padding-left: 10px; }
+.gb-th-num { width: 30px; background: #f8fafc; text-align: center; font-size: 11px; color: #94a3b8; position: sticky; left: 0; z-index: 3; }
+.gb-th-student { text-align: left; min-width: 180px; background: #f8fafc; position: sticky; left: 30px; z-index: 3; padding-left: 10px; }
 .gb-th-final { background: #7C3AED; color: #fff; min-width: 70px; text-align: center; font-size: 11px; }
 .gb-th-pct { background: #f8fafc; min-width: 80px; text-align: center; font-size: 11px; color: #475569; }
 
@@ -3886,19 +3887,23 @@ input:not(:placeholder-shown):not(:focus):not([type=password]):valid {
 .gb-act-pct { font-size: 9px; color: #94a3b8; }
 
 /* Body rows */
+.gb-table tbody tr { transition: background .1s; }
+.gb-table tbody tr:hover { background: #e0f2fe !important; }
+.gb-table tbody tr:hover .gb-td-student { background: #e0f2fe !important; }
 .gb-row-even { background: #fafbfc; }
-.gb-td-num { text-align: center; color: #94a3b8; font-size: 11px; padding: 0 4px; }
+.gb-td-num { text-align: center; color: #94a3b8; font-size: 11px; padding: 0 4px; position: sticky; left: 0; z-index: 2; background: #fff; }
 .gb-td-student {
   text-align: left; font-weight: 500; color: #1e293b; padding: 6px 10px;
-  position: sticky; left: 0; z-index: 2; background: inherit; white-space: nowrap;
+  position: sticky; left: 30px; z-index: 2; background: #fff; white-space: nowrap;
   border-right: 1px solid #e2e8f0;
 }
+.gb-row-even .gb-td-num { background: #fafbfc; }
 .gb-row-even .gb-td-student { background: #fafbfc; }
 .gb-td-grade {
   text-align: center; padding: 4px 2px; border-left: 1px solid #f1f5f9;
-  position: relative; min-height: 32px;
+  position: relative; min-height: 32px; cursor: pointer;
 }
-.gb-td-grade:hover { background: #f0f9ff; }
+.gb-td-grade:hover { background: #dbeafe !important; }
 .gb-has-value { font-weight: 600; }
 .gb-saving { opacity: .5; }
 .gb-cell-input {
@@ -3911,13 +3916,21 @@ input:not(:placeholder-shown):not(:focus):not([type=password]):valid {
   display: inline-block; padding: 2px 6px; border-radius: 4px;
   font-size: 10px; font-weight: 700; letter-spacing: .5px;
 }
+.gb-td-subtotal { text-align: center; padding: 4px 4px; font-weight: 700; font-size: 12px; border-left: 2px solid #e2e8f0; background: #f8fafc; }
+.gb-td-final-cell { border-left: 2px solid #7C3AED30; }
 .gb-td-final { text-align: center; font-size: 14px; font-weight: 700; padding: 4px 6px; border-left: 2px solid #7C3AED30; }
+.gb-td-def { text-align: center; padding: 4px 6px; font-size: 13px; border-left: 2px solid #e2e8f0; background: #f8fafc; min-width: 72px; }
+.gb-def-value { display: flex; flex-direction: column; align-items: center; gap: 1px; }
+.gb-def-label { font-size: 9px; font-weight: 500; opacity: .75; }
 .gb-td-level { text-align: center; padding: 4px 6px; }
 .gb-level-badge {
   display: inline-block; padding: 2px 8px; border-radius: 6px;
   font-size: 10px; font-weight: 600; white-space: nowrap;
 }
 .gb-td-avg { font-weight: 700; font-size: 12px; }
+.gb-th-subtotal { min-width: 52px; font-size: 10px; background: #f0f4f8; border-top: 3px solid; }
+.gb-th-final-header { background: #7C3AED; color: #fff; min-width: 70px; text-align: center; font-size: 11px; }
+.gb-td-footer-grade { font-size: 12px; font-weight: 600; }
 
 /* Footer */
 .gb-footer-row { background: #f0f4f8; }
