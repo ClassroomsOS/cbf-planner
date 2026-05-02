@@ -36,6 +36,7 @@ import GradingDisplayPage  from './GradingDisplayPage'
 import GradingHistoryPage  from './GradingHistoryPage'
 import GradebookPage       from './GradebookPage'
 import QuickGradePage      from './QuickGradePage'
+import StudentPlayerPage   from './StudentPlayerPage'
 import ProfileModal        from '../components/ProfileModal'
 import { FeaturesProvider, useFeatures } from '../context/FeaturesContext'
 import { canManage, canAccessCalendar, isRector, canReadAllPlans, canViewSchedule, canManageAgendas, isCoteacherActive, isSuperAdmin, roleLabel, ROLE_STYLES } from '../utils/roles'
@@ -275,6 +276,10 @@ function DashboardInner({ session, teacher, setTeacher }) {
             <span className="dot" style={{ background: '#8064A2' }} />
             👩‍🎓 Mis Estudiantes
           </NavLink>
+          <NavLink to="/player" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
+            <span className="dot" style={{ background: '#FFD700' }} />
+            🃏 Player Cards
+          </NavLink>
           <NavLink to="/grades" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
             <span className="dot" style={{ background: '#15803D' }} />
             📊 Calificaciones
@@ -466,6 +471,7 @@ function DashboardInner({ session, teacher, setTeacher }) {
           <Route path="/exams/create"  element={<ExamCreatorPage        teacher={teacher} />} />
           <Route path="/exams/review"  element={<ExamReviewPage         teacher={teacher} />} />
           <Route path="/students"      element={<StudentsPage            teacher={teacher} />} />
+          <Route path="/player"               element={<StudentPlayerPage   teacher={teacher} />} />
           <Route path="/grades"               element={<GradebookPage       teacher={teacher} />} />
           <Route path="/grades/quick/:id"    element={<QuickGradePage      teacher={teacher} />} />
           <Route path="/grading"             element={<GradingHubPage      teacher={teacher} />} />
