@@ -1,7 +1,7 @@
 // ── guideAI.js ────────────────────────────────────────────────────────────────
 // AI functions related to guide (lesson plan) generation and analysis.
 
-import { callClaude, extractJSONArray, fmtVerse, biblicalBlock, normalizeSmartBlock } from './aiClient'
+import { callClaude, extractJSONArray, fmtVerse, biblicalBlock, normalizeSmartBlock, fetchImageBlock } from './aiClient'
 import { sanitizeAIInput } from './validationSchemas'
 import { MODELO_B_SUBJECTS } from './constants'
 
@@ -194,6 +194,17 @@ ${biblicalBlock(principles, isClosing
     if (tb.units?.length)            lines.push(`- Units: ${tb.units.map(u => sanitizeAIInput(String(u))).join(', ')}`)
     if (tb.grammar?.length)          lines.push(`- Grammar points: ${tb.grammar.map(g => sanitizeAIInput(String(g))).join(' · ')}`)
     if (tb.vocabulary?.length)       lines.push(`- Vocabulary: ${tb.vocabulary.map(v => sanitizeAIInput(String(v))).join(' · ')}`)
+    if (tb.pages?.student)           lines.push(`- Student Book pages: ${sanitizeAIInput(tb.pages.student)}`)
+    if (tb.pages?.workbook)          lines.push(`- Workbook pages: ${sanitizeAIInput(tb.pages.workbook)}`)
+    if (tb.unitDetails?.length) {
+      tb.unitDetails.forEach(ud => {
+        const parts = [`  Unit ${sanitizeAIInput(String(ud.unit || '?'))}`]
+        if (ud.studentPages) parts.push(`SB p.${sanitizeAIInput(ud.studentPages)}`)
+        if (ud.workbookPages) parts.push(`WB p.${sanitizeAIInput(ud.workbookPages)}`)
+        if (ud.lessons?.length) parts.push(`(${ud.lessons.map(l => sanitizeAIInput(String(l))).join(', ')})`)
+        lines.push(parts.join(' · '))
+      })
+    }
     if (newsProject.title)           lines.push(`- NEWS Project: ${sanitizeAIInput(newsProject.title)}`)
     if (newsProject.description)     lines.push(`- Project description: ${sanitizeAIInput(newsProject.description.slice(0,200))}`)
     if (newsProject.skill)           lines.push(`- Focus skill: ${sanitizeAIInput(newsProject.skill)}`)
@@ -391,7 +402,8 @@ Dame un análisis pedagógico completo. En la sección 🙏 evalúa específicam
 
 // ── Punto 3: Generar estructura completa desde objetivo ───────────────────────
 export async function generateGuideStructure({
-  grade, subject, objective, unit, activeDays, period, planId, achievementGoal, activeNewsProject, principles, piarData
+  grade, subject, objective, unit, activeDays, period, planId, achievementGoal, activeNewsProject, principles, piarData,
+  _focusHints, checkpointData
 }) {
   const isEnglishSubject = MODELO_B_SUBJECTS.includes(subject)
 
@@ -419,7 +431,7 @@ El contenido de cada sección va DIRECTAMENTE a la guía que el estudiante lee e
 No escribas prosa que describe lo que hace el docente. Escribe la instrucción que el estudiante ejecuta.
 Cada sección debe ser: imperativo directo, sin introducción, sin meta-comentario.
   - ENCUENTRO: lista de 5 palabras + 1 línea de actividad (máx. 40 palabras)
-  - TEMA DEL DÍA: 1 oración con el tema y el objetivo (máx. 20 palabras)
+  - TEMA DEL DÍA: ritual del tablero (4 ítems) + 1 oración de conexión bíblica (máx. 50 palabras)
   - MOTIVACIÓN: 1 pregunta directa o 1 instrucción de juego (máx. 25 palabras)
   - DESARROLLO: lista numerada 3-4 pasos con verbo de acción + producto concreto (máx. 60 palabras)
   - CIERRE: 1 pregunta académica + 1 pregunta de reflexión bíblica (máx. 30 palabras)
@@ -432,59 +444,48 @@ MANDATO ABSOLUTO: Esta es una escuela cristiana confesional. El principio bíbli
 ABC DEL ENCUENTRO DIDÁCTICO — 6 SECCIONES POR DÍA
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+HILO BÍBLICO TRANSVERSAL: Presente en CADA sección, no solo inicio/cierre. Es la lente natural del contenido.
+
 1. ENCUENTRO · VOCABULARY LIST (~8 min) — key: "subject"
-   El docente saluda a presenciales y virtuales. Presenta la Vocabulary List del día (5 palabras
-   clave de la unidad) con repetición coral, gestos o un juego breve. Anuncia el Principio Bíblico.
-   Un estudiante ora. Las Reglas de clase se recuerdan visualmente.
-   → Genera: descripción del ritual de saludo + la lista de 5 palabras con una breve actividad de
-     práctica (repetición, gestos, asociación). Conecta naturalmente con el principio bíblico.
-     1 oración sobre el saludo + 2-3 oraciones sobre el manejo de la vocabulary list.
-   → NO incluyas oración ni reglas — esas se insertan automáticamente por el sistema.
+   Saludo + 5 palabras (palabra — significado — ejemplo) + 1 actividad breve. Al menos 1 palabra o ejemplo conecta con el principio bíblico.
+   → NO incluyas oración ni reglas — se insertan automáticamente.
 
 2. TEMA DEL DÍA (~7 min) — key: "motivation"
-   El docente escribe en el tablero: fecha, tema a trabajar, objetivo de la lección, principio bíblico.
-   Enuncia el indicador del día en lenguaje amigable: "Hoy vamos a… para poder…"
-   → Genera: 1-2 oraciones que describen cómo el docente anuncia el tema y el objetivo.
-     Menciona cómo conecta el indicador con el principio bíblico desde el inicio de la clase.
+   📋 RITUAL DEL TABLERO: Estudiantes copian en cuaderno: 📅 Fecha | 🎯 Indicador | 📖 Versículo | 📚 Tema.
+   Luego 1 oración: "Hoy vamos a… para poder…" + conexión bíblica.
+   Si hay hito evaluativo: abrir con "⚠️ TODAY: [HITO]" antes del ritual.
 
 3. MOTIVACIÓN (~10 min) — key: "activity"
-   Pre-conocimiento: el docente activa los saberes previos del estudiante con una pregunta
-   provocadora, un dilema, un juego corto o una imagen impactante. Conecta temáticamente
-   con la clase anterior y sirve de puente hacia el Desarrollo de Habilidades.
-   Las Reglas Whole Brain Teaching se practican aquí si es necesario.
-   → Genera: descripción clara de la dinámica de activación (qué hace el estudiante, cómo se
-     desarrolla). Debe responder: ¿qué saben ya? ¿Qué les genera curiosidad? 2-3 oraciones.
+   1 pregunta provocadora o 1 dinámica corta que active saberes previos. Conexión bíblica cuando sea natural.
 
 4. DESARROLLO DE HABILIDADES (~25 min) — key: "skill"
-   El núcleo de la clase. El docente explica, modela y guía la práctica de la habilidad.
-   El estudiante genera un PRODUCTO concreto: escritura en cuaderno, ejercicio, exposición,
-   dibujo, etc. El principio bíblico impregna los ejemplos y el contenido.
-   → Genera: descripción paso a paso de la actividad principal + el producto esperado.
-     Especifica qué escribe, hace, presenta o crea el estudiante. 3-5 oraciones.
+   📐 Si hay gramática: PRESENTAR (copiar regla en cuaderno + SmartBlock GRAMMAR) → PRACTICAR (ejercicios libro) → USAR (producción libre).
+   🎯 Habilidad del día (L/R/W/S): producto concreto + referencia a páginas del libro.
+   Lista numerada 3-4 pasos.
 
 5. CIERRE Y REFLEXIÓN (~5 min) — key: "closing"
-   El docente verifica la asimilación con 1-2 preguntas académicas concretas.
-   Pregunta cómo se sintieron emocionalmente con el tema y qué opinan.
-   Cierra conectando el aprendizaje del día con el principio bíblico como cierre natural — no como
-   añadido artificial, sino como la conclusión lógica de la experiencia de aprendizaje.
-   → Genera: 1 pregunta de verificación académica + 1 pregunta de reflexión emocional/espiritual.
+   1 pregunta académica + 1 reflexión bíblica significativa (no "¿qué dice el versículo?" sino "¿cómo cambia tu perspectiva?").
 
 6. TAREA / ASSIGNMENT (~3 min) — key: "assignment"
-   Tarea concreta y alcanzable: actividad para terminar en casa, preparación para la siguiente
-   clase, ejercicio del libro de texto, o extensión del tema.
-   → Genera: 1 oración clara. Debe ser realista y específica.
+   1 oración con entregable específico. Al menos 1 vez/semana incluir mini-reflexión bíblica en la tarea.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-PROGRESIÓN SEMANAL OBLIGATORIA
+PROGRESIÓN SEMANAL
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Los días de la semana deben construir una escalera de aprendizaje. La progresión típica es:
-  Día 1 → Introducción y revelación del vocabulario/concepto nuevo
-  Día 2 → Comprensión y primeras asociaciones
-  Día 3 → Práctica guiada y aplicación
-  Día 4 → Práctica independiente y consolidación
-  Día 5 → Producción autónoma del estudiante y reflexión final
-Cada día debe avanzar desde donde terminó el anterior. El estudiante debe terminar la semana
-habiendo apropiado el contenido y siendo capaz de producirlo por cuenta propia.
+
+La semana se orienta por HITOS EVALUATIVOS. Días antes = preparación. Días después = transición.
+Sin hitos → Bloom estándar: Recordar → Comprender → Aplicar → Analizar → Crear.
+Habilidades L/R/W/S rotan sin repetir días consecutivos. Libro de texto = referencia obligatoria.
+Checkpoint anterior tiene precedencia sobre progresión estándar.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+HITOS EVALUATIVOS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+DICTATION → SKILL = dictado + SmartBlock DICTATION. Día siguiente = vocab nuevo.
+QUIZ → SKILL = evaluación + SmartBlock QUIZ. Día siguiente = unidad nueva.
+RECEPCIÓN → ensayo + PEER_REVIEW. PRESENTACIÓN → momento cumbre + SPEAKING rubric.
+Cada hito: "⚠️ TODAY: [HITO]" en TEMA DEL DÍA. Detalles específicos en el MAPA DE LA SEMANA.
 
 ${pBlock}
 
@@ -523,7 +524,12 @@ Tipos de SmartBlock disponibles:
 - EXIT_TICKET: can-do {skills:string[],date?} | rating {statements:string[],date?}
 - QUIZ: topic-card {unit,date,topics,note?} | format-box {unit,date,topics,format,note?}
 - NOTICE: banner {title,message,icon} | alert {title,message,icon,priority}
-Usa inglés en los datos del bloque (colegio bilingüe). Si no hay un bloque claramente apropiado para una sección, omite "smartBlock".`
+Usa inglés en los datos del bloque (colegio bilingüe). Si no hay un bloque claramente apropiado para una sección, omite "smartBlock".
+
+IMÁGENES DEL TEXTBOOK: Si el mensaje incluye imágenes (fotos de páginas del libro), ÚSALAS
+como referencia directa. Identifica: ejercicios, textos de lectura, gramática, vocabulario,
+y referencia las páginas y ejercicios EXACTOS que ves en las imágenes (ej. "Exercise 3, p.45").
+Las actividades de cada día deben estar ancladas a contenido REAL del libro visible en las fotos.`
 
   const daysStr = activeDays.map((iso, i) => {
     const d = new Date(iso + 'T12:00:00')
@@ -537,6 +543,199 @@ Usa inglés en los datos del bloque (colegio bilingüe). Si no hay un bloque cla
   const safePeriod = sanitizeAIInput(period || '')
   const safeUnit = sanitizeAIInput(unit || '')
   const safeObjective = sanitizeAIInput(objective || '')
+
+  // NEWS project ref — needed by dayPlan, newsBlock, and milestonesBlock
+  const np = activeNewsProject
+
+  // ── DAY PLANNER — compute 5 coordinates per day ──────────────────────────────
+  // Each day gets: bloom, skill (L/R/W/S), grammarPhase, hitoLabel, hitoType
+  const dayPlan = (() => {
+    const plan = {} // ISO → { bloom, skill, grammarPhase, grammarPoint, hitoLabel, hitoType }
+    const daySet = new Set(activeDays)
+
+    // 1. Detect milestones from NEWS activities
+    const milestoneMap = {} // ISO → { type, name }
+    if (np?.actividades_evaluativas?.length) {
+      for (const act of np.actividades_evaluativas) {
+        if (!act.fecha || !daySet.has(act.fecha)) continue
+        const n = (act.nombre || '').toLowerCase()
+        let type = 'OTHER'
+        if (/dict/i.test(n))                  type = 'DICTATION'
+        else if (/quiz|test|exam/i.test(n))   type = 'QUIZ'
+        else if (/present|exposici/i.test(n)) type = 'PRESENTATION'
+        else if (/recep|revis|draft/i.test(n)) type = 'RECEPTION'
+        milestoneMap[act.fecha] = { type, name: act.nombre || '' }
+      }
+    }
+    if (np?.due_date && daySet.has(np.due_date) && !milestoneMap[np.due_date]) {
+      milestoneMap[np.due_date] = { type: 'PRESENTATION', name: np.title || 'NEWS Project' }
+    }
+
+    // 2. Grammar points from textbook_reference
+    const grammarPlan = np?.textbook_reference?.grammarPlan || []
+    const grammarPoints = np?.textbook_reference?.grammar || []
+    // Build a map of day → grammar event
+    const grammarDayMap = {} // ISO → { point, phase: 'present'|'practice'|'use', pages }
+    if (grammarPlan.length) {
+      // Teacher has scheduled grammar explicitly
+      for (const gp of grammarPlan) {
+        if (gp.presentDay && daySet.has(gp.presentDay)) {
+          grammarDayMap[gp.presentDay] = { point: gp.point, phase: 'present', pages: gp.pages || '' }
+          // Auto-assign practice to the next day
+          const idx = activeDays.indexOf(gp.presentDay)
+          if (idx >= 0 && idx + 1 < activeDays.length && !grammarDayMap[activeDays[idx + 1]]) {
+            grammarDayMap[activeDays[idx + 1]] = { point: gp.point, phase: 'practice', pages: gp.pages || '' }
+          }
+          // Use in context on the day after that
+          if (idx >= 0 && idx + 2 < activeDays.length && !grammarDayMap[activeDays[idx + 2]]) {
+            grammarDayMap[activeDays[idx + 2]] = { point: gp.point, phase: 'use', pages: '' }
+          }
+        }
+      }
+    } else if (grammarPoints.length) {
+      // Fallback: auto-distribute grammar points across the week
+      const perPoint = Math.max(2, Math.floor(activeDays.length / grammarPoints.length))
+      grammarPoints.forEach((gp, gi) => {
+        const startIdx = gi * perPoint
+        const phases = ['present', 'practice', 'use']
+        phases.forEach((phase, pi) => {
+          const dayIdx = startIdx + pi
+          if (dayIdx < activeDays.length && !milestoneMap[activeDays[dayIdx]]) {
+            grammarDayMap[activeDays[dayIdx]] = { point: gp, phase, pages: '' }
+          }
+        })
+      })
+    }
+
+    // 3. Bloom progression — adapts around milestones
+    const BLOOM_STANDARD = ['Recordar', 'Comprender', 'Aplicar', 'Analizar', 'Evaluar/Crear']
+    const BLOOM_HITO = { DICTATION: 'Aplicar', QUIZ: 'Evaluar', PRESENTATION: 'Crear', RECEPTION: 'Analizar' }
+
+    // 4. Skill rotation (L/R/W/S) — never repeat same skill consecutive days
+    const SKILLS = ['Listening', 'Reading', 'Writing', 'Speaking']
+    const SKILL_HITO = { DICTATION: 'Writing', QUIZ: null, PRESENTATION: 'Speaking', RECEPTION: 'Speaking' }
+
+    let bloomIdx = 0
+    let skillIdx = 0
+    let lastSkill = null
+
+    for (let i = 0; i < activeDays.length; i++) {
+      const iso = activeDays[i]
+      const milestone = milestoneMap[iso]
+      const grammar = grammarDayMap[iso]
+
+      // Bloom
+      let bloom
+      if (milestone) {
+        bloom = BLOOM_HITO[milestone.type] || BLOOM_STANDARD[Math.min(bloomIdx, BLOOM_STANDARD.length - 1)]
+        // Post-milestone: reset bloom
+        bloomIdx = 0
+      } else {
+        bloom = BLOOM_STANDARD[Math.min(bloomIdx, BLOOM_STANDARD.length - 1)]
+        bloomIdx++
+      }
+
+      // Skill
+      let skill
+      if (milestone && SKILL_HITO[milestone.type]) {
+        skill = SKILL_HITO[milestone.type]
+      } else {
+        // Rotate, skipping last used skill
+        skill = SKILLS[skillIdx % SKILLS.length]
+        if (skill === lastSkill) { skillIdx++; skill = SKILLS[skillIdx % SKILLS.length] }
+        skillIdx++
+      }
+      lastSkill = skill
+
+      plan[iso] = {
+        bloom,
+        skill,
+        grammarPhase: grammar?.phase || null,
+        grammarPoint: grammar?.point || null,
+        grammarPages: grammar?.pages || '',
+        hitoType: milestone?.type || null,
+        hitoLabel: milestone?.name || null,
+      }
+    }
+    return plan
+  })()
+
+  // Build the per-day instruction block
+  const dayPlanBlock = (() => {
+    const names = ['Lunes','Martes','Miércoles','Jueves','Viernes','Lunes','Martes','Miércoles','Jueves','Viernes']
+    const SKILL_ICONS = { Listening: '🎧', Reading: '📖', Writing: '✍️', Speaking: '🎤' }
+    const GRAMMAR_PHASE_ES = { present: '📐 PRESENTAR gramática', practice: '📐 PRACTICAR gramática', use: '📐 USAR gramática en contexto' }
+    const HITO_ICONS = { DICTATION: '📝', QUIZ: '📋', PRESENTATION: '🎤', RECEPTION: '📋', OTHER: '⚠️' }
+
+    const lines = [
+      '',
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+      'MAPA DE LA SEMANA — COORDENADAS POR DÍA (OBLIGATORIO)',
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+      '',
+      'Cada día tiene coordenadas FIJAS. La IA DEBE respetar TODAS las coordenadas de cada día.',
+      'No cambiar el orden, no saltarse una habilidad, no ignorar el grammar.',
+      '',
+    ]
+
+    activeDays.forEach((iso, i) => {
+      const dp = dayPlan[iso]
+      const d = new Date(iso + 'T12:00:00')
+      const dayName = names[i] || names[d.getDay() - 1] || iso
+
+      const coords = []
+      coords.push(`Bloom: **${dp.bloom}**`)
+      coords.push(`${SKILL_ICONS[dp.skill] || ''} Habilidad: **${dp.skill}**`)
+      if (dp.grammarPhase) {
+        coords.push(`${GRAMMAR_PHASE_ES[dp.grammarPhase]}${dp.grammarPoint ? `: "${sanitizeAIInput(dp.grammarPoint)}"` : ''}${dp.grammarPages ? ` (p.${sanitizeAIInput(dp.grammarPages)})` : ''}`)
+      }
+      if (dp.hitoType) {
+        coords.push(`${HITO_ICONS[dp.hitoType] || '⚠️'} HITO: **${sanitizeAIInput(dp.hitoLabel || dp.hitoType)}**`)
+      }
+
+      lines.push(`📅 Día ${i + 1} — ${dayName} (${iso}):`)
+      coords.forEach(c => lines.push(`   ${c}`))
+
+      // Special instructions per hito
+      if (dp.hitoType === 'DICTATION') {
+        lines.push(`   → La sección SKILL = dictado. SmartBlock DICTATION obligatorio.`)
+        lines.push(`   → TEMA DEL DÍA abre con: "⚠️📝 TODAY: DICTATION"`)
+      } else if (dp.hitoType === 'QUIZ') {
+        lines.push(`   → La sección SKILL = evaluación. SmartBlock QUIZ obligatorio.`)
+        lines.push(`   → TEMA DEL DÍA abre con: "⚠️📋 TODAY: QUIZ"`)
+      } else if (dp.hitoType === 'PRESENTATION') {
+        lines.push(`   → SKILL = presentaciones. SmartBlock SPEAKING rubric obligatorio.`)
+        lines.push(`   → TEMA DEL DÍA abre con: "⚠️🎤 TODAY: PRESENTATION DAY"`)
+      } else if (dp.hitoType === 'RECEPTION') {
+        lines.push(`   → SKILL = revisión de documentos + ensayo. SmartBlock PEER_REVIEW.`)
+        lines.push(`   → TEMA DEL DÍA abre con: "⚠️📋 TODAY: PROJECT DOCUMENT DUE"`)
+      }
+
+      // Grammar phase instructions
+      if (dp.grammarPhase === 'present') {
+        lines.push(`   → GRAMMAR: El estudiante COPIA la regla en su cuaderno. El docente explica con ejemplos del libro${dp.grammarPages ? ` (p.${sanitizeAIInput(dp.grammarPages)})` : ''}. SmartBlock GRAMMAR (fill-blank) para primera práctica guiada.`)
+      } else if (dp.grammarPhase === 'practice') {
+        lines.push(`   → GRAMMAR: Ejercicios del libro${dp.grammarPages ? ` (p.${sanitizeAIInput(dp.grammarPages)})` : ''}. SmartBlock GRAMMAR (choose o fill-blank). Práctica independiente.`)
+      } else if (dp.grammarPhase === 'use') {
+        lines.push(`   → GRAMMAR: NO se enseña — se USA dentro de la actividad principal. El estudiante produce oraciones/texto usando la gramática aprendida.`)
+      }
+
+      lines.push('')
+    })
+
+    // Post-milestone transitions
+    for (let i = 0; i < activeDays.length; i++) {
+      const dp = dayPlan[activeDays[i]]
+      if (dp.hitoType === 'DICTATION' && i + 1 < activeDays.length) {
+        lines.push(`🔄 Día ${i + 2}: Post-dictation → VOCABULARIO NUEVO (nuevo ciclo).`)
+      }
+      if (dp.hitoType === 'QUIZ' && i + 1 < activeDays.length) {
+        lines.push(`🔄 Día ${i + 2}: Post-quiz → UNIDAD/TEMA NUEVA (nuevo ciclo).`)
+      }
+    }
+
+    return lines.join('\n')
+  })()
 
   // Build achievement_goal context block
   const achievementBlock = achievementGoal ? (() => {
@@ -557,7 +756,6 @@ Usa inglés en los datos del bloque (colegio bilingüe). Si no hay un bloque cla
   })() : ''
 
   // Build NEWS project context block
-  const np = activeNewsProject
   const newsBlock = np ? (() => {
     const lines = []
     if (np.title)       lines.push(`- Proyecto NEWS: "${sanitizeAIInput(np.title)}"`)
@@ -570,6 +768,25 @@ Usa inglés en los datos del bloque (colegio bilingüe). Si no hay un bloque cla
       if (tb.units?.length) lines.push(`- Unidades: ${tb.units.map(u => sanitizeAIInput(u)).join(', ')}`)
       if (tb.grammar?.length) lines.push(`- Gramática: ${tb.grammar.map(g => sanitizeAIInput(g)).join(', ')}`)
       if (tb.vocabulary?.length) lines.push(`- Vocabulario: ${tb.vocabulary.map(v => sanitizeAIInput(v)).join(', ')}`)
+      // Pages — critical for AI to reference specific exercises
+      if (tb.pages?.student) lines.push(`- Páginas del Student Book: ${sanitizeAIInput(tb.pages.student)}`)
+      if (tb.pages?.workbook) lines.push(`- Páginas del Workbook: ${sanitizeAIInput(tb.pages.workbook)}`)
+      // Per-unit lesson details (if available)
+      if (tb.unitDetails?.length) {
+        lines.push(`- Detalle por unidad:`)
+        tb.unitDetails.forEach(ud => {
+          const parts = [`  Unit ${sanitizeAIInput(ud.unit || '?')}`]
+          if (ud.studentPages) parts.push(`Student Book p.${sanitizeAIInput(ud.studentPages)}`)
+          if (ud.workbookPages) parts.push(`Workbook p.${sanitizeAIInput(ud.workbookPages)}`)
+          if (ud.lessons?.length) parts.push(`Lessons: ${ud.lessons.map(l => sanitizeAIInput(l)).join(', ')}`)
+          lines.push(parts.join(' · '))
+        })
+      }
+      // Textbook images
+      if (tb.images?.length) {
+        const sent = Math.min(tb.images.length, 4)
+        lines.push(`- 📸 ${tb.images.length} foto(s) de páginas del libro (${sent} enviadas como imágenes adjuntas — ÚSALAS para referenciar ejercicios y páginas exactas)`)
+      }
     }
     if (np.competencias?.length) lines.push(`- Competencias: ${np.competencias.map(c => sanitizeAIInput(typeof c === 'string' ? c : c.nombre || '')).join(', ')}`)
     if (np.operadores_intelectuales?.length) lines.push(`- Operadores intelectuales: ${np.operadores_intelectuales.map(o => sanitizeAIInput(typeof o === 'string' ? o : o.nombre || '')).join(', ')}`)
@@ -586,6 +803,83 @@ Usa inglés en los datos del bloque (colegio bilingüe). Si no hay un bloque cla
     }
     return lines.length ? `\n📋 CONTEXTO DEL PROYECTO NEWS (usa esto para alinear todo el contenido):\n${lines.join('\n')}` : ''
   })() : ''
+
+  // ── Build MILESTONES block — day-by-day activity map with transition rules ──
+  const milestonesBlock = (() => {
+    const daySet = new Set(activeDays)
+    const dayIndex = {} // ISO → index in activeDays (0-based)
+    activeDays.forEach((iso, i) => { dayIndex[iso] = i })
+
+    // Detect activity type from name
+    function detectType(nombre) {
+      const n = (nombre || '').toLowerCase()
+      if (/dict/i.test(n))                     return 'DICTATION'
+      if (/quiz|test|exam/i.test(n))           return 'QUIZ'
+      if (/present|exposici|oral/i.test(n))    return 'PROJECT_PRESENTATION'
+      if (/recep|revis|draft|gui[oó]n|script|document/i.test(n)) return 'PROJECT_RECEPTION'
+      if (/reading|lectura|plan lector/i.test(n)) return 'READING'
+      if (/speaking/i.test(n))                 return 'SPEAKING'
+      if (/listening/i.test(n))                return 'LISTENING'
+      if (/writing|escrit/i.test(n))           return 'WRITING'
+      if (/vocab/i.test(n))                    return 'VOCAB'
+      return 'OTHER'
+    }
+
+    // Collect all activities for this week from NEWS project
+    const milestones = [] // { date, type, name, desc, pct }
+    if (np?.actividades_evaluativas?.length) {
+      for (const act of np.actividades_evaluativas) {
+        if (!act.fecha || !daySet.has(act.fecha)) continue
+        milestones.push({
+          date: act.fecha,
+          type: detectType(act.nombre),
+          name: act.nombre || '',
+          desc: act.descripcion || '',
+          pct: act.porcentaje || null,
+        })
+      }
+    }
+    // Also check if NEWS due_date falls in this week → project presentation
+    if (np?.due_date && daySet.has(np.due_date)) {
+      const hasPresentation = milestones.some(m => m.type === 'PROJECT_PRESENTATION' && m.date === np.due_date)
+      if (!hasPresentation) {
+        milestones.push({
+          date: np.due_date,
+          type: 'PROJECT_PRESENTATION',
+          name: `Presentación: ${np.title || 'Proyecto NEWS'}`,
+          desc: 'Fecha de entrega del proyecto NEWS',
+          pct: null,
+        })
+      }
+    }
+
+    if (!milestones.length) return ''
+
+    // Sort by date
+    milestones.sort((a, b) => a.date.localeCompare(b.date))
+
+    const lines = [
+      '',
+      '🚨 HITOS EVALUATIVOS DE LA SEMANA:',
+    ]
+
+    for (const m of milestones) {
+      const idx = dayIndex[m.date]
+      const nextDay = idx + 1 < activeDays.length ? activeDays[idx + 1] : null
+
+      lines.push(`  📢 ${m.date} → ${m.type}: "${sanitizeAIInput(m.name)}"${m.desc ? ` — ${sanitizeAIInput(m.desc)}` : ''}${m.pct ? ` (${m.pct}%)` : ''}`)
+
+      if (m.type === 'DICTATION' && nextDay) {
+        lines.push(`     🔄 ${nextDay}: VOCABULARIO NUEVO (nuevo ciclo)`)
+      }
+      if (m.type === 'QUIZ' && nextDay) {
+        lines.push(`     🔄 ${nextDay}: UNIDAD NUEVA (nuevo ciclo)`)
+      }
+    }
+
+    return lines.join('\n')
+  })()
+
 
   // Build PIAR block
   const piarBlock = (piarData?.studentCount > 0 && piarData?.byCategory) ? (() => {
@@ -607,6 +901,57 @@ Usa inglés en los datos del bloque (colegio bilingüe). Si no hay un bloque cla
     return lines.join('\n')
   })() : ''
 
+  // Build focus hints block (eleot domains, skill emphasis, preferred blocks)
+  const focusBlock = (_focusHints?.length) ? (() => {
+    const lines = [
+      '\n🎯 FOCO PEDAGÓGICO DEL DOCENTE (priorizar en el diseño):',
+      ...(_focusHints.map(h => `  - ${sanitizeAIInput(h)}`)),
+    ]
+    return lines.join('\n')
+  })() : ''
+
+  // Build checkpoint block (previous week achievement data)
+  const checkpointBlock = checkpointData ? (() => {
+    const { achievement, notes, indicatorText, weekNumber } = checkpointData
+    const STRATEGY = {
+      most: {
+        label: '🟢 >70% logró',
+        instruction: `Escalar Bloom: arrancar donde terminó la semana pasada. Mayor autonomía, productos más elaborados.`,
+      },
+      some: {
+        label: '🟡 30-70% logró',
+        instruction: `Días 1-2: reforzar con estrategia DIFERENTE. Días 3+: avanzar al siguiente nivel. Actividades diferenciadas.`,
+      },
+      few: {
+        label: '🔴 <30% logró',
+        instruction: `Reteach con enfoque diferente (visual→kinestésico, individual→grupal). No escalar hasta consolidar. Más EXIT_TICKET y SELF_ASSESSMENT.`,
+      },
+    }
+    const strat = STRATEGY[achievement]
+    if (!strat) return ''
+    const lines = [
+      `\n🔄 CHECKPOINT DE LA SEMANA ${weekNumber || 'ANTERIOR'} — DATO REAL DEL DOCENTE:`,
+      `Resultado: ${strat.label}`,
+    ]
+    if (indicatorText) lines.push(`Indicador evaluado: "${sanitizeAIInput(indicatorText)}"`)
+    if (notes) lines.push(`Observaciones del docente: "${sanitizeAIInput(notes)}"`)
+    lines.push('')
+    lines.push(`ESTRATEGIA OBLIGATORIA PARA ESTA SEMANA:`)
+    lines.push(strat.instruction)
+    return lines.join('\n')
+  })() : ''
+
+  // Build 2-week Bloom differentiation
+  const isTwoWeeks = activeDays.length > 5
+  const twoWeekBloomBlock = isTwoWeeks ? (() => {
+    const midpoint = Math.ceil(activeDays.length / 2)
+    const week1Days = activeDays.slice(0, midpoint).join(', ')
+    const week2Days = activeDays.slice(midpoint).join(', ')
+    return `
+2 SEMANAS: Semana 1 (${week1Days}) = Recordar→Aplicar. Semana 2 (${week2Days}) = Analizar→Crear.
+Semana 2 NO repite Semana 1 — escala cognitiva evidente. Producto Sem.1 = parcial, Sem.2 = completo.`
+  })() : ''
+
   const message = `Genera una guía de aprendizaje completa con estos datos:
 
 - Grado: ${safeGrade}
@@ -614,9 +959,13 @@ Usa inglés en los datos del bloque (colegio bilingüe). Si no hay un bloque cla
 - Período: ${safePeriod}
 - Unidad/Tema: ${safeUnit || 'No especificado'}
 - Objetivo del docente: ${safeObjective}
-- Días de clase ${activeDays.length > 5 ? 'estas dos semanas' : 'esta semana'}: ${daysStr}
+- Días de clase ${isTwoWeeks ? 'estas dos semanas' : 'esta semana'}: ${daysStr}
 ${achievementBlock}
 ${newsBlock}
+${dayPlanBlock}
+${milestonesBlock}
+${checkpointBlock}
+${focusBlock}
 ${piarBlock}
 
 IDIOMA: Usa inglés para Language Arts. Usa español para todas las demás materias.
@@ -630,9 +979,11 @@ ENCUENTRO · VOCABULARY LIST (key: subject) — máx. 40 palabras:
   → NO incluyas oración ni reglas de clase (se insertan automáticamente).
   → Ejemplo: "1. habitat — natural home — 'Bears live in forest habitats.' | Actividad: repite con gesto."
 
-TEMA DEL DÍA (key: motivation) — máx. 20 palabras:
-  → 1 oración que enuncia el tema del día y qué logrará el estudiante.
-  → Ejemplo: "Hoy aprenderás a usar el Present Perfect para hablar de experiencias de vida."
+TEMA DEL DÍA (key: motivation) — máx. 50 palabras:
+  → RITUAL DEL TABLERO: Lista los 4 ítems que el estudiante copia en su cuaderno:
+    📅 Date: [fecha] | 🎯 Indicator: [indicador en lenguaje amigable] | 📖 Verse: [versículo] | 📚 Topic: [tema]
+  → Luego 1 oración conectando tema con principio bíblico.
+  → Si hay hito evaluativo ese día, abre con "⚠️ TODAY: [HITO]" ANTES del ritual.
 
 MOTIVACIÓN (key: activity) — máx. 25 palabras:
   → 1 pregunta directa O 1 instrucción de juego/dinámica corta. Solo eso.
@@ -642,7 +993,9 @@ MOTIVACIÓN (key: activity) — máx. 25 palabras:
 DESARROLLO DE HABILIDADES (key: skill) — máx. 60 palabras, lista numerada:
   → Pasos numerados (3-4 máx.), cada uno = verbo de acción + qué hace el estudiante exactamente.
   → El último paso especifica el PRODUCTO concreto (escribe / dibuja / completa / presenta).
-  → Ejemplo: "1. Lee el texto p.45. | 2. Subraya los verbos en past simple. | 3. Escribe 3 oraciones usando esos verbos en tu cuaderno."
+  → Si hay datos del libro de texto, REFERENCIA páginas y ejercicios específicos.
+  → Cada día enfatiza una habilidad diferente (L/R/W/S) como preparación al hito más cercano.
+  → Ejemplo: "1. Open your book to p.45. Read the text. | 2. Underline past simple verbs. | 3. Write 3 sentences using those verbs in your notebook."
 
 CIERRE Y REFLEXIÓN (key: closing) — máx. 30 palabras:
   → 1 pregunta de verificación académica + 1 pregunta de reflexión bíblica. Nada más.
@@ -651,11 +1004,23 @@ CIERRE Y REFLEXIÓN (key: closing) — máx. 30 palabras:
 TAREA / ASSIGNMENT (key: assignment) — máx. 20 palabras:
   → 1 oración con entregable específico. Nada vago.
   → Ejemplo: "Completa el ejercicio 3 de la p.47 del libro. Trae respondido para la próxima clase."
-
+${isTwoWeeks ? twoWeekBloomBlock : `
 PROGRESIÓN SEMANAL: Los días deben avanzar desde la introducción del vocabulario/concepto (Día 1)
-hasta la producción autónoma del estudiante (último día). Cada día construye sobre el anterior.`
+hasta la producción autónoma del estudiante (último día). Cada día construye sobre el anterior.`}`
 
-  const raw = await callClaude({ type: 'generate', system, message, planId, maxTokens: 16000 })
+  // Fetch textbook images for multimodal context (max 4, parallel, non-blocking failures)
+  let imageBlocks = undefined
+  const tbImages = activeNewsProject?.textbook_reference?.images
+  if (tbImages?.length) {
+    const urls = tbImages.slice(0, 4).map(img => typeof img === 'string' ? img : img.url).filter(Boolean)
+    if (urls.length) {
+      const results = await Promise.all(urls.map(u => fetchImageBlock(u)))
+      const valid = results.filter(Boolean)
+      if (valid.length) imageBlocks = valid
+    }
+  }
+
+  const raw = await callClaude({ type: 'generate', system, message, planId, maxTokens: 16000, imageBlocks })
 
   // Try to parse JSON, if truncated retry once with concise instruction
   function tryParseJSON(text) {

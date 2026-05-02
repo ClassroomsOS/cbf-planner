@@ -51,7 +51,7 @@ export const ConversationalGuideModal = memo(function ConversationalGuideModal({
   grade, subject, period, activeDays,
   indicator, achievementGoal, activeNewsProject,
   currentContent, principles, eleotCoverage,
-  piarData,
+  piarData, checkpointData,
   onApply, onClose,
 }) {
   const { showToast } = useToast()
@@ -125,6 +125,7 @@ export const ConversationalGuideModal = memo(function ConversationalGuideModal({
         activeNewsProject, principles,
         piarData,
         _focusHints: focusHints,
+        checkpointData,
       })
       setPreview(result)
       // Default: all days open
@@ -138,7 +139,7 @@ export const ConversationalGuideModal = memo(function ConversationalGuideModal({
       showToast(msg, 'error')
     }
     setLoading(false)
-  }, [grade, subject, objective, unit, period, activeDays, eleotFocus, focusSkill, selectedBlocks, indicator, achievementGoal, activeNewsProject, principles, showToast])
+  }, [grade, subject, objective, unit, period, activeDays, eleotFocus, focusSkill, selectedBlocks, indicator, achievementGoal, activeNewsProject, principles, checkpointData, showToast])
 
   // ── Apply ─────────────────────────────────────────────────────────────────
   const handleApply = useCallback(() => {
@@ -190,6 +191,40 @@ export const ConversationalGuideModal = memo(function ConversationalGuideModal({
               )}
             </div>
           )}
+
+          {/* Previous week checkpoint */}
+          {checkpointData && (() => {
+            const CP_STYLES = {
+              most: { emoji: '🟢', label: 'La mayoría logró el indicador', color: '#2d7a2d', bg: '#f0f7f0', border: '#b5d6b5', strategy: 'La IA escalará el nivel Bloom — actividades más complejas y autónomas.' },
+              some: { emoji: '🟡', label: 'Algunos lograron el indicador', color: '#b8860b', bg: '#fef9ee', border: '#e8d5a0', strategy: 'La IA reforzará los primeros días y avanzará gradualmente.' },
+              few:  { emoji: '🔴', label: 'Pocos lograron el indicador',  color: '#b33',    bg: '#fef0f0', border: '#e8b5b5', strategy: 'La IA usará una estrategia nueva para re-enseñar el concepto base.' },
+            }
+            const s = CP_STYLES[checkpointData.achievement]
+            if (!s) return null
+            return (
+              <div style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: '8px', padding: '12px' }}>
+                <div style={{ fontSize: '10px', fontWeight: 700, color: s.color, marginBottom: '4px', textTransform: 'uppercase' }}>
+                  🔄 Checkpoint — Semana {checkpointData.weekNumber}
+                </div>
+                <div style={{ fontSize: '13px', color: s.color, fontWeight: 600, marginBottom: '4px' }}>
+                  {s.emoji} {s.label}
+                </div>
+                {checkpointData.indicatorText && (
+                  <div style={{ fontSize: '11px', color: '#555', marginBottom: '4px', fontStyle: 'italic' }}>
+                    "{checkpointData.indicatorText}"
+                  </div>
+                )}
+                {checkpointData.notes && (
+                  <div style={{ fontSize: '11px', color: '#666', marginBottom: '4px' }}>
+                    📝 {checkpointData.notes}
+                  </div>
+                )}
+                <div style={{ fontSize: '10px', color: '#888', marginTop: '6px', lineHeight: 1.4 }}>
+                  ⚡ {s.strategy}
+                </div>
+              </div>
+            )
+          })()}
 
           {/* Active days */}
           <div style={{ background: '#f0f4ff', border: '1px solid #c8d8f8', borderRadius: '8px', padding: '10px' }}>

@@ -20,7 +20,9 @@ const COST_INPUT  = 3  / 1_000_000   // $3 per million input tokens
 const COST_OUTPUT = 15 / 1_000_000   // $15 per million output tokens
 
 // ── Core caller ───────────────────────────────────────────────────────────────
-export async function callClaude({ type, system, message, planId, maxTokens }) {
+// `message` = string (text-only) | `imageBlocks` = optional array of { type: 'image', source: { type, media_type, data } }
+// When imageBlocks are provided, the user message becomes a multimodal content array.
+export async function callClaude({ type, system, message, planId, maxTokens, imageBlocks }) {
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) throw new Error('No hay sesión activa.')
 
@@ -41,6 +43,25 @@ export async function callClaude({ type, system, message, planId, maxTokens }) {
     }
   }
 
+  // Build request body — use `messages` for multimodal, `message` for text-only
+  const requestBody = {
+    type,
+    system,
+    plan_id:    planId    || null,
+    max_tokens: maxTokens || 2000,
+  }
+
+  if (imageBlocks?.length) {
+    // Multimodal: content array with images first, then text
+    const content = [
+      ...imageBlocks,
+      { type: 'text', text: message },
+    ]
+    requestBody.messages = [{ role: 'user', content }]
+  } else {
+    requestBody.message = message
+  }
+
   const response = await fetch(
     `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/claude-proxy`,
     {
@@ -49,13 +70,7 @@ export async function callClaude({ type, system, message, planId, maxTokens }) {
         'Content-Type':  'application/json',
         'Authorization': `Bearer ${session.access_token}`,
       },
-      body: JSON.stringify({
-        type,
-        system,
-        message,
-        plan_id:    planId    || null,
-        max_tokens: maxTokens || 2000,
-      }),
+      body: JSON.stringify(requestBody),
     }
   )
 
@@ -83,6 +98,31 @@ export async function callClaude({ type, system, message, planId, maxTokens }) {
   }
 
   return data.text || ''
+}
+
+// ── Fetch image as base64 content block for multimodal ────────────────────────
+// Returns { type: 'image', source: { type: 'base64', media_type, data } } or null on failure.
+// Max 4 images, resized to keep token cost reasonable.
+export async function fetchImageBlock(url) {
+  try {
+    const res = await fetch(url)
+    if (!res.ok) return null
+    const blob = await res.blob()
+    // Only accept common image types
+    const media_type = blob.type || 'image/jpeg'
+    if (!media_type.startsWith('image/')) return null
+    // Convert to base64
+    const buffer = await blob.arrayBuffer()
+    const bytes = new Uint8Array(buffer)
+    let binary = ''
+    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
+    const data = btoa(binary)
+    // Skip if too large (>1.5MB base64 ≈ ~1MB image — keep costs manageable)
+    if (data.length > 1_500_000) return null
+    return { type: 'image', source: { type: 'base64', media_type, data } }
+  } catch {
+    return null
+  }
 }
 
 // ── JSON array extractor — handles markdown fences and surrounding text ────────

@@ -169,6 +169,7 @@ export default function GuideEditorPage({ teacher }) {
   const [linkedSyllabusTopics,    setLinkedSyllabusTopics]    = useState([])
   const [linkedNewsProjects, setLinkedNewsProjects] = useState([])
   const [monthPrinciples, setMonthPrinciples] = useState(null)
+  const [prevCheckpoint, setPrevCheckpoint] = useState(null) // { achievement, notes, indicatorText, weekNumber }
 
   // ── Other-teacher editing ──────────────────────────────────────
   // Computed once plan loads. isOtherTeacher = admin editing someone else's guide.
@@ -486,6 +487,40 @@ export default function GuideEditorPage({ teacher }) {
       setLinkedAchievementGoal({ ...goal, indicators: indicators || [] })
     })()
   }, [linkedAchievementIndicator?.goal_id])
+
+  // ── Load previous week's checkpoint for AI encadenamiento ──
+  useEffect(() => {
+    if (!plan?.week_number || !plan?.grade || !plan?.subject) { setPrevCheckpoint(null); return }
+    const prevWeek = plan.week_number - 1
+    if (prevWeek < 1) { setPrevCheckpoint(null); return }
+    ;(async () => {
+      const { data: cp } = await supabase
+        .from('checkpoints')
+        .select('achievement, notes, indicator_id')
+        .eq('teacher_id', teacher.id)
+        .eq('grade', plan.grade)
+        .eq('subject', plan.subject)
+        .eq('week_number', prevWeek)
+        .maybeSingle()
+      if (!cp) { setPrevCheckpoint(null); return }
+      // Fetch indicator text for context
+      let indicatorText = ''
+      if (cp.indicator_id) {
+        const { data: ind } = await supabase
+          .from('achievement_indicators')
+          .select('text')
+          .eq('id', cp.indicator_id)
+          .single()
+        indicatorText = ind?.text || ''
+      }
+      setPrevCheckpoint({
+        achievement: cp.achievement,
+        notes: cp.notes || '',
+        indicatorText,
+        weekNumber: prevWeek,
+      })
+    })()
+  }, [plan?.week_number, plan?.grade, plan?.subject, teacher.id])
 
   // ── Load syllabus topics for current week ──
   useEffect(() => {
@@ -1799,6 +1834,7 @@ export default function GuideEditorPage({ teacher }) {
           principles={principles}
           eleotCoverage={coverage}
           piarData={piarData}
+          checkpointData={prevCheckpoint}
           onApply={handleApplyGenerated}
           onClose={closeGenerator}
         />

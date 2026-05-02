@@ -29,7 +29,7 @@ const LEVEL_LABELS = [
   { score: 1, label: 'Beginning', color: '#CC1F27' }
 ]
 
-const EMPTY_TEXTBOOK = { book: '', units: [], grammar: [], vocabulary: [], pages: { student: '', workbook: '' }, images: [] }
+const EMPTY_TEXTBOOK = { book: '', units: [], grammar: [], vocabulary: [], pages: { student: '', workbook: '' }, unitDetails: [], images: [] }
 
 const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, project, templates, cloneForProject, onSave, onClose, principles }) {
   const isEditing = !!project
@@ -269,14 +269,88 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
     const current = form.textbook_reference[field] || []
     if (!current.includes(value)) {
       updateTextbook(field, [...current, value])
+      // Auto-create unitDetails entry when adding a unit
+      if (field === 'units') {
+        const details = form.textbook_reference.unitDetails || []
+        if (!details.some(d => d.unit === value)) {
+          updateTextbook('unitDetails', [...details, { unit: value, studentPages: '', workbookPages: '', lessons: [] }])
+        }
+      }
+      // Auto-create grammarPlan entry when adding a grammar point
+      if (field === 'grammar') {
+        const plan = form.textbook_reference.grammarPlan || []
+        if (!plan.some(g => g.point === value)) {
+          updateTextbook('grammarPlan', [...plan, { point: value, presentDay: '', pages: '', copyToNotebook: true }])
+        }
+      }
     }
     setTagInput(prev => ({ ...prev, [field]: '' }))
   }
 
   const removeTag = (field, index) => {
     const current = [...(form.textbook_reference[field] || [])]
+    const removed = current[index]
     current.splice(index, 1)
     updateTextbook(field, current)
+    // Remove corresponding unitDetails when removing a unit
+    if (field === 'units' && removed) {
+      const details = (form.textbook_reference.unitDetails || []).filter(d => d.unit !== removed)
+      updateTextbook('unitDetails', details)
+    }
+    // Remove corresponding grammarPlan when removing a grammar point
+    if (field === 'grammar' && removed) {
+      const plan = (form.textbook_reference.grammarPlan || []).filter(g => g.point !== removed)
+      updateTextbook('grammarPlan', plan)
+    }
+  }
+
+  const updateUnitDetail = (unit, key, value) => {
+    const details = [...(form.textbook_reference.unitDetails || [])]
+    const idx = details.findIndex(d => d.unit === unit)
+    if (idx >= 0) {
+      details[idx] = { ...details[idx], [key]: value }
+    } else {
+      details.push({ unit, studentPages: '', workbookPages: '', lessons: [], [key]: value })
+    }
+    updateTextbook('unitDetails', details)
+  }
+
+  const addUnitLesson = (unit) => {
+    const input = tagInput[`lesson_${unit}`]?.trim()
+    if (!input) return
+    const details = [...(form.textbook_reference.unitDetails || [])]
+    const idx = details.findIndex(d => d.unit === unit)
+    if (idx >= 0) {
+      const lessons = [...(details[idx].lessons || [])]
+      if (!lessons.includes(input)) {
+        details[idx] = { ...details[idx], lessons: [...lessons, input] }
+        updateTextbook('unitDetails', details)
+      }
+    }
+    setTagInput(prev => ({ ...prev, [`lesson_${unit}`]: '' }))
+  }
+
+  const removeUnitLesson = (unit, lessonIdx) => {
+    const details = [...(form.textbook_reference.unitDetails || [])]
+    const idx = details.findIndex(d => d.unit === unit)
+    if (idx >= 0) {
+      const lessons = [...(details[idx].lessons || [])]
+      lessons.splice(lessonIdx, 1)
+      details[idx] = { ...details[idx], lessons }
+      updateTextbook('unitDetails', details)
+    }
+  }
+
+  // ── Grammar Plan helpers ──
+  const updateGrammarPlan = (point, key, value) => {
+    const plan = [...(form.textbook_reference.grammarPlan || [])]
+    const idx = plan.findIndex(g => g.point === point)
+    if (idx >= 0) {
+      plan[idx] = { ...plan[idx], [key]: value }
+    } else {
+      plan.push({ point, presentDay: '', pages: '', copyToNotebook: true, [key]: value })
+    }
+    updateTextbook('grammarPlan', plan)
   }
 
   const addActividad = () => {
@@ -284,6 +358,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
     updateForm('actividades_evaluativas', [
       ...form.actividades_evaluativas,
       {
+        id:          crypto.randomUUID(),
         nombre:      newActividad.nombre.trim(),
         descripcion: newActividad.descripcion.trim(),
         porcentaje:  Number(newActividad.porcentaje) || 0,
@@ -1198,7 +1273,138 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
                   </div>
 
                   <TagField label="Unidades" tags={form.textbook_reference.units || []} value={tagInput.units} onChange={v => setTagInput(p => ({ ...p, units: v }))} onAdd={() => addTag('units')} onRemove={(i) => removeTag('units', i)} placeholder="1" />
+
+                  {/* ── Per-unit detail cards ── */}
+                  {(form.textbook_reference.unitDetails || []).length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      <label style={{ ...styles.label, fontSize: 12, color: '#1F3864', fontWeight: 700 }}>
+                        📖 Detalle por Unidad — páginas y lecciones específicas
+                      </label>
+                      <p style={{ margin: '-4px 0 4px', fontSize: 11, color: '#666' }}>
+                        Esto le permite a la IA referenciar páginas exactas del libro en cada día de la guía.
+                      </p>
+                      {(form.textbook_reference.unitDetails || []).map(ud => (
+                        <div key={ud.unit} style={{
+                          border: '1px solid #d0d8e8', borderRadius: 10, padding: '12px 14px',
+                          background: '#f8faff',
+                        }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: '#1F3864', marginBottom: 8 }}>
+                            📘 Unit {ud.unit}
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                            <div>
+                              <label style={{ fontSize: 10, fontWeight: 600, color: '#555' }}>Student Book pages</label>
+                              <input
+                                value={ud.studentPages || ''}
+                                onChange={e => updateUnitDetail(ud.unit, 'studentPages', e.target.value)}
+                                placeholder="45-58"
+                                style={{ ...styles.input, fontSize: 12 }}
+                              />
+                            </div>
+                            <div>
+                              <label style={{ fontSize: 10, fontWeight: 600, color: '#555' }}>Workbook pages</label>
+                              <input
+                                value={ud.workbookPages || ''}
+                                onChange={e => updateUnitDetail(ud.unit, 'workbookPages', e.target.value)}
+                                placeholder="30-38"
+                                style={{ ...styles.input, fontSize: 12 }}
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <label style={{ fontSize: 10, fontWeight: 600, color: '#555' }}>Lessons / Topics dentro de esta unidad</label>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4, marginBottom: 6 }}>
+                              {(ud.lessons || []).map((les, li) => (
+                                <span key={li} style={{
+                                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                                  fontSize: 11, background: '#2E5598', color: '#fff',
+                                  padding: '2px 8px', borderRadius: 12, fontWeight: 600,
+                                }}>
+                                  {les}
+                                  <button type="button" onClick={() => removeUnitLesson(ud.unit, li)} style={{
+                                    background: 'none', border: 'none', color: '#fff', cursor: 'pointer',
+                                    fontSize: 12, padding: 0, lineHeight: 1, opacity: 0.8,
+                                  }}>×</button>
+                                </span>
+                              ))}
+                            </div>
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              <input
+                                value={tagInput[`lesson_${ud.unit}`] || ''}
+                                onChange={e => setTagInput(p => ({ ...p, [`lesson_${ud.unit}`]: e.target.value }))}
+                                onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addUnitLesson(ud.unit))}
+                                placeholder="4A — Grammar Focus / 4B — Reading"
+                                style={{ ...styles.input, fontSize: 11, flex: 1 }}
+                              />
+                              <button type="button" onClick={() => addUnitLesson(ud.unit)} style={{
+                                fontSize: 11, padding: '4px 10px', borderRadius: 6,
+                                border: '1px solid #2E5598', background: '#fff', color: '#2E5598',
+                                cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap',
+                              }}>+ Agregar</button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   <TagField label="Gramática" tags={form.textbook_reference.grammar || []} value={tagInput.grammar} onChange={v => setTagInput(p => ({ ...p, grammar: v }))} onAdd={() => addTag('grammar')} onRemove={(i) => removeTag('grammar', i)} placeholder="past simple" />
+
+                  {/* ── Grammar Plan cards — schedule when each grammar point is presented ── */}
+                  {(form.textbook_reference.grammarPlan || []).length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      <label style={{ ...styles.label, fontSize: 12, color: '#375623', fontWeight: 700 }}>
+                        📐 Plan de Gramática — cuándo se presenta cada punto
+                      </label>
+                      <p style={{ margin: '-4px 0 4px', fontSize: 11, color: '#666' }}>
+                        La IA usará esto para asignar gramática a días específicos: Presentar → Practicar → Usar en contexto.
+                        El estudiante copiará la regla en su cuaderno el día de la presentación.
+                      </p>
+                      {(form.textbook_reference.grammarPlan || []).map(gp => (
+                        <div key={gp.point} style={{
+                          border: '1px solid #c5ddb5', borderRadius: 10, padding: '12px 14px',
+                          background: '#f6fbf4',
+                        }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: '#375623', marginBottom: 8 }}>
+                            📐 {gp.point}
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                            <div>
+                              <label style={{ fontSize: 10, fontWeight: 600, color: '#555' }}>Día de presentación (fecha)</label>
+                              <input
+                                type="date"
+                                value={gp.presentDay || ''}
+                                onChange={e => updateGrammarPlan(gp.point, 'presentDay', e.target.value)}
+                                style={{ ...styles.input, fontSize: 12 }}
+                              />
+                            </div>
+                            <div>
+                              <label style={{ fontSize: 10, fontWeight: 600, color: '#555' }}>Páginas de referencia</label>
+                              <input
+                                value={gp.pages || ''}
+                                onChange={e => updateGrammarPlan(gp.point, 'pages', e.target.value)}
+                                placeholder="p.52-53"
+                                style={{ ...styles.input, fontSize: 12 }}
+                              />
+                            </div>
+                          </div>
+                          <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <input
+                              type="checkbox"
+                              checked={gp.copyToNotebook !== false}
+                              onChange={e => updateGrammarPlan(gp.point, 'copyToNotebook', e.target.checked)}
+                              id={`grammar-copy-${gp.point}`}
+                              style={{ margin: 0 }}
+                            />
+                            <label htmlFor={`grammar-copy-${gp.point}`} style={{ fontSize: 11, color: '#555' }}>
+                              ✏️ Los estudiantes copian la regla en su cuaderno
+                            </label>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   <TagField label="Vocabulario" tags={form.textbook_reference.vocabulary || []} value={tagInput.vocabulary} onChange={v => setTagInput(p => ({ ...p, vocabulary: v }))} onAdd={() => addTag('vocabulary')} onRemove={(i) => removeTag('vocabulary', i)} placeholder="music" />
 
                   {/* ── Imágenes del textbook ── */}

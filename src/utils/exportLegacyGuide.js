@@ -131,39 +131,57 @@ async function fetchSectionImage(url) {
 // ── Dimension constraints ──────────────────────────────────────────────────────
 // 1 dxa = 635 EMU  (914400 EMU/in ÷ 1440 dxa/in)
 // Right column usable width: 8651 dxa − 240 dxa padding = 8411 dxa
-const MAX_W_EMU = 8411 * 635          // ≈ 5 341 000  (~14.8 cm)
-// Page: 20160 dxa − margins 2834 − header ~708 = 16618 dxa usable
-// Single image should never use more than ~55% of page height
-const MAX_H_1_EMU  = 9000 * 635      // ≈ 5 715 000  (~15.8 cm) — 1 image
-const MAX_H_2_EMU  = 5500 * 635      // ≈ 3 493 000  (~9.7 cm)  — 2 images
-const MAX_H_N_EMU  = 4000 * 635      // ≈ 2 540 000  (~7.0 cm)  — 3+ images
+const COL_W_DXA  = 8411
+const DXA_TO_EMU = 635
+const FULL_W_EMU = COL_W_DXA * DXA_TO_EMU       // ~5 341 000  (~14.8 cm)
+
+// Per-row max heights (page usable ~16600 dxa)
+const ROW_H_SOLO = 9000 * DXA_TO_EMU             // 1 imagen sola → ~15.8 cm
+const ROW_H_2COL = 6000 * DXA_TO_EMU             // 2 por fila    → ~10.5 cm
+const ROW_H_3COL = 5000 * DXA_TO_EMU             // 3 por fila    → ~8.8 cm
 
 /**
  * Fit image into both maxW and maxH, maintaining aspect ratio.
- * The image is scaled down to whichever constraint is tighter — never up.
- *
- * @param {number} natW     Natural width in px
- * @param {number} natH     Natural height in px
- * @param {number} imgCount Total images in this section (determines height budget)
- * @returns {{ cx: number, cy: number }} dimensions in EMU
+ * Scales DOWN to whichever constraint is tighter — never scales UP.
  */
-function calcEmu(natW, natH, imgCount = 1) {
-  const maxH = imgCount <= 1 ? MAX_H_1_EMU
-             : imgCount === 2 ? MAX_H_2_EMU
-             : MAX_H_N_EMU
-
-  // Scale to fit width first
-  let cx = MAX_W_EMU
-  let cy = Math.round(MAX_W_EMU * natH / natW)
-
-  // If too tall for height budget, shrink to fit height
+function calcEmu(natW, natH, maxW, maxH) {
+  let cx = maxW
+  let cy = Math.round(maxW * natH / natW)
   if (cy > maxH) {
     cy = maxH
     cx = Math.round(maxH * natW / natH)
   }
-
   return { cx, cy }
 }
+
+/**
+ * Decides how many columns per row:
+ *   1 image   → 1 (full width)
+ *   2 images  → 2 (always — works for both orientations)
+ *   3+ portrait-dominant → 3
+ *   3+ landscape-dominant → 2
+ */
+function layoutCols(fetchedImages) {
+  if (fetchedImages.length <= 1) return 1
+  if (fetchedImages.length === 2) return 2
+  const portraits = fetchedImages.filter(f => f.natH > f.natW).length
+  return portraits >= fetchedImages.length / 2 ? 3 : 2
+}
+
+// Invisible borders for nested image grid tables
+const NO_BORDERS = `<w:tblBorders>
+  <w:top w:val="none" w:sz="0" w:space="0" w:color="auto"/>
+  <w:left w:val="none" w:sz="0" w:space="0" w:color="auto"/>
+  <w:bottom w:val="none" w:sz="0" w:space="0" w:color="auto"/>
+  <w:right w:val="none" w:sz="0" w:space="0" w:color="auto"/>
+  <w:insideH w:val="none" w:sz="0" w:space="0" w:color="auto"/>
+  <w:insideV w:val="none" w:sz="0" w:space="0" w:color="auto"/>
+</w:tblBorders>`
+
+const NO_CELL_BORDERS = `<w:tcBorders>
+  <w:top w:val="nil"/><w:left w:val="nil"/>
+  <w:bottom w:val="nil"/><w:right w:val="nil"/>
+</w:tcBorders>`
 
 /**
  * Generates the <w:drawing> XML for an inline image.
@@ -304,25 +322,59 @@ async function buildDayRow(iso, day, imageRefs) {
 
     rightContent += contentParas(section.content)
 
-    // ── Embed images — smart sizing per section image count ─────────────────
+    // ── Embed images — smart grid layout based on orientation ────────────────
     const images = (section.images || []).filter(img => img?.url)
-    for (let i = 0; i < images.length; i++) {
-      const fetched = await fetchSectionImage(images[i].url)
-      if (!fetched) continue
+    if (images.length > 0) {
+      // 1. Fetch all images for this section
+      const fetched = []
+      for (let i = 0; i < images.length; i++) {
+        const f = await fetchSectionImage(images[i].url)
+        if (!f) continue
+        const idx       = imageRefs.length
+        const rId       = `rId${100 + idx}`
+        const ext       = f.type === 'jpeg' ? 'jpg' : f.type
+        const mediaPath = `word/media/simg${idx}.${ext}`
+        imageRefs.push({ rId, data: f.data, type: f.type, mediaPath })
+        fetched.push({ ...f, rId, imgId: 100 + idx, imgName: `Image_${s.key}_${i}` })
+      }
 
-      // Stable IDs — base 100 to avoid conflicts with header/logo rIds
-      const idx       = imageRefs.length
-      const rId       = `rId${100 + idx}`
-      const ext       = fetched.type === 'jpeg' ? 'jpg' : fetched.type
-      const mediaPath = `word/media/simg${idx}.${ext}`
-      imageRefs.push({ rId, data: fetched.data, type: fetched.type, mediaPath })
+      if (fetched.length === 1) {
+        // Single image — full width, centered
+        const f = fetched[0]
+        const { cx, cy } = calcEmu(f.natW, f.natH, FULL_W_EMU, ROW_H_SOLO)
+        rightContent += emptyP()
+        rightContent += `<w:p><w:pPr>${SP}<w:jc w:val="center"/></w:pPr>${drawingXml(f.rId, cx, cy, f.imgId, f.imgName)}</w:p>`
+      } else if (fetched.length > 1) {
+        // 2. Decide columns: portrait-dominant → 3 cols, landscape-dominant → 2 cols
+        const cols   = layoutCols(fetched)
+        const maxH   = cols === 3 ? ROW_H_3COL : ROW_H_2COL
+        const cellW  = Math.floor(COL_W_DXA / cols)
+        const maxW   = cellW * DXA_TO_EMU
 
-      const imgId       = 100 + idx
-      const { cx, cy }  = calcEmu(fetched.natW, fetched.natH, images.length)
-      const imgName     = `Image_${s.key}_${i}`
+        // 3. Build a nested invisible table grid
+        const gridCols = Array.from({ length: cols }, () => `<w:gridCol w:w="${cellW}"/>`).join('')
+        const rows = []
+        for (let i = 0; i < fetched.length; i += cols) {
+          const chunk = fetched.slice(i, i + cols)
+          const cells = chunk.map(f => {
+            const { cx, cy } = calcEmu(f.natW, f.natH, maxW, maxH)
+            return `<w:tc><w:tcPr><w:tcW w:w="${cellW}" w:type="dxa"/>${NO_CELL_BORDERS}</w:tcPr>
+              <w:p><w:pPr>${SP}<w:jc w:val="center"/></w:pPr>${drawingXml(f.rId, cx, cy, f.imgId, f.imgName)}</w:p></w:tc>`
+          })
+          // Pad incomplete last row with empty cells
+          while (cells.length < cols) {
+            cells.push(`<w:tc><w:tcPr><w:tcW w:w="${cellW}" w:type="dxa"/>${NO_CELL_BORDERS}</w:tcPr>${emptyP()}</w:tc>`)
+          }
+          rows.push(`<w:tr>${cells.join('')}</w:tr>`)
+        }
 
-      rightContent += emptyP()
-      rightContent += `<w:p><w:pPr>${SP}<w:jc w:val="center"/></w:pPr>${drawingXml(rId, cx, cy, imgId, imgName)}</w:p>`
+        rightContent += emptyP()
+        rightContent += `<w:tbl>
+          <w:tblPr><w:tblW w:w="${COL_W_DXA}" w:type="dxa"/><w:tblLayout w:type="fixed"/>${NO_BORDERS}</w:tblPr>
+          <w:tblGrid>${gridCols}</w:tblGrid>
+          ${rows.join('\n')}
+        </w:tbl>`
+      }
     }
 
     rightContent += emptyP()
