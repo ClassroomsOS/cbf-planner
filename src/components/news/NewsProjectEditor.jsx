@@ -77,7 +77,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
   const [activeStep, setActiveStep] = useState('identify')
   const [principlesExpanded, setPrinciplesExpanded] = useState(false)
   const [tagInput, setTagInput] = useState({ grammar: '', vocabulary: '', units: '' })
-  const [newActividad, setNewActividad] = useState({ nombre: '', descripcion: '', porcentaje: '', fecha: '' })
+  const [newActividad, setNewActividad] = useState({ nombre: '', descripcion: '', porcentaje: '', fecha: '', categoria: 'cognitiva' })
   const [holidays, setHolidays] = useState({}) // { 'YYYY-MM-DD': { name } }
 
   // ── Load school calendar holidays ──
@@ -363,9 +363,10 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
         descripcion: newActividad.descripcion.trim(),
         porcentaje:  Number(newActividad.porcentaje) || 0,
         fecha:       newActividad.fecha || null,
+        categoria:   newActividad.categoria || 'cognitiva',
       }
     ])
-    setNewActividad({ nombre: '', descripcion: '', porcentaje: '', fecha: '' })
+    setNewActividad({ nombre: '', descripcion: '', porcentaje: '', fecha: '', categoria: 'cognitiva' })
   }
 
   const removeActividad = (idx) => {
@@ -1494,6 +1495,18 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
                         placeholder="20"
                         style={{ ...styles.input, textAlign: 'center' }}
                       />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 120 }}>
+                      <label style={{ fontSize: 11, fontWeight: 600, color: '#666' }}>Categoría</label>
+                      <select
+                        value={newActividad.categoria || 'cognitiva'}
+                        onChange={e => setNewActividad(p => ({ ...p, categoria: e.target.value }))}
+                        style={{ ...styles.input, padding: '8px 6px' }}
+                      >
+                        <option value="cognitiva">📝 Cognitiva</option>
+                        <option value="digital">💻 Digital</option>
+                        <option value="axiologica">✝️ Axiológica</option>
+                      </select>
                     </div>
                     <button
                       onClick={addActividad}
