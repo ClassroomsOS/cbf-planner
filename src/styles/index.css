@@ -3616,40 +3616,62 @@ input:not(:placeholder-shown):not(:focus):not([type=password]):valid {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════════
-   MÓDULO DE CALIFICACIÓN EN VIVO — .grading-*, .gs-*, .gd-*, .gh-*
+   MÓDULO DE CALIFICACIÓN EN VIVO — .gh-*, .gs-*, .gd-*, .ghi-*
    ═══════════════════════════════════════════════════════════════════════════════ */
 
-/* ── GradingHubPage ─────────────────────────────────────────────────────────── */
-.grading-hub { max-width: 700px; margin: 0 auto; padding: 24px 16px; }
-.grading-hub-header { margin-bottom: 24px; }
-.grading-hub-header h2 { font-size: 22px; font-weight: 700; color: #1e293b; margin: 0 0 4px; }
-.grading-hub-subtitle { color: #64748b; font-size: 14px; }
-.grading-hub-section { margin-bottom: 28px; }
-.grading-hub-section-title { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: #15803D; margin-bottom: 10px; }
-.grading-hub-section-title.other { color: #64748b; }
-.grading-hub-card {
-  display: flex; align-items: center; gap: 14px;
+/* ── GradingHubPage (.gh-*) ─────────────────────────────────────────────────── */
+.gh-page { max-width: 700px; margin: 0 auto; padding: 24px 16px; }
+.gh-header { margin-bottom: 20px; }
+.gh-header h2 { font-size: 22px; font-weight: 700; color: #1e293b; margin: 0 0 4px; }
+.gh-header p { color: #64748b; font-size: 14px; margin: 0; }
+.gh-max-score { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+.gh-max-score label { font-size: 13px; font-weight: 500; color: #475569; }
+.gh-max-btns { display: flex; gap: 4px; }
+.gh-max-btn {
+  padding: 6px 12px; border: 1px solid #e2e8f0; border-radius: 8px;
+  background: #fff; font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: all .12s;
+}
+.gh-max-btn.active { background: #15803D; color: #fff; border-color: #15803D; }
+.gh-section { margin-bottom: 24px; }
+.gh-section-title { font-size: 14px; font-weight: 600; color: #15803D; margin-bottom: 10px; }
+.gh-card {
+  display: flex; flex-direction: column; gap: 8px;
   padding: 14px 16px; background: #fff; border: 1px solid #e2e8f0;
-  border-radius: 12px; margin-bottom: 8px; cursor: pointer;
+  border-radius: 12px; margin-bottom: 10px;
   transition: all .15s ease;
 }
-.grading-hub-card:hover { border-color: #15803D; box-shadow: 0 2px 8px #15803D18; }
-.grading-hub-card-icon { font-size: 28px; flex-shrink: 0; }
-.grading-hub-card-info { flex: 1; min-width: 0; }
-.grading-hub-card-name { font-weight: 600; font-size: 15px; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.grading-hub-card-meta { font-size: 12px; color: #64748b; margin-top: 2px; }
-.grading-hub-card-badge { font-size: 11px; padding: 3px 8px; border-radius: 99px; font-weight: 600; white-space: nowrap; }
-.grading-hub-loading, .grading-hub-empty {
-  text-align: center; padding: 60px 20px; color: #94a3b8; font-size: 15px;
+.gh-card:hover { box-shadow: 0 2px 8px #15803D18; }
+.gh-card-header { display: flex; align-items: center; gap: 10px; }
+.gh-card-icon { font-size: 24px; flex-shrink: 0; }
+.gh-card-info { flex: 1; min-width: 0; }
+.gh-card-info strong { font-size: 15px; color: #1e293b; display: block; }
+.gh-card-desc { font-size: 12px; color: #64748b; display: block; margin-top: 1px; }
+.gh-card-pct {
+  font-size: 12px; font-weight: 700; color: #15803D;
+  background: #f0fdf4; padding: 2px 8px; border-radius: 99px;
 }
-.grading-hub-bottom-links { display: flex; gap: 12px; margin-top: 16px; }
-.grading-hub-link {
-  flex: 1; text-align: center; padding: 12px; background: #f8fafc;
-  border: 1px solid #e2e8f0; border-radius: 10px; color: #1e293b;
-  text-decoration: none; font-size: 14px; font-weight: 500;
-  transition: all .15s ease;
+.gh-card-meta { display: flex; gap: 6px; font-size: 12px; color: #64748b; flex-wrap: wrap; }
+.gh-card-project { font-size: 12px; color: #475569; }
+.gh-start-btn {
+  align-self: flex-start; padding: 8px 16px; border: none; border-radius: 8px;
+  background: #15803D; color: #fff; font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: all .12s;
 }
-.grading-hub-link:hover { background: #f1f5f9; border-color: #cbd5e1; }
+.gh-start-btn:hover { background: #166534; }
+.gh-start-btn:disabled { opacity: .5; cursor: not-allowed; }
+.gh-empty-today {
+  padding: 16px; background: #fefce8; border: 1px solid #fde68a;
+  border-radius: 10px; color: #92400e; font-size: 14px; margin-bottom: 16px;
+}
+.gh-loading, .gh-empty { text-align: center; padding: 60px 20px; color: #94a3b8; font-size: 15px; }
+.gh-history-link {
+  display: block; width: 100%; margin-top: 16px; padding: 12px;
+  background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px;
+  color: #1e293b; font-size: 14px; font-weight: 500; cursor: pointer;
+  text-align: center; transition: all .15s;
+}
+.gh-history-link:hover { background: #f1f5f9; border-color: #cbd5e1; }
 
 /* ── GradingSessionPage ─────────────────────────────────────────────────────── */
 .gs-page { max-width: 600px; margin: 0 auto; padding: 16px 12px; }
@@ -3773,32 +3795,32 @@ input:not(:placeholder-shown):not(:focus):not([type=password]):valid {
 .gd-stats { display: flex; justify-content: space-between; font-size: 14px; color: #94a3b8; }
 .gd-avg { font-weight: 600; }
 
-/* ── GradingHistoryPage ─────────────────────────────────────────────────────── */
-.gh-page { max-width: 960px; margin: 0 auto; padding: 24px 16px; }
-.gh-header { margin-bottom: 20px; }
-.gh-header h2 { font-size: 22px; font-weight: 700; color: #1e293b; margin: 0 0 4px; }
-.gh-subtitle { color: #64748b; font-size: 14px; }
-.gh-selector { margin-bottom: 20px; }
-.gh-selector select {
+/* ── GradingHistoryPage (.ghi-*) ────────────────────────────────────────────── */
+.ghi-page { max-width: 960px; margin: 0 auto; padding: 24px 16px; }
+.ghi-header { margin-bottom: 20px; }
+.ghi-header h2 { font-size: 22px; font-weight: 700; color: #1e293b; margin: 0 0 4px; }
+.ghi-subtitle { color: #64748b; font-size: 14px; }
+.ghi-selector { margin-bottom: 20px; }
+.ghi-selector select {
   width: 100%; padding: 10px 14px; font-size: 14px; border: 1px solid #e2e8f0;
   border-radius: 10px; background: #fff; color: #1e293b;
 }
-.gh-table-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid #e2e8f0; }
-.gh-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.gh-table thead { background: #f8fafc; }
-.gh-table th { padding: 10px 12px; text-align: center; font-weight: 600; color: #475569; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
-.gh-th-student { text-align: left; min-width: 160px; position: sticky; left: 0; background: #f8fafc; z-index: 1; }
-.gh-th-act { min-width: 90px; }
-.gh-act-name { font-size: 12px; }
-.gh-act-pct { font-size: 10px; color: #94a3b8; font-weight: 400; }
-.gh-th-avg { min-width: 90px; color: #1e293b; }
-.gh-table td { padding: 8px 12px; text-align: center; border-bottom: 1px solid #f1f5f9; }
-.gh-td-student { text-align: left; font-weight: 500; color: #1e293b; position: sticky; left: 0; background: #fff; z-index: 1; white-space: nowrap; }
-.gh-td-grade { font-weight: 500; }
-.gh-td-avg { font-weight: 700; }
-.gh-footer-row { background: #f8fafc; }
-.gh-footer-row .gh-td-student { background: #f8fafc; }
-.gh-loading, .gh-empty { text-align: center; padding: 60px 20px; color: #94a3b8; font-size: 15px; }
+.ghi-table-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid #e2e8f0; }
+.ghi-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.ghi-table thead { background: #f8fafc; }
+.ghi-table th { padding: 10px 12px; text-align: center; font-weight: 600; color: #475569; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
+.ghi-th-student { text-align: left; min-width: 160px; position: sticky; left: 0; background: #f8fafc; z-index: 1; }
+.ghi-th-act { min-width: 90px; }
+.ghi-act-name { font-size: 12px; }
+.ghi-act-pct { font-size: 10px; color: #94a3b8; font-weight: 400; }
+.ghi-th-avg { min-width: 90px; color: #1e293b; }
+.ghi-table td { padding: 8px 12px; text-align: center; border-bottom: 1px solid #f1f5f9; }
+.ghi-td-student { text-align: left; font-weight: 500; color: #1e293b; position: sticky; left: 0; background: #fff; z-index: 1; white-space: nowrap; }
+.ghi-td-grade { font-weight: 500; }
+.ghi-td-avg { font-weight: 700; }
+.ghi-footer-row { background: #f8fafc; }
+.ghi-footer-row .ghi-td-student { background: #f8fafc; }
+.ghi-loading, .ghi-empty { text-align: center; padding: 60px 20px; color: #94a3b8; font-size: 15px; }
 
 /* ── Responsive: grading mobile ─────────────────────────────────────────────── */
 @media (max-width: 640px) {
@@ -3810,5 +3832,5 @@ input:not(:placeholder-shown):not(:focus):not([type=password]):valid {
   .gd-title { font-size: 20px; }
   .gd-card-number { font-size: 28px; }
   .gd-page { padding: 16px; }
-  .grading-hub { padding: 16px 12px; }
+  .gh-page { padding: 16px 12px; }
 }

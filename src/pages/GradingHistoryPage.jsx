@@ -93,17 +93,17 @@ export default function GradingHistoryPage({ teacher }) {
     return relevant.reduce((s, g) => s + Number(g.colombian_grade), 0) / relevant.length
   }
 
-  if (loading) return <div className="gh-loading">Cargando...</div>
+  if (loading) return <div className="ghi-loading">Cargando...</div>
 
   return (
-    <div className="gh-page">
-      <div className="gh-header">
+    <div className="ghi-page">
+      <div className="ghi-header">
         <h2>📊 Historial de Calificaciones</h2>
-        <p className="gh-subtitle">Selecciona un proyecto NEWS para ver las notas por actividad</p>
+        <p className="ghi-subtitle">Selecciona un proyecto NEWS para ver las notas por actividad</p>
       </div>
 
       {/* Project selector */}
-      <div className="gh-selector">
+      <div className="ghi-selector">
         <select
           value={selectedProject?.id || ''}
           onChange={e => {
@@ -121,18 +121,18 @@ export default function GradingHistoryPage({ teacher }) {
       </div>
 
       {selectedProject && activities.length > 0 && (
-        <div className="gh-table-wrap">
-          <table className="gh-table">
+        <div className="ghi-table-wrap">
+          <table className="ghi-table">
             <thead>
               <tr>
-                <th className="gh-th-student">Estudiante</th>
+                <th className="ghi-th-student">Estudiante</th>
                 {activities.map(act => (
-                  <th key={act.id} className="gh-th-act">
-                    <div className="gh-act-name">{act.nombre}</div>
-                    <div className="gh-act-pct">{act.porcentaje}%</div>
+                  <th key={act.id} className="ghi-th-act">
+                    <div className="ghi-act-name">{act.nombre}</div>
+                    <div className="ghi-act-pct">{act.porcentaje}%</div>
                   </th>
                 ))}
-                <th className="gh-th-avg">Promedio</th>
+                <th className="ghi-th-avg">Promedio</th>
               </tr>
             </thead>
             <tbody>
@@ -141,18 +141,18 @@ export default function GradingHistoryPage({ teacher }) {
                 const level = avg != null ? gradeLevel(avg) : null
                 return (
                   <tr key={s.id}>
-                    <td className="gh-td-student">{displayName(s)}</td>
+                    <td className="ghi-td-student">{displayName(s)}</td>
                     {activities.map(act => {
                       const g = gradeMap[s.id]?.[act.id]
                       const val = g?.colombian_grade != null ? Number(g.colombian_grade) : null
                       const lv = val != null ? gradeLevel(val) : null
                       return (
-                        <td key={act.id} className="gh-td-grade" style={lv ? { color: lv.color } : undefined}>
+                        <td key={act.id} className="ghi-td-grade" style={lv ? { color: lv.color } : undefined}>
                           {val != null ? val.toFixed(1) : '—'}
                         </td>
                       )
                     })}
-                    <td className="gh-td-avg" style={level ? { color: level.color, fontWeight: 700 } : undefined}>
+                    <td className="ghi-td-avg" style={level ? { color: level.color, fontWeight: 700 } : undefined}>
                       {avg != null ? (
                         <>{avg.toFixed(1)} {level?.icon}</>
                       ) : '—'}
@@ -162,18 +162,18 @@ export default function GradingHistoryPage({ teacher }) {
               })}
             </tbody>
             <tfoot>
-              <tr className="gh-footer-row">
-                <td className="gh-td-student"><strong>Promedio grupo</strong></td>
+              <tr className="ghi-footer-row">
+                <td className="ghi-td-student"><strong>Promedio grupo</strong></td>
                 {activities.map(act => {
                   const avg = activityAvg(act.id)
                   const lv = avg != null ? gradeLevel(avg) : null
                   return (
-                    <td key={act.id} className="gh-td-grade" style={lv ? { color: lv.color, fontWeight: 600 } : undefined}>
+                    <td key={act.id} className="ghi-td-grade" style={lv ? { color: lv.color, fontWeight: 600 } : undefined}>
                       {avg != null ? avg.toFixed(1) : '—'}
                     </td>
                   )
                 })}
-                <td className="gh-td-avg">
+                <td className="ghi-td-avg">
                   {(() => {
                     const allAvgs = students.map(s => weightedAvg(s.id)).filter(a => a != null)
                     if (!allAvgs.length) return '—'
@@ -189,11 +189,11 @@ export default function GradingHistoryPage({ teacher }) {
       )}
 
       {selectedProject && activities.length === 0 && (
-        <div className="gh-empty">Este proyecto no tiene actividades evaluativas configuradas.</div>
+        <div className="ghi-empty">Este proyecto no tiene actividades evaluativas configuradas.</div>
       )}
 
       {!selectedProject && projects.length === 0 && (
-        <div className="gh-empty">No tienes proyectos NEWS con actividades evaluativas.</div>
+        <div className="ghi-empty">No tienes proyectos NEWS con actividades evaluativas.</div>
       )}
     </div>
   )
