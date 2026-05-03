@@ -1046,7 +1046,11 @@ function RoleAndLevelEditor({ teacher, admin }) {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 10 }}>
         <div className="ge-field">
           <label>Rol</label>
-          <select value={role} onChange={e => setRole(e.target.value)}>
+          <select value={role} onChange={e => {
+            const newRole = e.target.value
+            setRole(newRole)
+            if (newRole === 'rector' || newRole === 'superadmin') setLevel('')
+          }}>
             {ALL_ROLES.map(r => (
               <option key={r.value} value={r.value}
                 disabled={!canChangeRole(admin.role, r.value)}>
@@ -1057,12 +1061,19 @@ function RoleAndLevelEditor({ teacher, admin }) {
         </div>
         <div className="ge-field">
           <label>Nivel <span style={{ color: '#999', fontWeight: 400 }}>(opcional)</span></label>
-          <select value={level} onChange={e => setLevel(e.target.value)}>
+          <select value={level} onChange={e => setLevel(e.target.value)}
+            disabled={role === 'rector' || role === 'superadmin'}
+            style={(role === 'rector' || role === 'superadmin') ? { background: '#f5f5f5', color: '#999' } : {}}>
             <option value="">— Sin asignar —</option>
             <option value="elementary">Primaria</option>
             <option value="middle">Bachillerato Básico</option>
             <option value="high">Bachillerato Superior</option>
           </select>
+          {(role === 'rector' || role === 'superadmin') && (
+            <span style={{ fontSize: '10px', color: '#9CA3AF', marginTop: 2, display: 'block' }}>
+              Este rol no se asocia a un nivel específico.
+            </span>
+          )}
         </div>
       </div>
       <div className="ge-field" style={{ marginBottom: 10 }}>
