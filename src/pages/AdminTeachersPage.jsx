@@ -1049,7 +1049,7 @@ function RoleAndLevelEditor({ teacher, admin }) {
           <select value={role} onChange={e => setRole(e.target.value)}>
             {ALL_ROLES.map(r => (
               <option key={r.value} value={r.value}
-                disabled={r.value === 'superadmin' && !isSuperAdmin(admin.role)}>
+                disabled={!canChangeRole(admin.role, r.value)}>
                 {r.label}
               </option>
             ))}

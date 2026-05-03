@@ -76,10 +76,13 @@ export const isCoteacherActive = (teacher) => {
 }
 
 /** Can change another teacher's role.
- *  Superadmin: any role. Admin/Rector: any role except superadmin. */
+ *  Superadmin: any role.
+ *  Rector: can assign admin, psicopedagoga, teacher (not superadmin, not rector).
+ *  Admin (Coordinador): can assign psicopedagoga, teacher (not superadmin, rector, or admin). */
 export const canChangeRole = (actorRole, targetNewRole) => {
   if (actorRole === 'superadmin') return true
-  if (actorRole === 'admin' || actorRole === 'rector') return targetNewRole !== 'superadmin'
+  if (actorRole === 'rector') return !['superadmin', 'rector'].includes(targetNewRole)
+  if (actorRole === 'admin') return !['superadmin', 'rector', 'admin'].includes(targetNewRole)
   return false
 }
 
