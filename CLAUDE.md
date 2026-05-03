@@ -176,6 +176,8 @@ school_students       — email UNIQUE(school_id,email) · grade(base) · sectio
 
 — EXAM PLAYER —
 exam_blueprints       — config pedagógica inmutable post-publicación
+                        status(draft|submitted|approved|returned|ready|archived)
+                        submitted_at · approved_at · reviewer_id · archive_url
 exam_sessions         — access_code · status · teacher_id
 exam_instances        — generated_questions JSONB (section_name por pregunta)
                         student_email · student_id FK · student_section · version_label
@@ -184,6 +186,8 @@ exam_responses        — auto_score · ai_score · ai_feedback · ai_confidence
                         requires_human_review · ai_correction_status(not_needed|pending|done)
 exam_results          — instance_id UNIQUE · colombian_grade · total_score · max_score
                         correction_status(pending|partial|complete)
+exam_feedback         — blueprint_id · reviewer_id · action(approved|returned|comment) · comments
+                        RLS: supervisor insert, school-wide read
 exam_preflight_log · exam_offline_queue · exam_ai_queue
 
 — MÓDULO PSICOSOCIAL —
@@ -277,9 +281,10 @@ Helpers → `src/utils/roles.js`: `canManage · isSuperAdmin · isRector · canA
 /schedule      SchedulePage  /calendar  CalendarPage
 
 // SOLO ADMIN
-/teachers      AdminTeachersPage   /notifications  NotificationsPage
-/curriculum    CurriculumPage      /sala-revision  ReviewRoomPage
-/subjects      SubjectManagerPage  /settings       SettingsPage
+/teachers      AdminTeachersPage   /notifications    NotificationsPage
+/curriculum    CurriculumPage      /sala-revision    ReviewRoomPage
+/subjects      SubjectManagerPage  /settings         SettingsPage
+/exams/revision ExamRevisionPage
 
 // SOLO SUPERADMIN → /superadmin    SuperAdminPage
 // PÚBLICO (sin auth) → /eval       ExamPlayerV2Page
