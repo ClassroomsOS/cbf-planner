@@ -99,6 +99,7 @@ export const EXAM_PRESETS = {
     hasExtraPoints: false,
     defaultTypes: {
       multiple_choice: 5,
+      true_false: 2,
       short_answer: 3,
       fill_blank: 2,
       biblical_reflection: 1,
