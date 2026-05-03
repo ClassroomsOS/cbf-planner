@@ -6,6 +6,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { useToast } from '../context/ToastContext'
 import { seededShuffle } from '../utils/examUtils'
+import { printExamHtml, buildExamHtml } from '../utils/exportExamHtml'
 
 const TYPE_LABELS = {
   multiple_choice: 'Opción múltiple', true_false: 'V / F',
@@ -34,6 +35,9 @@ export default function ExamViewPage({ teacher }) {
   const [editingId, setEditingId]      = useState(null)
   const [editForm, setEditForm]        = useState({})
   const [saving, setSaving]            = useState(false)
+  const [printing, setPrinting]        = useState(false)
+  const [archiving, setArchiving]      = useState(false)
+  const [archived, setArchived]        = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -128,6 +132,74 @@ export default function ExamViewPage({ teacher }) {
     setQuestions(prev => prev.map(p => (p.id === q.id || p.position === q.position) ? { ...p, ...updates } : p))
     setEditingId(null)
     showToast('Pregunta guardada', 'success')
+  }
+
+  async function handlePrint() {
+    setPrinting(true)
+    try {
+      const school = teacher?.schools || teacher?.school || {}
+      await printExamHtml({
+        assessment: exam,
+        questions,
+        school,
+        teacherName: teacher?.full_name || '',
+      })
+    } catch (err) {
+      showToast('Error al imprimir: ' + err.message, 'error')
+    } finally {
+      setPrinting(false)
+    }
+  }
+
+  async function handleArchive() {
+    setArchiving(true)
+    try {
+      const school = teacher?.schools || teacher?.school || {}
+      // Inline logo
+      let logoBase64 = ''
+      if (school?.logo_url) {
+        try {
+          const res = await fetch(school.logo_url)
+          if (res.ok) {
+            const blob = await res.blob()
+            logoBase64 = await new Promise(r => {
+              const reader = new FileReader()
+              reader.onloadend = () => r(reader.result)
+              reader.onerror = () => r('')
+              reader.readAsDataURL(blob)
+            })
+          }
+        } catch { /* keep empty */ }
+      }
+
+      const html = buildExamHtml({
+        assessment: exam,
+        questions,
+        logoBase64,
+        school,
+        teacherName: teacher?.full_name || '',
+      })
+
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+      const safeTitle = (exam.title || 'Examen').replace(/[^\w\s-]/g, '').trim().slice(0, 40).replace(/\s+/g, '_')
+      const filePath = `archives/${teacher.school_id}/exams/${exam.id}/${safeTitle}_${timestamp}.html`
+
+      const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
+      const { error: upErr } = await supabase.storage
+        .from('guide-images')
+        .upload(filePath, blob, { contentType: 'text/html', upsert: false })
+
+      if (upErr) {
+        showToast('Error al archivar: ' + upErr.message, 'error')
+      } else {
+        setArchived(true)
+        showToast('Examen archivado en la biblioteca de documentos', 'success')
+      }
+    } catch (err) {
+      showToast('Error: ' + err.message, 'error')
+    } finally {
+      setArchiving(false)
+    }
   }
 
   const totalPts = questions.reduce((s, q) => s + parseFloat(q.points || 0), 0)
@@ -354,19 +426,42 @@ export default function ExamViewPage({ teacher }) {
         )
       })}
 
-      {/* ── Footer summary ────────────────────────────────────────────── */}
+      {/* ── Footer — acciones ─────────────────────────────────────────── */}
       <div style={{
-        marginTop: 24, padding: '16px 20px', background: '#F8FAFC', borderRadius: 12,
-        border: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12,
+        marginTop: 24, padding: '20px', background: '#F8FAFC', borderRadius: 12,
+        border: '1px solid #E2E8F0', display: 'flex', flexDirection: 'column', gap: 14,
       }}>
-        <span style={{ fontSize: 13, color: '#6B7280' }}>
-          {totalPts.toFixed(1)} pts totales · {questions.length} preguntas
-          ({academicQs.length} académicas + {biblicalQs.length} bíblicas)
-        </span>
-        <button type="button" onClick={() => navigate('/exams')}
-          style={{ padding: '8px 20px', borderRadius: 8, background: '#1F3864', color: '#fff', border: 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-          ← Volver
-        </button>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+          <span style={{ fontSize: 13, color: '#6B7280' }}>
+            {totalPts.toFixed(1)} pts totales · {questions.length} preguntas
+            ({academicQs.length} académicas + {biblicalQs.length} bíblicas)
+          </span>
+          <button type="button" onClick={() => navigate('/exams')}
+            style={{ padding: '8px 20px', borderRadius: 8, background: '#E2E8F0', color: '#374151', border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+            ← Volver a exámenes
+          </button>
+        </div>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <button type="button" onClick={handlePrint} disabled={printing}
+            style={{
+              flex: 1, minWidth: 200, padding: '12px 20px', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: printing ? 'default' : 'pointer',
+              background: 'linear-gradient(135deg, #DC2626, #991B1B)', color: '#fff', border: 'none', opacity: printing ? 0.7 : 1,
+            }}>
+            {printing ? '⏳ Preparando…' : '🖨️ Imprimir / Guardar PDF'}
+          </button>
+          <button type="button" onClick={handleArchive} disabled={archiving || archived}
+            style={{
+              flex: 1, minWidth: 200, padding: '12px 20px', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: (archiving || archived) ? 'default' : 'pointer',
+              background: archived ? '#ECFDF5' : 'linear-gradient(135deg, #1F3864, #2E5598)', color: archived ? '#065F46' : '#fff',
+              border: archived ? '1.5px solid #A7F3D0' : 'none', opacity: archiving ? 0.7 : 1,
+            }}>
+            {archiving ? '⏳ Archivando…' : archived ? '✓ Archivado en biblioteca' : '📁 Archivar en biblioteca'}
+          </button>
+        </div>
+        <p style={{ fontSize: 11, color: '#9CA3AF', margin: 0, lineHeight: 1.5 }}>
+          <strong>Imprimir:</strong> abre el examen en formato institucional CBF-G AC-01 listo para guardar como PDF.
+          <br /><strong>Archivar:</strong> guarda una copia inmutable en la biblioteca del colegio como respaldo ante discrepancias.
+        </p>
       </div>
     </div>
   )
