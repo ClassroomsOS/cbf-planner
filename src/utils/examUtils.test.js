@@ -258,24 +258,40 @@ describe('getExamPreset', () => {
     expect(getExamPreset('quiz', '8.° Blue').key).toBe('quiz')
   })
 
-  it('returns final_lower for final + grade 8', () => {
-    expect(getExamPreset('final', '8.° Blue').key).toBe('final_lower')
+  it('returns final_lower for final + grade 8 Language Arts', () => {
+    expect(getExamPreset('final', '8.° Blue', 'Language Arts').key).toBe('final_lower')
   })
 
   it('returns final_lower for final + grade 1', () => {
     expect(getExamPreset('final', '1.°').key).toBe('final_lower')
   })
 
-  it('returns final_upper for final + grade 9', () => {
-    expect(getExamPreset('final', '9.° Green').key).toBe('final_upper')
+  it('returns final_upper for final + grade 9 Language Arts', () => {
+    expect(getExamPreset('final', '9.° Green', 'Language Arts').key).toBe('final_upper')
   })
 
-  it('returns final_upper for final + grade 11', () => {
-    expect(getExamPreset('final', '11.° Red').key).toBe('final_upper')
+  it('returns final_upper for final + grade 11 Lingua Skill', () => {
+    expect(getExamPreset('final', '11.° Red', 'Lingua Skill').key).toBe('final_upper')
+  })
+
+  it('returns final_lower for final + grade 9 Science (non-upper subject)', () => {
+    expect(getExamPreset('final', '9.° Green', 'Science').key).toBe('final_lower')
+  })
+
+  it('returns final_lower for final + grade 10 Social Studies (non-upper subject)', () => {
+    expect(getExamPreset('final', '10.° Red', 'Social Studies').key).toBe('final_lower')
+  })
+
+  it('returns final_lower for final + grade 9 Matemáticas (non-upper subject)', () => {
+    expect(getExamPreset('final', '9.°', 'Matemáticas').key).toBe('final_lower')
   })
 
   it('returns final_lower when grade is null (safe fallback)', () => {
     expect(getExamPreset('final', null).key).toBe('final_lower')
+  })
+
+  it('returns final_lower when subject is undefined (safe fallback)', () => {
+    expect(getExamPreset('final', '10.° Blue').key).toBe('final_lower')
   })
 })
 

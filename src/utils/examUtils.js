@@ -95,14 +95,13 @@ export const EXAM_PRESETS = {
     icon: '📝',
     description: '12–15 preguntas · Evaluación parcial de temas específicos',
     totalRange: [12, 15],
-    biblicalMin: 3,
+    biblicalMin: 1,
     hasExtraPoints: false,
     defaultTypes: {
       multiple_choice: 5,
       short_answer: 3,
       fill_blank: 2,
-      biblical_reflection: 2,
-      verse_analysis: 1,
+      biblical_reflection: 1,
     },
   },
   final_lower: {
@@ -165,16 +164,22 @@ export function extractGradeNumber(gradeStr) {
   return m ? parseInt(m[1], 10) : null
 }
 
+// Materias que usan el formato upper (35+5+components) en grados 9°+
+const UPPER_EXAM_SUBJECTS = ['Language Arts', 'Lingua Skill']
+
 /**
- * Determina el preset de examen correcto según tipo y grado.
+ * Determina el preset de examen correcto según tipo, grado y materia.
+ * final_upper (35 base + 5 EP + components) solo aplica a Language Arts / Lingua Skill en 9°+.
+ * Todas las demás materias usan final_lower (20 base + 5 EP) sin importar el grado.
  * @param {'quiz'|'final'} examType
  * @param {string} gradeStr - ej. "8.° Blue" o "10.°"
+ * @param {string} [subject] - ej. "Language Arts", "Science"
  * @returns {object} preset from EXAM_PRESETS
  */
-export function getExamPreset(examType, gradeStr) {
+export function getExamPreset(examType, gradeStr, subject) {
   if (examType !== 'final') return EXAM_PRESETS.quiz
   const num = extractGradeNumber(gradeStr)
-  if (num && num >= 9) return EXAM_PRESETS.final_upper
+  if (num && num >= 9 && UPPER_EXAM_SUBJECTS.includes(subject)) return EXAM_PRESETS.final_upper
   return EXAM_PRESETS.final_lower
 }
 

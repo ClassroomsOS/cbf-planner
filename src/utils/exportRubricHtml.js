@@ -4,6 +4,10 @@
  * Opens in a new tab — teacher clicks cells to score, auto-calculates grade.
  */
 
+function esc(s) {
+  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
 const SKILL_ICONS = {
   speaking:  '🎤',
   listening: '🎧',
@@ -30,6 +34,10 @@ function buildRubricHtml(project, principles, school) {
   const totalMax   = rubric.length * 5
   const schoolName = school?.name || 'Boston Flex Bilingual School'
   const logoUrl    = school?.logo_url || ''
+  const schoolDane = school?.dane || '308001800455'
+  const schoolResol = school?.resolution || '09685 DE 2019'
+  const schoolVersion = school?.doc_version || school?.plan_version || '02 — 2022'
+  const schoolCodigo = school?.document_code || 'CBF - G AC - 01'
   const yearVerse  = principles?.yearVerse || ''
   const yearVerseRef = principles?.yearVerseRef || ''
   const dueFmt     = due_date ? new Date(due_date + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' }) : ''
@@ -219,6 +227,9 @@ function buildRubricHtml(project, principles, school) {
     html, body { background: white !important; padding: 0 !important; margin: 0 !important; }
     .page { max-width: 100% !important; padding: 0 !important; }
     .actions, .score-panel, .scale-bar, .legend, .verse-banner { display: none !important; }
+    .inst-header { margin-bottom: 4px !important; page-break-inside: avoid; }
+    .inst-header td { font-size: 9px !important; padding: 4px 6px !important; }
+    .inst-header img { max-height: 50px !important; max-width: 60px !important; }
     .header { border-radius: 8px !important; margin-bottom: 5px !important; box-shadow: none !important; page-break-inside: avoid; }
     .header::before { display: none !important; }
     .header-bar { height: 3px !important; }
@@ -297,6 +308,46 @@ function buildRubricHtml(project, principles, school) {
 <body>
 <div class="page">
 
+  <!-- Encabezado institucional CBF-G AC-01 -->
+  <table class="inst-header" style="width:100%;border-collapse:collapse;border:1px solid #000;font-family:Arial,sans-serif;margin-bottom:12px">
+    <colgroup>
+      <col style="width:15.3%">
+      <col style="width:61%">
+      <col style="width:23.7%">
+    </colgroup>
+    <tbody>
+      <tr>
+        <td rowspan="3" style="border:1px solid #000;padding:6px;text-align:center;vertical-align:middle">
+          ${logoUrl
+            ? `<img src="${logoUrl}" style="max-height:70px;max-width:90px;width:auto;height:auto;object-fit:contain">`
+            : '<div style="color:#aaa;font-size:10px">LOGO</div>'
+          }
+        </td>
+        <td style="border:1px solid #000;padding:6px 10px;text-align:center;vertical-align:middle;background:#DBE5F1">
+          <div style="font-weight:700;font-size:15px">${esc(schoolName)}</div>
+          <div style="font-size:10px;margin-top:3px">DANE: ${esc(schoolDane)} - RESOLUCIÓN ${esc(schoolResol)}</div>
+        </td>
+        <td style="border:1px solid #000;padding:6px;text-align:center;vertical-align:middle">
+          <div style="font-weight:700;font-size:10px">CÓD: ${esc(schoolCodigo)}</div>
+        </td>
+      </tr>
+      <tr>
+        <td rowspan="2" style="border:1px solid #000;padding:6px 10px;text-align:center;vertical-align:middle">
+          <div style="font-weight:700;font-size:10px"><u>PROCESO</u>: GESTIÓN ACADÉMICA Y CURRICULAR</div>
+          <div style="font-weight:700;font-size:10px;margin-top:3px">Rúbrica de Evaluación</div>
+        </td>
+        <td style="border:1px solid #000;padding:5px 6px;text-align:center;vertical-align:middle">
+          <div style="font-size:10px"><strong>Versión</strong> ${esc(schoolVersion)}</div>
+        </td>
+      </tr>
+      <tr>
+        <td style="border:1px solid #000;padding:5px 6px;text-align:center;vertical-align:middle">
+          <div style="font-size:10px">Página <span class="cbf-page-num"></span></div>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
   <!-- HEADER -->
   <div class="header">
     <div class="header-bar"></div>
@@ -304,7 +355,6 @@ function buildRubricHtml(project, principles, school) {
       ${logoUrl ? `<img src="${logoUrl}" class="header-logo" alt="${schoolName}">` : ''}
       <div style="flex:1;">
         <div class="header-text">
-          <div style="font-size:10px;font-weight:800;color:rgba(245,195,0,0.8);letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;">${schoolName} · 2026</div>
           <h1>${skillIcon} ${title}${skill ? ' — ' + skill.charAt(0).toUpperCase() + skill.slice(1) + ' Rubric' : ' — Rúbrica'}</h1>
           <p class="sub">${subject}${grade ? ' · ' + grade : ''}${section ? ' ' + section : ''}${target_indicador ? ' · ' + target_indicador.slice(0, 80) + (target_indicador.length > 80 ? '…' : '') : ''}</p>
           <p class="meta">${biblical_principle ? '✝️ ' + biblical_principle + (dueFmt ? ' · ' : '') : ''}${dueFmt ? 'Entrega: ' + dueFmt : ''}</p>

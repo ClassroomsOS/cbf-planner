@@ -40,13 +40,16 @@ ${examType === 'final' ? `
 📋 TIPO: EXAMEN FINAL DEL PERÍODO
 - Este es un examen comprehensivo del período completo
 - Las preguntas deben cubrir todos los temas del syllabus de forma equilibrada
-- Las preguntas bíblicas deben apuntar a pensamiento crítico y argumentación, NO memoria
+- NO mostrar versículos bíblicos al inicio del examen — los versículos solo aparecen integrados dentro de las 3 preguntas bíblicas de desarrollo
+- Las 3 preguntas bíblicas obligatorias (biblical_reflection + verse_analysis + principle_application) deben apuntar a pensamiento crítico y argumentación, NO memoria
 - Incluir una pregunta reflexiva como última pregunta
 - Total esperado: ${examPreset?.baseQuestions || ''} preguntas base${examPreset?.hasExtraPoints ? ' + 5 Extra Points de listening' : ''}${examPreset?.requiredComponents ? `\n- Componentes requeridos: ${examPreset.requiredComponents.join(', ')}` : ''}` : `
 📝 TIPO: QUIZ (EVALUACIÓN PARCIAL)
 - Evaluación parcial enfocada en temas específicos recientes
 - Preguntas directas y concisas
-- Las preguntas bíblicas apuntan a aplicación práctica`}
+- NO mostrar versículos bíblicos al inicio del examen
+- Solo incluir 1 pregunta bíblica de tipo biblical_reflection: interpretación/aplicación del principio bíblico del indicador
+- NO incluir verse_analysis ni principle_application en quizzes`}
 ${hasBiblical ? `
 ✝️ PRINCIPIO BÍBLICO (obligatorio en preguntas bíblicas):
 Principio: "${sanitizeAIInput(biblicalContext?.principle || '')}"

@@ -2,7 +2,7 @@
 // /exams — Teacher view: list assessments, create with AI, share access codes.
 // ExamCreatorModal wizard:
 //   Paso 1 — Contexto pedagógico (cascada: grado→materia→período→logro→indicador→principio bíblico)
-//   Paso 2 — Tipos de pregunta (11 tipos, 3 bíblicas obligatorias mínimo)
+//   Paso 2 — Tipos de pregunta (11 tipos, bíblicas según preset: quiz=1, final=3)
 //   Paso 3 — Revisar preguntas generadas
 //   Paso 4 — Publicar
 
@@ -12,7 +12,6 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { useToast } from '../context/ToastContext'
 import { seededShuffle, gradeLevel as _gradeLevel, gradeColor as _gradeColor, GRADE_SCALE } from '../utils/examUtils'
-import { generateExamQuestions } from '../utils/AIAssistant'
 import { printExamHtml } from '../utils/exportExamHtml'
 import { canManage } from '../utils/roles'
 
@@ -126,7 +125,7 @@ export const BIBLICAL_TYPES = [
   { key: 'principle_application', label: 'Aplicar principio',    pts: 4, icon: '🙏', color: '#A0522D', bloom: 'Evaluar',  hint: 'Situación de vida real' },
 ]
 
-export const BIBLICAL_MIN = 3
+// Biblical minimums are defined per preset in examUtils.js EXAM_PRESETS (quiz=1, final=3)
 
 // ── Rigor level metadata ──────────────────────────────────────────────────────
 export const RIGOR_META = {
@@ -204,20 +203,26 @@ function ExamPreviewModal({ exam, onClose }) {
   const [saving,         setSaving]         = useState(false)
 
   useEffect(() => {
-    async function load() {
-      const [{ data: qs }, { data: vs }] = await Promise.all([
-        supabase.from('questions')
-          .select('id, question_type, stem, options, correct_answer, points, position')
-          .eq('assessment_id', exam.id).order('position'),
-        supabase.from('assessment_versions')
-          .select('id, version_number, version_label, is_base, shuffle_questions')
-          .eq('assessment_id', exam.id).order('version_number'),
-      ])
-      setQuestions(qs || [])
-      setVersions(vs?.length ? vs : [{ id: 'base', version_label: 'A', is_base: true, shuffle_questions: false }])
-      setLoading(false)
+    // Read questions from blueprint sections
+    const bp = exam._blueprint
+    if (bp?.sections) {
+      const allQs = (bp.sections || []).flatMap(sec => sec.questions || [])
+        .sort((a, b) => (a.position || 0) - (b.position || 0))
+        .map((q, i) => ({ ...q, id: q.id || `q-${i}` }))
+      setQuestions(allQs)
     }
-    load()
+
+    // Versions from session payload
+    const payload = exam._session?.service_worker_payload || exam.metadata || {}
+    const vc = payload.version_count || 1
+    const VERSION_LABELS = ['A', 'B', 'C', 'D']
+    const vs = Array.from({ length: vc }, (_, i) => ({
+      id: `v-${i}`, version_number: i + 1, version_label: `Versión ${VERSION_LABELS[i]}`,
+      is_base: i === 0,
+      shuffle_questions: i > 0 ? (payload.shuffle_questions ?? true) : false,
+    }))
+    setVersions(vs)
+    setLoading(false)
   }, [exam.id])
 
   // Aplica shuffle de la versión seleccionada para mostrar el orden real
@@ -245,10 +250,23 @@ function ExamPreviewModal({ exam, onClose }) {
       points:         parseFloat(editForm.points) || parseFloat(q.points),
       ...(q.question_type === 'multiple_choice' && { options: editForm.options }),
     }
-    const { error } = await supabase.from('questions').update(updates).eq('id', q.id)
-    setSaving(false)
-    if (error) { showToast('Error: ' + error.message, 'error'); return }
-    setQuestions(prev => prev.map(p => p.id === q.id ? { ...p, ...updates } : p))
+    // Update question in blueprint sections JSONB
+    const bp = exam._blueprint
+    if (bp?.id) {
+      const updatedSections = (bp.sections || []).map(sec => ({
+        ...sec,
+        questions: (sec.questions || []).map(qq =>
+          qq.id === q.id || qq.position === q.position ? { ...qq, ...updates } : qq
+        ),
+      }))
+      const { error } = await supabase.from('exam_blueprints').update({ sections: updatedSections }).eq('id', bp.id)
+      setSaving(false)
+      if (error) { showToast('Error: ' + error.message, 'error'); return }
+      bp.sections = updatedSections
+    } else {
+      setSaving(false)
+    }
+    setQuestions(prev => prev.map(p => (p.id === q.id || p.position === q.position) ? { ...p, ...updates } : p))
     setEditingId(null)
     showToast('Pregunta guardada', 'success')
   }
@@ -470,45 +488,47 @@ function GenerarRosterModal({ exam, teacher, onClose, onDone }) {
     setProgress(0)
 
     try {
-      // 1. Cargar preguntas del examen
-      const { data: questions, error: qErr } = await supabase
-        .from('questions')
-        .select('id, question_type, stem, options, correct_answer, points, position, rigor_level')
-        .eq('assessment_id', exam.id)
-        .order('position')
-      if (qErr) throw new Error('Error al cargar preguntas: ' + qErr.message)
-      if (!questions?.length) throw new Error('Este examen no tiene preguntas.')
+      // 1. Read questions from blueprint sections
+      const bp = exam._blueprint
+      const questions = (bp?.sections || []).flatMap(sec => sec.questions || [])
+        .sort((a, b) => (a.position || 0) - (b.position || 0))
+      if (!questions.length) throw new Error('Este examen no tiene preguntas.')
 
-      // 2. Cargar versiones anti-copia
-      const { data: versions } = await supabase
-        .from('assessment_versions')
-        .select('version_number, version_label, shuffle_questions, shuffle_options')
-        .eq('assessment_id', exam.id)
-        .order('version_number')
-      const versionCount = versions?.length || 1
+      // 2. Version config from session payload
+      const payload = exam._session?.service_worker_payload || exam.metadata || {}
+      const versionCount = payload.version_count || 1
+      const shuffleQ = payload.shuffle_questions ?? true
+      const shuffleO = payload.shuffle_options ?? true
 
-      // 3. Crear exam_session para V2 player
-      const v2Code = Math.random().toString(36).substring(2, 8).toUpperCase()
-      const { data: session, error: sErr } = await supabase
-        .from('exam_sessions')
-        .insert({
-          school_id:        teacher.school_id,
-          teacher_id:       teacher.id,
-          title:            exam.title,
-          subject:          exam.subject,
-          grade:            exam.grade,
-          period:           exam.period || null,
-          access_code:      v2Code,
-          status:           'ready',
-          duration_minutes: exam.time_limit_minutes || null,
-          total_students:   roster.length,
-          service_worker_payload: { assessment_id: exam.id, generated_at: new Date().toISOString() },
-        })
-        .select('id')
-        .single()
-      if (sErr || !session?.id) throw new Error('Error al crear sesión V2: ' + (sErr?.message || 'sin ID'))
+      // 3. Get or create exam_session
+      let sessionId = exam._session?.id
+      let v2Code = exam._session?.access_code
+      if (!sessionId) {
+        v2Code = Math.random().toString(36).substring(2, 8).toUpperCase()
+        const { data: session, error: sErr } = await supabase
+          .from('exam_sessions')
+          .insert({
+            school_id:        teacher.school_id,
+            teacher_id:       teacher.id,
+            blueprint_id:     exam.id,
+            title:            exam.title,
+            subject:          exam.subject,
+            grade:            exam.grade,
+            period:           exam.period || 1,
+            access_code:      v2Code,
+            status:           'active',
+            duration_minutes: exam.time_limit_minutes || 60,
+            total_students:   roster.length,
+          })
+          .select('id')
+          .single()
+        if (sErr || !session?.id) throw new Error('Error al crear sesión: ' + (sErr?.message || 'sin ID'))
+        sessionId = session.id
+      } else {
+        await supabase.from('exam_sessions').update({ status: 'active', total_students: roster.length }).eq('id', sessionId)
+      }
 
-      // 4. Crear exam_instance por estudiante
+      // 4. Create exam_instance per student
       const VERSION_LABELS = ['A', 'B', 'C', 'D']
       let created = 0
       let failed  = 0
@@ -516,12 +536,11 @@ function GenerarRosterModal({ exam, teacher, onClose, onDone }) {
       for (let i = 0; i < roster.length; i++) {
         const student  = roster[i]
         const vIdx     = i % versionCount
-        const vLabel   = versions?.[vIdx]?.version_label || VERSION_LABELS[vIdx] || 'A'
+        const vLabel   = `Versión ${VERSION_LABELS[vIdx] || 'A'}`
         const seed     = (vIdx + 1) * 31337
 
-        // Construir preguntas con shuffle según versión
         let qs = questions.map((q, idx) => ({
-          id:            q.id,
+          id:            q.id || `q-${idx}`,
           stem:          q.stem,
           question_type: q.question_type,
           options:       q.options || null,
@@ -530,14 +549,14 @@ function GenerarRosterModal({ exam, teacher, onClose, onDone }) {
           position:      idx + 1,
           section_name:  q.section_name || '',
           biblical:      false,
-          rigor_level:   q.rigor_level || 'flexible',
+          rigor_level:   q.criteria?.rigor_level || 'flexible',
         }))
-        if (versions?.[vIdx]?.shuffle_questions && vIdx > 0) {
+        if (shuffleQ && vIdx > 0) {
           qs = seededShuffle(qs, seed)
         }
 
         const { error: iErr } = await supabase.from('exam_instances').insert({
-          session_id:          session.id,
+          session_id:          sessionId,
           school_id:           teacher.school_id,
           student_id:          student.id,
           student_code:        student.student_code,
@@ -555,7 +574,7 @@ function GenerarRosterModal({ exam, teacher, onClose, onDone }) {
         setProgress(Math.round(((i + 1) / roster.length) * 100))
       }
 
-      setResult({ created, failed, total: roster.length, v2Code, sessionId: session.id })
+      setResult({ created, failed, total: roster.length, v2Code, sessionId })
       setPhase('done')
       onDone?.()
     } catch (err) {
@@ -699,24 +718,26 @@ function ExamDetailModal({ exam, results, onClose, onStatusChange, teacher }) {
   const baseUrl = window.location.origin + window.location.pathname
 
   useEffect(() => {
-    supabase.from('assessment_versions')
-      .select('id, version_number, version_label, is_base, shuffle_questions, shuffle_options')
-      .eq('assessment_id', exam.id)
-      .order('version_number')
-      .then(({ data }) => setVersions(data || []))
+    // Versions from session payload
+    const payload = exam._session?.service_worker_payload || exam.metadata || {}
+    const vc = payload.version_count || 1
+    const VERSION_LABELS = ['A', 'B', 'C', 'D']
+    setVersions(Array.from({ length: vc }, (_, i) => ({
+      id: `v-${i}`, version_number: i + 1, version_label: `Versión ${VERSION_LABELS[i]}`,
+      is_base: i === 0,
+      shuffle_questions: i > 0 ? (payload.shuffle_questions ?? true) : false,
+      shuffle_options: i > 0 ? (payload.shuffle_options ?? true) : false,
+    })))
   }, [exam.id])
 
   async function handlePrint() {
     setPrinting(true)
     try {
-      const { data: questions, error } = await supabase
-        .from('questions')
-        .select('id, question_type, stem, options, points, position')
-        .eq('assessment_id', exam.id)
-        .order('position')
-      if (error) throw error
+      const bp = exam._blueprint
+      const questions = (bp?.sections || []).flatMap(sec => sec.questions || [])
+        .sort((a, b) => (a.position || 0) - (b.position || 0))
       const school = teacher?.schools || teacher?.school || {}
-      await printExamHtml({ assessment: exam, questions: questions || [], school, teacherName: teacher?.full_name || '' })
+      await printExamHtml({ assessment: exam, questions, school, teacherName: teacher?.full_name || '' })
     } catch (err) {
       showToast('Error al imprimir: ' + err.message, 'error')
     } finally {
@@ -726,10 +747,15 @@ function ExamDetailModal({ exam, results, onClose, onStatusChange, teacher }) {
 
   async function toggleStatus() {
     setChanging(true)
-    const newStatus = exam.status === 'active' ? 'closed' : 'active'
-    const { error } = await supabase.from('assessments').update({ status: newStatus }).eq('id', exam.id)
+    const isActive = exam.status === 'active'
+    const newBpStatus = isActive ? 'archived' : 'ready'
+    const newUiStatus = isActive ? 'closed' : 'active'
+    const { error } = await supabase.from('exam_blueprints').update({ status: newBpStatus }).eq('id', exam.id)
+    if (exam._session?.id) {
+      await supabase.from('exam_sessions').update({ status: isActive ? 'completed' : 'active' }).eq('id', exam._session.id)
+    }
     if (error) { showToast('Error: ' + error.message, 'error') }
-    else { onStatusChange(exam.id, newStatus); showToast(`Examen ${newStatus === 'active' ? 'activado' : 'cerrado'}`, 'success') }
+    else { onStatusChange(exam.id, newUiStatus); showToast(`Examen ${newUiStatus === 'active' ? 'activado' : 'cerrado'}`, 'success') }
     setChanging(false)
   }
 
@@ -962,12 +988,15 @@ function ExamResultsDashboard({ exam, teacher, onClose }) {
     async function load() {
       setLoading(true)
 
-      // 1. Find exam_sessions created by this teacher for this assessment
-      const { data: examSessions } = await supabase
-        .from('exam_sessions')
-        .select('id')
-        .eq('teacher_id', teacher.id)
-        .filter('service_worker_payload->>assessment_id', 'eq', exam.id)
+      // 1. Find exam_sessions for this blueprint
+      const sessionId = exam._session?.id
+      const { data: examSessions } = sessionId
+        ? { data: [{ id: sessionId }] }
+        : await supabase
+          .from('exam_sessions')
+          .select('id')
+          .eq('teacher_id', teacher.id)
+          .eq('blueprint_id', exam.id)
 
       let rows = []
 
@@ -1198,11 +1227,14 @@ function ExamLiveMonitor({ exam, teacher, onClose }) {
     async function init() {
       setLoading(true)
 
-      const { data: examSessions } = await supabase
-        .from('exam_sessions')
-        .select('id')
-        .eq('teacher_id', teacher.id)
-        .filter('service_worker_payload->>assessment_id', 'eq', exam.id)
+      const sessionId = exam._session?.id
+      const { data: examSessions } = sessionId
+        ? { data: [{ id: sessionId }] }
+        : await supabase
+          .from('exam_sessions')
+          .select('id')
+          .eq('teacher_id', teacher.id)
+          .eq('blueprint_id', exam.id)
 
       if (!examSessions?.length) {
         setLoading(false)
@@ -1484,44 +1516,91 @@ export default function ExamDashboardPage({ teacher }) {
 
   const load = useCallback(async () => {
     setLoading(true)
-    const schoolId = teacher.school_id
 
-    const { data: aRows } = await supabase
-      .from('assessments')
-      .select('id, title, subject, grade, period, status, access_code, created_at, time_limit_minutes, created_by')
-      .eq('school_id', schoolId)
-      .eq('created_by', teacher.id)
+    // 1. Read blueprints
+    const { data: bpRows } = await supabase
+      .from('exam_blueprints')
+      .select('id, title, subject, grade, period, status, created_at, estimated_minutes, teacher_id, sections')
+      .eq('school_id', teacher.school_id)
+      .eq('teacher_id', teacher.id)
       .order('created_at', { ascending: false })
-    const examList = aRows || []
+
+    const bpList = bpRows || []
+    const bpIds = bpList.map(b => b.id)
+
+    // 2. Get sessions for these blueprints
+    let sessionsByBp = {}
+    if (bpIds.length) {
+      const { data: sesRows } = await supabase
+        .from('exam_sessions')
+        .select('id, blueprint_id, access_code, status, duration_minutes, service_worker_payload')
+        .in('blueprint_id', bpIds)
+      for (const s of sesRows || []) {
+        if (!sessionsByBp[s.blueprint_id]) sessionsByBp[s.blueprint_id] = []
+        sessionsByBp[s.blueprint_id].push(s)
+      }
+    }
+
+    // 3. Normalize to the format the UI expects
+    const examList = bpList.map(bp => {
+      const sess = sessionsByBp[bp.id]?.[0]
+      return {
+        id: bp.id,
+        title: bp.title,
+        subject: bp.subject,
+        grade: bp.grade,
+        period: bp.period,
+        status: bp.status === 'ready' ? 'active' : bp.status === 'archived' ? 'closed' : bp.status,
+        access_code: sess?.access_code || null,
+        created_at: bp.created_at,
+        time_limit_minutes: bp.estimated_minutes,
+        created_by: bp.teacher_id,
+        metadata: sess?.service_worker_payload || {},
+        _blueprint: bp,
+        _session: sess,
+      }
+    })
     setExams(examList)
 
     if (examList.length === 0) { setLoading(false); return }
-    const ids = examList.map(e => e.id)
 
-    const { data: rRows } = await supabase
-      .from('assessment_results')
-      .select('session_id, assessment_id, final_grade, percentage, status')
-      .in('assessment_id', ids)
-    const rMap = {}
-    for (const r of rRows || []) { ;(rMap[r.assessment_id] = rMap[r.assessment_id] || []).push(r) }
-    setResults(rMap)
-
-    const { data: sRows } = await supabase
-      .from('student_exam_sessions')
-      .select('assessment_id, student_name, status')
-      .in('assessment_id', ids)
+    // 4. Get instance + result stats via exam_sessions
+    const allSessionIds = Object.values(sessionsByBp).flat().map(s => s.id)
     const sMap = {}
-    for (const s of sRows || []) { ;(sMap[s.assessment_id] = sMap[s.assessment_id] || []).push(s) }
-    setSessions(sMap)
+    const rMap = {}
 
-    const { count } = await supabase
-      .from('ai_evaluations')
-      .select('id', { count: 'exact', head: true })
-      .eq('requires_review', true)
-      .in('question_id',
-        (await supabase.from('questions').select('id').in('assessment_id', ids)).data?.map(q => q.id) || []
-      )
-    setPending(count || 0)
+    if (allSessionIds.length) {
+      const { data: instRows } = await supabase
+        .from('exam_instances')
+        .select('session_id, instance_status')
+        .in('session_id', allSessionIds)
+
+      for (const inst of instRows || []) {
+        const bpId = Object.keys(sessionsByBp).find(k => sessionsByBp[k].some(s => s.id === inst.session_id))
+        if (bpId) (sMap[bpId] = sMap[bpId] || []).push({ status: inst.instance_status === 'submitted' ? 'submitted' : 'active' })
+      }
+
+      const { data: resRows } = await supabase
+        .from('exam_results')
+        .select('session_id, colombian_grade')
+        .in('session_id', allSessionIds)
+
+      for (const r of resRows || []) {
+        const bpId = Object.keys(sessionsByBp).find(k => sessionsByBp[k].some(s => s.id === r.session_id))
+        if (bpId) (rMap[bpId] = rMap[bpId] || []).push({ final_grade: r.colombian_grade })
+      }
+
+      // Pending human reviews
+      const { count } = await supabase
+        .from('exam_responses')
+        .select('id', { count: 'exact', head: true })
+        .in('session_id', allSessionIds)
+        .eq('needs_human_review', true)
+      setPending(count || 0)
+    }
+
+    setSessions(sMap)
+    setResults(rMap)
     setLoading(false)
   }, [teacher.id, teacher.school_id])
 

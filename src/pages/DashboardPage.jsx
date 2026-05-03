@@ -121,18 +121,16 @@ function DashboardInner({ session, teacher, setTeacher }) {
 
   async function fetchPendingAIReview() {
     try {
-      const { data: qRows } = await supabase
-        .from('questions')
+      const { data: sesRows } = await supabase
+        .from('exam_sessions')
         .select('id')
-        .in('assessment_id',
-          (await supabase.from('assessments').select('id').eq('created_by', teacher.id)).data?.map(a => a.id) || []
-        )
-      if (!qRows?.length) { setPendingAIReview(0); return }
+        .eq('teacher_id', teacher.id)
+      if (!sesRows?.length) { setPendingAIReview(0); return }
       const { count } = await supabase
-        .from('ai_evaluations')
+        .from('exam_responses')
         .select('id', { count: 'exact', head: true })
-        .eq('requires_review', true)
-        .in('question_id', qRows.map(q => q.id))
+        .eq('needs_human_review', true)
+        .in('session_id', sesRows.map(s => s.id))
       setPendingAIReview(count || 0)
     } catch { setPendingAIReview(0) }
   }

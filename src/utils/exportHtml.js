@@ -346,25 +346,44 @@ export function buildHtml(content, newsProject) {
   }
 </style>
 
-<!-- Encabezado institucional -->
-<table style="width:100%;border:2px solid #2E5598;border-collapse:collapse;margin-bottom:12px">
-  <tr>
-    <td style="width:120px;border:1px solid #2E5598;padding:8px;text-align:center">
-      ${h.logo_url
-        ? `<img src="${h.logo_url}" style="max-height:80px;max-width:100px;width:auto;height:auto;object-fit:contain">`
-        : '<div style="color:#aaa;font-size:11px">LOGO</div>'
-      }
-    </td>
-    <td style="border:1px solid #2E5598;padding:8px;text-align:center">
-      <div style="font-weight:700;font-size:16px">${esc(h.school)}</div>
-      <div style="font-size:11px;color:#555;margin-top:2px">${esc(h.dane)}</div>
-      <div style="font-size:12px;font-weight:600;color:#2E5598;margin-top:4px">${esc(h.proceso)}</div>
-    </td>
-    <td style="width:150px;border:1px solid #2E5598;padding:8px;text-align:center">
-      <div style="font-weight:700;font-size:12px">${esc(h.codigo)}</div>
-      <div style="font-size:11px;color:#888">${esc(h.version)}</div>
-    </td>
-  </tr>
+<!-- Encabezado institucional CBF-G AC-01 -->
+<table style="width:100%;border-collapse:collapse;border:1px solid #000;font-family:Arial,sans-serif;margin-bottom:12px">
+  <colgroup>
+    <col style="width:15.3%">
+    <col style="width:61%">
+    <col style="width:23.7%">
+  </colgroup>
+  <tbody>
+    <tr>
+      <td rowspan="3" style="border:1px solid #000;padding:6px;text-align:center;vertical-align:middle">
+        ${h.logo_url
+          ? `<img src="${h.logo_url}" style="max-height:70px;max-width:90px;width:auto;height:auto;object-fit:contain">`
+          : '<div style="color:#aaa;font-size:10px">LOGO</div>'
+        }
+      </td>
+      <td style="border:1px solid #000;padding:6px 10px;text-align:center;vertical-align:middle;background:#DBE5F1">
+        <div style="font-weight:700;font-size:15px">${esc(h.school)}</div>
+        <div style="font-size:10px;margin-top:3px">${esc(h.dane)}</div>
+      </td>
+      <td style="border:1px solid #000;padding:6px;text-align:center;vertical-align:middle">
+        <div style="font-weight:700;font-size:10px">CÓD: ${esc(h.codigo || 'CBF - G AC - 01')}</div>
+      </td>
+    </tr>
+    <tr>
+      <td rowspan="2" style="border:1px solid #000;padding:6px 10px;text-align:center;vertical-align:middle">
+        <div style="font-weight:700;font-size:10px"><u>PROCESO</u>: ${esc(h.proceso || 'GESTIÓN ACADÉMICA Y CURRICULAR')}</div>
+        <div style="font-weight:700;font-size:10px;margin-top:3px">Guía de Aprendizaje Autónomo</div>
+      </td>
+      <td style="border:1px solid #000;padding:5px 6px;text-align:center;vertical-align:middle">
+        <div style="font-size:10px"><strong>Versión</strong> ${esc(h.version || '02 — 2022')}</div>
+      </td>
+    </tr>
+    <tr>
+      <td style="border:1px solid #000;padding:5px 6px;text-align:center;vertical-align:middle">
+        <div style="font-size:10px">Página <span class="cbf-page-num"></span></div>
+      </td>
+    </tr>
+  </tbody>
 </table>
 
 <!-- Info -->
@@ -583,25 +602,54 @@ export function buildDayHtml(content, dayKey, newsProject) {
   const body = `
 <div class="cbf-day" style="max-width:900px;margin:0 auto;padding:12px;font-family:Arial,sans-serif">
 
-<!-- Encabezado compacto -->
-<table style="width:100%;border:2px solid #2E5598;border-collapse:collapse;margin-bottom:10px">
+<!-- Encabezado institucional CBF-G AC-01 -->
+<table style="width:100%;border-collapse:collapse;border:1px solid #000;font-family:Arial,sans-serif;margin-bottom:8px">
+  <colgroup>
+    <col style="width:15.3%">
+    <col style="width:61%">
+    <col style="width:23.7%">
+  </colgroup>
+  <tbody>
+    <tr>
+      <td rowspan="3" style="border:1px solid #000;padding:6px;text-align:center;vertical-align:middle">
+        ${h.logo_url
+          ? `<img src="${h.logo_url}" style="max-height:52px;max-width:56px;width:auto;height:auto;object-fit:contain">`
+          : '<div style="color:#aaa;font-size:10px">LOGO</div>'
+        }
+      </td>
+      <td style="border:1px solid #000;padding:5px 10px;text-align:center;vertical-align:middle;background:#DBE5F1">
+        <div style="font-weight:700;font-size:13px">${esc(h.school)}</div>
+        <div style="font-size:9px;margin-top:2px">${esc(h.dane)}</div>
+      </td>
+      <td style="border:1px solid #000;padding:5px;text-align:center;vertical-align:middle">
+        <div style="font-weight:700;font-size:9px">CÓD: ${esc(h.codigo || 'CBF - G AC - 01')}</div>
+      </td>
+    </tr>
+    <tr>
+      <td rowspan="2" style="border:1px solid #000;padding:5px 10px;text-align:center;vertical-align:middle">
+        <div style="font-weight:700;font-size:9px"><u>PROCESO</u>: ${esc(h.proceso || 'GESTIÓN ACADÉMICA Y CURRICULAR')}</div>
+        <div style="font-weight:700;font-size:9px;margin-top:2px">Guía de Aprendizaje Autónomo</div>
+      </td>
+      <td style="border:1px solid #000;padding:4px 5px;text-align:center;vertical-align:middle">
+        <div style="font-size:9px"><strong>Versión</strong> ${esc(h.version || '02 — 2022')}</div>
+      </td>
+    </tr>
+    <tr>
+      <td style="border:1px solid #000;padding:4px 5px;text-align:center;vertical-align:middle">
+        <div style="font-size:9px">📅 ${esc(day.date_label || dayKey)}</div>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- Info compacta -->
+<table style="width:100%;border:1px solid #000;border-top:none;border-collapse:collapse;font-family:Arial,sans-serif;background:#DBE5F1;margin-bottom:10px">
   <tr>
-    ${h.logo_url
-      ? `<td style="width:64px;padding:6px;text-align:center;border-right:1px solid #2E5598">
-           <img src="${h.logo_url}" style="max-height:52px;max-width:56px;width:auto;height:auto;object-fit:contain">
-         </td>`
-      : ''}
-    <td style="padding:6px 12px;border-right:1px solid #2E5598">
-      <div style="font-weight:700;font-size:14px;color:#1F3864">${esc(h.school)}</div>
-      <div style="font-size:11px;color:#555;margin-top:1px">
-        ${esc(i.grado)} &nbsp;·&nbsp; ${esc(i.asignatura)}${esc(skillLabel)} &nbsp;·&nbsp; Semana ${esc(i.semana)}
-      </div>
-      <div style="font-size:11px;color:#888;margin-top:1px">Docente: ${esc(i.docente)}</div>
-    </td>
-    <td style="padding:6px 12px;text-align:right;white-space:nowrap;min-width:110px">
-      <div style="font-weight:700;font-size:13px;color:#2E5598">📅 ${esc(day.date_label || dayKey)}</div>
-      ${day.class_periods ? `<div style="font-size:11px;color:#888;margin-top:2px">${esc(day.class_periods)}</div>` : ''}
-    </td>
+    <td style="padding:3px 8px;font-size:10px;border:1px solid #000"><strong>Grado:</strong> ${esc(i.grado)}</td>
+    <td style="padding:3px 8px;font-size:10px;border:1px solid #000"><strong>Asignatura:</strong> ${esc(i.asignatura)}${esc(skillLabel)}</td>
+    <td style="padding:3px 8px;font-size:10px;border:1px solid #000"><strong>Semana:</strong> ${esc(i.semana)}</td>
+    <td style="padding:3px 8px;font-size:10px;border:1px solid #000"><strong>Docente:</strong> ${esc(i.docente)}</td>
+    ${day.class_periods ? `<td style="padding:3px 8px;font-size:10px;border:1px solid #000"><strong>Períodos:</strong> ${esc(day.class_periods)}</td>` : ''}
   </tr>
 </table>
 

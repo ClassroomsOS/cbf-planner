@@ -1,14 +1,13 @@
 // ── ExamReviewPage.jsx ────────────────────────────────────────────────────────
 // /exams/review — Panel de revisión humana para evaluaciones IA con confianza < 0.65
 //
-// Flujo de datos:
-//   assessments (teacher) → questions → ai_evaluations (requires_review=true)
-//   → submissions (answer) → student_exam_sessions (student_name)
+// Flujo de datos (nuevas tablas):
+//   exam_sessions (teacher) → exam_responses (needs_human_review=true)
+//   → exam_instances (student_name)
 //
 // Flujo de escritura:
-//   1. human_overrides INSERT (best-effort — tabla puede no existir)
-//   2. ai_evaluations UPDATE (requires_review=false, score_awarded si cambió)
-//   3. Recalcular assessment_results (mirrors edge fn exam-ai-corrector)
+//   1. exam_responses UPDATE (human_score, human_feedback, needs_human_review=false)
+//   2. Trigger recalculate_exam_result() auto-recalcula exam_results
 
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../supabase'
@@ -63,55 +62,8 @@ function ConceptPills({ items, color, bg }) {
   )
 }
 
-// ── Recalculate grade after a human override ──────────────────────────────────
-// Mirrors the recalculateSessionResult() logic from exam-ai-corrector edge fn.
-async function recalculateGrade(sessionId, schoolId) {
-  try {
-    const { data: subs } = await supabase
-      .from('submissions')
-      .select(`
-        id, auto_score,
-        question:questions!question_id ( points, question_type ),
-        ai_eval:ai_evaluations ( score_awarded, is_active )
-      `)
-      .eq('session_id', sessionId)
-
-    if (!subs?.length) return
-
-    let total = 0, maxScore = 0, autoScore = 0, aiScore = 0, allResolved = true
-
-    for (const s of subs) {
-      const pts = s.question?.points || 0
-      maxScore += pts
-      const isAuto = !['open_development', 'short_answer'].includes(s.question?.question_type)
-      if (isAuto) {
-        const sc = s.auto_score || 0; total += sc; autoScore += sc
-      } else {
-        const active = (s.ai_eval || []).find(e => e.is_active)
-        if (active) { total += active.score_awarded; aiScore += active.score_awarded }
-        else allResolved = false
-      }
-    }
-
-    const pct        = maxScore > 0 ? Math.round((total / maxScore) * 10000) / 100 : 0
-    const finalGrade = maxScore > 0 ? Math.round((1 + (pct / 100) * 4) * 10) / 10 : 1.0
-
-    await supabase.from('assessment_results').upsert({
-      session_id:            sessionId,
-      school_id:             schoolId,
-      total_score:           Math.round(total     * 100) / 100,
-      max_score:             Math.round(maxScore  * 100) / 100,
-      percentage:            pct,
-      final_grade:           finalGrade,
-      ai_corrected_score:    Math.round(aiScore   * 100) / 100,
-      auto_corrected_score:  Math.round(autoScore * 100) / 100,
-      status:                allResolved ? 'complete' : 'partial',
-      updated_at:            new Date().toISOString(),
-    }, { onConflict: 'session_id' })
-  } catch {
-    // Best-effort — silent failure, grade will recalculate on next corrector run
-  }
-}
+// Grade recalculation is handled automatically by the DB trigger
+// recalculate_exam_result() which fires on exam_responses updates.
 
 // ── ReviewCard ────────────────────────────────────────────────────────────────
 function ReviewCard({ item, onDone }) {
@@ -123,40 +75,25 @@ function ReviewCard({ item, onDone }) {
 
   const risk = item.confidence < 0.5 ? 'high' : 'medium'
 
-  async function saveToHumanOverrides(adjustedScore, reasonText, status) {
-    // best-effort — human_overrides table may not exist yet
-    try {
-      await supabase.from('human_overrides').insert({
-        ai_evaluation_id: item.eval_id,
-        submission_id:    item.submission_id,
-        school_id:        item.school_id,
-        overridden_by:    item.reviewer_id,
-        original_score:   item.ai_score,
-        adjusted_score:   adjustedScore,
-        reason:           reasonText,
-        status,
-      })
-    } catch { /* continue even if table does not exist */ }
-  }
-
   async function confirm() {
     setSaving(true)
-    await saveToHumanOverrides(item.ai_score, 'Confirmado por docente sin cambios.', 'confirmed')
-
     const { error } = await supabase
-      .from('ai_evaluations')
-      .update({ requires_review: false })
-      .eq('id', item.eval_id)
+      .from('exam_responses')
+      .update({
+        needs_human_review: false,
+        human_reviewer_id: item.reviewer_id,
+        reviewed_at: new Date().toISOString(),
+      })
+      .eq('id', item.response_id)
 
     if (error) {
       showToast('Error al confirmar: ' + error.message, 'error')
       setSaving(false)
       return
     }
-
-    await recalculateGrade(item.session_id, item.school_id)
+    // Trigger recalculate_exam_result fires automatically
     showToast('Evaluación confirmada ✓', 'success')
-    onDone(item.eval_id)
+    onDone(item.response_id)
     setSaving(false)
   }
 
@@ -172,22 +109,25 @@ function ReviewCard({ item, onDone }) {
     }
     setSaving(true)
 
-    await saveToHumanOverrides(score, reason.trim(), 'adjusted')
-
     const { error } = await supabase
-      .from('ai_evaluations')
-      .update({ score_awarded: score, requires_review: false })
-      .eq('id', item.eval_id)
+      .from('exam_responses')
+      .update({
+        human_score: score,
+        human_feedback: reason.trim(),
+        human_reviewer_id: item.reviewer_id,
+        needs_human_review: false,
+        reviewed_at: new Date().toISOString(),
+      })
+      .eq('id', item.response_id)
 
     if (error) {
       showToast('Error al guardar corrección: ' + error.message, 'error')
       setSaving(false)
       return
     }
-
-    await recalculateGrade(item.session_id, item.school_id)
+    // Trigger recalculate_exam_result fires automatically
     showToast('Puntaje corregido y nota recalculada ✓', 'success')
-    onDone(item.eval_id)
+    onDone(item.response_id)
     setSaving(false)
   }
 
@@ -398,102 +338,68 @@ export default function ExamReviewPage({ teacher }) {
   const load = useCallback(async () => {
     setLoading(true)
 
-    // 1. Exámenes del docente
-    const { data: aRows } = await supabase
-      .from('assessments')
+    // 1. Sessions del docente
+    const { data: sesRows } = await supabase
+      .from('exam_sessions')
       .select('id, title')
-      .eq('school_id', teacher.school_id)
-      .eq('created_by', teacher.id)
+      .eq('teacher_id', teacher.id)
 
-    if (!aRows?.length) { setItems([]); setLoading(false); return }
+    if (!sesRows?.length) { setItems([]); setLoading(false); return }
 
-    const assessmentIds = aRows.map(a => a.id)
-    const examTitles    = Object.fromEntries(aRows.map(a => [a.id, a.title]))
+    const sessionIds  = sesRows.map(s => s.id)
+    const sesMap      = Object.fromEntries(sesRows.map(s => [s.id, s]))
 
-    // 2. Preguntas de esos exámenes
-    const { data: qRows } = await supabase
-      .from('questions')
-      .select('id, stem, assessment_id')
-      .in('assessment_id', assessmentIds)
-
-    if (!qRows?.length) { setItems([]); setLoading(false); return }
-
-    const questionIds = qRows.map(q => q.id)
-    const qMap        = Object.fromEntries(qRows.map(q => [q.id, q]))
-
-    // 3. Evaluaciones IA pendientes de revisión (menor confianza primero)
-    const { data: evalRows } = await supabase
-      .from('ai_evaluations')
-      .select('id, submission_id, question_id, school_id, score_awarded, max_score, feedback, reasoning, confidence, detected_concepts, missing_concepts, created_at')
-      .eq('requires_review', true)
-      .eq('is_active', true)
-      .in('question_id', questionIds)
-      .order('confidence', { ascending: true })
+    // 2. Respuestas pendientes de revisión humana (menor confianza primero)
+    const { data: respRows } = await supabase
+      .from('exam_responses')
+      .select('id, instance_id, session_id, school_id, question_id, question_type, points_possible, answer, auto_score, ai_score, ai_feedback, ai_confidence, ai_corrected_at')
+      .eq('needs_human_review', true)
+      .in('session_id', sessionIds)
+      .order('ai_confidence', { ascending: true })
       .limit(60)
 
-    if (!evalRows?.length) { setItems([]); setLoading(false); return }
+    if (!respRows?.length) { setItems([]); setLoading(false); return }
 
-    // 4. Respuestas de los estudiantes (tabla submissions)
-    const submissionIds = [...new Set(evalRows.map(e => e.submission_id))]
-    const { data: subRows } = await supabase
-      .from('submissions')
-      .select('id, answer, session_id')
-      .in('id', submissionIds)
+    // 3. Instances → student info + questions from generated_questions
+    const instanceIds = [...new Set(respRows.map(r => r.instance_id))]
+    const { data: instRows } = await supabase
+      .from('exam_instances')
+      .select('id, student_name, student_email, generated_questions')
+      .in('id', instanceIds)
 
-    const subMap = Object.fromEntries((subRows || []).map(s => [s.id, s]))
+    const instMap = Object.fromEntries((instRows || []).map(i => [i.id, i]))
 
-    // 5. Sesiones de examen → nombre del estudiante
-    const sessionIds = [...new Set((subRows || []).map(s => s.session_id).filter(Boolean))]
-    let sesMap = {}
-    if (sessionIds.length) {
-      const { data: sesRows } = await supabase
-        .from('student_exam_sessions')
-        .select('id, student_name, assessment_id')
-        .in('id', sessionIds)
-      sesMap = Object.fromEntries((sesRows || []).map(s => [s.id, s]))
-    }
+    // 4. Build review items
+    const result = respRows.map(r => {
+      const inst = instMap[r.instance_id] || {}
+      const ses  = sesMap[r.session_id]   || {}
+      // Find question stem from instance's generated_questions
+      const gq = (inst.generated_questions || []).find(q => q.id === r.question_id) || {}
+      const answerText = typeof r.answer?.text === 'string'
+        ? r.answer.text
+        : (r.answer ? JSON.stringify(r.answer) : '')
 
-    // 6. Filtrar las que ya tienen override humano
-    const evalIds = evalRows.map(e => e.id)
-    let overriddenIds = new Set()
-    try {
-      const { data: overrideRows } = await supabase
-        .from('human_overrides')
-        .select('ai_evaluation_id')
-        .in('ai_evaluation_id', evalIds)
-      overriddenIds = new Set((overrideRows || []).map(o => o.ai_evaluation_id))
-    } catch { /* human_overrides table may not exist */ }
-
-    // 7. Construir lista final
-    const result = evalRows
-      .filter(e => !overriddenIds.has(e.id))
-      .map(e => {
-        const sub = subMap[e.submission_id] || {}
-        const ses = sesMap[sub.session_id]  || {}
-        const q   = qMap[e.question_id]     || {}
-        return {
-          eval_id:          e.id,
-          submission_id:    e.submission_id,
-          session_id:       sub.session_id || null,
-          school_id:        e.school_id,
-          reviewer_id:      teacher.id,
-          ai_score:         e.score_awarded,
-          max_score:        e.max_score,
-          ai_feedback:      e.feedback,
-          ai_reasoning:     e.reasoning,
-          confidence:       e.confidence,
-          detected_concepts: e.detected_concepts || [],
-          missing_concepts:  e.missing_concepts  || [],
-          evaluated_at:     e.created_at,
-          student_answer:   typeof sub.answer?.text === 'string'
-                              ? sub.answer.text
-                              : (sub.answer ? JSON.stringify(sub.answer) : ''),
-          student_name:     ses.student_name  || null,
-          question_stem:    q.stem            || '—',
-          exam_title:       examTitles[q.assessment_id] || '—',
-          assessment_id:    q.assessment_id,
-        }
-      })
+      return {
+        response_id:       r.id,
+        eval_id:           r.id,
+        instance_id:       r.instance_id,
+        session_id:        r.session_id,
+        school_id:         r.school_id,
+        reviewer_id:       teacher.id,
+        ai_score:          r.ai_score || 0,
+        max_score:         r.points_possible || 0,
+        ai_feedback:       r.ai_feedback || '',
+        ai_reasoning:      null,
+        confidence:        r.ai_confidence || 0,
+        detected_concepts: [],
+        missing_concepts:  [],
+        evaluated_at:      r.ai_corrected_at,
+        student_answer:    answerText,
+        student_name:      inst.student_name || null,
+        question_stem:     gq.stem || r.question_id || '—',
+        exam_title:        ses.title || '—',
+      }
+    })
 
     setItems(result)
     setLoading(false)
@@ -501,8 +407,8 @@ export default function ExamReviewPage({ teacher }) {
 
   useEffect(() => { load() }, [load])
 
-  function removeItem(evalId) {
-    setItems(prev => prev.filter(i => i.eval_id !== evalId))
+  function removeItem(responseId) {
+    setItems(prev => prev.filter(i => i.response_id !== responseId))
   }
 
   const filtered = filter

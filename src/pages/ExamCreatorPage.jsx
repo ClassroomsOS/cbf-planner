@@ -8,18 +8,14 @@ import { supabase } from '../supabase'
 import { useToast } from '../context/ToastContext'
 import { generateExamQuestions } from '../utils/AIAssistant'
 import {
-  ACADEMIC_TYPES, BIBLICAL_TYPES, BIBLICAL_MIN, RIGOR_META,
+  ACADEMIC_TYPES, BIBLICAL_TYPES, RIGOR_META,
   TypeCard, ExamInstitutionalHeader,
 } from './ExamDashboardPage'
 import { EXAM_PRESETS, getExamPreset, extractGradeNumber } from '../utils/examUtils'
 
 const STEP_LABELS = ['Contexto', 'Tipos de pregunta', 'Revisar preguntas', 'Publicar']
 
-const DEFAULT_TYPES = {
-  multiple_choice: 5, true_false: 0, fill_blank: 0, matching: 0,
-  short_answer: 3, error_correction: 0, sequencing: 0, open_development: 2,
-  biblical_reflection: 2, verse_analysis: 1, principle_application: 0,
-}
+const DEFAULT_TYPES = { ...EXAM_PRESETS.quiz.defaultTypes }
 
 export default function ExamCreatorPage({ teacher }) {
   const { showToast } = useToast()
@@ -142,7 +138,7 @@ export default function ExamCreatorPage({ teacher }) {
   }, [form.indicatorId, indicators])
 
   // ── Auto-preset when examType or grade changes ──────────────────────────
-  const currentPreset = getExamPreset(examType, form.grade)
+  const currentPreset = getExamPreset(examType, form.grade, form.subject)
 
   function applyPreset(preset) {
     setSections([{ id: 1, name: '', types: { ...preset.defaultTypes } }])
@@ -151,18 +147,19 @@ export default function ExamCreatorPage({ teacher }) {
 
   function handleExamTypeChange(newType) {
     setExamType(newType)
-    const preset = getExamPreset(newType, form.grade)
+    const preset = getExamPreset(newType, form.grade, form.subject)
     applyPreset(preset)
   }
 
-  // When grade changes and examType is final, adjust preset (lower vs upper)
+  // When grade or subject changes and examType is final, adjust preset (lower vs upper)
   useEffect(() => {
     if (examType !== 'final') return
-    const preset = getExamPreset('final', form.grade)
+    const preset = getExamPreset('final', form.grade, form.subject)
     applyPreset(preset)
-  }, [form.grade]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [form.grade, form.subject]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Section helpers ────────────────────────────────────────────────────
+  const biblicalMin = currentPreset.biblicalMin ?? 3
   const biblicalTotal = sections.reduce((sum, sec) =>
     sum + BIBLICAL_TYPES.reduce((s, t) => s + (sec.types[t.key] || 0), 0), 0)
   const academicTotal = sections.reduce((sum, sec) =>
@@ -182,7 +179,7 @@ export default function ExamCreatorPage({ teacher }) {
       if (isBiblical) {
         const newGlobalBiblical = prev.reduce((sum, s) =>
           sum + BIBLICAL_TYPES.reduce((ss, t) => ss + (s.id === secId ? (t.key === key ? val : (sec.types[t.key] || 0)) : (s.types[t.key] || 0)), 0), 0)
-        if (newGlobalBiblical < BIBLICAL_MIN) return sec
+        if (newGlobalBiblical < biblicalMin) return sec
       }
       return { ...sec, types: newTypes }
     }))
@@ -217,8 +214,11 @@ export default function ExamCreatorPage({ teacher }) {
     if (total < 5) {
       showToast('Agrega al menos 5 preguntas.', 'warning'); return
     }
-    if (biblicalTotal < BIBLICAL_MIN) {
-      showToast(`Debes incluir al menos ${BIBLICAL_MIN} preguntas bíblicas.`, 'warning'); return
+    if (examType === 'quiz' && total > 15) {
+      showToast('Un quiz puede tener máximo 15 preguntas.', 'warning'); return
+    }
+    if (biblicalTotal < biblicalMin) {
+      showToast(`Debes incluir al menos ${biblicalMin} preguntas bíblicas.`, 'warning'); return
     }
     setGenerating(true)
     try {
@@ -266,67 +266,70 @@ export default function ExamCreatorPage({ teacher }) {
     setSaving(true)
     try {
       const accessCode = Math.random().toString(36).substring(2, 8).toUpperCase()
-      const { data: assessment, error: aErr } = await supabase
-        .from('assessments')
+
+      // 1. Create blueprint (pedagogical intent + generated questions)
+      const blueprintSections = sections.map(sec => ({
+        id: sec.id,
+        name: sec.name || '',
+        types: sec.types,
+        questions: generatedExam.questions
+          .filter(q => (q.section_name || '') === (sec.name || ''))
+          .map(q => ({
+            position: q.position, stem: q.stem, question_type: q.question_type,
+            points: q.points, options: q.options || null,
+            correct_answer: q.correct_answer || null, criteria: q.criteria || null,
+            section_name: q.section_name || '',
+          })),
+      }))
+
+      const { data: blueprint, error: bErr } = await supabase
+        .from('exam_blueprints')
         .insert({
-          school_id: teacher.school_id, created_by: teacher.id,
-          subject: form.subject, grade: form.grade,
-          period: form.period ? parseInt(form.period) : null,
-          title: form.title.trim(), instructions: form.instructions.trim(),
-          access_code: accessCode, status: 'active',
-          ai_generated: true,
-          time_limit_minutes: form.time_limit || null,
-          metadata: {
+          school_id: teacher.school_id,
+          teacher_id: teacher.id,
+          title: form.title.trim(),
+          subject: form.subject,
+          grade: form.grade,
+          period: form.period ? parseInt(form.period) : 1,
+          learning_objectives: form.indicator?.text ? [form.indicator.text] : [],
+          skills_targeted: form.indicator?.skill_area ? [form.indicator.skill_area] : [],
+          content_topics: form.syllabusTopics.map(t => String(t.content || t)).slice(0, 10),
+          biblical_connection: form.biblicalContext?.principle || null,
+          total_points: totalScore,
+          estimated_minutes: form.time_limit || 60,
+          sections: blueprintSections,
+          status: 'ready',
+        })
+        .select('id')
+        .single()
+
+      if (bErr || !blueprint?.id) throw new Error('Error al crear examen: ' + (bErr?.message || 'sin ID'))
+
+      // 2. Create session (live event with access code)
+      const { error: sErr } = await supabase
+        .from('exam_sessions')
+        .insert({
+          school_id: teacher.school_id,
+          teacher_id: teacher.id,
+          blueprint_id: blueprint.id,
+          title: form.title.trim(),
+          subject: form.subject,
+          grade: form.grade,
+          period: form.period ? parseInt(form.period) : 1,
+          access_code: accessCode,
+          status: 'ready',
+          duration_minutes: form.time_limit || 60,
+          service_worker_payload: {
             exam_type: examType,
+            version_count: versionCount,
+            shuffle_questions: shuffleQuestions,
+            shuffle_options: shuffleOptions,
             ...(currentPreset.hasExtraPoints ? { extra_points: currentPreset.extraPoints } : {}),
+            instructions: form.instructions.trim(),
           },
         })
-        .select('id').single()
 
-      if (aErr || !assessment?.id) throw new Error('Error al crear examen: ' + (aErr?.message || 'sin ID'))
-
-      for (const q of generatedExam.questions) {
-        const { data: question, error: qErr } = await supabase
-          .from('questions')
-          .insert({
-            assessment_id: assessment.id, school_id: teacher.school_id,
-            stem: q.stem, question_type: q.question_type,
-            points: q.points, position: q.position,
-            options: q.options || null, correct_answer: q.correct_answer || null,
-            ai_generated: true,
-          })
-          .select('id').single()
-
-        if (qErr) throw new Error('Error al guardar preguntas: ' + qErr.message)
-
-        if (q.criteria) {
-          const { error: cErr } = await supabase.from('question_criteria').insert({
-            question_id: question.id, school_id: teacher.school_id,
-            model_answer: q.criteria.model_answer || null,
-            key_concepts: q.criteria.key_concepts || null,
-            rubric: q.criteria.rubric || {},
-            rigor_level: ['strict', 'flexible', 'conceptual'].includes(q.criteria.rigor_level) ? q.criteria.rigor_level : 'flexible',
-            bloom_level: q.criteria.bloom_level || null,
-            ai_correction_context: q.criteria.ai_correction_context || null,
-            ai_generated: true,
-          })
-          if (cErr) throw new Error('Error al guardar criterios: ' + cErr.message)
-        }
-      }
-
-      const VERSION_LABELS = ['A', 'B', 'C', 'D']
-      for (let v = 0; v < versionCount; v++) {
-        const { error: vErr } = await supabase.from('assessment_versions').insert({
-          assessment_id: assessment.id,
-          school_id: teacher.school_id,
-          version_number: v + 1,
-          version_label: `Versión ${VERSION_LABELS[v]}`,
-          is_base: v === 0,
-          shuffle_questions: v > 0 ? shuffleQuestions : false,
-          shuffle_options:   v > 0 ? shuffleOptions   : false,
-        })
-        if (vErr) throw new Error('Error al crear versión: ' + vErr.message)
-      }
+      if (sErr) throw new Error('Error al crear sesión: ' + sErr.message)
 
       showToast(`Examen publicado${versionCount > 1 ? ` — ${versionCount} versiones` : ''} · Código: ${accessCode}`, 'success')
       navigate('/exams')
@@ -575,7 +578,7 @@ export default function ExamCreatorPage({ teacher }) {
                   <div style={{ fontSize: 12, color: '#374151', lineHeight: 1.6 }}>
                     <div><strong>Preguntas base:</strong> {currentPreset.baseQuestions} preguntas</div>
                     <div><strong>Extra Points:</strong> 5 preguntas de listening (+0.1 c/u, max +0.5)</div>
-                    <div><strong>Bíblicas:</strong> mínimo 3 (pensamiento crítico y argumentación, no memoria)</div>
+                    <div><strong>Bíblicas:</strong> mínimo {biblicalMin} (pensamiento crítico y argumentación, no memoria)</div>
                     {currentPreset.requiredComponents && (
                       <div><strong>Componentes:</strong> {currentPreset.requiredComponents.join(', ')}</div>
                     )}
@@ -687,8 +690,8 @@ export default function ExamCreatorPage({ teacher }) {
                   )}
                 </div>
                 <div style={{ fontSize: 12, color: '#64748B' }}>
-                  Bíblicas: <strong style={{ color: biblicalTotal >= BIBLICAL_MIN ? '#15803D' : '#DC2626' }}>{biblicalTotal}</strong>
-                  <span style={{ color: '#9CA3AF' }}> / {BIBLICAL_MIN} mínimo</span>
+                  Bíblicas: <strong style={{ color: biblicalTotal >= biblicalMin ? '#15803D' : '#DC2626' }}>{biblicalTotal}</strong>
+                  <span style={{ color: '#9CA3AF' }}> / {biblicalMin} mínimo</span>
                 </div>
               </div>
 
@@ -754,7 +757,7 @@ export default function ExamCreatorPage({ teacher }) {
                     {/* Biblical types */}
                     <div>
                       <p style={{ fontSize: 11, fontWeight: 700, color: '#7B3F00', margin: '0 0 6px' }}>
-                        Preguntas bíblicas{secIdx === 0 ? ` — mínimo ${BIBLICAL_MIN} global (CBF)` : ''}
+                        Preguntas bíblicas{secIdx === 0 ? ` — mínimo ${biblicalMin} global (CBF)` : ''}
                       </p>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
                         {BIBLICAL_TYPES.map(t => {
@@ -762,12 +765,12 @@ export default function ExamCreatorPage({ teacher }) {
                           const globalBiblicalIfRemoved = sections.reduce((sum, s) =>
                             sum + BIBLICAL_TYPES.reduce((ss, bt) =>
                               ss + (s.id === sec.id ? (bt.key === t.key ? Math.max(0, count - 1) : (s.types[bt.key] || 0)) : (s.types[bt.key] || 0)), 0), 0)
-                          const wouldBreakMin = globalBiblicalIfRemoved < BIBLICAL_MIN
+                          const wouldBreakMin = globalBiblicalIfRemoved < biblicalMin
                           return (
                             <TypeCard key={t.key} type={t} count={count}
                               onChange={v => setSecType(sec.id, t.key, v)}
                               locked={wouldBreakMin && count > 0}
-                              lockReason={wouldBreakMin && count > 0 ? `Mínimo ${BIBLICAL_MIN} bíblicas` : null}
+                              lockReason={wouldBreakMin && count > 0 ? `Mínimo ${biblicalMin} bíblicas` : null}
                             />
                           )
                         })}
@@ -1015,17 +1018,21 @@ export default function ExamCreatorPage({ teacher }) {
               Siguiente →
             </button>
           )}
-          {step === 2 && (
-            <button type="button" onClick={handleGenerate} disabled={generating || total < 5 || biblicalTotal < BIBLICAL_MIN}
+          {step === 2 && (() => {
+            const quizOver = examType === 'quiz' && total > 15
+            const cantGenerate = generating || total < 5 || biblicalTotal < biblicalMin || quizOver
+            return (
+            <button type="button" onClick={handleGenerate} disabled={cantGenerate}
               style={{
                 padding: '9px 22px', borderRadius: 9, fontSize: 14, fontWeight: 700,
-                background: (generating || total < 5 || biblicalTotal < BIBLICAL_MIN) ? '#9CA3AF' : 'linear-gradient(135deg, #1F3864, #2E5598)',
-                color: '#fff', border: 'none', cursor: (generating || total < 5 || biblicalTotal < BIBLICAL_MIN) ? 'default' : 'pointer',
-                opacity: (total < 5 || biblicalTotal < BIBLICAL_MIN) && !generating ? .6 : 1,
+                background: cantGenerate ? '#9CA3AF' : 'linear-gradient(135deg, #1F3864, #2E5598)',
+                color: '#fff', border: 'none', cursor: cantGenerate ? 'default' : 'pointer',
+                opacity: cantGenerate && !generating ? .6 : 1,
               }}>
-              {generating ? '⏳ Generando…' : `Generar ${total}${currentPreset.hasExtraPoints ? ' + 5 Extra' : ''} preguntas →`}
+              {generating ? '⏳ Generando…' : quizOver ? `⚠ Máx. 15 en Quiz (tienes ${total})` : `Generar ${total}${currentPreset.hasExtraPoints ? ' + 5 Extra' : ''} preguntas →`}
             </button>
-          )}
+            )
+          })()}
           {step === 3 && (
             <button type="button" onClick={() => setStep(4)}
               style={{ padding: '9px 22px', borderRadius: 9, fontSize: 14, fontWeight: 700, background: 'linear-gradient(135deg, #1F3864, #2E5598)', color: '#fff', border: 'none', cursor: 'pointer' }}>

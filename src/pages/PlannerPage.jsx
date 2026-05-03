@@ -184,13 +184,13 @@ export default function PlannerPage({ teacher }) {
   useEffect(() => {
     if (!grade || !subject) { setActiveExam(null); return }
     supabase
-      .from('assessments')
+      .from('exam_sessions')
       .select('id, title, access_code, status, period')
       .eq('school_id', teacher.school_id)
-      .eq('created_by', teacher.id)
+      .eq('teacher_id', teacher.id)
       .eq('grade', grade)
       .eq('subject', subject)
-      .eq('status', 'active')
+      .in('status', ['ready', 'active'])
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
