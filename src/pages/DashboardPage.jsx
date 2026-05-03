@@ -20,6 +20,7 @@ import ExamDashboardPage        from './ExamDashboardPage'
 import ExamCreatorPage          from './ExamCreatorPage'
 import ExamViewPage             from './ExamViewPage'
 import ExamReviewPage           from './ExamReviewPage'
+import ExamRevisionPage         from './ExamRevisionPage'
 import StudentsPage             from './StudentsPage'
 import PsicosocialPage          from './PsicosocialPage'
 import SubjectManagerPage       from './SubjectManagerPage'
@@ -271,6 +272,12 @@ function DashboardInner({ session, teacher, setTeacher }) {
               <span className="sb-notif-badge">{pendingAIReview}</span>
             </NavLink>
           )}
+          {canManage(teacher.role) && (
+            <NavLink to="/exams/revision" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
+              <span className="dot" style={{ background: '#991B1B' }} />
+              🏛 Aprobar Exámenes
+            </NavLink>
+          )}
           <NavLink to="/students" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
             <span className="dot" style={{ background: '#8064A2' }} />
             👩‍🎓 Mis Estudiantes
@@ -468,7 +475,8 @@ function DashboardInner({ session, teacher, setTeacher }) {
           <Route path="/library"     element={<GuideLibraryPage        teacher={teacher} />} />
           <Route path="/exams"         element={<ExamDashboardPage       teacher={teacher} />} />
           <Route path="/exams/create"  element={<ExamCreatorPage        teacher={teacher} />} />
-          <Route path="/exams/review"  element={<ExamReviewPage         teacher={teacher} />} />
+          <Route path="/exams/review"    element={<ExamReviewPage         teacher={teacher} />} />
+          <Route path="/exams/revision"  element={<ExamRevisionPage       teacher={teacher} />} />
           <Route path="/exams/:id"     element={<ExamViewPage           teacher={teacher} />} />
           <Route path="/students"      element={<StudentsPage            teacher={teacher} />} />
           <Route path="/player"               element={<StudentPlayerPage   teacher={teacher} />} />
