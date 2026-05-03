@@ -4124,6 +4124,39 @@ input:not(:placeholder-shown):not(:focus):not([type=password]):valid {
 .sp-empty h3 { color: #334155; font-size: 18px; margin: 0 0 8px; }
 .sp-empty p { color: #64748b; font-size: 14px; }
 
+/* ── List View ────────────────────────────────────────────────────────────────── */
+.sp-list { padding: 16px 28px; }
+.sp-list-table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+.sp-list-table thead { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: #fff; }
+.sp-list-table th { padding: 12px 16px; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; text-align: left; font-weight: 600; }
+.sp-list-row { cursor: pointer; transition: background .15s; border-bottom: 1px solid #f1f5f9; }
+.sp-list-row:hover { background: #f8fafc; }
+.sp-list-row td { padding: 10px 16px; font-size: 14px; vertical-align: middle; }
+.sp-list-num { color: #94a3b8; font-weight: 500; width: 40px; }
+.sp-list-name { display: flex; align-items: center; gap: 12px; font-weight: 500; color: #1e293b; }
+.sp-list-avatar { width: 36px; height: 36px; border-radius: 50%; overflow: hidden; flex-shrink: 0; background: #e2e8f0; display: flex; align-items: center; justify-content: center; }
+.sp-list-photo { width: 100%; height: 100%; object-fit: cover; }
+.sp-list-initials { font-size: 13px; font-weight: 600; color: #64748b; }
+.sp-list-code { color: #64748b; font-family: monospace; font-size: 13px; }
+.sp-list-rating-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 36px; padding: 4px 10px; border-radius: 8px; font-weight: 700; font-size: 14px; color: #fff; }
+.sp-list-rating-badge--gold { background: linear-gradient(135deg, #c8960c, #e6b800); }
+.sp-list-rating-badge--silver { background: linear-gradient(135deg, #6b7b8d, #8fa3b8); }
+.sp-list-rating-badge--bronze { background: linear-gradient(135deg, #a0522d, #cd853f); }
+.sp-list-rating-badge--base { background: linear-gradient(135deg, #4b5563, #6b7280); }
+.sp-list-tier-badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+.sp-list-tier-badge--gold { background: #fef3c7; color: #92400e; }
+.sp-list-tier-badge--silver { background: #e2e8f0; color: #475569; }
+.sp-list-tier-badge--bronze { background: #fed7aa; color: #9a3412; }
+.sp-list-tier-badge--base { background: #f1f5f9; color: #64748b; }
+.sp-list-expand-btn { background: none; border: 1px solid #e2e8f0; border-radius: 6px; padding: 4px 12px; font-size: 12px; color: #64748b; cursor: pointer; transition: all .15s; }
+.sp-list-expand-btn:hover { border-color: #94a3b8; color: #334155; background: #f8fafc; }
+@media (max-width: 640px) {
+  .sp-list { padding: 8px 12px; }
+  .sp-list-table th:nth-child(3), .sp-list-table td:nth-child(3),
+  .sp-list-table th:nth-child(5), .sp-list-table td:nth-child(5),
+  .sp-list-table th:nth-child(6), .sp-list-table td:nth-child(6) { display: none; }
+}
+
 /* ── Card Grid ────────────────────────────────────────────────────────────────── */
 .sp-grid {
   display: grid;

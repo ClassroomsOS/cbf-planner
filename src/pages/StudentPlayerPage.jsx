@@ -23,7 +23,7 @@ export default function StudentPlayerPage({ teacher }) {
   const [profiles, setProfiles] = useState({})
   const [grades, setGrades] = useState([])
   const [loading, setLoading] = useState(false)
-  const [view, setView] = useState('cards')
+  const [view, setView] = useState('cards') // 'cards' | 'list' | 'attendance'
   const [expandedStudent, setExpandedStudent] = useState(null)
   const [expandAnim, setExpandAnim] = useState(false) // controls CSS class for animation
 
@@ -228,7 +228,7 @@ export default function StudentPlayerPage({ teacher }) {
       {/* Header */}
       <div className="sp-header">
         <div className="sp-header-content">
-          <h1 className="sp-header-title">Player Cards</h1>
+          <h1 className="sp-header-title">Mis Estudiantes BF</h1>
           <p className="sp-header-subtitle">Equipo de campeones — Perfil integral</p>
         </div>
         <div className="sp-header-actions">
@@ -239,10 +239,16 @@ export default function StudentPlayerPage({ teacher }) {
             🃏 Cards
           </button>
           <button
+            className={`sp-view-btn ${view === 'list' ? 'sp-view-btn--active' : ''}`}
+            onClick={() => setView('list')}
+          >
+            📋 Lista
+          </button>
+          <button
             className={`sp-view-btn ${view === 'attendance' ? 'sp-view-btn--active' : ''}`}
             onClick={() => setView('attendance')}
           >
-            📋 Asistencia
+            ✅ Asistencia
           </button>
         </div>
       </div>
@@ -255,7 +261,7 @@ export default function StudentPlayerPage({ teacher }) {
         <select value={selectedSection} onChange={e => setSelectedSection(e.target.value)} className="sp-filter-select">
           {sectionsForGrade.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
-        <span className="sp-filter-count">{students.length} jugadores</span>
+        <span className="sp-filter-count">{students.length} estudiantes</span>
       </div>
 
       {/* Content */}
@@ -264,6 +270,12 @@ export default function StudentPlayerPage({ teacher }) {
           <div className="sp-loading-card" />
           <div className="sp-loading-card" />
           <div className="sp-loading-card" />
+        </div>
+      ) : !students.length ? (
+        <div className="sp-empty">
+          <div className="sp-empty-icon">👩‍🎓</div>
+          <h3>No hay estudiantes</h3>
+          <p>Pide al coordinador que agregue estudiantes en "Estudiantes BF" para este grado y sección.</p>
         </div>
       ) : view === 'cards' ? (
         <div className="sp-grid">
@@ -277,13 +289,54 @@ export default function StudentPlayerPage({ teacher }) {
               onClick={() => handleExpand(student)}
             />
           ))}
-          {!students.length && (
-            <div className="sp-empty">
-              <div className="sp-empty-icon">🃏</div>
-              <h3>No hay jugadores</h3>
-              <p>Agrega estudiantes en "Mis Estudiantes" para ver sus Player Cards.</p>
-            </div>
-          )}
+        </div>
+      ) : view === 'list' ? (
+        <div className="sp-list">
+          <table className="sp-list-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Estudiante</th>
+                <th>Código</th>
+                <th>Rating</th>
+                <th>Tier</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {students.map((student, i) => {
+                const overall = getStudentOverall(student.id)
+                const tier = getTier(overall)
+                const photo = profiles[student.id]?.photo_url
+                return (
+                  <tr key={student.id} className="sp-list-row" onClick={() => handleExpand(student)}>
+                    <td className="sp-list-num">{i + 1}</td>
+                    <td className="sp-list-name">
+                      <div className="sp-list-avatar">
+                        {photo
+                          ? <img src={photo} alt="" className="sp-list-photo" />
+                          : <span className="sp-list-initials">{(student.first_name?.[0] || '') + (student.first_lastname?.[0] || '')}</span>
+                        }
+                      </div>
+                      <span>{displayName(student)}</span>
+                    </td>
+                    <td className="sp-list-code">{student.student_code || '—'}</td>
+                    <td className="sp-list-rating">
+                      <span className={`sp-list-rating-badge sp-list-rating-badge--${tier}`}>{overall}</span>
+                    </td>
+                    <td className="sp-list-tier">
+                      <span className={`sp-list-tier-badge sp-list-tier-badge--${tier}`}>
+                        {tier === 'gold' ? 'Champion' : tier === 'silver' ? 'Elite' : tier === 'bronze' ? 'Rising' : 'Rookie'}
+                      </span>
+                    </td>
+                    <td className="sp-list-action">
+                      <button type="button" className="sp-list-expand-btn" onClick={e => { e.stopPropagation(); handleExpand(student) }}>Ver</button>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
         </div>
       ) : (
         <AttendancePanel

@@ -278,14 +278,16 @@ function DashboardInner({ session, teacher, setTeacher }) {
               🏛 Aprobar Exámenes
             </NavLink>
           )}
-          <NavLink to="/students" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
-            <span className="dot" style={{ background: '#8064A2' }} />
-            👩‍🎓 Mis Estudiantes
-          </NavLink>
           <NavLink to="/player" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
             <span className="dot" style={{ background: '#FFD700' }} />
-            🃏 Player Cards
+            👩‍🎓 Mis Estudiantes BF
           </NavLink>
+          {isAdmin && (
+            <NavLink to="/students" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
+              <span className="dot" style={{ background: '#8064A2' }} />
+              🎓 Estudiantes BF
+            </NavLink>
+          )}
           <NavLink to="/grades" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
             <span className="dot" style={{ background: '#15803D' }} />
             📊 Calificaciones
