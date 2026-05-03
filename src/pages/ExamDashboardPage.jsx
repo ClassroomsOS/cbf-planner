@@ -1708,7 +1708,7 @@ export default function ExamDashboardPage({ teacher }) {
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                   {exam.access_code && <CopyCode code={exam.access_code} />}
-                  <button type="button" onClick={() => setDetailExam(exam)} style={{ padding: '7px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, background: '#1F3864', color: '#fff', border: 'none', cursor: 'pointer' }}>Ver →</button>
+                  <button type="button" onClick={() => navigate(`/exams/${exam.id}`)} style={{ padding: '7px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, background: '#1F3864', color: '#fff', border: 'none', cursor: 'pointer' }}>Ver →</button>
                 </div>
               </div>
             )

@@ -18,6 +18,7 @@ import NewsTimelinePage         from './NewsTimelinePage'
 import ReviewRoomPage           from './ReviewRoomPage'
 import ExamDashboardPage        from './ExamDashboardPage'
 import ExamCreatorPage          from './ExamCreatorPage'
+import ExamViewPage             from './ExamViewPage'
 import ExamReviewPage           from './ExamReviewPage'
 import StudentsPage             from './StudentsPage'
 import PsicosocialPage          from './PsicosocialPage'
@@ -468,6 +469,7 @@ function DashboardInner({ session, teacher, setTeacher }) {
           <Route path="/exams"         element={<ExamDashboardPage       teacher={teacher} />} />
           <Route path="/exams/create"  element={<ExamCreatorPage        teacher={teacher} />} />
           <Route path="/exams/review"  element={<ExamReviewPage         teacher={teacher} />} />
+          <Route path="/exams/:id"     element={<ExamViewPage           teacher={teacher} />} />
           <Route path="/students"      element={<StudentsPage            teacher={teacher} />} />
           <Route path="/player"               element={<StudentPlayerPage   teacher={teacher} />} />
           <Route path="/grades"               element={<GradebookPage       teacher={teacher} />} />
