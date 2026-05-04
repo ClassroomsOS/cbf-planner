@@ -15,18 +15,21 @@ const CATEGORY_OPTIONS = [
   { value: 'axiologica',  label: '✝️ Axiológica',   desc: 'Valores, comportamiento, identidad' },
 ]
 
-export default function MicroActivityModal({ teacher, grade, section, subject, period, students, onCreated, onClose }) {
+export default function MicroActivityModal({ teacher, grade, section, subject, period, students, selectedStudentIds, onCreated, onClose }) {
   const { showToast } = useToast()
   const [step, setStep] = useState(1) // 1=details, 2=groups (if group_mode)
   const [saving, setSaving] = useState(false)
 
+  const today = new Date().toISOString().split('T')[0]
   const [form, setForm] = useState({
     name: '',
     description: '',
     category: 'cognitiva',
     rubric_type: 'simple',
     group_mode: false,
-    activity_date: new Date().toISOString().split('T')[0],
+    activity_date: today,
+    due_date: '',
+    assign_all: !selectedStudentIds?.length,
   })
 
   // Group building state
@@ -71,6 +74,9 @@ export default function MicroActivityModal({ teacher, grade, section, subject, p
     if (!form.name.trim()) { showToast('Nombre es requerido', 'error'); return }
     setSaving(true)
 
+    // Determine assigned students
+    const assignedIds = form.assign_all ? null : (selectedStudentIds?.length ? selectedStudentIds : null)
+
     // Insert micro_activity
     const { data: micro, error } = await supabase.from('micro_activities').insert({
       school_id: teacher.school_id,
@@ -82,6 +88,8 @@ export default function MicroActivityModal({ teacher, grade, section, subject, p
       group_mode: form.group_mode,
       rubric_type: form.rubric_type,
       activity_date: form.activity_date || null,
+      due_date: form.due_date || null,
+      assigned_student_ids: assignedIds,
     }).select().single()
 
     if (error) { showToast('Error creando actividad', 'error'); setSaving(false); return }
@@ -111,7 +119,7 @@ export default function MicroActivityModal({ teacher, grade, section, subject, p
   const unassigned = students.filter(s => !assignedIds.has(s.id))
 
   const modal = (
-    <div className="mam-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+    <div className="mam-overlay">
       <div className="mam-modal">
         <div className="mam-header">
           <h3>+ Nueva Micro-actividad</h3>
@@ -148,11 +156,36 @@ export default function MicroActivityModal({ teacher, grade, section, subject, p
                   ))}
                 </select>
               </div>
+            </div>
+
+            <div className="mam-row">
               <div className="mam-field" style={{ flex: 1 }}>
-                <label>Fecha</label>
+                <label>Fecha de inicio</label>
                 <input type="date" value={form.activity_date} onChange={e => update('activity_date', e.target.value)} />
               </div>
+              <div className="mam-field" style={{ flex: 1 }}>
+                <label>Fecha límite de entrega</label>
+                <input type="date" value={form.due_date} onChange={e => update('due_date', e.target.value)} min={form.activity_date} />
+              </div>
             </div>
+
+            {selectedStudentIds?.length > 0 && (
+              <div className="mam-field">
+                <label>Asignar a</label>
+                <div className="mam-toggle-row">
+                  <button
+                    className={`mam-toggle ${form.assign_all ? 'active' : ''}`}
+                    onClick={() => update('assign_all', true)}
+                    type="button"
+                  >👥 Todos ({students.length})</button>
+                  <button
+                    className={`mam-toggle ${!form.assign_all ? 'active' : ''}`}
+                    onClick={() => update('assign_all', false)}
+                    type="button"
+                  >✓ Seleccionados ({selectedStudentIds.length})</button>
+                </div>
+              </div>
+            )}
 
             <div className="mam-row">
               <div className="mam-field" style={{ flex: 1 }}>

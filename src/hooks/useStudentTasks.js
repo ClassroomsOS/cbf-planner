@@ -34,7 +34,7 @@ export default function useStudentTasks({ teacher, studentId, grade, section }) 
 
       // 3. Micro-activities for this grade/section by any teacher at school
       supabase.from('micro_activities')
-        .select('id, name, description, category, activity_date, status, teacher_id, created_at')
+        .select('id, name, description, category, activity_date, due_date, assigned_student_ids, status, teacher_id, created_at')
         .eq('school_id', teacher.school_id)
         .eq('grade', grade)
         .eq('section', section),
@@ -128,11 +128,17 @@ export default function useStudentTasks({ teacher, studentId, grade, section }) 
 
     // ── Micro-activities ────────────────────────────────────────────────────────
     for (const micro of micros) {
+      // Skip if assigned to specific students and this student is not in the list
+      if (micro.assigned_student_ids && micro.assigned_student_ids.length > 0) {
+        if (!micro.assigned_student_ids.includes(studentId)) continue
+      }
+
       const gradeRow = microGradeMap[micro.id]
+      const deadline = micro.due_date || micro.activity_date
       let status = 'pending'
       if (gradeRow) {
         status = 'completed'
-        if (micro.activity_date && gradeRow.graded_at && gradeRow.graded_at.slice(0, 10) > micro.activity_date) {
+        if (deadline && gradeRow.graded_at && gradeRow.graded_at.slice(0, 10) > deadline) {
           status = 'late'
         }
       }
@@ -146,7 +152,8 @@ export default function useStudentTasks({ teacher, studentId, grade, section }) 
         sourceId: micro.id,
         sourceTitle: micro.name,
         category: micro.category || 'general',
-        dueDate: micro.activity_date || null,
+        dueDate: micro.due_date || micro.activity_date || null,
+        startDate: micro.activity_date || null,
         createdAt: micro.created_at?.slice(0, 10) || null,
         status,
         colombianGrade: gradeRow?.colombian_grade || null,

@@ -9,6 +9,7 @@ import { useToast } from '../context/ToastContext'
 import { displayName } from '../utils/studentUtils'
 import PlayerCard, { getTier } from '../components/player/PlayerCard'
 import AttendancePanel from '../components/player/AttendancePanel'
+import MicroActivityModal from '../components/MicroActivityModal'
 
 export default function StudentPlayerPage({ teacher }) {
   const { showToast } = useToast()
@@ -25,6 +26,9 @@ export default function StudentPlayerPage({ teacher }) {
   const [badgeMap, setBadgeMap] = useState({})
   const [loading, setLoading] = useState(false)
   const [view, setView] = useState('cards') // 'cards' | 'list' | 'attendance'
+  const [selectedIds, setSelectedIds] = useState(new Set())
+  const [selectionMode, setSelectionMode] = useState(false)
+  const [showMicroModal, setShowMicroModal] = useState(false)
 
   // ── Load assignments ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -188,7 +192,36 @@ export default function StudentPlayerPage({ teacher }) {
     return { aca: overall, par: 50, cre: 50, lid: 50, dis: 50, col: 50 }
   }
 
-  const goToStudent = (student) => navigate(`/player/${student.id}`)
+  const goToStudent = (student) => {
+    if (selectionMode) return // don't navigate in selection mode
+    navigate(`/player/${student.id}`)
+  }
+
+  const toggleSelection = (studentId) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(studentId)) next.delete(studentId)
+      else next.add(studentId)
+      return next
+    })
+  }
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === students.length) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(students.map(s => s.id)))
+    }
+  }
+
+  const exitSelectionMode = () => {
+    setSelectionMode(false)
+    setSelectedIds(new Set())
+  }
+
+  const subjectForSection = assignments.find(a =>
+    a.grade === selectedGrade && a.section === selectedSection
+  )?.subject || ''
 
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
@@ -218,6 +251,20 @@ export default function StudentPlayerPage({ teacher }) {
           >
             ✅ Asistencia
           </button>
+          {view !== 'attendance' && (
+            <>
+              <div className="sp-header-divider" />
+              {!selectionMode ? (
+                <button className="sp-view-btn sp-view-btn--action" onClick={() => setSelectionMode(true)}>
+                  ✏️ Seleccionar
+                </button>
+              ) : (
+                <button className="sp-view-btn sp-view-btn--cancel" onClick={exitSelectionMode}>
+                  ✕ Cancelar
+                </button>
+              )}
+            </>
+          )}
         </div>
       </div>
 
@@ -230,6 +277,11 @@ export default function StudentPlayerPage({ teacher }) {
           {sectionsForGrade.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
         <span className="sp-filter-count">{students.length} estudiantes</span>
+        {selectionMode && students.length > 0 && (
+          <button className="sp-select-all-btn" onClick={toggleSelectAll} type="button">
+            {selectedIds.size === students.length ? '☑ Deseleccionar todos' : '☐ Seleccionar todos'}
+          </button>
+        )}
       </div>
 
       {/* Content */}
@@ -248,15 +300,25 @@ export default function StudentPlayerPage({ teacher }) {
       ) : view === 'cards' ? (
         <div className="sp-grid">
           {students.map(student => (
-            <PlayerCard
-              key={student.id}
-              student={student}
-              stats={getStudentStats(student.id)}
-              photoUrl={profiles[student.id]?.photo_url}
-              overall={getStudentOverall(student.id)}
-              badges={badgeMap[student.id]}
-              onClick={() => goToStudent(student)}
-            />
+            <div key={student.id} className={`sp-card-wrapper ${selectionMode && selectedIds.has(student.id) ? 'sp-card-wrapper--selected' : ''}`}>
+              {selectionMode && (
+                <label className="sp-card-check" onClick={e => e.stopPropagation()}>
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(student.id)}
+                    onChange={() => toggleSelection(student.id)}
+                  />
+                </label>
+              )}
+              <PlayerCard
+                student={student}
+                stats={getStudentStats(student.id)}
+                photoUrl={profiles[student.id]?.photo_url}
+                overall={getStudentOverall(student.id)}
+                badges={badgeMap[student.id]}
+                onClick={() => selectionMode ? toggleSelection(student.id) : goToStudent(student)}
+              />
+            </div>
           ))}
         </div>
       ) : view === 'list' ? (
@@ -264,6 +326,7 @@ export default function StudentPlayerPage({ teacher }) {
           <table className="sp-list-table">
             <thead>
               <tr>
+                {selectionMode && <th style={{ width: 36 }}></th>}
                 <th>#</th>
                 <th>Estudiante</th>
                 <th>Código</th>
@@ -278,8 +341,24 @@ export default function StudentPlayerPage({ teacher }) {
                 const tier = getTier(overall)
                 const photo = profiles[student.id]?.photo_url
                 const b = badgeMap[student.id]
+                const isSelected = selectedIds.has(student.id)
                 return (
-                  <tr key={student.id} className="sp-list-row" onClick={() => goToStudent(student)}>
+                  <tr
+                    key={student.id}
+                    className={`sp-list-row ${isSelected ? 'sp-list-row--selected' : ''}`}
+                    onClick={() => selectionMode ? toggleSelection(student.id) : goToStudent(student)}
+                  >
+                    {selectionMode && (
+                      <td style={{ width: 36, textAlign: 'center' }}>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleSelection(student.id)}
+                          onClick={e => e.stopPropagation()}
+                          className="sp-list-checkbox"
+                        />
+                      </td>
+                    )}
                     <td className="sp-list-num">{i + 1}</td>
                     <td className="sp-list-name">
                       <div className="sp-list-avatar">
@@ -317,6 +396,54 @@ export default function StudentPlayerPage({ teacher }) {
           grade={selectedGrade}
           section={selectedSection}
           assignments={assignments}
+        />
+      )}
+
+      {/* ── Selection Action Bar ─────────────────────────────────────────────── */}
+      {selectionMode && selectedIds.size > 0 && (
+        <div className="sp-action-bar">
+          <span className="sp-action-bar-count">
+            {selectedIds.size} de {students.length} seleccionado{selectedIds.size !== 1 ? 's' : ''}
+          </span>
+          <button
+            className="sp-action-bar-btn"
+            onClick={() => setShowMicroModal(true)}
+            type="button"
+          >
+            ＋ Crear actividad
+          </button>
+        </div>
+      )}
+
+      {/* ── Create activity button (no selection) ────────────────────────────── */}
+      {!selectionMode && view !== 'attendance' && students.length > 0 && (
+        <div className="sp-fab-container">
+          <button
+            className="sp-fab-btn"
+            onClick={() => { setShowMicroModal(true) }}
+            type="button"
+          >
+            ＋ Actividad para todos
+          </button>
+        </div>
+      )}
+
+      {/* ── Micro Activity Modal ─────────────────────────────────────────────── */}
+      {showMicroModal && (
+        <MicroActivityModal
+          teacher={teacher}
+          grade={selectedGrade}
+          section={selectedSection}
+          subject={subjectForSection}
+          period={teacher.default_period || 1}
+          students={students}
+          selectedStudentIds={selectionMode ? [...selectedIds] : []}
+          onCreated={() => {
+            setShowMicroModal(false)
+            exitSelectionMode()
+            showToast('Actividad creada', 'success')
+          }}
+          onClose={() => setShowMicroModal(false)}
         />
       )}
     </div>
