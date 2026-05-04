@@ -1,18 +1,18 @@
 // ── StudentPlayerPage.jsx ─────────────────────────────────────────────────────
-// FIFA-style student dashboard. Platinum theme, glass cards, expand-to-center.
-// Route: /player
+// FIFA-style student dashboard. Platinum theme, glass cards.
+// Route: /player — click card navigates to /player/:studentId detail page.
 
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { createPortal } from 'react-dom'
+import { useState, useEffect, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { useToast } from '../context/ToastContext'
 import { displayName } from '../utils/studentUtils'
 import PlayerCard, { getTier } from '../components/player/PlayerCard'
-import RadarChart from '../components/player/RadarChart'
 import AttendancePanel from '../components/player/AttendancePanel'
 
 export default function StudentPlayerPage({ teacher }) {
   const { showToast } = useToast()
+  const navigate = useNavigate()
 
   // ── State ────────────────────────────────────────────────────────────────────
   const [assignments, setAssignments] = useState([])
@@ -22,10 +22,9 @@ export default function StudentPlayerPage({ teacher }) {
   const [playerStats, setPlayerStats] = useState({})
   const [profiles, setProfiles] = useState({})
   const [grades, setGrades] = useState([])
+  const [badgeMap, setBadgeMap] = useState({})
   const [loading, setLoading] = useState(false)
   const [view, setView] = useState('cards') // 'cards' | 'list' | 'attendance'
-  const [expandedStudent, setExpandedStudent] = useState(null)
-  const [expandAnim, setExpandAnim] = useState(false) // controls CSS class for animation
 
   // ── Load assignments ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -56,7 +55,7 @@ export default function StudentPlayerPage({ teacher }) {
       setSelectedSection(sectionsForGrade[0])
   }, [sectionsForGrade])
 
-  // ── Load students + stats ─────────────────────────────────────────────────────
+  // ── Load students + stats + badge data ────────────────────────────────────────
   useEffect(() => {
     if (!selectedGrade || !selectedSection || !teacher?.school_id) return
     setLoading(true)
@@ -75,18 +74,99 @@ export default function StudentPlayerPage({ teacher }) {
         .select('student_id, status, support_level, flags, photo_url')
         .eq('school_id', teacher.school_id),
       supabase.from('student_activity_grades')
-        .select('student_id, colombian_grade')
-        .eq('teacher_id', teacher.id)
+        .select('student_id, colombian_grade, news_project_id, activity_id, micro_activity_id, graded_at')
         .eq('school_id', teacher.school_id),
-    ]).then(([studentsRes, statsRes, profilesRes, gradesRes]) => {
-      setStudents(studentsRes.data || [])
+      // Badge data: NEWS projects with activities
+      supabase.from('news_projects')
+        .select('id, grade, section, actividades_evaluativas, status')
+        .eq('school_id', teacher.school_id)
+        .eq('grade', selectedGrade)
+        .eq('section', selectedSection)
+        .in('status', ['draft', 'in_progress', 'active']),
+      // Badge data: exam instances for students in this grade/section
+      supabase.from('exam_instances')
+        .select('student_id, instance_status, submitted_at, exam_sessions(ended_at)')
+        .eq('school_id', teacher.school_id),
+      // Badge data: micro activities
+      supabase.from('micro_activities')
+        .select('id, status')
+        .eq('school_id', teacher.school_id)
+        .eq('grade', selectedGrade)
+        .eq('section', selectedSection),
+    ]).then(([studentsRes, statsRes, profilesRes, gradesRes, newsRes, examRes, microRes]) => {
+      const studentList = studentsRes.data || []
+      setStudents(studentList)
+
       const statsMap = {}
       for (const s of (statsRes.data || [])) statsMap[s.student_id] = s
       setPlayerStats(statsMap)
+
       const profMap = {}
       for (const p of (profilesRes.data || [])) profMap[p.student_id] = p
       setProfiles(profMap)
-      setGrades(gradesRes.data || [])
+
+      const allGrades = gradesRes.data || []
+      setGrades(allGrades)
+
+      // ── Compute badges ──────────────────────────────────────────────────────
+      const studentIds = new Set(studentList.map(s => s.id))
+      const badges = {}
+      for (const sid of studentIds) badges[sid] = { pending: 0, completed: 0, late: 0 }
+
+      // Grade lookup
+      const gradeKeys = new Set()
+      for (const g of allGrades) {
+        if (g.news_project_id && g.activity_id) gradeKeys.add(`${g.student_id}|${g.news_project_id}|${g.activity_id}`)
+        if (g.micro_activity_id) gradeKeys.add(`${g.student_id}|micro|${g.micro_activity_id}`)
+      }
+
+      // NEWS activities
+      const newsProjects = newsRes.data || []
+      for (const proj of newsProjects) {
+        const acts = proj.actividades_evaluativas || []
+        for (const act of acts) {
+          if (!act.nombre) continue
+          for (const sid of studentIds) {
+            const key = `${sid}|${proj.id}|${act.id}`
+            if (gradeKeys.has(key)) {
+              badges[sid].completed++
+            } else {
+              badges[sid].pending++
+            }
+          }
+        }
+      }
+
+      // Exam instances
+      const examInstances = examRes.data || []
+      for (const inst of examInstances) {
+        if (!studentIds.has(inst.student_id)) continue
+        if (inst.instance_status === 'submitted') {
+          const ended = inst.exam_sessions?.ended_at
+          if (ended && inst.submitted_at && inst.submitted_at > ended) {
+            badges[inst.student_id].late++
+          } else {
+            badges[inst.student_id].completed++
+          }
+        } else if (['ready', 'started'].includes(inst.instance_status)) {
+          badges[inst.student_id].pending++
+        }
+      }
+
+      // Micro activities
+      const microActs = microRes.data || []
+      for (const micro of microActs) {
+        for (const sid of studentIds) {
+          const key = `${sid}|micro|${micro.id}`
+          if (gradeKeys.has(key)) {
+            badges[sid].completed++
+          } else {
+            badges[sid].pending++
+          }
+        }
+      }
+
+      setBadgeMap(badges)
       setLoading(false)
     })
   }, [selectedGrade, selectedSection, teacher?.school_id, teacher?.id])
@@ -108,119 +188,7 @@ export default function StudentPlayerPage({ teacher }) {
     return { aca: overall, par: 50, cre: 50, lid: 50, dis: 50, col: 50 }
   }
 
-  // ── Expand card ────────────────────────────────────────────────────────────────
-  const handleExpand = useCallback((student) => {
-    setExpandedStudent(student)
-    // Trigger animation on next frame
-    requestAnimationFrame(() => setExpandAnim(true))
-  }, [])
-
-  const handleCollapse = useCallback(() => {
-    setExpandAnim(false)
-    setTimeout(() => setExpandedStudent(null), 350) // match CSS transition
-  }, [])
-
-  // Navigate between students in expanded view
-  const handleNav = useCallback((dir) => {
-    if (!expandedStudent) return
-    const idx = students.findIndex(s => s.id === expandedStudent.id)
-    const next = idx + dir
-    if (next >= 0 && next < students.length) {
-      setExpandAnim(false)
-      setTimeout(() => {
-        setExpandedStudent(students[next])
-        requestAnimationFrame(() => setExpandAnim(true))
-      }, 150)
-    }
-  }, [expandedStudent, students])
-
-  // ── Expanded full view ─────────────────────────────────────────────────────────
-  const renderExpandedView = () => {
-    if (!expandedStudent) return null
-    const s = expandedStudent
-    const overall = getStudentOverall(s.id)
-    const stats = getStudentStats(s.id)
-    const tier = getTier(overall)
-    const photo = profiles[s.id]?.photo_url
-    const profile = profiles[s.id]
-    const name = `${s.first_lastname || ''} ${s.second_lastname || ''} ${s.first_name || ''} ${s.second_name || ''}`.replace(/\s+/g, ' ').trim()
-    const idx = students.findIndex(st => st.id === s.id)
-
-    return createPortal(
-      <div className={`sp-expand-overlay ${expandAnim ? 'sp-expand-overlay--active' : ''}`} onClick={handleCollapse}>
-        <div className={`sp-expand-card sp-expand-card--${tier} ${expandAnim ? 'sp-expand-card--active' : ''}`} onClick={e => e.stopPropagation()}>
-          {/* Close */}
-          <button className="sp-expand-close" onClick={handleCollapse} type="button">&times;</button>
-
-          {/* Nav arrows */}
-          {idx > 0 && (
-            <button className="sp-expand-nav sp-expand-nav--prev" onClick={() => handleNav(-1)} type="button">&lsaquo;</button>
-          )}
-          {idx < students.length - 1 && (
-            <button className="sp-expand-nav sp-expand-nav--next" onClick={() => handleNav(1)} type="button">&rsaquo;</button>
-          )}
-
-          {/* Content */}
-          <div className="sp-expand-inner">
-            {/* Left: Avatar + Rating */}
-            <div className="sp-expand-left">
-              <div className="sp-expand-rating">{overall}</div>
-              <div className="sp-expand-avatar">
-                {photo ? (
-                  <img src={photo} alt={name} className="sp-expand-photo" />
-                ) : (
-                  <div className="sp-expand-initials">
-                    {(s.first_name?.[0] || '') + (s.first_lastname?.[0] || '')}
-                  </div>
-                )}
-              </div>
-              <div className="sp-expand-name">{name}</div>
-              <div className="sp-expand-meta">{s.grade} {s.section} · {s.student_code}</div>
-              {profile?.status && profile.status !== 'no_intervention' && (
-                <div className={`sp-expand-status sp-expand-status--${profile.status}`}>
-                  {profile.status === 'monitoring' ? 'Monitoreo' : 'Intervención'}
-                </div>
-              )}
-            </div>
-
-            {/* Right: Radar + Stats */}
-            <div className="sp-expand-right">
-              <div className="sp-expand-radar">
-                <RadarChart stats={stats} tier={tier} size={200} />
-              </div>
-              <div className="sp-expand-stats-grid">
-                <StatBlock label="Académico" abbr="ACA" value={stats.aca} />
-                <StatBlock label="Participación" abbr="PAR" value={stats.par} />
-                <StatBlock label="Creatividad" abbr="CRE" value={stats.cre} />
-                <StatBlock label="Liderazgo" abbr="LID" value={stats.lid} />
-                <StatBlock label="Disciplina" abbr="DIS" value={stats.dis} />
-                <StatBlock label="Colaboración" abbr="COL" value={stats.col} />
-              </div>
-            </div>
-          </div>
-
-          {/* Bottom: Additional info panels */}
-          <div className="sp-expand-panels">
-            {profile?.flags?.length > 0 && (
-              <div className="sp-expand-panel">
-                <h4>Rasgos</h4>
-                <div className="sp-expand-tags">
-                  {profile.flags.map(f => <span key={f} className="sp-expand-tag">{f}</span>)}
-                </div>
-              </div>
-            )}
-            <div className="sp-expand-panel">
-              <h4>Tier</h4>
-              <span className={`sp-expand-tier-badge sp-expand-tier-badge--${tier}`}>
-                {tier === 'gold' ? 'Champion' : tier === 'silver' ? 'Elite' : tier === 'bronze' ? 'Rising' : 'Rookie'}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>,
-      document.body
-    )
-  }
+  const goToStudent = (student) => navigate(`/player/${student.id}`)
 
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
@@ -286,7 +254,8 @@ export default function StudentPlayerPage({ teacher }) {
               stats={getStudentStats(student.id)}
               photoUrl={profiles[student.id]?.photo_url}
               overall={getStudentOverall(student.id)}
-              onClick={() => handleExpand(student)}
+              badges={badgeMap[student.id]}
+              onClick={() => goToStudent(student)}
             />
           ))}
         </div>
@@ -308,8 +277,9 @@ export default function StudentPlayerPage({ teacher }) {
                 const overall = getStudentOverall(student.id)
                 const tier = getTier(overall)
                 const photo = profiles[student.id]?.photo_url
+                const b = badgeMap[student.id]
                 return (
-                  <tr key={student.id} className="sp-list-row" onClick={() => handleExpand(student)}>
+                  <tr key={student.id} className="sp-list-row" onClick={() => goToStudent(student)}>
                     <td className="sp-list-num">{i + 1}</td>
                     <td className="sp-list-name">
                       <div className="sp-list-avatar">
@@ -319,6 +289,8 @@ export default function StudentPlayerPage({ teacher }) {
                         }
                       </div>
                       <span>{displayName(student)}</span>
+                      {b?.pending > 0 && <span className="sp-list-badge sp-list-badge--pending">{b.pending}</span>}
+                      {b?.late > 0 && <span className="sp-list-badge sp-list-badge--late">{b.late}</span>}
                     </td>
                     <td className="sp-list-code">{student.student_code || '—'}</td>
                     <td className="sp-list-rating">
@@ -330,7 +302,7 @@ export default function StudentPlayerPage({ teacher }) {
                       </span>
                     </td>
                     <td className="sp-list-action">
-                      <button type="button" className="sp-list-expand-btn" onClick={e => { e.stopPropagation(); handleExpand(student) }}>Ver</button>
+                      <button type="button" className="sp-list-expand-btn" onClick={e => { e.stopPropagation(); goToStudent(student) }}>Ver</button>
                     </td>
                   </tr>
                 )
@@ -347,24 +319,6 @@ export default function StudentPlayerPage({ teacher }) {
           assignments={assignments}
         />
       )}
-
-      {/* Expanded view portal */}
-      {renderExpandedView()}
-    </div>
-  )
-}
-
-function StatBlock({ label, abbr, value = 0 }) {
-  const pct = Math.min(value, 99)
-  return (
-    <div className="sp-expand-stat">
-      <div className="sp-expand-stat-header">
-        <span className="sp-expand-stat-label">{label}</span>
-        <span className="sp-expand-stat-value">{value}</span>
-      </div>
-      <div className="sp-expand-stat-bar">
-        <div className="sp-expand-stat-fill" style={{ width: `${pct}%` }} />
-      </div>
     </div>
   )
 }

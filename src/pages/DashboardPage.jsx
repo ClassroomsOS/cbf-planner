@@ -39,6 +39,7 @@ import GradingHistoryPage  from './GradingHistoryPage'
 import GradebookPage       from './GradebookPage'
 import QuickGradePage      from './QuickGradePage'
 import StudentPlayerPage   from './StudentPlayerPage'
+import StudentDetailPage   from './StudentDetailPage'
 import ProfileModal        from '../components/ProfileModal'
 import { FeaturesProvider, useFeatures } from '../context/FeaturesContext'
 import { canManage, canAccessCalendar, isRector, canReadAllPlans, canViewSchedule, canManageAgendas, isCoteacherActive, isSuperAdmin, roleLabel, ROLE_STYLES } from '../utils/roles'
@@ -482,6 +483,7 @@ function DashboardInner({ session, teacher, setTeacher }) {
           <Route path="/exams/:id"     element={<ExamViewPage           teacher={teacher} />} />
           <Route path="/students"      element={<StudentsPage            teacher={teacher} />} />
           <Route path="/player"               element={<StudentPlayerPage   teacher={teacher} />} />
+          <Route path="/player/:studentId"    element={<StudentDetailPage   teacher={teacher} />} />
           <Route path="/grades"               element={<GradebookPage       teacher={teacher} />} />
           <Route path="/grades/quick/:id"    element={<QuickGradePage      teacher={teacher} />} />
           <Route path="/grading"             element={<GradingHubPage      teacher={teacher} />} />

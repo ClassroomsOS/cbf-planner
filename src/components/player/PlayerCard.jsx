@@ -17,7 +17,7 @@ function getInitials(student) {
   return (f + l).toUpperCase()
 }
 
-export default function PlayerCard({ student, stats = {}, photoUrl, overall = 0, onClick }) {
+export default function PlayerCard({ student, stats = {}, photoUrl, overall = 0, badges, onClick }) {
   const tier = getTier(overall)
   const displayName = `${student.first_lastname || ''} ${student.first_name || ''}`.trim()
 
@@ -30,6 +30,18 @@ export default function PlayerCard({ student, stats = {}, photoUrl, overall = 0,
       <div className="sp-card-rating">
         <span className="sp-card-rating-num">{overall}</span>
       </div>
+
+      {/* Activity badges */}
+      {badges && (badges.pending > 0 || badges.late > 0) && (
+        <div className="sp-card-badges">
+          {badges.pending > 0 && (
+            <span className="sp-card-badge sp-card-badge--pending">{badges.pending}</span>
+          )}
+          {badges.late > 0 && (
+            <span className="sp-card-badge sp-card-badge--late">{badges.late}</span>
+          )}
+        </div>
+      )}
 
       {/* Avatar */}
       <div className="sp-card-avatar">
