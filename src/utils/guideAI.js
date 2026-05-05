@@ -11,11 +11,11 @@ const ACTIVITY_ARCHETYPES = {
   // English / Modelo B
   en: {
     'ENCUENTRO · VOCABULARY LIST': [
-      'a greeting ritual + 5-word vocabulary list with gestures or choral repetition',
-      'a vocab flash-card warm-up: teacher shows word, students call out definition or example sentence',
-      'a "word of the day" spotlight: one word, its meaning, a bible-principle connection, and a student-generated sentence',
-      'a vocabulary matching race: 5 words on the board, students draw lines to definitions',
-      'a daily phrase practice: teach one functional phrase (e.g. "I can argue that…"), model it, choral repeat, one student uses it in context',
+      'Day index: Biblical Principle introduction · Unit first encounter + vocabulary presentation · Vocabulary: 8 key words',
+      'Day index: Biblical Principle deepening (connection to real life) · Unit grammar exploration · Vocabulary: practice game',
+      'Day index: Biblical Principle application (how do I live this?) · Unit reading + comprehension · Vocabulary: in context use',
+      'Day index: Biblical Principle reflection (how does this shape me?) · Unit writing production · Vocabulary: dictation',
+      'Day index: Biblical Principle synthesis (sharing with others) · Unit review + consolidation · Vocabulary: presentation day',
     ],
     'TEMA DEL DÍA': [
       'a one-sentence board announcement connecting today\'s topic to the biblical principle',
@@ -23,33 +23,33 @@ const ACTIVITY_ARCHETYPES = {
       'a brief agenda preview: topic, objective, biblical connection — one sentence each',
     ],
     'MOTIVACIÓN': [
-      'a provocative real-life question or "Would you rather?" dilemma connected to the topic',
-      'a short image/headline prediction activity: "What do you think this is about?"',
-      'a word association chain or brainstorm web on the board',
-      'a mystery object or realia reveal related to the unit',
-      'a personal anecdote prompt: "Tell your partner about a time when…"',
-      'a quick class poll with hands-up voting and brief justification',
-      'a short song lyric or poem excerpt with a guiding question',
-      'a "what do you notice?" visual stimulus (photo, infographic, meme)',
-      'a true/false warm-up quiz about prior knowledge of the topic',
-      'a "complete the sentence" prediction game using target vocabulary',
+      'a think-pair-share connecting prior knowledge to today\'s topic: "What do you already know about…? Tell your partner."',
+      'a prediction activity: show an image/headline and ask "What do you think this is about? Why?" — bridge to the lesson',
+      'a KWL opener: "What do you KNOW? What do you WANT to know?" — then the lesson answers the W',
+      'a personal connection prompt: "Tell your partner about a time when…" — linking lived experience to the new content',
+      'a provocative dilemma or "Would you rather?" that surfaces prior beliefs about the topic',
+      'a quick class poll with justification: "Raise your hand if… Now tell us WHY you think that"',
+      'a brainstorm web: students share everything they associate with [key concept] — teacher maps connections',
+      'a "what do you notice?" visual stimulus (photo, infographic) with a guiding question that bridges to today',
+      'a true/false warm-up that reveals misconceptions the lesson will address',
+      'a recall challenge: "With your partner, list 3 things we learned last class about… How might that connect to today?"',
     ],
     'DESARROLLO DE HABILIDADES': [
-      'a hot seat roleplay (one student in character, others interview)',
-      'a four corners debate using opinion phrases and target grammar',
-      'a jigsaw reading where groups reconstruct a story and report back',
-      'a collaborative storytelling chain using required vocabulary',
-      'an alibi roleplay (pairs create and defend their alibi)',
-      'a gallery walk where students annotate posters with grammar structures',
-      'a structured debate with argument frames and rebuttal turns',
-      'a think-pair-share using sentence starters from the unit',
-      'a news broadcast simulation (anchor, reporter, eyewitness roles)',
-      'a dictogloss (teacher reads twice; pairs reconstruct the text)',
-      'a "speed dating" conversation rotation with a new topic each minute',
-      'a peer teaching segment (student A explains to student B, then swap)',
-      'a story completion chain where each student adds one sentence',
-      'a vocabulary ranking and justification activity',
-      'an error correction hunt on a printed or projected paragraph',
+      'a pattern discovery: students observe 4-5 examples and INFER the rule together before teacher confirms',
+      'a jigsaw reading: groups explore different parts, then teach each other — constructing full understanding collaboratively',
+      'a hypothesis-testing activity: students predict → read/listen → verify → reformulate their understanding',
+      'a gallery walk where students annotate posters with guiding questions, then synthesize findings',
+      'a think-pair-share: individual reflection → partner discussion → class construction of meaning',
+      'a dictogloss: teacher reads twice, pairs reconstruct — comparing versions reveals understanding gaps',
+      'a peer teaching segment: student A explains to student B, then swap — teaching deepens comprehension',
+      'a compare-and-contrast exploration: students find similarities/differences and formulate a conclusion',
+      'an error correction hunt: students identify patterns in mistakes and explain WHY they are wrong',
+      'a concept mapping activity: students build visual connections between ideas from the text',
+      'a guided discovery from textbook examples: "What do you notice?" → formulate rule → apply',
+      'a collaborative problem-solving task where groups propose solutions and justify their reasoning',
+      'a Socratic questioning sequence: teacher poses layered questions, students build understanding step by step',
+      'a structured debate where students must construct arguments using evidence from the text',
+      'a "teach-back" challenge: after exploration, student explains the concept to a partner in their own words',
     ],
     'CIERRE Y REFLEXIÓN': [
       'an exit-ticket sentence using the target structure + one faith-connection sentence',
@@ -73,11 +73,11 @@ const ACTIVITY_ARCHETYPES = {
   // Spanish
   es: {
     'ENCUENTRO · VOCABULARY LIST': [
-      'saludo + lista de 5 palabras clave del día con repetición coral y gestos',
-      'ritual de bienvenida + palabra del día: significado, conexión bíblica y oración del estudiante',
-      'tarjetas de vocabulario: el docente muestra la palabra, los estudiantes dicen la definición o un ejemplo',
-      'carrera de asociación: 5 palabras en el tablero, los estudiantes las relacionan con imágenes o definiciones',
-      'frase funcional del día: el docente la modela, el grupo la repite coralmente, un estudiante la usa en contexto',
+      'Índice del día: Principio Bíblico — introducción · Unidad — primer encuentro + vocabulario · Vocabulario: presentación de palabras clave',
+      'Índice del día: Principio Bíblico — profundización (conexión con la vida real) · Unidad — exploración gramatical · Vocabulario: juego de práctica',
+      'Índice del día: Principio Bíblico — aplicación (¿cómo lo vivo?) · Unidad — lectura y comprensión · Vocabulario: uso en contexto',
+      'Índice del día: Principio Bíblico — reflexión (¿cómo me forma?) · Unidad — producción escrita · Vocabulario: dictado',
+      'Índice del día: Principio Bíblico — síntesis (¿cómo lo comparto?) · Unidad — revisión y consolidación · Vocabulario: día de presentación',
     ],
     'TEMA DEL DÍA': [
       'una oración que enuncia el tema del día y lo conecta con el principio bíblico del mes',
@@ -85,25 +85,28 @@ const ACTIVITY_ARCHETYPES = {
       'resumen de la agenda del día: tema, objetivo, conexión bíblica — una oración por ítem',
     ],
     'MOTIVACIÓN': [
-      'una pregunta provocadora o dilema de la vida real relacionado con el tema',
-      'una lluvia de ideas cronometrada con una imagen o titular de noticia',
-      'un juego de asociación de palabras o mapa mental rápido en el tablero',
-      'un acertijo o misterio relacionado con el contenido del día',
-      'una encuesta rápida con manos arriba y justificación breve',
-      'una predicción: ¿qué creen que va a pasar? ¿Por qué?',
-      'una conexión personal: ¿cuándo has vivido algo parecido a esto?',
-      'un video corto o imagen impactante con pregunta guía',
+      'un think-pair-share: "¿Qué ya sabes sobre [tema]? Cuéntale a tu compañero" — puente hacia lo nuevo',
+      'una predicción con imagen o titular: "¿De qué crees que se trata? ¿Por qué?" — conecta con la lección',
+      'un KWL: "¿Qué SABES? ¿Qué QUIERES saber?" — la lección responderá la Q',
+      'una conexión personal: "¿Cuándo has vivido algo parecido?" — vincular experiencia con contenido nuevo',
+      'un dilema provocador que revele creencias previas sobre el tema',
+      'una encuesta rápida con justificación: "Levanta la mano si… Ahora explica POR QUÉ piensas eso"',
+      'una lluvia de ideas: los alumnos comparten todo lo que asocian con [concepto clave] — el docente mapea conexiones',
+      'un "¿qué notas?" con estímulo visual y pregunta guía que conecte con lo que van a aprender',
+      'un verdadero/falso que revele conceptos erróneos que la lección va a corregir',
+      'un reto de recuerdo: "Con tu compañero, lista 3 cosas de la clase pasada. ¿Cómo se conectan con hoy?"',
     ],
     'DESARROLLO DE HABILIDADES': [
-      'un roleplay de situación real usando el vocabulario del tema',
-      'un debate estructurado con rondas de argumento y réplica',
-      'una actividad jigsaw: grupos expertos que enseñan a otros',
-      'un proyecto corto de escritura colaborativa en tríos',
-      'una galería de ideas donde los grupos anotan y responden',
-      'una cadena de historia donde cada estudiante agrega un elemento',
-      'una simulación o juego de roles con roles asignados',
-      'un análisis de caso con preguntas guía y presentación breve',
-      'un taller de corrección entre pares con rúbrica sencilla',
+      'un descubrimiento de patrones: los alumnos observan 4-5 ejemplos e INFIEREN la regla antes de que el docente confirme',
+      'una actividad jigsaw: grupos exploran partes distintas y se enseñan mutuamente — construcción colaborativa',
+      'una hipótesis-verificación: los alumnos predicen → leen → verifican → reformulan su comprensión',
+      'una galería con preguntas guía: los grupos anotan respuestas y luego sintetizan hallazgos colectivamente',
+      'un think-pair-share: reflexión individual → discusión en parejas → construcción colectiva de significado',
+      'un análisis de caso: el alumno lee, identifica un problema, propone una solución y la justifica',
+      'un mapeo de conceptos: los alumnos construyen conexiones visuales entre las ideas del texto',
+      'un descubrimiento guiado desde el libro: "¿Qué notas?" → formula la regla → aplica con un compañero',
+      'una resolución colaborativa: grupos proponen soluciones y justifican su razonamiento al resto',
+      'un "enseña-lo-aprendido": después de explorar, el alumno explica el concepto a un compañero en sus palabras',
     ],
     'CIERRE Y REFLEXIÓN': [
       'una pregunta de reflexión que conecte lo aprendido con el principio bíblico + ticket de salida',
@@ -134,27 +137,26 @@ export async function suggestSectionActivity({
     ? archetypeList[(variantSeed || Math.floor(Math.random() * 10000)) % archetypeList.length]
     : null
 
-  // Limits are strict: guide content = direct student-facing instruction, not descriptive prose.
-  // Rule: imperative voice, no preamble, no meta-commentary. Student reads → student acts.
+  // Limits per section — constructivist approach: guide questions, exploration, construction.
   const SECTION_LIMITS = {
     'ENCUENTRO · VOCABULARY LIST': isModeloB
-      ? 'Exactly 5 vocabulary words (word — definition — example sentence). Then 1 line describing the warm-up activity (choral repeat / gesture / quick game). Max 40 words total.'
-      : 'Exactamente 5 palabras (palabra — significado — ejemplo). Luego 1 línea con la actividad breve (repetición coral / gesto / juego). Máx. 40 palabras.',
+      ? 'Brief consecutive daily index — 3 lines: what moment of the Biblical Principle (intro/deepening/application/reflection), what moment of the Unit (intro/practice/analysis/production), what moment of Vocabulary (presentation/game/in-context use/dictation). Never repeat "intro" two days in a row — always scales on the previous day. Max 50 words.'
+      : 'Índice breve y consecutivo del día — 3 líneas: qué momento del Principio Bíblico (intro/profundización/aplicación/reflexión), qué momento de la Unidad (intro/práctica/análisis/producción), qué momento del Vocabulario (presentación/juego/uso en contexto/dictado). Nunca repetir "intro" dos días seguidos. Máx. 50 palabras.',
     'TEMA DEL DÍA': isModeloB
-      ? '1 sentence max. Direct statement of today\'s topic and skill. No preamble.'
-      : '1 oración. Enuncia el tema del día. Sin introducciones.',
+      ? 'Board ritual — written and NOT erased during class: Date | Objective (student-friendly) | Biblical Principle | Topic. If milestone today: open with "⚠️ TODAY: [MILESTONE]". Max 40 words.'
+      : 'Ritual del tablero — se escribe y NO se borra durante la clase: Fecha | Objetivo (lenguaje amigable) | Principio Bíblico | Tema. Si hay hito: abrir con "⚠️ HOY: [HITO]". Máx. 40 palabras.',
     'MOTIVACIÓN': isModeloB
-      ? '1 direct question or 1-step game instruction. Max 25 words. Imperative or interrogative — no descriptive sentences.'
-      : '1 pregunta directa o 1 instrucción de juego breve. Máx. 25 palabras. Imperativo o interrogativo — sin oraciones descriptivas.',
+      ? '1 guiding question that activates prior knowledge (NOT yes/no — make them think, recall, express opinions) + 1 brief activation dynamic (think-pair-share, prediction, brainstorm). The question bridges what they know with what they will learn. Max 40 words.'
+      : '1 pregunta guía que active saberes previos (NO sí/no — que piensen, recuerden, opinen) + 1 dinámica breve de activación (think-pair-share, predicción, lluvia de ideas). La pregunta conecta lo que saben con lo nuevo. Máx. 40 palabras.',
     'DESARROLLO DE HABILIDADES': isModeloB
-      ? 'Numbered steps (max 4). Each step = 1 action verb + what the student does. Specify the concrete output (write / say / circle / match). Max 60 words.'
-      : 'Lista numerada (máx. 4 pasos). Cada paso = 1 verbo de acción + qué hace el estudiante. Especifica el producto concreto (escribe / dibuja / subraya / responde). Máx. 60 palabras.',
+      ? '4 constructivist MOMENTS (not steps): a) ❓ Guiding question (provokes exploration), b) 🔍 Exploration (observe/read/compare — reference textbook pages), c) 🏗️ Construction (student formulates conclusion, shares with partner), d) ✍️ Product (concrete evidence). Max 80 words.'
+      : '4 MOMENTOS constructivistas (no pasos): a) ❓ Pregunta guía (provoca exploración), b) 🔍 Exploración (observa/lee/compara — referencia páginas del libro), c) 🏗️ Construcción (el alumno formula conclusión, comparte con compañero), d) ✍️ Producto (evidencia concreta). Máx. 80 palabras.',
     'CIERRE Y REFLEXIÓN': isModeloB
-      ? '1 check question + 1 biblical reflection question. Max 30 words total.'
-      : '1 pregunta de verificación + 1 pregunta de reflexión bíblica. Máx. 30 palabras en total.',
+      ? '1 question where the student EXPLAINS in their own words (not repeating definitions — "Explain to your partner...") + 1 deep biblical reflection. Max 40 words.'
+      : '1 pregunta donde el alumno EXPLIQUE EN SUS PALABRAS (no repetir definiciones — "Explica a tu compañero...") + 1 reflexión bíblica profunda. Máx. 40 palabras.',
     'TAREA / ASSIGNMENT': isModeloB
-      ? '1 sentence. Specific task with a concrete deliverable (write X sentences / complete p.XX / record 1 minute). Max 20 words.'
-      : '1 oración. Tarea concreta con entregable específico (escribe X / completa p.XX / graba 1 minuto). Máx. 20 palabras.',
+      ? '1 sentence with concrete deliverable. At least once per week include a brief biblical reflection. Max 25 words.'
+      : '1 oración con entregable concreto. Al menos 1 vez/semana incluir reflexión bíblica breve. Máx. 25 palabras.',
   }
   const limit = SECTION_LIMITS[section.label] || (isModeloB ? 'Max 40 words. Direct instruction only.' : 'Máx. 40 palabras. Solo instrucción directa.')
 
@@ -164,10 +166,14 @@ export async function suggestSectionActivity({
     : 'Respondes SIEMPRE en español.'
 
   const system = `Eres un asistente pedagógico experto para colegios bilingües colombianos (CBF — Colegio Boston Flexible).
-Generas instrucciones de actividades para guías de aprendizaje. Tu salida va DIRECTAMENTE a la guía que el estudiante lee en clase.
+Generas contenido para guías de aprendizaje. Tu salida va DIRECTAMENTE a la guía que el docente usa en clase.
 ${langInstruction}
-REGLA ABSOLUTA DE FORMATO: Instrucción directa, no descripción. El estudiante lee y actúa — no necesita saber que "el docente propone". Sin prosa introductoria, sin "En esta sección…", sin "Se recomienda…". Usa imperativo o interrogativo. Si la sección tiene pasos, usa lista numerada. Sin markdown extra.
-LÍMITE estricto para esta sección: ${limit}
+MODELO PEDAGÓGICO: Constructivista teocéntrico. El docente FACILITA, el alumno CONSTRUYE.
+- Usa PREGUNTAS GUÍA que provoquen pensamiento, no solo instrucciones imperativas.
+- En DESARROLLO: el alumno descubre, infiere, propone — no solo obedece pasos.
+- En MOTIVACIÓN: activa saberes previos con preguntas que conecten lo anterior con lo nuevo.
+- Sin prosa introductoria, sin "Se recomienda…", sin meta-comentarios. Conciso pero pedagógicamente rico.
+LÍMITE para esta sección: ${limit}
 ${biblicalBlock(principles, isClosing
   ? (isModeloB
     ? 'The CLOSING section ALWAYS ends with a question or reflection connecting today\'s learning to this biblical principle. This is the faith-learning integration moment.'
@@ -423,20 +429,25 @@ export async function generateGuideStructure({
 - La semana tiene un arco espiritual además del académico. El estudiante debe terminar
   la semana con una conexión más profunda entre su aprendizaje y su fe.`)
 
-  const system = `Eres un experto en diseño de guías de aprendizaje autónomo para colegios bilingües colombianos CRISTIANOS CONFESIONALES.
+  const system = `Eres un experto en diseño de guías de aprendizaje para colegios bilingües colombianos CRISTIANOS CONFESIONALES.
 Generas estructuras completas de guías semanales siguiendo el modelo CBF con 6 secciones por día.
 
-MANDATO DE BREVEDAD — REGLA N°1:
-El contenido de cada sección va DIRECTAMENTE a la guía que el estudiante lee en clase.
-No escribas prosa que describe lo que hace el docente. Escribe la instrucción que el estudiante ejecuta.
-Cada sección debe ser: imperativo directo, sin introducción, sin meta-comentario.
-  - ENCUENTRO: lista de 5 palabras + 1 línea de actividad (máx. 40 palabras)
-  - TEMA DEL DÍA: ritual del tablero (4 ítems) + 1 oración de conexión bíblica (máx. 50 palabras)
-  - MOTIVACIÓN: 1 pregunta directa o 1 instrucción de juego (máx. 25 palabras)
-  - DESARROLLO: lista numerada 3-4 pasos con verbo de acción + producto concreto (máx. 60 palabras)
-  - CIERRE: 1 pregunta académica + 1 pregunta de reflexión bíblica (máx. 30 palabras)
-  - TAREA: 1 oración con entregable específico (máx. 20 palabras)
-Violar estos límites es un error — el alumno no debe leer más de lo necesario para saber qué hacer.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MODELO PEDAGÓGICO — CONSTRUCTIVISTA TEOCÉNTRICO (NO CONDUCTISTA)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PRINCIPIO RECTOR: "Nosotros diseñamos. El docente enseña."
+El docente es FACILITADOR. El estudiante CONSTRUYE el conocimiento.
+NO generes listas de instrucciones que el alumno solo obedece.
+SÍ genera preguntas guía, momentos de exploración, y espacios donde el alumno
+descubre, infiere, propone y construye — con la guía del docente.
+
+REGLA DE FORMATO:
+- El contenido va a la guía que el docente usa en clase para facilitar el aprendizaje.
+- Usa preguntas guía (❓) para provocar pensamiento, no solo imperativos.
+- Alterna entre: pregunta → exploración → construcción → producto.
+- Sin prosa introductoria, sin "Se recomienda…", sin meta-comentarios.
+- Mantén cada sección concisa pero pedagógicamente rica.
 
 MANDATO ABSOLUTO: Esta es una escuela cristiana confesional. El principio bíblico NO es un elemento decorativo — es el HILO CONDUCTOR que atraviesa CADA momento de CADA clase, sin importar la materia. Matemáticas, Ciencias, Filosofía, Language Arts: todas tienen el mismo norte espiritual. Nunca generes contenido neutral o secular puro.
 
@@ -446,35 +457,64 @@ ABC DEL ENCUENTRO DIDÁCTICO — 6 SECCIONES POR DÍA
 
 HILO BÍBLICO TRANSVERSAL: Presente en CADA sección, no solo inicio/cierre. Es la lente natural del contenido.
 
-1. ENCUENTRO · VOCABULARY LIST (~8 min) — key: "subject"
-   Saludo + 5 palabras (palabra — significado — ejemplo) + 1 actividad breve. Al menos 1 palabra o ejemplo conecta con el principio bíblico.
+1. ENCUENTRO — SUBJECT TO BE WORKED (~5 min) — key: "subject"
+   → NO es lista de vocabulario ni actividad.
+   → Es un ÍNDICE BREVE y CONSECUTIVO de lo que se trabajará ese día:
+     qué momento del Principio Bíblico (intro / profundización / aplicación / reflexión),
+     qué momento de la Unidad (intro / práctica / análisis / producción),
+     qué momento del Vocabulario (presentación / juego / uso en contexto / dictado).
+   → CONSECUTIVIDAD OBLIGATORIA: lo que se introdujo ayer, hoy se profundiza.
+     Nunca repetir "intro" dos días seguidos. Cada día escala sobre el anterior.
+   → Formato: 3 líneas breves. Sin oraciones largas. Solo el índice del día.
+   → Ejemplo Día 1: "📖 Biblical Principle: Introduction — Genesis 1:27 | 📚 Unit 3: First encounter — Vocabulary | 🔤 Vocabulary: Presentation of 8 key words"
+   → Ejemplo Día 2: "📖 Biblical Principle: Deepening — How does it connect to identity? | 📚 Unit 3: Grammar exploration | 🔤 Vocabulary: Practice — matching game"
    → NO incluyas oración ni reglas — se insertan automáticamente.
+   Máx. 50 palabras.
 
-2. TEMA DEL DÍA (~7 min) — key: "motivation"
-   📋 RITUAL DEL TABLERO: Estudiantes copian en cuaderno: 📅 Fecha | 🎯 Indicador | 📖 Versículo | 📚 Tema.
-   Luego 1 oración: "Hoy vamos a… para poder…" + conexión bíblica.
-   Si hay hito evaluativo: abrir con "⚠️ TODAY: [HITO]" antes del ritual.
+2. TEMA DEL DÍA (~5 min) — key: "motivation"
+   📋 RITUAL DEL TABLERO — Se escribe y NO SE BORRA durante toda la clase:
+   📅 Date: [fecha] | 🎯 Objective: [indicador en lenguaje amigable] | 📖 Biblical Principle: [principio] | 📚 Topic: [tema del día]
+   → Si hay hito evaluativo: abrir con "⚠️ TODAY: [HITO]" antes del ritual.
+   Máx. 40 palabras.
 
 3. MOTIVACIÓN (~10 min) — key: "activity"
-   1 pregunta provocadora o 1 dinámica corta que active saberes previos. Conexión bíblica cuando sea natural.
+   OBJETIVO: Activar saberes previos y conectar con la clase anterior.
+   FORMATO OBLIGATORIO:
+   - 1 pregunta guía que provoque al alumno a expresar lo que YA sabe sobre el tema
+     (no una pregunta con respuesta sí/no — una que invite a pensar, recordar, opinar)
+   - 1 dinámica breve de activación (think-pair-share, lluvia de ideas, predicción, encuesta rápida)
+   - La pregunta debe tender un PUENTE entre lo que ya saben y lo que van a aprender hoy.
+   Máx. 40 palabras.
 
 4. DESARROLLO DE HABILIDADES (~25 min) — key: "skill"
-   📐 Si hay gramática: PRESENTAR (copiar regla en cuaderno + SmartBlock GRAMMAR) → PRACTICAR (ejercicios libro) → USAR (producción libre).
-   🎯 Habilidad del día (L/R/W/S): producto concreto + referencia a páginas del libro.
-   Lista numerada 3-4 pasos.
+   MODELO CONSTRUCTIVISTA — El alumno construye conocimiento, el docente facilita:
+   📐 Si hay gramática: el alumno OBSERVA ejemplos → INFIERE la regla → VERIFICA con el docente → PRACTICA.
+
+   ESTRUCTURA OBLIGATORIA (4 momentos, no "pasos"):
+   a) ❓ PREGUNTA GUÍA — Una pregunta que oriente la exploración ("¿Qué patrones notas en...?", "¿Por qué crees que...?", "¿Qué pasaría si...?")
+   b) 🔍 EXPLORACIÓN — El alumno observa, lee, compara, escucha (referencia a páginas del libro). Puede ser individual, en parejas, o en tríos.
+   c) 🏗️ CONSTRUCCIÓN — El alumno formula una respuesta, conclusión o hipótesis. Comparte con un compañero. El docente guía sin dar la respuesta directa.
+   d) ✍️ PRODUCTO — Evidencia concreta de lo construido (escribe, presenta, dibuja, completa).
+
+   🎯 Habilidad del día (L/R/W/S) + referencia a páginas del libro cuando sea posible.
+   Máx. 80 palabras.
 
 5. CIERRE Y REFLEXIÓN (~5 min) — key: "closing"
-   1 pregunta académica + 1 reflexión bíblica significativa (no "¿qué dice el versículo?" sino "¿cómo cambia tu perspectiva?").
+   - 1 pregunta de verificación donde el alumno explique EN SUS PROPIAS PALABRAS lo aprendido
+     (no "¿qué es X?" sino "Explica a tu compañero cómo/por qué…")
+   - 1 reflexión bíblica significativa (no "¿qué dice el versículo?" sino "¿Cómo cambia tu forma de ver [tema] a la luz de [principio]?")
+   Máx. 40 palabras.
 
 6. TAREA / ASSIGNMENT (~3 min) — key: "assignment"
-   1 oración con entregable específico. Al menos 1 vez/semana incluir mini-reflexión bíblica en la tarea.
+   1 tarea concreta con entregable específico. Al menos 1 vez/semana incluir mini-reflexión bíblica.
+   Máx. 25 palabras.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 PROGRESIÓN SEMANAL
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 La semana se orienta por HITOS EVALUATIVOS. Días antes = preparación. Días después = transición.
-Sin hitos → Bloom estándar: Recordar → Comprender → Aplicar → Analizar → Crear.
+Sin hitos → Habilidades de Pensamiento BF: Recuperar → Comprender → Analizar → Aplicar → Evaluar → Crear/Divulgar.
 Habilidades L/R/W/S rotan sin repetir días consecutivos. Libro de texto = referencia obligatoria.
 Checkpoint anterior tiene precedencia sobre progresión estándar.
 
@@ -607,9 +647,9 @@ Las actividades de cada día deben estar ancladas a contenido REAL del libro vis
       })
     }
 
-    // 3. Bloom progression — adapts around milestones
-    const BLOOM_STANDARD = ['Recordar', 'Comprender', 'Aplicar', 'Analizar', 'Evaluar/Crear']
-    const BLOOM_HITO = { DICTATION: 'Aplicar', QUIZ: 'Evaluar', PRESENTATION: 'Crear', RECEPTION: 'Analizar' }
+    // 3. Habilidades de Pensamiento BF — progresión cognitiva (adapta alrededor de hitos)
+    const BLOOM_STANDARD = ['Recuperar', 'Comprender', 'Analizar', 'Aplicar', 'Evaluar', 'Crear/Divulgar']
+    const BLOOM_HITO = { DICTATION: 'Aplicar', QUIZ: 'Evaluar', PRESENTATION: 'Crear/Divulgar', RECEPTION: 'Analizar' }
 
     // 4. Skill rotation (L/R/W/S) — never repeat same skill consecutive days
     const SKILLS = ['Listening', 'Reading', 'Writing', 'Speaking']
@@ -684,7 +724,7 @@ Las actividades de cada día deben estar ancladas a contenido REAL del libro vis
       const dayName = names[i] || names[d.getDay() - 1] || iso
 
       const coords = []
-      coords.push(`Bloom: **${dp.bloom}**`)
+      coords.push(`Habilidad de Pensamiento: **${dp.bloom}**`)
       coords.push(`${SKILL_ICONS[dp.skill] || ''} Habilidad: **${dp.skill}**`)
       if (dp.grammarPhase) {
         coords.push(`${GRAMMAR_PHASE_ES[dp.grammarPhase]}${dp.grammarPoint ? `: "${sanitizeAIInput(dp.grammarPoint)}"` : ''}${dp.grammarPages ? ` (p.${sanitizeAIInput(dp.grammarPages)})` : ''}`)
@@ -916,7 +956,7 @@ Las actividades de cada día deben estar ancladas a contenido REAL del libro vis
     const STRATEGY = {
       most: {
         label: '🟢 >70% logró',
-        instruction: `Escalar Bloom: arrancar donde terminó la semana pasada. Mayor autonomía, productos más elaborados.`,
+        instruction: `Escalar nivel cognitivo: arrancar donde terminó la semana pasada. Mayor autonomía, productos más elaborados.`,
       },
       some: {
         label: '🟡 30-70% logró',
@@ -941,14 +981,14 @@ Las actividades de cada día deben estar ancladas a contenido REAL del libro vis
     return lines.join('\n')
   })() : ''
 
-  // Build 2-week Bloom differentiation
+  // Build 2-week cognitive progression differentiation
   const isTwoWeeks = activeDays.length > 5
   const twoWeekBloomBlock = isTwoWeeks ? (() => {
     const midpoint = Math.ceil(activeDays.length / 2)
     const week1Days = activeDays.slice(0, midpoint).join(', ')
     const week2Days = activeDays.slice(midpoint).join(', ')
     return `
-2 SEMANAS: Semana 1 (${week1Days}) = Recordar→Aplicar. Semana 2 (${week2Days}) = Analizar→Crear.
+2 SEMANAS: Semana 1 (${week1Days}) = Recuperar→Analizar→Aplicar. Semana 2 (${week2Days}) = Evaluar→Crear→Divulgar.
 Semana 2 NO repite Semana 1 — escala cognitiva evidente. Producto Sem.1 = parcial, Sem.2 = completo.`
   })() : ''
 
@@ -969,44 +1009,49 @@ ${focusBlock}
 ${piarBlock}
 
 IDIOMA: Usa inglés para Language Arts. Usa español para todas las demás materias.
-FORMATO: Texto plano, sin HTML, sin viñetas, sin listas. Texto corrido, directo al punto.
+FORMATO: Texto plano, sin HTML. Conciso pero pedagógicamente rico.
 
-INSTRUCCIONES DE CONTENIDO POR SECCIÓN — INSTRUCCIÓN DIRECTA, NO DESCRIPCIÓN:
+INSTRUCCIONES DE CONTENIDO POR SECCIÓN — CONSTRUCTIVISTA (NO CONDUCTISTA):
 
-ENCUENTRO · VOCABULARY LIST (key: subject) — máx. 40 palabras:
-  → Lista: 5 palabras con formato "palabra — significado — ejemplo de uso".
-  → 1 línea: instrucción de la actividad breve (repetición coral / gesto / minijuego).
-  → NO incluyas oración ni reglas de clase (se insertan automáticamente).
-  → Ejemplo: "1. habitat — natural home — 'Bears live in forest habitats.' | Actividad: repite con gesto."
+ENCUENTRO — SUBJECT TO BE WORKED (key: subject) — máx. 50 palabras:
+  → ÍNDICE BREVE y CONSECUTIVO del día. 3 líneas:
+    qué momento del Principio Bíblico (intro/profundización/aplicación/reflexión),
+    qué momento de la Unidad (intro/práctica/análisis/producción),
+    qué momento del Vocabulario (presentación/juego/uso en contexto/dictado).
+  → NUNCA repetir "intro" dos días seguidos — escala sobre el día anterior.
+  → NO incluyas oración ni reglas (se insertan automáticamente).
+  → Ej. Día 1: "📖 Biblical Principle: Introduction | 📚 Unit 3: First encounter + vocabulary | 🔤 Vocabulary: Presentation"
+  → Ej. Día 2: "📖 Biblical Principle: Deepening | 📚 Unit 3: Grammar exploration | 🔤 Vocabulary: Practice"
 
-TEMA DEL DÍA (key: motivation) — máx. 50 palabras:
-  → RITUAL DEL TABLERO: Lista los 4 ítems que el estudiante copia en su cuaderno:
-    📅 Date: [fecha] | 🎯 Indicator: [indicador en lenguaje amigable] | 📖 Verse: [versículo] | 📚 Topic: [tema]
-  → Luego 1 oración conectando tema con principio bíblico.
-  → Si hay hito evaluativo ese día, abre con "⚠️ TODAY: [HITO]" ANTES del ritual.
+TEMA DEL DÍA (key: motivation) — máx. 40 palabras:
+  → RITUAL DEL TABLERO — se escribe y NO SE BORRA durante toda la clase:
+    📅 Date | 🎯 Objective (lenguaje amigable) | 📖 Biblical Principle | 📚 Topic
+  → Si hay hito evaluativo: abrir con "⚠️ TODAY: [HITO]" antes del ritual.
 
-MOTIVACIÓN (key: activity) — máx. 25 palabras:
-  → 1 pregunta directa O 1 instrucción de juego/dinámica corta. Solo eso.
-  → Ejemplo (pregunta): "¿Alguna vez le mentiste a alguien para protegerlo? ¿Fue lo correcto?"
-  → Ejemplo (juego): "En parejas: 30 segundos — nombra 5 animales en inglés sin repetir. ¡Ya!"
+MOTIVACIÓN (key: activity) — máx. 40 palabras:
+  → 1 PREGUNTA GUÍA que active saberes previos (NO sí/no — que invite a pensar, recordar, opinar).
+  → 1 dinámica de activación (think-pair-share, predicción, encuesta rápida, lluvia de ideas).
+  → La pregunta tiende un PUENTE entre lo que ya saben y lo nuevo.
+  → Ejemplo: "Think-pair-share: What do you already know about ecosystems? Tell your partner 2 things. — What do you WANT to know?"
 
-DESARROLLO DE HABILIDADES (key: skill) — máx. 60 palabras, lista numerada:
-  → Pasos numerados (3-4 máx.), cada uno = verbo de acción + qué hace el estudiante exactamente.
-  → El último paso especifica el PRODUCTO concreto (escribe / dibuja / completa / presenta).
-  → Si hay datos del libro de texto, REFERENCIA páginas y ejercicios específicos.
-  → Cada día enfatiza una habilidad diferente (L/R/W/S) como preparación al hito más cercano.
-  → Ejemplo: "1. Open your book to p.45. Read the text. | 2. Underline past simple verbs. | 3. Write 3 sentences using those verbs in your notebook."
+DESARROLLO DE HABILIDADES (key: skill) — máx. 80 palabras, 4 MOMENTOS constructivistas:
+  → a) ❓ PREGUNTA GUÍA — provoca exploración ("What patterns do you notice?", "¿Por qué crees que...?")
+  → b) 🔍 EXPLORACIÓN — observa, lee, compara (referencia páginas del libro). Individual o en parejas.
+  → c) 🏗️ CONSTRUCCIÓN — el alumno formula su conclusión/hipótesis. Comparte con compañero. Docente guía sin dar la respuesta.
+  → d) ✍️ PRODUCTO — evidencia concreta (escribe, presenta, completa).
+  → Si hay gramática: OBSERVAR ejemplos → INFERIR la regla → VERIFICAR → PRACTICAR.
+  → Ejemplo: "❓ Look at sentences a-d on p.45. What do they have in common? 🔍 In pairs, underline the verb patterns. 🏗️ Write YOUR rule for Present Perfect. Share with another pair. ✍️ Write 3 sentences about your own experiences using this pattern."
 
-CIERRE Y REFLEXIÓN (key: closing) — máx. 30 palabras:
-  → 1 pregunta de verificación académica + 1 pregunta de reflexión bíblica. Nada más.
-  → Ejemplo: "¿Cuándo usamos el Present Perfect? — ¿Cómo conectas lo aprendido hoy con [principio bíblico]?"
+CIERRE Y REFLEXIÓN (key: closing) — máx. 40 palabras:
+  → 1 pregunta donde el alumno EXPLIQUE EN SUS PALABRAS (no repita definiciones — "Explain to your partner...")
+  → 1 reflexión bíblica profunda ("¿Cómo cambia tu perspectiva sobre [tema] a la luz de [principio]?")
 
-TAREA / ASSIGNMENT (key: assignment) — máx. 20 palabras:
-  → 1 oración con entregable específico. Nada vago.
-  → Ejemplo: "Completa el ejercicio 3 de la p.47 del libro. Trae respondido para la próxima clase."
+TAREA / ASSIGNMENT (key: assignment) — máx. 25 palabras:
+  → 1 tarea concreta con entregable. Al menos 1 vez/semana incluir reflexión bíblica.
+  → Ejemplo: "Write 5 sentences about a challenge you overcame — use Past Simple. Reflect: how did God guide you?"
 ${isTwoWeeks ? twoWeekBloomBlock : `
-PROGRESIÓN SEMANAL: Los días deben avanzar desde la introducción del vocabulario/concepto (Día 1)
-hasta la producción autónoma del estudiante (último día). Cada día construye sobre el anterior.`}`
+PROGRESIÓN SEMANAL: Los días avanzan desde exploración guiada (Día 1) hasta producción autónoma (último día).
+Cada día el alumno construye sobre el descubrimiento anterior. El docente retira andamiaje progresivamente.`}`
 
   // Fetch textbook images for multimodal context (max 4, parallel, non-blocking failures)
   let imageBlocks = undefined
@@ -1091,13 +1136,13 @@ hasta la producción autónoma del estudiante (último día). Cada día construy
   // Retry: ask for more compact content
   const retryMessage = `${message}
 
-IMPORTANTE: Tu respuesta anterior fue cortada. Sé MÁS BREVE — límites estrictos por sección:
-- subject: 5 palabras con formato (máx. 40 palabras total).
-- motivation: 1 oración (el tema del día). Máx. 20 palabras.
-- activity: 1 pregunta o 1 instrucción directa. Máx. 25 palabras.
-- skill: lista 3 pasos numerados + producto concreto. Máx. 60 palabras.
-- closing: 1 pregunta académica + 1 reflexión bíblica. Máx. 30 palabras.
-- assignment: 1 oración con entregable. Máx. 20 palabras.
+IMPORTANTE: Tu respuesta anterior fue cortada. Sé MÁS CONCISO pero mantén el enfoque constructivista:
+- subject: 5 palabras + actividad (máx. 50 palabras).
+- motivation: ritual del tablero + conexión (máx. 60 palabras).
+- activity: pregunta guía + dinámica (máx. 40 palabras).
+- skill: 4 momentos (❓🔍🏗️✍️) más breves (máx. 80 palabras).
+- closing: 1 pregunta de explicación + 1 reflexión bíblica (máx. 40 palabras).
+- assignment: 1 tarea con entregable (máx. 25 palabras).
 Responde SOLO con el JSON, sin texto antes ni después.`
 
   const retryRaw = await callClaude({ type: 'generate', system, message: retryMessage, planId, maxTokens: 16000 })
