@@ -481,13 +481,18 @@ function PeriodCard({ period, config, saving, onSave }) {
   const color = PERIOD_COLORS[parseInt(period.value)] || '#888'
 
   return (
-    <div className="acp-period-card" style={{ '--pc-color': color }}>
+    <div className="acp-period-card">
       <div className="acp-pc-header">
-        <span className="acp-pc-badge" style={{ background: color }}>{period.short}</span>
-        <span className="acp-pc-label">{period.label}</span>
-        <button className="acp-pc-edit" onClick={startEdit}>
-          {config ? '✎ Editar' : '+ Configurar'}
-        </button>
+        <div className="acp-pc-badge" style={{ background: color }}>{period.short}</div>
+        <div className="acp-pc-meta">
+          <div className="acp-pc-period-name">{period.label.replace(` ${new Date().getFullYear()}`, '')}</div>
+          <div className="acp-pc-period-year">{new Date().getFullYear()}</div>
+        </div>
+        {!editing && (
+          <button className="acp-pc-edit" onClick={startEdit}>
+            {config ? '✎ Editar' : '+ Configurar'}
+          </button>
+        )}
       </div>
 
       {config && !editing && (
@@ -498,8 +503,8 @@ function PeriodCard({ period, config, saving, onSave }) {
             <span>{formatDateEs(config.end_date)}</span>
           </div>
           <div className="acp-pc-stats">
-            <span>{weeks.length} semanas</span>
-            {config.year_theme && <span>· "{config.year_theme}"</span>}
+            {weeks.length} semanas
+            {config.year_theme && <> · "{config.year_theme}"</>}
           </div>
         </div>
       )}
@@ -512,34 +517,34 @@ function PeriodCard({ period, config, saving, onSave }) {
         <div className="acp-pc-form">
           <div className="acp-form-row">
             <div>
-              <label>Inicio del período *</label>
+              <label>Inicio *</label>
               <input type="date" value={form.start_date}
                 onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))} />
             </div>
             <div>
-              <label>Fin del período *</label>
+              <label>Fin *</label>
               <input type="date" value={form.end_date}
                 onChange={e => setForm(f => ({ ...f, end_date: e.target.value }))} />
             </div>
           </div>
           <label>Tema del año</label>
-          <input value={form.year_theme}
+          <input type="text" value={form.year_theme}
             onChange={e => setForm(f => ({ ...f, year_theme: e.target.value }))}
             placeholder="ej. YEAR OF THE PURITY" />
-          <label>Mensaje de bienvenida (comunicado)</label>
+          <label>Mensaje de bienvenida</label>
           <textarea rows={3} value={form.intro_message}
             onChange={e => setForm(f => ({ ...f, intro_message: e.target.value }))}
             placeholder="Bienvenidos al período… Como institución educativa…" />
           <div className="acp-form-row">
             <div>
-              <label>Firma 1 — Director de sede</label>
-              <input value={form.director_name}
+              <label>Director de sede</label>
+              <input type="text" value={form.director_name}
                 onChange={e => setForm(f => ({ ...f, director_name: e.target.value }))}
                 placeholder="Mr. Yair Herrera" />
             </div>
             <div>
-              <label>Firma 2 — Coordinación Académica</label>
-              <input value={form.coordinator_name}
+              <label>Coordinación académica</label>
+              <input type="text" value={form.coordinator_name}
                 onChange={e => setForm(f => ({ ...f, coordinator_name: e.target.value }))}
                 placeholder="Ms. Sisy Echeverría" />
             </div>
@@ -547,7 +552,7 @@ function PeriodCard({ period, config, saving, onSave }) {
           <div className="acp-pc-form-actions">
             <button className="acp-btn-secondary" onClick={() => setEditing(false)}>Cancelar</button>
             <button className="acp-btn-primary" onClick={handleSave} disabled={saving || !form.start_date || !form.end_date}>
-              {saving ? 'Guardando…' : 'Guardar período'}
+              {saving ? 'Guardando…' : 'Guardar'}
             </button>
           </div>
         </div>
