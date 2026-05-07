@@ -874,6 +874,11 @@ input:not(:placeholder-shown):not(:focus):not([type=password]):valid {
 @media (min-width: 480px) { .prof-body { padding: var(--sp-5); } }
 
 .prof-section { margin-bottom: 20px; }
+/* Inputs dentro de prof-field siempre se ajustan al contenedor */
+.prof-field { min-width: 0; }
+.prof-field input, .prof-field select, .prof-field textarea {
+  width: 100%; box-sizing: border-box; min-width: 0;
+}
 .prof-section-title {
   font-size: 11px; font-weight: 700; color: var(--navy-700);
   border-bottom: 1px solid var(--border);

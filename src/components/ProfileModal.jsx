@@ -1,6 +1,7 @@
 import { useState, useCallback, memo } from 'react'
 import { supabase } from '../supabase'
 import { useFocusTrap } from '../hooks/useFocusTrap'
+import { ACADEMIC_PERIODS } from '../utils/constants'
 
 const ProfileModal = memo(function ProfileModal({ teacher, onClose, onSave }) {
   const [fullName,   setFullName]   = useState(teacher.full_name || '')
@@ -73,7 +74,7 @@ const ProfileModal = memo(function ProfileModal({ teacher, onClose, onSave }) {
           {/* Datos personales */}
           <div className="prof-section">
             <div className="prof-section-title">📋 Datos personales</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px', gap: '10px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px', gap: '10px', minWidth: 0 }}>
               <div className="prof-field">
                 <label>Nombre completo</label>
                 <input value={fullName} onChange={e => setFullName(e.target.value)} />
@@ -120,8 +121,8 @@ const ProfileModal = memo(function ProfileModal({ teacher, onClose, onSave }) {
             <div className="prof-field">
               <label>Período actual</label>
               <select value={defPeriod} onChange={e => setDefPeriod(e.target.value)}>
-                {['1.er Período 2026','2.do Período 2026','3.er Período 2026','4.to Período 2026'].map(p =>
-                  <option key={p} value={p}>{p}</option>
+                {ACADEMIC_PERIODS.map(p =>
+                  <option key={p.value} value={p.label}>{p.label}</option>
                 )}
               </select>
             </div>
