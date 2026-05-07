@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { supabase } from '../supabase'
 import useAchievements from '../hooks/useAchievements'
 import { useToast } from '../context/ToastContext'
-import { combinedGrade } from '../utils/constants'
+import { combinedGrade, ACADEMIC_PERIODS, getDefaultPeriodNumber } from '../utils/constants'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -48,7 +48,7 @@ const CURRENT_YEAR = new Date().getFullYear()
 
 function emptyGoal() {
   return {
-    subject: '', grade: '', period: 1, academic_year: CURRENT_YEAR,
+    subject: '', grade: '', period: getDefaultPeriodNumber(), academic_year: CURRENT_YEAR,
     text: '', verb: '', bloom_level: 'apply', status: 'draft',
   }
 }
@@ -615,7 +615,7 @@ export default function AchievementsPage({ teacher }) {
   const { showToast } = useToast()
 
   // Filters
-  const [filterPeriod,  setFilterPeriod]  = useState(null)
+  const [filterPeriod,  setFilterPeriod]  = useState(() => getDefaultPeriodNumber())
   const [filterSubject, setFilterSubject] = useState('all')
   const [filterGrade,   setFilterGrade]   = useState('all')
 
@@ -847,11 +847,11 @@ export default function AchievementsPage({ teacher }) {
             className={`ach-tab ${filterPeriod === null ? 'active' : ''}`}>
             Todos
           </button>
-          {[1, 2, 3, 4].map(p => (
-            <button key={p}
-              onClick={() => setFilterPeriod(filterPeriod === p ? null : p)}
-              className={`ach-tab ${filterPeriod === p ? 'active' : ''}`}>
-              P{p}
+          {ACADEMIC_PERIODS.map(p => (
+            <button key={p.value}
+              onClick={() => setFilterPeriod(filterPeriod === parseInt(p.value) ? null : parseInt(p.value))}
+              className={`ach-tab ${filterPeriod === parseInt(p.value) ? 'active' : ''}`}>
+              {p.short}
             </button>
           ))}
         </div>

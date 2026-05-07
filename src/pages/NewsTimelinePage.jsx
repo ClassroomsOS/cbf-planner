@@ -9,16 +9,16 @@ import NewsEventDetail from '../components/news/NewsEventDetail'
 import NewsProjectEditor from '../components/news/NewsProjectEditor'
 import useRubricTemplates from '../hooks/useRubricTemplates'
 import { supabase } from '../supabase'
-import { ACADEMIC_PERIODS } from '../utils/constants'
+import { ACADEMIC_PERIODS, getDefaultPeriodNumber } from '../utils/constants'
 import { useToast } from '../context/ToastContext'
 
-const PERIODS = ACADEMIC_PERIODS.map((p, i) => ({ value: i + 1, label: `Período ${i + 1}` }))
+const PERIODS = ACADEMIC_PERIODS.map(p => ({ value: parseInt(p.value), label: p.label, short: p.short }))
 
 export default function NewsTimelinePage({ teacher }) {
   const navigate = useNavigate()
   const { showToast } = useToast()
   const school = teacher.schools || {}
-  const [selectedPeriod, setSelectedPeriod] = useState(1)
+  const [selectedPeriod, setSelectedPeriod] = useState(() => getDefaultPeriodNumber())
   const [selectedEvent, setSelectedEvent] = useState(null)
   const [editorOpen, setEditorOpen] = useState(false)
   const [editingProject, setEditingProject] = useState(null)

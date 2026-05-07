@@ -91,7 +91,6 @@ export const ACADEMIC_PERIODS = [
   { value: '1', label: `1.er Período ${_year}`, short: 'P1', start: `${_year}-02-04`, end: `${_year}-04-30` },
   { value: '2', label: `2.° Período ${_year}`,  short: 'P2', start: `${_year}-05-01`, end: `${_year}-08-21` },
   { value: '3', label: `3.er Período ${_year}`, short: 'P3', start: `${_year}-08-24`, end: `${_year}-11-13` },
-  { value: '4', label: `4.° Período ${_year}`,  short: 'P4', start: null,             end: null             },
 ]
 
 /**
@@ -130,6 +129,25 @@ export function getPeriodProgress(period, today = new Date()) {
   const isPending      = today < start
 
   return { totalDays, elapsedDays, remainingDays, remainingWeeks, pct, isActive, isComplete, isPending, start, end }
+}
+
+/**
+ * Returns the default period number (integer) for UI selectors:
+ * - During a period: returns that period's number.
+ * - Between periods: returns the most recently completed period.
+ * - Before the year starts: returns 1.
+ */
+export function getDefaultPeriodNumber(today = new Date()) {
+  const active = getCurrentPeriod(today)
+  if (active) return parseInt(active.value)
+
+  // Between periods — pick the last one that has already ended
+  const ended = ACADEMIC_PERIODS
+    .filter(p => p.end && new Date(p.end + 'T23:59:59') < today)
+    .sort((a, b) => new Date(b.end) - new Date(a.end))
+  if (ended.length > 0) return parseInt(ended[0].value)
+
+  return 1
 }
 
 // ── Grade helpers ─────────────────────────────────────────────────────────────

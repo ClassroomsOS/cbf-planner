@@ -39,8 +39,8 @@ describe('MODELO_B_SUBJECTS', () => {
 })
 
 describe('ACADEMIC_PERIODS', () => {
-  it('has exactly 4 periods', () => {
-    expect(ACADEMIC_PERIODS).toHaveLength(4)
+  it('has exactly 3 periods', () => {
+    expect(ACADEMIC_PERIODS).toHaveLength(3)
   })
   it('uses the current year (not hardcoded)', () => {
     const currentYear = new Date().getFullYear()
@@ -48,9 +48,15 @@ describe('ACADEMIC_PERIODS', () => {
       expect(p.label).toContain(String(currentYear))
     })
   })
-  it('has values 1 through 4', () => {
+  it('has values 1 through 3', () => {
     const values = ACADEMIC_PERIODS.map(p => p.value)
-    expect(values).toEqual(['1', '2', '3', '4'])
+    expect(values).toEqual(['1', '2', '3'])
+  })
+  it('every period has start and end dates', () => {
+    ACADEMIC_PERIODS.forEach(p => {
+      expect(p.start).toBeTruthy()
+      expect(p.end).toBeTruthy()
+    })
   })
 })
 

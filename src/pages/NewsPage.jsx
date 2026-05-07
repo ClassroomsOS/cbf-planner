@@ -6,20 +6,21 @@ import NewsProjectEditor from '../components/news/NewsProjectEditor'
 import NewsProjectCard from '../components/news/NewsProjectCard'
 import NewsPeriodTimeline from '../components/news/NewsPeriodTimeline'
 import { supabase } from '../supabase'
-import { ACADEMIC_PERIODS, combinedGrade } from '../utils/constants'
+import { ACADEMIC_PERIODS, getDefaultPeriodNumber } from '../utils/constants'
 import { useToast } from '../context/ToastContext'
 
 // Map to legacy format for this component
-const PERIODS = ACADEMIC_PERIODS.map((p, i) => ({
-  value: i + 1,
-  label: `Período ${i + 1}`
+const PERIODS = ACADEMIC_PERIODS.map(p => ({
+  value: parseInt(p.value),
+  label: p.label,
+  short: p.short,
 }))
 
 export default function NewsPage({ teacher }) {
   const { showToast } = useToast()
   const navigate = useNavigate()
   const school = teacher.schools || {}
-  const [selectedPeriod, setSelectedPeriod] = useState(1)
+  const [selectedPeriod, setSelectedPeriod] = useState(() => getDefaultPeriodNumber())
   const [editorOpen, setEditorOpen] = useState(false)
   const [editingProject, setEditingProject] = useState(null)
   const [filterSubject,     setFilterSubject]     = useState('')
