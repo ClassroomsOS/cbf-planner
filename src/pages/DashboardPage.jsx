@@ -44,6 +44,7 @@ import ProfileModal        from '../components/ProfileModal'
 import { FeaturesProvider, useFeatures } from '../context/FeaturesContext'
 import { canManage, canAccessCalendar, isRector, canReadAllPlans, canViewSchedule, canManageAgendas, isCoteacherActive, isSuperAdmin, roleLabel, ROLE_STYLES } from '../utils/roles'
 import { setAIContext } from '../utils/AIAssistant'
+import { getCurrentPeriod, getPeriodProgress } from '../utils/constants'
 
 // ── Wrapper — provides context ────────────────────────────────
 export default function DashboardPage({ session, teacher, setTeacher }) {
@@ -235,6 +236,8 @@ function DashboardInner({ session, teacher, setTeacher }) {
           <h1>{teacher.schools?.short_name || 'CBF'} PLANNER</h1>
           <p>{teacher.schools?.name}</p>
         </div>
+
+        <PeriodWidget />
 
         <nav className="sb-nav">
           {/* ── PLANIFICACIÓN (flujo pedagógico) ── */}
@@ -533,6 +536,42 @@ function DashboardInner({ session, teacher, setTeacher }) {
           onSave={setTeacher}
         />
       )}
+    </div>
+  )
+}
+
+// ── PeriodWidget — sidebar progress indicator ──────────────────────────────────
+function PeriodWidget() {
+  const today   = new Date()
+  const period  = getCurrentPeriod(today)
+  const progress = period ? getPeriodProgress(period, today) : null
+
+  if (!period || !progress) {
+    // Between periods or no dates configured — show nothing
+    return null
+  }
+
+  const shortEnd = new Date(period.end + 'T12:00:00').toLocaleDateString('es-CO', {
+    day: 'numeric', month: 'short'
+  })
+
+  return (
+    <div className="sb-period-widget">
+      <div className="sb-period-header">
+        <span className="sb-period-badge">{period.short}</span>
+        <span className="sb-period-name">{period.label}</span>
+      </div>
+      <div className="sb-period-bar-track">
+        <div className="sb-period-bar-fill" style={{ width: `${progress.pct}%` }} />
+      </div>
+      <div className="sb-period-footer">
+        <span className="sb-period-weeks">
+          {progress.remainingWeeks > 0
+            ? `${progress.remainingWeeks} sem. restantes`
+            : progress.isComplete ? 'Período finalizado' : 'Última semana'}
+        </span>
+        <span className="sb-period-end">hasta {shortEnd}</span>
+      </div>
     </div>
   )
 }
