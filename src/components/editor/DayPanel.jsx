@@ -277,6 +277,27 @@ export default function DayPanel({ iso, day, setContentField, toggleDayActive, o
                       )}
                     </div>
 
+                    {/* ── Notas del docente — nunca se proyectan en ClassroomOS ── */}
+                    <div className="ge-field" style={{ marginTop: '4px' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#7b6d8d', fontSize: '12px' }}>
+                        <span>🔒</span> Notas para mí
+                        <span style={{ fontWeight: 400, color: '#a89cbb' }}>(no se proyectan en el aula)</span>
+                      </label>
+                      <textarea
+                        value={section.teacher_notes || ''}
+                        onChange={e => setContentField([...base, 'sections', s.key, 'teacher_notes'], e.target.value)}
+                        placeholder="Recordatorios, instrucciones propias, timing, etc."
+                        rows={2}
+                        style={{
+                          width: '100%', resize: 'vertical',
+                          fontSize: '12px', padding: '8px 10px',
+                          borderRadius: '7px', border: '1px dashed #c4b5d6',
+                          background: '#faf8fc', color: '#4a3f5c',
+                          fontFamily: 'inherit', lineHeight: '1.5',
+                        }}
+                      />
+                    </div>
+
                     {/* ── Sugerencia IA, imágenes, SmartBlocks y video — solo en RICH_SECTIONS ── */}
                     {RICH_SECTIONS.includes(s.key) && <>
                       {features.ai_suggest !== false && <AISuggestButton
