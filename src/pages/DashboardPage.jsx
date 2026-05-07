@@ -565,9 +565,10 @@ function DashboardInner({ session, teacher, setTeacher }) {
         <QALauncher
           onClose={() => setShowQA(false)}
           lastResults={qaLastResults}
+          teacher={teacher}
         />
       )}
-      <QARunner onStoreLast={storeQALast} />
+      <QARunner onStoreLast={storeQALast} teacher={teacher} />
 
     </div>
     </QAProvider>

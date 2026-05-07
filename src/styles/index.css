@@ -5300,6 +5300,83 @@ input:not(:placeholder-shown):not(:focus):not([type=password]):valid {
 }
 .qa-launcher-note { font-size: 11px; color: #94a3b8; }
 
+/* Launcher tabs (Suites / Historial) */
+.qa-launcher-tabs {
+  display: flex; gap: 0;
+  border-bottom: 2px solid #f1f5f9;
+  padding: 0 24px;
+}
+.qa-launcher-tab {
+  padding: 10px 18px; background: none; border: none;
+  font-size: 13px; font-weight: 700; color: #94a3b8; cursor: pointer;
+  border-bottom: 2px solid transparent; margin-bottom: -2px;
+  transition: color 0.15s, border-color 0.15s;
+  display: flex; align-items: center; gap: 6px;
+}
+.qa-launcher-tab.active { color: #0F2748; border-bottom-color: #1A3A8F; }
+.qa-launcher-tab:hover:not(.active) { color: #475569; }
+.qa-hist-count {
+  background: #e0e7ff; color: #3730a3;
+  font-size: 10px; font-weight: 800;
+  padding: 1px 6px; border-radius: 20px;
+}
+
+/* History list */
+.qa-history { padding: 12px 16px; max-height: 420px; overflow-y: auto; }
+.qa-history-empty { text-align: center; padding: 40px 20px; font-size: 13px; color: #94a3b8; }
+.qa-history-list { display: flex; flex-direction: column; gap: 8px; }
+
+.qa-hist-row {
+  border-radius: 10px; border: 1.5px solid #e8ecf4; overflow: hidden;
+}
+.qa-hist-row--ok   { border-color: #bbf7d0; }
+.qa-hist-row--fail { border-color: #fecaca; }
+
+.qa-hist-row-main {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 14px; cursor: pointer; transition: background 0.12s;
+}
+.qa-hist-row-main:hover { background: #f8fafc; }
+.qa-hist-left { display: flex; align-items: center; gap: 10px; }
+.qa-hist-icon { font-size: 18px; flex-shrink: 0; }
+.qa-hist-suite { font-size: 13px; font-weight: 700; color: #0F2748; }
+.qa-hist-meta  { font-size: 11px; color: #94a3b8; margin-top: 1px; }
+
+.qa-hist-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.qa-hist-stat  { font-size: 12px; font-weight: 700; }
+.qa-hist-stat--pass { color: #16a34a; }
+.qa-hist-stat--fail { color: #dc2626; }
+.qa-hist-stat--skip { color: #d97706; }
+.qa-hist-chevron { font-size: 10px; color: #94a3b8; margin-left: 4px; }
+
+/* Run detail (expanded) */
+.qa-hist-detail {
+  border-top: 1px solid #f1f5f9;
+  padding: 8px 14px 10px;
+  display: flex; flex-direction: column; gap: 4px;
+  background: #fafbff;
+}
+.qa-hist-step {
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 4px 0; font-size: 12px; color: #475569;
+}
+.qa-hist-step--fail { color: #991b1b; }
+.qa-hist-step-num   { color: #cbd5e1; font-size: 10px; width: 16px; flex-shrink: 0; padding-top: 1px; }
+.qa-hist-step-icon  { flex-shrink: 0; font-size: 12px; padding-top: 1px; }
+.qa-hist-step-body  { display: flex; flex-direction: column; gap: 1px; }
+.qa-hist-step-title { font-weight: 600; }
+.qa-hist-step-note  { font-style: italic; color: #64748b; font-size: 11px; }
+
+/* Save status indicators in QASummary header */
+.qa-save-status {
+  margin-left: auto; display: flex; flex-direction: column;
+  align-items: flex-end; gap: 3px; flex-shrink: 0;
+}
+.qa-save-saving { font-size: 11px; color: #64748b; }
+.qa-save-ok     { font-size: 11px; color: #16a34a; font-weight: 600; }
+.qa-save-err    { font-size: 11px; color: #dc2626; font-weight: 600; cursor: help; }
+.qa-notif-sent  { font-size: 11px; color: #7c3aed; font-weight: 600; }
+
 /* ── QA Summary modal ────────────────────────────────────────────────────── */
 .qa-summary-overlay {
   position: fixed;

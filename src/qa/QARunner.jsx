@@ -20,12 +20,10 @@ function Spotlight({ selector }) {
 
   useEffect(() => {
     update()
-    // Track scroll + resize
     const onScroll = () => { cancelAnimationFrame(rafRef.current); rafRef.current = requestAnimationFrame(update) }
     const onResize = () => update()
     window.addEventListener('scroll', onScroll, true)
     window.addEventListener('resize', onResize)
-    // MutationObserver for DOM changes (route transitions)
     const observer = new MutationObserver(update)
     observer.observe(document.body, { childList: true, subtree: true, attributes: true })
     return () => {
@@ -54,16 +52,16 @@ function Spotlight({ selector }) {
 
 // ── QARunner ──────────────────────────────────────────────────────────────────
 
-export default function QARunner({ onStoreLast }) {
-  const { isRunning, suite, stepIndex, currentStep, showSummary, stepNote, setStepNote, markStep, abort } = useQA()
-  const navigate  = useNavigate()
-  const location  = useLocation()
-  const [noteOpen, setNoteOpen] = useState(false)
-  const [localNote, setLocalNote] = useState('')
+export default function QARunner({ onStoreLast, teacher }) {
+  const { isRunning, suite, stepIndex, currentStep, showSummary, markStep, abort } = useQA()
+  const navigate   = useNavigate()
+  const location   = useLocation()
+  const [noteOpen,   setNoteOpen]   = useState(false)
+  const [localNote,  setLocalNote]  = useState('')
 
-  const total    = suite?.steps?.length ?? 0
-  const pct      = total > 0 ? Math.round(((stepIndex) / total) * 100) : 0
-  const onRoute  = currentStep?.route ? location.pathname === currentStep.route : true
+  const total   = suite?.steps?.length ?? 0
+  const pct     = total > 0 ? Math.round((stepIndex / total) * 100) : 0
+  const onRoute = currentStep?.route ? location.pathname === currentStep.route : true
 
   useEffect(() => { setNoteOpen(false); setLocalNote('') }, [stepIndex])
 
@@ -73,22 +71,22 @@ export default function QARunner({ onStoreLast }) {
     setLocalNote('')
   }
 
-  function handleNavigate() {
-    if (currentStep?.route) navigate(currentStep.route)
-  }
-
   if (showSummary) {
-    return <QASummary onClose={() => {}} onStoreLast={onStoreLast} />
+    return (
+      <QASummary
+        onClose={() => {}}
+        onStoreLast={onStoreLast}
+        teacher={teacher}
+      />
+    )
   }
 
   if (!isRunning || !currentStep) return null
 
   return (
     <>
-      {/* Spotlight overlay (Level B) */}
       {currentStep.spotlight && <Spotlight selector={currentStep.spotlight} />}
 
-      {/* Runner panel */}
       <div className="qa-runner">
         {/* Header */}
         <div className="qa-runner-header">
@@ -97,8 +95,6 @@ export default function QARunner({ onStoreLast }) {
             <span className="qa-runner-suite-name">{suite.name}</span>
             <button className="qa-runner-abort" onClick={abort} title="Abortar suite">✕</button>
           </div>
-
-          {/* Progress */}
           <div className="qa-runner-progress-row">
             <span className="qa-runner-step-count">Paso {stepIndex + 1} / {total}</span>
             <div className="qa-runner-progress-bar">
@@ -120,9 +116,9 @@ export default function QARunner({ onStoreLast }) {
             </div>
           )}
 
-          {/* Level C — Navigate button */}
+          {/* Level C — Navigate */}
           {currentStep.route && !onRoute && (
-            <button className="qa-nav-btn" onClick={handleNavigate}>
+            <button className="qa-nav-btn" onClick={() => navigate(currentStep.route)}>
               → Ir a {currentStep.route}
             </button>
           )}
@@ -130,7 +126,7 @@ export default function QARunner({ onStoreLast }) {
             <div className="qa-nav-ok">✓ Ya estás en {currentStep.route}</div>
           )}
 
-          {/* Note toggle */}
+          {/* Note */}
           {!noteOpen ? (
             <button className="qa-note-toggle" onClick={() => setNoteOpen(true)}>
               + Añadir nota
@@ -139,7 +135,7 @@ export default function QARunner({ onStoreLast }) {
             <textarea
               className="qa-note"
               rows={2}
-              placeholder="Observación opcional sobre este paso…"
+              placeholder="Observación opcional…"
               value={localNote}
               onChange={e => setLocalNote(e.target.value)}
               autoFocus
