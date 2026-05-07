@@ -170,11 +170,17 @@ export const TEACHER_STATUS = {
   rejected: { label: 'Rechazado', color: '#C0504D', bg: '#fdf0f0' },
 }
 
-// ── Learning Target Taxonomy ──────────────────────────────────────────────────
+// ── Learning Target Taxonomy — Boston Flex 2026 (pp. 45, Habilidades de Pensamiento) ───
+// 7 niveles según el documento institucional:
+// "Recuperar · Comprender · Analizar · Aplicar · Evaluar · Crear · Divulgar"
 export const TAXONOMY_LEVELS = [
-  { value: 'recognize', label: 'Reconocer', emoji: '👁️', desc: 'Identificar, recordar, nombrar' },
-  { value: 'apply', label: 'Aplicar', emoji: '🛠️', desc: 'Usar, demostrar, resolver' },
-  { value: 'produce', label: 'Producir', emoji: '✨', desc: 'Crear, diseñar, componer' },
+  { value: 'retrieve',   label: 'Recuperar',  emoji: '🔍', desc: 'Recordar, identificar, nombrar' },
+  { value: 'understand', label: 'Comprender', emoji: '💡', desc: 'Explicar, interpretar, resumir' },
+  { value: 'analyze',    label: 'Analizar',   emoji: '🔬', desc: 'Diferenciar, organizar, atribuir' },
+  { value: 'apply',      label: 'Aplicar',    emoji: '🛠️', desc: 'Usar, demostrar, resolver' },
+  { value: 'evaluate',   label: 'Evaluar',    emoji: '⚖️', desc: 'Juzgar, criticar, argumentar' },
+  { value: 'create',     label: 'Crear',      emoji: '✨', desc: 'Diseñar, componer, producir' },
+  { value: 'publish',    label: 'Divulgar',   emoji: '📢', desc: 'Presentar, comunicar, compartir' },
 ]
 
 // ── Grade Levels ──────────────────────────────────────────────────────────────
