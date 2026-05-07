@@ -43,6 +43,9 @@ import StudentPlayerPage   from './StudentPlayerPage'
 import StudentDetailPage   from './StudentDetailPage'
 import ProfileModal        from '../components/ProfileModal'
 import { FeaturesProvider, useFeatures } from '../context/FeaturesContext'
+import { QAProvider }    from '../qa/QAContext'
+import QARunner          from '../qa/QARunner'
+import QALauncher        from '../qa/QALauncher'
 import { canManage, canAccessCalendar, isRector, canReadAllPlans, canViewSchedule, canManageAgendas, isCoteacherActive, isSuperAdmin, roleLabel, ROLE_STYLES } from '../utils/roles'
 import { setAIContext } from '../utils/AIAssistant'
 import { getCurrentPeriod, getPeriodProgress } from '../utils/constants'
@@ -58,8 +61,14 @@ export default function DashboardPage({ session, teacher, setTeacher }) {
 
 // ── Inner — consumes context ──────────────────────────────────
 function DashboardInner({ session, teacher, setTeacher }) {
-  const [showProfile, setShowProfile] = useState(false)
-  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [showProfile,    setShowProfile]    = useState(false)
+  const [sidebarOpen,    setSidebarOpen]    = useState(false)
+  const [showQA,         setShowQA]         = useState(false)
+  const [qaLastResults,  setQaLastResults]  = useState({})
+
+  function storeQALast(suiteId, counts) {
+    setQaLastResults(prev => ({ ...prev, [suiteId]: counts }))
+  }
   const navigate = useNavigate()
   const isAdmin      = canManage(teacher.role)        // admin + superadmin + rector
   const isSuperAdm   = isSuperAdmin(teacher.role)
@@ -221,6 +230,7 @@ function DashboardInner({ session, teacher, setTeacher }) {
     (teacher.full_name || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?'
 
   return (
+    <QAProvider>
     <div className="app">
       {/* Skip to main content link for keyboard navigation */}
       <a href="#main-content" className="skip-link">
@@ -452,6 +462,12 @@ function DashboardInner({ session, teacher, setTeacher }) {
         </nav>
 
         <div className="sb-profile-bar">
+          {(teacher.role === 'admin' || isSuperAdmin(teacher) || isRector(teacher)) && (
+            <button className="btn-qa" title="Modo QA — Verificación guiada"
+              onClick={() => { setShowQA(true); closeSidebar() }}>
+              🧪
+            </button>
+          )}
           <button className="btn-profile has-profile"
             onClick={() => { setShowProfile(true); closeSidebar() }}>
             <span className="sb-avatar">{ini}</span>
@@ -543,7 +559,18 @@ function DashboardInner({ session, teacher, setTeacher }) {
           onSave={setTeacher}
         />
       )}
+
+      {/* QA system — solo admin/rector/superadmin */}
+      {showQA && (
+        <QALauncher
+          onClose={() => setShowQA(false)}
+          lastResults={qaLastResults}
+        />
+      )}
+      <QARunner onStoreLast={storeQALast} />
+
     </div>
+    </QAProvider>
   )
 }
 
