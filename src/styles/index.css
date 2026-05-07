@@ -4666,3 +4666,124 @@ input:not(:placeholder-shown):not(:focus):not([type=password]):valid {
   .sd-att-grid { grid-template-columns: repeat(2, 1fr); }
   .sd-hero-avatar { width: 60px; height: 60px; }
 }
+
+/* ── AcademicCalendarPage ─────────────────────────────────────────────────── */
+.acp-page { padding: 28px 32px; max-width: 1100px; }
+.acp-header { margin-bottom: 24px; }
+.acp-title { font-size: 22px; font-weight: 800; color: #1a1a2e; margin: 0 0 4px; }
+.acp-subtitle { font-size: 13px; color: #888; margin: 0 0 10px; }
+.acp-hint { font-size: 12px; color: #fff; background: #1A3A8F; display: inline-block; padding: 4px 12px; border-radius: 20px; }
+
+/* Main tabs */
+.acp-tabs { display: flex; gap: 4px; background: #f0f0f0; border-radius: 10px; padding: 3px; margin-bottom: 24px; width: fit-content; }
+.acp-tab { padding: 8px 20px; border: none; border-radius: 8px; background: transparent; color: #888; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.18s; }
+.acp-tab.active { background: #1A3A8F; color: #fff; }
+
+/* Section */
+.acp-section { animation: fadeIn 0.2s ease; }
+
+/* Period sub-tabs */
+.acp-period-tabs { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+.acp-period-tab { padding: 6px 18px; border: 2px solid #e0e0e0; border-radius: 8px; background: #fff; color: #555; font-size: 12px; font-weight: 700; cursor: pointer; transition: all 0.15s; }
+.acp-period-tab.active { border-color: #1A3A8F; background: #1A3A8F; color: #fff; }
+
+/* Period cards grid */
+.acp-periods-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; }
+.acp-period-card { background: #fff; border-radius: 14px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); padding: 22px 24px; border-top: 4px solid #1A3A8F; }
+.acp-pc-title { font-size: 15px; font-weight: 800; color: #1a1a2e; margin: 0 0 4px; }
+.acp-pc-badge { font-size: 11px; font-weight: 600; padding: 2px 10px; border-radius: 20px; background: #e8f0fe; color: #1A3A8F; display: inline-block; margin-bottom: 14px; }
+.acp-pc-badge.active { background: #d1fae5; color: #065f46; }
+.acp-pc-badge.complete { background: #f3f4f6; color: #6b7280; }
+.acp-pc-label { font-size: 11px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 3px; }
+.acp-pc-input { width: 100%; padding: 8px 10px; border: 1.5px solid #e0e0e0; border-radius: 8px; font-size: 13px; color: #1a1a2e; margin-bottom: 10px; box-sizing: border-box; transition: border-color 0.15s; }
+.acp-pc-input:focus { outline: none; border-color: #1A3A8F; }
+.acp-pc-textarea { resize: vertical; min-height: 64px; font-family: inherit; }
+.acp-pc-progress { margin: 10px 0; }
+.acp-pc-progress-bar { height: 6px; background: #e8ecf4; border-radius: 3px; overflow: hidden; }
+.acp-pc-progress-fill { height: 100%; background: #1A3A8F; border-radius: 3px; transition: width 0.4s; }
+.acp-pc-progress-label { font-size: 11px; color: #888; margin-top: 4px; }
+
+/* Form helpers */
+.acp-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.acp-checkbox-label { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #444; cursor: pointer; margin: 6px 0; }
+.acp-checkbox-label input[type="checkbox"] { width: 16px; height: 16px; accent-color: #1A3A8F; cursor: pointer; }
+
+/* Buttons */
+.acp-btn-primary { padding: 9px 20px; background: #1A3A8F; color: #fff; border: none; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; transition: background 0.15s; }
+.acp-btn-primary:hover { background: #152d6e; }
+.acp-btn-secondary { padding: 9px 20px; background: #f0f0f0; color: #444; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: background 0.15s; }
+.acp-btn-secondary:hover { background: #e0e0e0; }
+.acp-add-btn { display: flex; align-items: center; gap: 6px; padding: 8px 18px; background: #1A3A8F; color: #fff; border: none; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; }
+.acp-print-btn { display: flex; align-items: center; gap: 6px; padding: 8px 18px; background: #065f46; color: #fff; border: none; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; }
+.acp-btn-icon { padding: 5px 10px; background: transparent; border: 1.5px solid #e0e0e0; border-radius: 6px; font-size: 13px; cursor: pointer; transition: all 0.15s; }
+.acp-btn-icon:hover { background: #f5f5f5; }
+.acp-btn-del { padding: 5px 10px; background: transparent; border: 1.5px solid #fca5a5; border-radius: 6px; font-size: 13px; cursor: pointer; color: #dc2626; transition: all 0.15s; }
+.acp-btn-del:hover { background: #fef2f2; }
+
+/* Events table */
+.acp-events-table-wrap { overflow-x: auto; margin-top: 16px; }
+.acp-events-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.acp-events-table th { text-align: left; padding: 10px 12px; background: #f8f9fa; color: #555; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 2px solid #e0e0e0; }
+.acp-events-table td { padding: 10px 12px; border-bottom: 1px solid #f0f0f0; color: #333; vertical-align: middle; }
+.acp-events-table tr:last-child td { border-bottom: none; }
+.acp-events-table tr:hover td { background: #fafafa; }
+.acp-row-holiday td { background: #fef3c7 !important; }
+.acp-td-name { font-weight: 600; }
+.acp-td-date { white-space: nowrap; color: #555; }
+.acp-td-organizer { color: #777; font-size: 12px; }
+.acp-td-notes { color: #888; font-size: 12px; max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.acp-td-actions { white-space: nowrap; }
+
+/* States */
+.acp-loading { text-align: center; padding: 48px; color: #888; font-size: 14px; }
+.acp-empty { text-align: center; padding: 48px; color: #bbb; font-size: 14px; }
+
+/* Modal */
+.acp-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 9000; display: flex; align-items: center; justify-content: center; padding: 20px; }
+.acp-modal { background: #fff; border-radius: 16px; width: 100%; max-width: 520px; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.25); }
+.acp-modal-header { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px 16px; border-bottom: 1px solid #f0f0f0; }
+.acp-modal-header h3 { margin: 0; font-size: 16px; font-weight: 800; color: #1a1a2e; }
+.acp-modal-body { padding: 20px 24px; }
+.acp-modal-body label { font-size: 11px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 4px; margin-top: 14px; }
+.acp-modal-body label:first-child { margin-top: 0; }
+.acp-modal-body input, .acp-modal-body select, .acp-modal-body textarea { width: 100%; padding: 8px 10px; border: 1.5px solid #e0e0e0; border-radius: 8px; font-size: 13px; box-sizing: border-box; font-family: inherit; transition: border-color 0.15s; }
+.acp-modal-body input:focus, .acp-modal-body select:focus, .acp-modal-body textarea:focus { outline: none; border-color: #1A3A8F; }
+.acp-modal-footer { display: flex; gap: 10px; justify-content: flex-end; padding: 16px 24px 20px; border-top: 1px solid #f0f0f0; }
+
+/* Communicado wrapper */
+.acp-communicado-wrap { background: #f8f9fa; border-radius: 12px; padding: 24px; }
+.acp-print-note { font-size: 12px; color: #888; margin-top: 12px; text-align: center; }
+
+/* ── Communicado Document ─────────────────────────────────────────────────── */
+.comm-doc { background: #fff; max-width: 780px; margin: 0 auto; padding: 48px 56px; font-family: "Times New Roman", Times, serif; font-size: 12pt; line-height: 1.6; color: #111; border: 1px solid #ddd; }
+.comm-header { text-align: center; margin-bottom: 28px; }
+.comm-school { font-size: 15pt; font-weight: bold; text-transform: uppercase; letter-spacing: 0.05em; }
+.comm-location { font-size: 11pt; margin-top: 2px; }
+.comm-salutation { font-weight: bold; margin-bottom: 10px; }
+.comm-intro { margin-bottom: 20px; text-align: justify; }
+.comm-section { margin-bottom: 24px; }
+.comm-section-title { font-weight: bold; text-decoration: underline; margin-bottom: 10px; font-size: 11pt; text-transform: uppercase; }
+.comm-weeks-list { list-style: none; padding: 0; margin: 0; }
+.comm-weeks-list li { padding: 3px 0; font-size: 11pt; }
+.comm-holiday-note { font-style: italic; color: #555; font-size: 10pt; margin-top: 8px; }
+.comm-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 11pt; }
+.comm-table th { border: 1px solid #333; padding: 6px 10px; background: #f0f0f0; font-weight: bold; text-align: center; }
+.comm-table td { border: 1px solid #333; padding: 6px 10px; vertical-align: top; }
+.comm-td-date { white-space: nowrap; text-align: center; }
+.comm-organizer { font-style: italic; font-size: 10pt; color: #444; }
+.comm-time { font-size: 10pt; color: #444; }
+.comm-footer { margin-top: 32px; }
+.comm-closing { margin-bottom: 24px; text-align: justify; }
+.comm-signatures { display: flex; gap: 48px; margin-top: 36px; }
+.comm-sig-block { flex: 1; text-align: center; }
+.comm-sig-line { border-top: 1px solid #333; padding-top: 6px; margin-top: 36px; font-weight: bold; font-size: 11pt; }
+.comm-sig-role { font-size: 10pt; color: #555; }
+
+/* Print */
+@media print {
+  body > *:not(.acp-communicado-wrap):not(.comm-doc) { display: none !important; }
+  .acp-communicado-wrap { background: none !important; padding: 0 !important; border: none !important; }
+  .acp-print-note, .acp-print-btn { display: none !important; }
+  .comm-doc { border: none !important; box-shadow: none !important; max-width: 100% !important; padding: 20px !important; margin: 0 !important; }
+  @page { margin: 1.5cm 2cm; }
+}

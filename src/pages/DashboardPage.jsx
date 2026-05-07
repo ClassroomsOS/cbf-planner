@@ -3,7 +3,8 @@ import { Routes, Route, NavLink, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import PlannerPage         from './PlannerPage'
 import MyPlansPage         from './MyPlansPage'
-import CalendarPage        from './CalendarPage'
+import CalendarPage             from './CalendarPage'
+import AcademicCalendarPage     from './AcademicCalendarPage'
 import NotificationsPage   from './NotificationsPage'
 import AdminTeachersPage   from './AdminTeachersPage'
 import AIUsagePage         from './AIUsagePage'
@@ -429,6 +430,11 @@ function DashboardInner({ session, teacher, setTeacher }) {
                 🔎 Observaciones
                 <span className="sb-admin-badge">Admin</span>
               </NavLink>
+              <NavLink to="/academic-calendar" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
+                <span className="dot" style={{ background: '#4BACC6' }} />
+                📅 Calendario Académico
+                <span className="sb-admin-badge">Admin</span>
+              </NavLink>
               <NavLink to="/settings" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
                 <span className="dot" style={{ background: '#555' }} />
                 ⚙️ Panel de control
@@ -519,8 +525,9 @@ function DashboardInner({ session, teacher, setTeacher }) {
               <Route path="/subjects"      element={<SubjectManagerPage      teacher={teacher} />} />
               <Route path="/notifications" element={<NotificationsPage teacher={teacher} onRead={() => setUnread(0)} />} />
               <Route path="/teachers"      element={<AdminTeachersPage teacher={teacher} />} />
-              <Route path="/settings"      element={<SettingsPage      teacher={teacher} />} />
-              <Route path="/director"      element={<DirectorPage      teacher={teacher} />} />
+              <Route path="/settings"           element={<SettingsPage           teacher={teacher} />} />
+              <Route path="/director"           element={<DirectorPage           teacher={teacher} />} />
+              <Route path="/academic-calendar"  element={<AcademicCalendarPage   teacher={teacher} />} />
               {isSuperAdm && (
                 <Route path="/superadmin" element={<SuperAdminPage teacher={teacher} />} />
               )}

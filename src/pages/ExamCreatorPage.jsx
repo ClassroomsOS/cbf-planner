@@ -265,8 +265,6 @@ export default function ExamCreatorPage({ teacher }) {
     if (!generatedExam?.questions?.length) return
     setSaving(true)
     try {
-      const accessCode = Math.random().toString(36).substring(2, 8).toUpperCase()
-
       // 1. Create blueprint (pedagogical intent + generated questions)
       const blueprintSections = sections.map(sec => ({
         id: sec.id,
@@ -298,28 +296,8 @@ export default function ExamCreatorPage({ teacher }) {
           total_points: totalScore,
           estimated_minutes: form.time_limit || 60,
           sections: blueprintSections,
-          status: 'ready',
-        })
-        .select('id')
-        .single()
-
-      if (bErr || !blueprint?.id) throw new Error('Error al crear examen: ' + (bErr?.message || 'sin ID'))
-
-      // 2. Create session (live event with access code)
-      const { error: sErr } = await supabase
-        .from('exam_sessions')
-        .insert({
-          school_id: teacher.school_id,
-          teacher_id: teacher.id,
-          blueprint_id: blueprint.id,
-          title: form.title.trim(),
-          subject: form.subject,
-          grade: form.grade,
-          period: form.period ? parseInt(form.period) : 1,
-          access_code: accessCode,
-          status: 'ready',
-          duration_minutes: form.time_limit || 60,
-          service_worker_payload: {
+          status: 'draft',
+          metadata: {
             exam_type: examType,
             version_count: versionCount,
             shuffle_questions: shuffleQuestions,
@@ -328,11 +306,13 @@ export default function ExamCreatorPage({ teacher }) {
             instructions: form.instructions.trim(),
           },
         })
+        .select('id')
+        .single()
 
-      if (sErr) throw new Error('Error al crear sesión: ' + sErr.message)
+      if (bErr || !blueprint?.id) throw new Error('Error al crear examen: ' + (bErr?.message || 'sin ID'))
 
-      showToast(`Examen publicado${versionCount > 1 ? ` — ${versionCount} versiones` : ''} · Código: ${accessCode}`, 'success')
-      navigate('/exams')
+      showToast('Examen creado — revísalo y envíalo al supervisor para aprobación', 'success')
+      navigate(`/exams/${blueprint.id}`)
     } catch (err) {
       showToast(err.message, 'error')
     } finally {

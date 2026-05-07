@@ -40,7 +40,19 @@
       "Bash(npx vite:*)",
       "Bash(gh run:*)",
       "Bash(npm test:*)",
-      "Bash(.\\\\supabase.exe db:*)"
+      "Bash(.\\\\supabase.exe db:*)",
+      "Bash(npm create:*)",
+      "Bash(gh repo:*)",
+      "Bash(npx vitest:*)",
+      "Bash(./supabase.exe migration:*)",
+      "Bash(./supabase.exe link:*)",
+      "Bash(grep -E \"^\\\\.[a-z]{2,3}-\" \"/c/BOSTON FLEX/ClassroomOS/cbf-planner/src/styles/index.css\")",
+      "Bash(grep -oE '^\\\\.[a-z]{2,4}-[a-z-]+' \"/c/BOSTON FLEX/ClassroomOS/cbf-planner/src/styles/index.css\")",
+      "Bash(find \"/c/BOSTON FLEX/ClassroomOS/cbf-planner/src\" -type f -name \"*.jsx\" -exec grep -l \"svg\\\\|canvas\\\\|chart\" {} \\\\;)",
+      "Bash(cp \"C:\\\\BOSTON FLEX\\\\ICONS & IMAGES BF\\\\LOGO\\\\ESCUDO BF NO BGD.png\" \"C:\\\\BOSTON FLEX\\\\ClassroomOS\\\\cbf-planner\\\\public\\\\assets\\\\logo-bf.png\")",
+      "Bash(cp \"C:\\\\BOSTON FLEX\\\\ClassroomOS\\\\IMAGES\\\\Judah Playing Soccer.png\" \"C:\\\\BOSTON FLEX\\\\ClassroomOS\\\\cbf-planner\\\\public\\\\assets\\\\judah-soccer.png\")",
+      "Bash(grep:*)",
+      "Bash(find \"/c/BOSTON FLEX/ClassroomOS/cbf-planner/src\" -name \"*.jsx\" -type f -exec grep -l \"/:id\\\\|useParams\" {} \\\\;)"
     ]
   }
 }
