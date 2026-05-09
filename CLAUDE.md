@@ -165,6 +165,10 @@ weekly_agendas        — grade · section · week_start · content JSONB · sta
 schedule_slots        — franjas horario institucional por nivel
 school_calendar       — is_school_day · affects_planning
 news_legacy           — LEGACY — no borrar
+school_library        — Biblioteca CBF: doc_type · subjects[] · grades[] · visibility('school'|'personal')
+                        RLS dual: institucional (admin gestiona, todos leen) / personal (solo dueño)
+                        Storage bucket: cbf-library (público, 1 GB/archivo max)
+                        Cuota personal: schools.features.library_quota_gb (default 2 GB)
 error_log · activity_log · ai_usage · cbf_error_log · health_snapshots
 
 — DEPRECATED (no crear registros nuevos) —
@@ -270,7 +274,8 @@ Helpers → `src/utils/roles.js`: `canManage · isSuperAdmin · isRector · canA
 /              PlannerPage              /plans         MyPlansPage
 /editor/:id    GuideEditorPage          /library       GuideLibraryPage
 /principles    PrinciplesPage           /achievements  AchievementsPage
-/syllabus      SyllabusPage             /news          NewsPage
+/syllabus      SyllabusPage             /biblioteca    LibraryPage
+/news          NewsPage
 /messages      MessagesPage             /ai-usage      AIUsagePage
 /students      StudentsPage             /exams         ExamDashboardPage
 /exams/review  ExamReviewPage           /psicosocial   PsicosocialPage
