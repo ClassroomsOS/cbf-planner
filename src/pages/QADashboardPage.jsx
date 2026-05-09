@@ -260,7 +260,7 @@ function ErrorsTab({ teacher }) {
     setLoading(true)
     const { data } = await supabase
       .from('error_log')
-      .select('*, teacher:teacher_id(full_name, initials)')
+      .select('*, teacher:user_id(full_name, initials)')
       .order('created_at', { ascending: false })
       .limit(200)
     setRows(data || [])
@@ -269,7 +269,7 @@ function ErrorsTab({ teacher }) {
 
   const filtered = filter
     ? rows.filter(r =>
-        r.message?.toLowerCase().includes(filter.toLowerCase()) ||
+        (r.error_message || r.message)?.toLowerCase().includes(filter.toLowerCase()) ||
         r.page?.toLowerCase().includes(filter.toLowerCase()) ||
         r.action?.toLowerCase().includes(filter.toLowerCase()) ||
         r.teacher?.full_name?.toLowerCase().includes(filter.toLowerCase())
@@ -315,14 +315,14 @@ function ErrorsTab({ teacher }) {
                   <td>{row.teacher?.full_name || row.teacher?.initials || <span style={{ color: '#94a3b8' }}>Anónimo</span>}</td>
                   <td><code>{row.page || '—'}</code></td>
                   <td><code>{row.action || '—'}</code></td>
-                  <td className="qa-dash-cell-msg">{row.message || '—'}</td>
+                  <td className="qa-dash-cell-msg">{row.error_message || row.message || '—'}</td>
                   <td>{expanded === row.id ? '▲' : '▼'}</td>
                 </tr>
                 {expanded === row.id && (
                   <tr key={`${row.id}-detail`} className="qa-dash-row-detail">
                     <td colSpan={6}>
-                      <pre className="qa-dash-stack">{row.stack || 'Sin stack trace'}</pre>
-                      {row.entity_id && <div><strong>Entity ID:</strong> {row.entity_id}</div>}
+                      <pre className="qa-dash-stack">{row.error_stack || row.stack || 'Sin stack trace'}</pre>
+                      {row.metadata && <pre className="qa-dash-stack" style={{ marginTop: 6 }}>{JSON.stringify(row.metadata, null, 2)}</pre>}
                     </td>
                   </tr>
                 )}
@@ -354,7 +354,7 @@ function ActivityTab({ teacher }) {
     setLoading(true)
     const { data } = await supabase
       .from('activity_log')
-      .select('*, teacher:teacher_id(full_name, initials)')
+      .select('*, teacher:user_id(full_name, initials)')
       .order('created_at', { ascending: false })
       .limit(300)
     setRows(data || [])
