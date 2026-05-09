@@ -839,7 +839,7 @@ function TabButton({ id, label, icon, active, onClick }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function ModuleCard({ mod, isSelected, onClick }) {
-  const meta = STATUS_META[mod.status]
+  const meta = STATUS_META[mod.status] || STATUS_META.pending
   return (
     <div
       className={`ds-module-card ds-module-card--${mod.status} ${isSelected ? 'ds-module-card--selected' : ''}`}
@@ -858,7 +858,7 @@ function ModuleCard({ mod, isSelected, onClick }) {
 }
 
 function ModuleDetail({ mod, onClose }) {
-  const meta = STATUS_META[mod.status]
+  const meta = STATUS_META[mod.status] || STATUS_META.pending
   const [histOpen, setHistOpen] = useState(true)
   const relatedRoadmap = ROADMAP_ITEMS.filter(r => r.module === mod.id)
 
@@ -902,13 +902,13 @@ function ModuleDetail({ mod, onClose }) {
           <h3 className="ds-detail-section-title"><span style={{ color: '#6366f1' }}>🗺️</span> Items del roadmap</h3>
           <div className="ds-related-roadmap">
             {relatedRoadmap.map(r => {
-              const pm = PRIORITY_META[r.priority]
+              const pm = PRIORITY_META[r.priority] || PRIORITY_META.low
               return (
                 <div key={r.id} className="ds-related-roadmap-item">
                   <span>{pm.icon}</span>
                   <div>
                     <div style={{ fontWeight: 700, fontSize: 12 }}>{r.title}</div>
-                    <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{r.why.slice(0, 100)}…</div>
+                    <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{(r.why || '').slice(0, 100)}…</div>
                   </div>
                 </div>
               )
@@ -1062,7 +1062,7 @@ function RoadmapTab() {
                   {mod && <span className="ds-roadmap-module-tag">{mod.icon} {mod.name}</span>}
                 </div>
                 <div className="ds-roadmap-title">{r.title}</div>
-                <div className="ds-roadmap-why">{r.why.slice(0, 120)}…</div>
+                <div className="ds-roadmap-why">{(r.why || '').slice(0, 120)}…</div>
               </div>
             )
           })}
