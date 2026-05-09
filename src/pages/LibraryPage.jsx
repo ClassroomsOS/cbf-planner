@@ -215,6 +215,240 @@ function DocumentCard({ doc, onView, onDelete, onEdit, onShare, onHistory,
 }
 
 // =============================================================================
+// PDF VIEWER — PDF.js page-by-page (Fase 2)
+// =============================================================================
+
+const PDFJS_WORKER_URL =
+  'https://cdn.jsdelivr.net/npm/pdfjs-dist@5.7.284/build/pdf.worker.min.mjs'
+
+function PDFViewerCanvas({ url }) {
+  const canvasRef = useRef()
+  const renderRef = useRef(null)
+  const [doc,       setDoc]       = useState(null)
+  const [numPages,  setNumPages]  = useState(0)
+  const [page,      setPage]      = useState(1)
+  const [scale,     setScale]     = useState(1.4)
+  const [status,    setStatus]    = useState('loading')   // loading | ready | error
+  const [rendering, setRendering] = useState(false)
+
+  // Load PDF document
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const pdfjsLib = await import('pdfjs-dist')
+        pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_URL
+        const pdfDoc = await pdfjsLib.getDocument(url).promise
+        if (!cancelled) { setDoc(pdfDoc); setNumPages(pdfDoc.numPages); setStatus('ready') }
+      } catch (_) {
+        if (!cancelled) setStatus('error')
+      }
+    })()
+    return () => { cancelled = true }
+  }, [url])
+
+  // Render current page onto canvas
+  useEffect(() => {
+    if (!doc || !canvasRef.current) return
+    let cancelled = false
+    ;(async () => {
+      if (renderRef.current) {
+        try { renderRef.current.cancel() } catch(_) {}
+        renderRef.current = null
+      }
+      setRendering(true)
+      try {
+        const pdfPage = await doc.getPage(page)
+        if (cancelled) return
+        const viewport = pdfPage.getViewport({ scale })
+        const canvas = canvasRef.current
+        canvas.width  = viewport.width
+        canvas.height = viewport.height
+        const task = pdfPage.render({ canvasContext: canvas.getContext('2d'), viewport })
+        renderRef.current = task
+        await task.promise
+        if (!cancelled) setRendering(false)
+      } catch (_) {
+        if (!cancelled) setRendering(false)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [doc, page, scale])
+
+  if (status === 'loading') return (
+    <div className="lib-pdf-loading">
+      <div className="lib-loading-spinner" />
+      <span>Cargando PDF…</span>
+    </div>
+  )
+  if (status === 'error') return (
+    <div className="lib-pdf-error">⚠️ No se pudo cargar el PDF</div>
+  )
+
+  return (
+    <div className="lib-pdf-viewer">
+      <div className="lib-pdf-toolbar">
+        <div className="lib-pdf-nav">
+          <button className="lib-pdf-btn" disabled={page <= 1}
+            onClick={() => setPage(p => p - 1)}>‹</button>
+          <input className="lib-pdf-page-input"
+            type="number" min={1} max={numPages} value={page}
+            onChange={e => {
+              const v = parseInt(e.target.value, 10)
+              if (!isNaN(v) && v >= 1 && v <= numPages) setPage(v)
+            }} />
+          <span className="lib-pdf-of">de {numPages}</span>
+          <button className="lib-pdf-btn" disabled={page >= numPages}
+            onClick={() => setPage(p => p + 1)}>›</button>
+        </div>
+        <div className="lib-pdf-zoom">
+          <button className="lib-pdf-btn"
+            onClick={() => setScale(s => Math.max(0.5, Math.round((s - 0.25) * 100) / 100))}>−</button>
+          <span className="lib-pdf-scale">{Math.round(scale * 100)}%</span>
+          <button className="lib-pdf-btn"
+            onClick={() => setScale(s => Math.min(4, Math.round((s + 0.25) * 100) / 100))}>+</button>
+          <button className="lib-pdf-btn lib-pdf-reset"
+            title="Restablecer zoom" onClick={() => setScale(1.4)}>↺</button>
+        </div>
+      </div>
+
+      <div className="lib-pdf-canvas-wrap">
+        {rendering && (
+          <div className="lib-pdf-render-overlay">
+            <div className="lib-loading-spinner" />
+          </div>
+        )}
+        <canvas ref={canvasRef} className="lib-pdf-canvas" />
+      </div>
+    </div>
+  )
+}
+
+// =============================================================================
+// WAVEFORM PLAYER — WaveSurfer.js (Fase 2)
+// =============================================================================
+
+function WaveformPlayer({ url, title, author }) {
+  const containerRef = useRef()
+  const wsRef        = useRef(null)
+  const [ready,       setReady]       = useState(false)
+  const [playing,     setPlaying]     = useState(false)
+  const [currentTime, setCurrentTime] = useState(0)
+  const [duration,    setDuration]    = useState(0)
+  const [volume,      setVolume]      = useState(1)
+
+  useEffect(() => {
+    let ws
+    ;(async () => {
+      const WaveSurfer = (await import('wavesurfer.js')).default
+      ws = WaveSurfer.create({
+        container:     containerRef.current,
+        waveColor:     '#4BACC6',
+        progressColor: '#1F3864',
+        cursorColor:   '#2E5598',
+        cursorWidth:   2,
+        height:        80,
+        normalize:     true,
+        barWidth:      2,
+        barGap:        1,
+        barRadius:     2,
+      })
+      ws.load(url)
+      ws.on('ready',      (dur) => { setReady(true); setDuration(dur); wsRef.current = ws })
+      ws.on('timeupdate', (t)   => setCurrentTime(t))
+      ws.on('finish',     ()    => setPlaying(false))
+    })()
+    return () => { ws?.destroy() }
+  }, [url])
+
+  function fmtTime(s) {
+    const m = Math.floor(s / 60)
+    return `${m}:${String(Math.floor(s % 60)).padStart(2, '0')}`
+  }
+
+  function handlePlayPause() {
+    if (!wsRef.current) return
+    wsRef.current.playPause()
+    setPlaying(p => !p)
+  }
+
+  return (
+    <div className="lib-wave-wrap">
+      <div className="lib-wave-art">🎵</div>
+      <p className="lib-wave-title">{title}</p>
+      {author && <p className="lib-wave-artist">✍️ {author}</p>}
+      {!ready && <p className="lib-wave-loading">Cargando audio…</p>}
+      <div ref={containerRef} className="lib-wave-container" />
+      <div className="lib-wave-controls">
+        <button className="lib-wave-play" disabled={!ready} onClick={handlePlayPause}>
+          {playing ? '⏸' : '▶'}
+        </button>
+        <span className="lib-wave-time">{fmtTime(currentTime)}</span>
+        <span className="lib-wave-sep">/</span>
+        <span className="lib-wave-dur">{fmtTime(duration)}</span>
+        <label className="lib-wave-vol-label" title="Volumen">
+          🔊
+          <input type="range" min={0} max={1} step={0.05} value={volume}
+            className="lib-wave-vol"
+            onChange={e => {
+              const v = parseFloat(e.target.value)
+              setVolume(v)
+              wsRef.current?.setVolume(v)
+            }} />
+        </label>
+      </div>
+    </div>
+  )
+}
+
+// =============================================================================
+// DEEP ZOOM IMAGE — OpenSeadragon (Fase 2)
+// =============================================================================
+
+function DeepZoomImage({ url, title }) {
+  const containerRef = useRef()
+  const viewerRef    = useRef(null)
+
+  useEffect(() => {
+    let viewer
+    ;(async () => {
+      const OpenSeadragon = (await import('openseadragon')).default
+      viewer = OpenSeadragon({
+        element:             containerRef.current,
+        tileSources:         { type: 'image', url },
+        showNavigationControl: false,
+        gestureSettingsMouse:  { scrollToZoom: true, clickToZoom: false, dblClickToZoom: true },
+        gestureSettingsTouch:  { pinchToZoom: true },
+        defaultZoomLevel:    0,   // fit to container
+        visibilityRatio:     0.5,
+        minZoomLevel:        0.3,
+        maxZoomLevel:        20,
+        animationTime:       0.4,
+      })
+      viewerRef.current = viewer
+    })()
+    return () => { viewer?.destroy() }
+  }, [url])
+
+  return (
+    <div className="lib-osd-wrap">
+      <div ref={containerRef} className="lib-osd-viewer" />
+      <div className="lib-osd-controls">
+        <button className="lib-pdf-btn" title="Acercar"
+          onClick={() => viewerRef.current?.viewport?.zoomBy(1.5, null, true)}>+</button>
+        <button className="lib-pdf-btn" title="Alejar"
+          onClick={() => viewerRef.current?.viewport?.zoomBy(0.67, null, true)}>−</button>
+        <button className="lib-pdf-btn" title="Ajustar"
+          onClick={() => viewerRef.current?.viewport?.goHome(true)}>↺</button>
+      </div>
+      <p className="lib-osd-hint">
+        🖱 Scroll para zoom · Arrastra para mover · Doble clic = zoom in · Pinch en móvil
+      </p>
+    </div>
+  )
+}
+
+// =============================================================================
 // DOCUMENT VIEWER — visor universal
 // =============================================================================
 
@@ -264,22 +498,11 @@ function DocumentViewer({ doc, onClose }) {
           )}
 
           {doc.file_url && cat === 'pdf' && (
-            <iframe
-              src={doc.file_url}
-              title={doc.title}
-              className="lib-viewer-iframe"
-            />
+            <PDFViewerCanvas url={doc.file_url} />
           )}
 
           {doc.file_url && cat === 'image' && (
-            <div className="lib-viewer-image-wrap">
-              <img
-                src={doc.file_url}
-                alt={doc.title}
-                className="lib-viewer-image"
-                draggable={false}
-              />
-            </div>
+            <DeepZoomImage url={doc.file_url} title={doc.title} />
           )}
 
           {doc.file_url && cat === 'video' && (
@@ -291,14 +514,11 @@ function DocumentViewer({ doc, onClose }) {
           )}
 
           {doc.file_url && cat === 'audio' && (
-            <div className="lib-viewer-audio-wrap">
-              <div className="lib-viewer-audio-art">🎵</div>
-              <p className="lib-viewer-audio-title">{doc.title}</p>
-              {doc.metadata?.author && (
-                <p className="lib-viewer-audio-artist">✍️ {doc.metadata.author}</p>
-              )}
-              <audio src={doc.file_url} controls className="lib-viewer-audio" />
-            </div>
+            <WaveformPlayer
+              url={doc.file_url}
+              title={doc.title}
+              author={doc.metadata?.author}
+            />
           )}
 
           {doc.file_url && cat === 'midi' && (
@@ -306,10 +526,7 @@ function DocumentViewer({ doc, onClose }) {
               <div className="lib-viewer-midi-icon">🎹</div>
               <p className="lib-viewer-midi-title">{doc.title}</p>
               <p className="lib-viewer-midi-note">
-                Archivo MIDI — descárgalo para reproducirlo en tu DAW o software musical.
-              </p>
-              <p className="lib-viewer-midi-coming">
-                🚧 Reproductor MIDI en el navegador disponible próximamente
+                Archivo MIDI — descárgalo para reproducirlo en tu DAW, Sibelius, MuseScore u otro software musical.
               </p>
               <a href={doc.file_url} download={doc.file_name} className="lib-viewer-dl-btn">
                 ⬇ Descargar MIDI

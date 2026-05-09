@@ -29,9 +29,12 @@
     "dompurify": "^3.3.3",
     "file-saver": "^2.0.5",
     "mammoth": "^1.12.0",
+    "openseadragon": "^6.0.2",
+    "pdfjs-dist": "^5.7.284",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.26.2",
+    "wavesurfer.js": "^7.12.6",
     "zod": "^4.3.6"
   },
   "devDependencies": {
