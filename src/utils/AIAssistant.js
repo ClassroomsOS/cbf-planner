@@ -15,6 +15,7 @@ export {
   analyzeGuideCoverage,
   generateStudentRubric,
   analyzeTextbookFragment,
+  analyzeTextbookPages,
 } from './guideAI'
 
 export { generateExamQuestions } from './examAI'

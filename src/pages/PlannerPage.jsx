@@ -65,6 +65,8 @@ export default function PlannerPage({ teacher }) {
   const [examCodeCopied, setExamCodeCopied] = useState(false)
   // ── Current month's biblical principles ──
   const [monthPrinciple, setMonthPrinciple] = useState(null)
+  // ── Biblioteca fragments assigned to this week ──
+  const [textbookFragments, setTextbookFragments] = useState([])
 
   useEffect(() => {
     const now = new Date()
@@ -77,6 +79,33 @@ export default function PlannerPage({ teacher }) {
       .maybeSingle()
       .then(({ data }) => { if (data) setMonthPrinciple(data) })
   }, [teacher.school_id])
+
+  // ── ISO week helper (Thursday method) ──
+  function getISOWeek(dateStr) {
+    const d = new Date(dateStr)
+    const day = d.getDay() || 7
+    const thursday = new Date(d.getTime() + (4 - day) * 86400000)
+    const yearStart = new Date(thursday.getFullYear(), 0, 1)
+    return Math.ceil(((thursday - yearStart) / 86400000 + 1) / 7)
+  }
+
+  // ── Fetch Biblioteca fragments assigned to this grade+subject+week ──
+  useEffect(() => {
+    if (!grade || !subject || !monday) { setTextbookFragments([]); return }
+    const isoWeek = getISOWeek(toISO(monday))
+    const baseGrade = selectedAssignment?.grade || grade.split(' ')[0]
+    supabase
+      .from('library_fragments')
+      .select('id, page_number, extracted_text, ai_analysis, assigned_subject, assigned_grade, image_url')
+      .eq('school_id', teacher.school_id)
+      .eq('assigned_subject', subject)
+      .eq('assigned_week', isoWeek)
+      .then(({ data }) => {
+        if (!data) { setTextbookFragments([]); return }
+        const filtered = data.filter(f => !f.assigned_grade || grade.startsWith(f.assigned_grade))
+        setTextbookFragments(filtered)
+      })
+  }, [grade, subject, monday, teacher.school_id])
 
   // Fetch active achievement_goal + indicators for subject/grade/period
   useEffect(() => {
@@ -432,6 +461,44 @@ export default function PlannerPage({ teacher }) {
               </div>
             </div>
           )}
+          {/* Fragmentos de Biblioteca asignados a esta semana */}
+          {textbookFragments.length > 0 && grade && subject && (
+            <div style={{
+              background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 10,
+              padding: '10px 14px', display: 'flex', alignItems: 'flex-start', gap: 12,
+            }}>
+              <span style={{ fontSize: 18, flexShrink: 0 }}>📚</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#1D4ED8', marginBottom: 4 }}>
+                  {textbookFragments.length === 1
+                    ? '1 fragmento del libro disponible para esta semana'
+                    : `${textbookFragments.length} fragmentos del libro disponibles para esta semana`}
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {textbookFragments.map(f => {
+                    const ftype = f.ai_analysis?.content_type || 'fragmento'
+                    const FTYPE_LABEL = { grammar: '📐 Gramática', vocabulary: '🔤 Vocabulario', reading_passage: '📖 Lectura', exercise: '✏️ Ejercicio', image: '🖼 Imagen', diagram: '📊 Diagrama', other: '📄 Otro' }
+                    return (
+                      <span key={f.id} style={{
+                        fontSize: 11, padding: '2px 8px', borderRadius: 8,
+                        background: '#DBEAFE', color: '#1E40AF', border: '1px solid #93C5FD',
+                        display: 'flex', alignItems: 'center', gap: 4,
+                      }}>
+                        {FTYPE_LABEL[ftype] || '📄 Fragmento'}
+                        {f.ai_analysis?.suggested_smartblock?.type && (
+                          <span style={{ color: '#6B7280', fontSize: 10 }}>→ {f.ai_analysis.suggested_smartblock.type}</span>
+                        )}
+                      </span>
+                    )
+                  })}
+                </div>
+                <div style={{ fontSize: 11, color: '#2563EB', marginTop: 4 }}>
+                  La IA los usará como contexto al generar la guía.
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Hitos NEWS esta semana */}
           {weeklyNewsHitos.length > 0 && (
             <div className="planner-news-hitos">
@@ -669,6 +736,7 @@ export default function PlannerPage({ teacher }) {
           subject={subject}
           period={period}
           activeDays={activeDays.map(d => toISO(d))}
+          textbookFragments={textbookFragments}
           achievementGoal={activeAchievementGoal}
           activeIndicator={activeAchievementGoal?.indicators?.[0]
             ? { texto_en: activeAchievementGoal.indicators[0].text, dimension: activeAchievementGoal.indicators[0].dimension, skill_area: activeAchievementGoal.indicators[0].skill_area }

@@ -220,7 +220,7 @@ export const AIAnalyzerModal = memo(function AIAnalyzerModal({ content, onClose,
 const SKILL_COLORS = { Speaking: '#8064A2', Listening: '#4BACC6', Reading: '#F79646', Writing: '#9BBB59' }
 const SKILL_ICONS  = { Speaking: '🎤', Listening: '🎧', Reading: '📖', Writing: '✍️' }
 
-export const AIGeneratorModal = memo(function AIGeneratorModal({ grade, subject, period, activeDays, currentContent, onApply, onClose, achievementGoal, activeIndicator, activeNewsProject, principles }) {
+export const AIGeneratorModal = memo(function AIGeneratorModal({ grade, subject, period, activeDays, currentContent, onApply, onClose, achievementGoal, activeIndicator, activeNewsProject, principles, textbookFragments }) {
   const { showToast } = useToast()
 
   const isModeloB = MODELO_B_SUBJECTS.includes(subject)
@@ -280,7 +280,8 @@ export const AIGeneratorModal = memo(function AIGeneratorModal({ grade, subject,
     setLoading(true); setError(null); setPreview(null)
     try {
       const result = await generateGuideStructure({
-        grade, subject, period, objective, unit, activeDays, achievementGoal, activeNewsProject, principles
+        grade, subject, period, objective, unit, activeDays, achievementGoal, activeNewsProject, principles,
+        textbookFragments: textbookFragments || []
       })
       setPreview(result)
     } catch (e) {
@@ -289,7 +290,7 @@ export const AIGeneratorModal = memo(function AIGeneratorModal({ grade, subject,
       showToast(errorMsg, 'error')
     }
     setLoading(false)
-  }, [grade, subject, period, unit, activeDays, activeIndicator, achievementGoal, principles, showToast])
+  }, [grade, subject, period, unit, activeDays, activeIndicator, achievementGoal, principles, textbookFragments, showToast])
 
   const handleApply = useCallback(() => {
     if (!preview) return

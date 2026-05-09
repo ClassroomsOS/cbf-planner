@@ -6785,3 +6785,25 @@ input:not(:placeholder-shown):not(:focus):not([type=password]):valid {
 }
 .lib-fragpanel-save-btn:hover:not(:disabled) { background: #15532e; }
 .lib-fragpanel-save-btn:disabled { opacity: .6; cursor: not-allowed; }
+
+/* ── Biblioteca Fase 4 — Page selection mode + PagesAnalysisPanel ─────────── */
+.lib-pdf-page-sel {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.lib-pdf-sel-btn {
+  width: auto; padding: 0 12px; font-size: 12px; font-weight: 600;
+}
+.lib-pdf-sel-btn--active {
+  background: #2563EB !important; border-color: #1D4ED8 !important; color: #fff !important;
+}
+.lib-pdf-analyze-btn {
+  width: auto; padding: 0 12px; font-size: 12px; font-weight: 700;
+  background: #1D4ED8 !important; border-color: #1D4ED8 !important; color: #fff !important;
+}
+.lib-pdf-analyze-btn:hover:not(:disabled) { background: #1E40AF !important; }
+.lib-pdf-sel-count {
+  font-size: 11px; color: #93C5FD; font-weight: 600;
+}
+.lib-pages-panel {
+  max-width: 480px;
+}

@@ -4,7 +4,7 @@ import { supabase } from '../supabase'
 import { useToast } from '../context/ToastContext'
 import { useFeatures } from '../context/FeaturesContext'
 import { canManage } from '../utils/roles'
-import { analyzeTextbookFragment } from '../utils/AIAssistant'
+import { analyzeTextbookFragment, analyzeTextbookPages } from '../utils/AIAssistant'
 
 // =============================================================================
 // CONSTANTS
@@ -534,22 +534,175 @@ function FragmentPanel({ fragment, doc, teacher, pageNumber, onClose, onSaved })
 }
 
 // =============================================================================
+// PAGES ANALYSIS PANEL — Fase 4: multi-page analysis result display
+// =============================================================================
+
+function PagesAnalysisPanel({ analysis, pageNums, onClose }) {
+  const SMARTBLOCK_COLORS = {
+    VOCAB: '#9BBB59', GRAMMAR: '#375623', READING: '#17375E',
+    QUIZ: '#C0504D', WORKSHOP: '#F79646', EXIT_TICKET: '#C55A11',
+  }
+
+  return createPortal(
+    <div className="lib-panel-overlay" onClick={onClose}>
+      <div className="lib-frag-panel lib-pages-panel" onClick={e => e.stopPropagation()}>
+        <div className="lib-frag-panel-header" style={{ background: 'linear-gradient(135deg, #1D4ED8, #2563EB)' }}>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: 15 }}>📖 Análisis de páginas</div>
+            <div style={{ fontSize: 11, opacity: 0.85 }}>
+              Págs. {pageNums.join(', ')} · {analysis.language === 'en' ? 'English' : 'Español'}
+            </div>
+          </div>
+          <button type="button" className="lib-frag-panel-close" onClick={onClose}>✕</button>
+        </div>
+
+        <div className="lib-frag-panel-body">
+          {/* Summary */}
+          <div className="lib-frag-section-label">Resumen del contenido</div>
+          <p style={{ fontSize: 13, color: '#374151', lineHeight: 1.6, margin: 0 }}>
+            {analysis.unit_summary}
+          </p>
+
+          {/* Key concepts */}
+          {analysis.key_concepts?.length > 0 && (
+            <div style={{ marginTop: 12 }}>
+              <div className="lib-frag-section-label">Conceptos clave</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {analysis.key_concepts.map((c, i) => (
+                  <span key={i} style={{
+                    fontSize: 12, padding: '3px 10px', borderRadius: 12,
+                    background: '#EFF6FF', color: '#1D4ED8', border: '1px solid #BFDBFE',
+                  }}>{c}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Vocabulary */}
+          {analysis.vocabulary?.length > 0 && (
+            <div style={{ marginTop: 12 }}>
+              <div className="lib-frag-section-label">Vocabulario ({analysis.vocabulary.length} items)</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                {analysis.vocabulary.slice(0, 8).map((v, i) => (
+                  <span key={i} style={{
+                    fontSize: 11, padding: '2px 8px', borderRadius: 8,
+                    background: '#F0FDF4', color: '#166534', border: '1px solid #BBF7D0',
+                  }}>{v.w}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Grammar points */}
+          {analysis.grammar_points?.length > 0 && (
+            <div style={{ marginTop: 12 }}>
+              <div className="lib-frag-section-label">Puntos gramaticales</div>
+              <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: '#374151' }}>
+                {analysis.grammar_points.map((g, i) => <li key={i}>{g}</li>)}
+              </ul>
+            </div>
+          )}
+
+          {/* Suggested week plan */}
+          {analysis.suggested_week_plan && (
+            <div style={{ marginTop: 12 }}>
+              <div className="lib-frag-section-label">Plan sugerido para la semana</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {['day1','day2','day3','day4','day5'].map((k, i) => {
+                  const txt = analysis.suggested_week_plan[k]
+                  if (!txt) return null
+                  const DAYS = ['Lun','Mar','Mié','Jue','Vie']
+                  const COLORS = ['#1D4ED8','#7C3AED','#059669','#D97706','#DC2626']
+                  return (
+                    <div key={k} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                      <span style={{
+                        flexShrink: 0, fontSize: 10, fontWeight: 800, padding: '2px 6px',
+                        borderRadius: 6, background: COLORS[i] + '18', color: COLORS[i],
+                        minWidth: 28, textAlign: 'center',
+                      }}>{DAYS[i]}</span>
+                      <span style={{ fontSize: 12, color: '#374151', lineHeight: 1.5 }}>{txt}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* SmartBlock suggestions */}
+          {analysis.suggested_smartblocks?.length > 0 && (
+            <div style={{ marginTop: 12 }}>
+              <div className="lib-frag-section-label">SmartBlocks sugeridos</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {analysis.suggested_smartblocks.map((sb, i) => {
+                  const c = SMARTBLOCK_COLORS[sb.type] || '#6B7280'
+                  return (
+                    <div key={i} style={{
+                      fontSize: 12, padding: '6px 10px', borderRadius: 8,
+                      background: c + '15', border: `1px solid ${c}44`,
+                    }}>
+                      <span style={{ fontWeight: 700, color: c }}>{sb.type} / {sb.model}</span>
+                      {sb.rationale && <span style={{ color: '#6B7280', marginLeft: 8 }}>— {sb.rationale}</span>}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="lib-frag-panel-footer">
+          <button type="button" className="lib-frag-save-btn" onClick={onClose}
+            style={{ background: '#1D4ED8' }}>
+            Cerrar
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  )
+}
+
+// =============================================================================
 // PDF VIEWER — PDF.js page-by-page (Fase 2)
 // =============================================================================
 
 const PDFJS_WORKER_URL =
   'https://cdn.jsdelivr.net/npm/pdfjs-dist@5.7.284/build/pdf.worker.min.mjs'
 
-function PDFViewerCanvas({ url, fragmentMode = false, onFragmentCapture }) {
+function PDFViewerCanvas({ url, fragmentMode = false, onFragmentCapture, pageSelectionMode = false, onPagesReady }) {
   const canvasRef = useRef()
   const renderRef = useRef(null)
-  const [doc,       setDoc]       = useState(null)
-  const [numPages,  setNumPages]  = useState(0)
-  const [page,      setPage]      = useState(1)
-  const [scale,     setScale]     = useState(1.4)
-  const [status,    setStatus]    = useState('loading')   // loading | ready | error
-  const [rendering, setRendering] = useState(false)
-  const [pdfPage,   setPdfPage]   = useState(null)        // página actual para text extraction
+  const [doc,           setDoc]           = useState(null)
+  const [numPages,      setNumPages]      = useState(0)
+  const [page,          setPage]          = useState(1)
+  const [scale,         setScale]         = useState(1.4)
+  const [status,        setStatus]        = useState('loading')   // loading | ready | error
+  const [rendering,     setRendering]     = useState(false)
+  const [pdfPage,       setPdfPage]       = useState(null)        // página actual para text extraction
+  const [selectedPages, setSelectedPages] = useState(new Set())   // Fase 4: multi-page selection
+  const [capturing,     setCapturing]     = useState(false)       // rendering offscreen pages for analysis
+
+  // Reset selection when mode is deactivated
+  useEffect(() => { if (!pageSelectionMode) setSelectedPages(new Set()) }, [pageSelectionMode])
+
+  async function handleAnalyzePages() {
+    if (!doc || !selectedPages.size) return
+    setCapturing(true)
+    const sorted = [...selectedPages].sort((a, b) => a - b)
+    const captures = (await Promise.all(sorted.map(async (pageNum) => {
+      try {
+        const pageObj = await doc.getPage(pageNum)
+        const viewport = pageObj.getViewport({ scale: 1.5 })
+        const offscreen = document.createElement('canvas')
+        offscreen.width  = viewport.width
+        offscreen.height = viewport.height
+        await pageObj.render({ canvasContext: offscreen.getContext('2d'), viewport }).promise
+        return { pageNum, base64: offscreen.toDataURL('image/jpeg', 0.85).split(',')[1] }
+      } catch { return null }
+    }))).filter(Boolean)
+    setCapturing(false)
+    if (captures.length) onPagesReady?.(captures)
+  }
 
   // Load PDF document
   useEffect(() => {
@@ -631,6 +784,36 @@ function PDFViewerCanvas({ url, fragmentMode = false, onFragmentCapture }) {
           <button className="lib-pdf-btn lib-pdf-reset"
             title="Restablecer zoom" onClick={() => setScale(1.4)}>↺</button>
         </div>
+        {pageSelectionMode && (
+          <div className="lib-pdf-page-sel">
+            <button
+              type="button"
+              className={`lib-pdf-btn lib-pdf-sel-btn${selectedPages.has(page) ? ' lib-pdf-sel-btn--active' : ''}`}
+              onClick={() => setSelectedPages(s => {
+                const n = new Set(s)
+                if (n.has(page)) n.delete(page); else n.add(page)
+                return n
+              })}
+            >
+              {selectedPages.has(page) ? '✓ Seleccionada' : '➕ Añadir página'}
+            </button>
+            {selectedPages.size > 0 && (
+              <button
+                type="button"
+                className="lib-pdf-btn lib-pdf-analyze-btn"
+                disabled={capturing}
+                onClick={handleAnalyzePages}
+              >
+                {capturing ? '⏳…' : `🔬 Analizar (${selectedPages.size} pág${selectedPages.size !== 1 ? 's' : ''})`}
+              </button>
+            )}
+            {selectedPages.size > 0 && (
+              <span className="lib-pdf-sel-count">
+                Págs: {[...selectedPages].sort((a,b)=>a-b).join(', ')}
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="lib-pdf-canvas-wrap">
@@ -795,17 +978,40 @@ function DeepZoomImage({ url, title, fragmentMode = false, onFragmentCapture }) 
 // =============================================================================
 
 function DocumentViewer({ doc, teacher, onClose }) {
+  const { showToast } = useToast()
   const cat  = getMimeCategory(doc.file_mime)
   const type = DOC_TYPES[doc.doc_type] || DOC_TYPES.other
-  const [fragmentMode,    setFragmentMode]    = useState(false)
-  const [capturedFragment, setCapturedFragment] = useState(null)  // { base64, region, extractedText, mediaType, page }
+  const [fragmentMode,      setFragmentMode]      = useState(false)
+  const [capturedFragment,  setCapturedFragment]  = useState(null)   // { base64, region, extractedText, mediaType, page }
+  const [pageSelectionMode, setPageSelectionMode] = useState(false)  // Fase 4
+  const [analyzingPages,    setAnalyzingPages]    = useState(false)  // Fase 4
+  const [pagesAnalysis,     setPagesAnalysis]     = useState(null)   // Fase 4 — { analysis, pageNums }
 
   const canFragment = (cat === 'pdf' || cat === 'image') && !!teacher
+  const canAnalyzePages = cat === 'pdf' && !!teacher
 
   function handleFragmentCapture(data) {
     if (!data) { setFragmentMode(false); return }
     setCapturedFragment(data)
     setFragmentMode(false)
+  }
+
+  async function handlePagesReady(captures) {
+    // captures = [{pageNum, base64}]
+    setPageSelectionMode(false)
+    setAnalyzingPages(true)
+    try {
+      const analysis = await analyzeTextbookPages(captures, {
+        docTitle:  doc.title,
+        subject:   doc.subjects?.[0] || '',
+        grade:     doc.grades?.[0]   || '',
+        pageRange: captures.map(c => c.pageNum).join(', '),
+      })
+      setPagesAnalysis({ analysis, pageNums: captures.map(c => c.pageNum) })
+    } catch (e) {
+      showToast('Error al analizar las páginas: ' + (e.message || 'Error desconocido'), 'error')
+    }
+    setAnalyzingPages(false)
   }
 
   const viewer = createPortal(
@@ -821,11 +1027,22 @@ function DocumentViewer({ doc, teacher, onClose }) {
             </span>
           </div>
           <div className="lib-viewer-header-actions">
+            {canAnalyzePages && (
+              <button
+                type="button"
+                className={`lib-viewer-frag-btn${pageSelectionMode ? ' lib-viewer-frag-btn--active' : ''}`}
+                disabled={analyzingPages}
+                onClick={() => { setPageSelectionMode(m => !m); setFragmentMode(false) }}
+                title="Selecciona páginas y analízalas con IA para obtener un plan semanal"
+              >
+                {analyzingPages ? '⏳ Analizando…' : pageSelectionMode ? '↩ Cancelar selección' : '📖 Páginas'}
+              </button>
+            )}
             {canFragment && (
               <button
                 type="button"
                 className={`lib-viewer-frag-btn${fragmentMode ? ' lib-viewer-frag-btn--active' : ''}`}
-                onClick={() => setFragmentMode(m => !m)}
+                onClick={() => { setFragmentMode(m => !m); setPageSelectionMode(false) }}
                 title="Modo fragmento — selecciona y extrae partes del documento"
               >
                 ✂️ {fragmentMode ? 'Cancelar' : 'Fragmento'}
@@ -864,6 +1081,8 @@ function DocumentViewer({ doc, teacher, onClose }) {
               url={doc.file_url}
               fragmentMode={fragmentMode}
               onFragmentCapture={handleFragmentCapture}
+              pageSelectionMode={pageSelectionMode}
+              onPagesReady={handlePagesReady}
             />
           )}
 
@@ -948,6 +1167,13 @@ function DocumentViewer({ doc, teacher, onClose }) {
           pageNumber={capturedFragment.page}
           onClose={() => setCapturedFragment(null)}
           onSaved={() => setCapturedFragment(null)}
+        />
+      )}
+      {pagesAnalysis && (
+        <PagesAnalysisPanel
+          analysis={pagesAnalysis.analysis}
+          pageNums={pagesAnalysis.pageNums}
+          onClose={() => setPagesAnalysis(null)}
         />
       )}
     </>

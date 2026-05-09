@@ -44,7 +44,8 @@
 | **Biblioteca CBF — Fase 2** | ✅ Completo | PDF.js 5 página a página · WaveSurfer.js 7 waveform · OpenSeadragon 6 deep zoom · Lazy loading via dynamic import (bundle inicial no crece) |
 | **Biblioteca CBF — Fase 3** | ✅ Completo | Fragment Extractor: selección de región rectangular sobre PDF/imagen → captura canvas → análisis Claude Vision → SmartBlock pre-populado → insertar en guía · tabla `library_fragments` · `FragmentSelector.jsx` · `analyzeTextbookFragment()` |
 | **Biblioteca CBF — Fase 3b** | ✅ Completo | Fragmentos fluyen a generación de guías: `getISOWeek` + fetch `library_fragments` en `GuideEditorPage` · callout azul en panel indicador · bloque `📚 FRAGMENTOS DEL LIBRO` en prompt `generateGuideStructure` · callout en paso 3 del modal |
-| **Biblioteca CBF — Fase 4** | ⬜ Pendiente | IA multimodal ampliada: re-enviar imagen del fragmento a Claude para análisis profundo durante generación · `analyzeTextbookPages()` para series de páginas seleccionadas |
+| **Biblioteca CBF — Fase 3c** | ✅ Completo | Fragmentos en PlannerPage: callout azul con chips de tipo/SmartBlock → pasan a `AIGeneratorModal` → `generateGuideStructure` los recibe como contexto al generar desde el Planner |
+| **Biblioteca CBF — Fase 4** | ✅ Completo | Imágenes de fragmentos fluyen como `imageBlocks` a `generateGuideStructure` (máx. 5, fragmentos prioritarios) · `analyzeTextbookPages()` acepta URLs o capturas base64 · UI "📖 Páginas" en PDF viewer: selección multi-página → renderizado offscreen → análisis Claude Vision → `PagesAnalysisPanel` con plan semanal + SmartBlock sugeridos |
 | **Instrumento Docente** | ⬜ Diseñado | Guión de sesión generado por IA para el docente (complemento de la Guía CBF-G AC-01) · IMS · estado del grupo · 3 opciones por fase · PREACHER CLOSE · prototipo en `theoric mark/teacher-instrument.jsx` |
 
 ---

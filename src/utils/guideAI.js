@@ -948,10 +948,14 @@ Las actividades de cada día deben estar ancladas a contenido REAL del libro vis
     reading: 'Reading Passage', table: 'Reference Table',
     exercise: 'Exercise', image: 'Image',
   }
+  const hasFragImages = (textbookFragments || []).some(f => f.image_url)
   const fragmentsBlock = (textbookFragments?.length > 0) ? (() => {
     const lines = [
       `\n📚 FRAGMENTOS DEL LIBRO DE TEXTO — SEMANA ACTUAL (${textbookFragments.length} fragmento${textbookFragments.length !== 1 ? 's' : ''} marcados por el docente):`,
       '',
+      hasFragImages
+        ? 'VISIÓN MULTIMODAL: Las imágenes reales de estos fragmentos se adjuntan a esta solicitud. Analiza su contenido visual directamente.'
+        : '',
       'MANDATO: Diseña los SmartBlocks de la guía basándote en ESTE contenido real del libro.',
       'No inventes material nuevo cuando el fragmento ya lo provee — úsalo directamente.',
       '',
@@ -1093,16 +1097,31 @@ ${isTwoWeeks ? twoWeekBloomBlock : `
 PROGRESIÓN SEMANAL: Los días avanzan desde exploración guiada (Día 1) hasta producción autónoma (último día).
 Cada día el alumno construye sobre el descubrimiento anterior. El docente retira andamiaje progresivamente.`}`
 
-  // Fetch textbook images for multimodal context (max 4, parallel, non-blocking failures)
+  // Fetch multimodal images: fragment images (Fase 4) + NEWS project textbook images
+  // Fragments take priority — they are specific to this week. NEWS images fill remaining slots.
+  // Hard cap: 5 images total to keep costs and latency manageable.
   let imageBlocks = undefined
-  const tbImages = activeNewsProject?.textbook_reference?.images
-  if (tbImages?.length) {
-    const urls = tbImages.slice(0, 4).map(img => typeof img === 'string' ? img : img.url).filter(Boolean)
-    if (urls.length) {
-      const results = await Promise.all(urls.map(u => fetchImageBlock(u)))
-      const valid = results.filter(Boolean)
-      if (valid.length) imageBlocks = valid
-    }
+  const MAX_IMAGES = 5
+
+  const fragImageUrls = (textbookFragments || [])
+    .filter(f => f.image_url)
+    .slice(0, MAX_IMAGES)
+    .map(f => f.image_url)
+
+  const newsImageUrls = (() => {
+    const tbImages = activeNewsProject?.textbook_reference?.images
+    if (!tbImages?.length) return []
+    return tbImages
+      .slice(0, MAX_IMAGES - fragImageUrls.length)
+      .map(img => typeof img === 'string' ? img : img.url)
+      .filter(Boolean)
+  })()
+
+  const allImageUrls = [...fragImageUrls, ...newsImageUrls]
+  if (allImageUrls.length) {
+    const results = await Promise.all(allImageUrls.map(u => fetchImageBlock(u)))
+    const valid = results.filter(Boolean)
+    if (valid.length) imageBlocks = valid
   }
 
   const raw = await callClaude({ type: 'generate', system, message, planId, maxTokens: 16000, imageBlocks })
@@ -1561,4 +1580,80 @@ Reglas para suggested_smartblock:
     try { return JSON.parse(match[0]) } catch { /* malformed */ }
   }
   throw new Error('La IA no devolvió un análisis válido del fragmento.')
+}
+
+// ── analyzeTextbookPages ───────────────────────────────────────────────────────
+// Analiza una serie de páginas consecutivas de un libro de texto con Claude Vision.
+// Devuelve una visión holística del contenido de la unidad/sección para planificación.
+// images = (string | {pageNum, base64})[] — URLs de Storage O captures de canvas (máx. 5)
+// docContext = { docTitle, subject, grade, pageRange }
+export async function analyzeTextbookPages(images, docContext = {}) {
+  if (!images?.length) throw new Error('Se requiere al menos una imagen.')
+
+  const { docTitle = 'Documento', subject = '', grade = '', pageRange = '' } = docContext
+  const items = images.slice(0, 5)
+
+  // Fetch or build image blocks in parallel; skip failures silently
+  const blocks = (await Promise.all(items.map(item => {
+    if (typeof item === 'string') return fetchImageBlock(item)
+    if (item?.base64) return Promise.resolve({
+      type: 'image',
+      source: { type: 'base64', media_type: 'image/jpeg', data: item.base64 },
+    })
+    return Promise.resolve(null)
+  }))).filter(Boolean)
+  if (!blocks.length) throw new Error('No se pudieron cargar las imágenes.')
+
+  const system = `Eres un asistente pedagógico del Colegio Boston Flexible (CBF), Barranquilla, Colombia.
+Analizas series de páginas de libros de texto y produces un informe pedagógico completo para planificación docente.
+Devuelves ÚNICAMENTE JSON válido, sin markdown, sin backticks, sin texto adicional.`
+
+  const message = `Analiza estas ${blocks.length} página(s) de un material educativo y produce un informe pedagógico.
+
+Documento: "${docTitle}"
+Materia: ${subject || 'no especificada'}
+Grado: ${grade || 'no especificado'}
+${pageRange ? `Páginas: ${pageRange}` : ''}
+
+Devuelve exactamente este JSON:
+
+{
+  "unit_summary": "Resumen en 2-3 oraciones del contenido cubierto en estas páginas",
+  "language": "es" | "en",
+  "content_type": "grammar" | "vocabulary" | "reading" | "mixed" | "exercises",
+  "key_concepts": ["concepto 1", "concepto 2", "concepto 3"],
+  "vocabulary": [{"w": "word", "d": "definition"}],
+  "grammar_points": ["punto gramatical 1", "punto gramatical 2"],
+  "suggested_week_plan": {
+    "day1": "actividad de introducción — qué explorar el lunes",
+    "day2": "actividad de práctica — qué construir el martes",
+    "day3": "actividad de aplicación — qué producir el miércoles",
+    "day4": "actividad de síntesis — cómo consolidar el jueves",
+    "day5": "evaluación formativa — cómo verificar el viernes"
+  },
+  "suggested_smartblocks": [
+    { "type": "VOCAB"|"GRAMMAR"|"READING"|"QUIZ"|"WORKSHOP", "model": "...", "rationale": "por qué este bloque encaja con este contenido" }
+  ]
+}
+
+Reglas:
+- vocabulary: máximo 8 items — solo los más relevantes para el grado
+- grammar_points: solo si hay gramática explícita en las páginas; si no, devuelve []
+- suggested_smartblocks: entre 1 y 3 sugerencias, ordenadas por prioridad pedagógica
+- suggested_week_plan: frases concisas en acción (imperativo), no más de 15 palabras por día`
+
+  const raw = await callClaude({
+    type:        'analyze_pages',
+    system,
+    message,
+    maxTokens:   2000,
+    imageBlocks: blocks,
+  })
+
+  try { return JSON.parse(raw) } catch { /* not clean JSON */ }
+  const match = raw.match(/\{[\s\S]*\}/)
+  if (match) {
+    try { return JSON.parse(match[0]) } catch { /* malformed */ }
+  }
+  throw new Error('La IA no devolvió un análisis válido de las páginas.')
 }
