@@ -4,6 +4,7 @@ import { supabase } from '../supabase'
 import { useToast } from '../context/ToastContext'
 import { useFeatures } from '../context/FeaturesContext'
 import { canManage } from '../utils/roles'
+import { analyzeTextbookFragment } from '../utils/AIAssistant'
 
 // =============================================================================
 // CONSTANTS
@@ -215,13 +216,331 @@ function DocumentCard({ doc, onView, onDelete, onEdit, onShare, onHistory,
 }
 
 // =============================================================================
+// FRAGMENT SELECTOR — overlay de selección sobre canvas (Fase 3)
+// Recibe canvasRef (ref al <canvas> de PDF.js) y pdfPage (objeto PDF.js page).
+// Coordenadas relativas al canvas via getBoundingClientRect().
+// =============================================================================
+
+function FragmentSelector({ canvasRef, pdfPage, scale, onCapture, onCancel }) {
+  const overlayRef = useRef()
+  const startRef   = useRef(null)
+  const [dragging, setDragging] = useState(false)
+  const [rect,     setRect]     = useState(null)   // { x0,y0,x1,y1 } en px del canvas
+
+  function getCanvasPos(e) {
+    const canvas = canvasRef.current
+    if (!canvas) return { x: 0, y: 0 }
+    const b = canvas.getBoundingClientRect()
+    return { x: Math.round(e.clientX - b.left), y: Math.round(e.clientY - b.top) }
+  }
+
+  function onMouseDown(e) {
+    e.preventDefault()
+    const pos = getCanvasPos(e)
+    startRef.current = pos
+    setRect({ x0: pos.x, y0: pos.y, x1: pos.x, y1: pos.y })
+    setDragging(true)
+  }
+
+  function onMouseMove(e) {
+    if (!dragging || !startRef.current) return
+    const pos = getCanvasPos(e)
+    setRect({ x0: startRef.current.x, y0: startRef.current.y, x1: pos.x, y1: pos.y })
+  }
+
+  async function onMouseUp(e) {
+    if (!dragging) return
+    setDragging(false)
+    const pos = getCanvasPos(e)
+    const x0 = Math.min(startRef.current.x, pos.x)
+    const y0 = Math.min(startRef.current.y, pos.y)
+    const x1 = Math.max(startRef.current.x, pos.x)
+    const y1 = Math.max(startRef.current.y, pos.y)
+    setRect(null)
+
+    // Ignorar selecciones demasiado pequeñas
+    if (x1 - x0 < 10 || y1 - y0 < 10) return
+
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    // Capturar región del canvas a un offscreen canvas
+    const cw = x1 - x0
+    const ch = y1 - y0
+    const off = document.createElement('canvas')
+    off.width  = cw
+    off.height = ch
+    off.getContext('2d').drawImage(canvas, x0, y0, cw, ch, 0, 0, cw, ch)
+    const base64 = off.toDataURL('image/webp', 0.92).split(',')[1]
+
+    // Región como porcentajes 0–1 del canvas completo
+    const region = {
+      x: x0 / canvas.width,
+      y: y0 / canvas.height,
+      w: cw  / canvas.width,
+      h: ch  / canvas.height,
+    }
+
+    // Intentar extraer texto del text layer de PDF.js
+    let extractedText = ''
+    if (pdfPage) {
+      try {
+        const viewport = pdfPage.getViewport({ scale })
+        const textContent = await pdfPage.getTextContent()
+        extractedText = textContent.items
+          .filter(item => {
+            // transform[4]=x, transform[5]=y en coordenadas PDF (origen abajo-izquierda)
+            const nx = item.transform[4] / viewport.width
+            const ny = 1 - (item.transform[5] / viewport.height)
+            return nx >= region.x && nx <= region.x + region.w &&
+                   ny >= region.y && ny <= region.y + region.h
+          })
+          .map(i => i.str)
+          .join(' ')
+          .trim()
+      } catch { /* PDF escaneado — sin text layer */ }
+    }
+
+    onCapture({ base64, region, extractedText, mediaType: 'image/webp' })
+  }
+
+  // Rectángulo de selección visual
+  const selRect = rect ? {
+    position: 'absolute',
+    left:     Math.min(rect.x0, rect.x1),
+    top:      Math.min(rect.y0, rect.y1),
+    width:    Math.abs(rect.x1 - rect.x0),
+    height:   Math.abs(rect.y1 - rect.y0),
+    border:   '2px solid #2E5598',
+    background: 'rgba(46,85,152,0.10)',
+    pointerEvents: 'none',
+  } : null
+
+  return (
+    <div
+      ref={overlayRef}
+      className="lib-frag-overlay"
+      onMouseDown={onMouseDown}
+      onMouseMove={onMouseMove}
+      onMouseUp={onMouseUp}
+      onMouseLeave={() => { if (dragging) { setDragging(false); setRect(null) } }}
+    >
+      <div className="lib-frag-hint">
+        <span>✂️ Arrastra para seleccionar un fragmento</span>
+        <button type="button" className="lib-frag-cancel-btn" onClick={onCancel}>✕ Cancelar</button>
+      </div>
+      {selRect && <div style={selRect} />}
+    </div>
+  )
+}
+
+// =============================================================================
+// FRAGMENT PANEL — preview + análisis IA + guardar (Fase 3)
+// =============================================================================
+
+const FRAG_TYPE_LABEL = {
+  table:      '📋 Tabla',
+  vocabulary: '🔤 Vocabulario',
+  grammar:    '✏️ Gramática',
+  reading:    '📖 Lectura',
+  exercise:   '📝 Ejercicio',
+  image:      '🖼 Imagen',
+}
+
+function FragmentPanel({ fragment, doc, teacher, pageNumber, onClose, onSaved }) {
+  const { showToast } = useToast()
+  const [analyzing,      setAnalyzing]      = useState(false)
+  const [analysis,       setAnalysis]       = useState(null)
+  const [analyzeError,   setAnalyzeError]   = useState('')
+  const [saving,         setSaving]         = useState(false)
+  const [assignSubject,  setAssignSubject]  = useState(doc.subjects?.[0] || '')
+  const [assignGrade,    setAssignGrade]    = useState(doc.grades?.[0] || '')
+  const [assignWeek,     setAssignWeek]     = useState('')
+
+  async function handleAnalyze() {
+    setAnalyzing(true)
+    setAnalyzeError('')
+    try {
+      const result = await analyzeTextbookFragment(
+        fragment.base64,
+        fragment.mediaType,
+        { docTitle: doc.title, subject: doc.subjects?.join(', '), grade: doc.grades?.join(', ') }
+      )
+      setAnalysis(result)
+    } catch (err) {
+      setAnalyzeError(err.message)
+    } finally {
+      setAnalyzing(false)
+    }
+  }
+
+  async function handleSave() {
+    setSaving(true)
+    try {
+      // Subir imagen al Storage
+      const fragId   = crypto.randomUUID()
+      const blob     = await fetch(`data:${fragment.mediaType};base64,${fragment.base64}`).then(r => r.blob())
+      const storagePath = `${teacher.school_id}/fragments/${doc.id}/${fragId}.webp`
+      const { error: upErr } = await supabase.storage
+        .from('cbf-library')
+        .upload(storagePath, blob, { contentType: 'image/webp', upsert: false })
+      if (upErr) throw upErr
+
+      const { data: { publicUrl } } = supabase.storage.from('cbf-library').getPublicUrl(storagePath)
+
+      // Insertar en library_fragments
+      const { error: dbErr } = await supabase.from('library_fragments').insert({
+        school_id:        teacher.school_id,
+        doc_id:           doc.id,
+        created_by:       teacher.id,
+        page_number:      pageNumber || null,
+        region:           fragment.region,
+        image_url:        publicUrl,
+        extracted_text:   fragment.extractedText || null,
+        ai_analysis:      analysis || null,
+        assigned_subject: assignSubject || null,
+        assigned_grade:   assignGrade   || null,
+        assigned_week:    assignWeek ? parseInt(assignWeek, 10) : null,
+      })
+      if (dbErr) throw dbErr
+
+      showToast('Fragmento guardado correctamente', 'success')
+      onSaved()
+    } catch (err) {
+      showToast('Error al guardar fragmento: ' + err.message, 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return createPortal(
+    <div className="lib-fragpanel-overlay">
+      <div className="lib-fragpanel">
+        <div className="lib-fragpanel-header">
+          <span>✂️ Fragmento capturado</span>
+          <button type="button" className="lib-viewer-close" onClick={onClose}>✕</button>
+        </div>
+
+        <div className="lib-fragpanel-body">
+          {/* Preview del recorte */}
+          <div className="lib-fragpanel-preview-wrap">
+            <img
+              src={`data:${fragment.mediaType};base64,${fragment.base64}`}
+              alt="Fragmento capturado"
+              className="lib-fragpanel-preview-img"
+            />
+          </div>
+
+          {/* Texto extraído (si PDF con text layer) */}
+          {fragment.extractedText && (
+            <div className="lib-fragpanel-extracted">
+              <span className="lib-fragpanel-label">Texto detectado</span>
+              <p className="lib-fragpanel-extracted-text">
+                {fragment.extractedText.length > 220
+                  ? fragment.extractedText.slice(0, 220) + '…'
+                  : fragment.extractedText}
+              </p>
+            </div>
+          )}
+
+          {/* Botón analizar */}
+          {!analysis && (
+            <button
+              type="button"
+              className="lib-fragpanel-analyze-btn"
+              onClick={handleAnalyze}
+              disabled={analyzing}
+            >
+              {analyzing
+                ? <><span className="lib-frag-spinner" /> Analizando…</>
+                : '🤖 Analizar con IA'}
+            </button>
+          )}
+          {analyzeError && <p className="lib-fragpanel-error">{analyzeError}</p>}
+
+          {/* Resultado del análisis */}
+          {analysis && (
+            <div className="lib-fragpanel-analysis">
+              <div className="lib-fragpanel-type-badge">
+                {FRAG_TYPE_LABEL[analysis.content_type] || analysis.content_type}
+                <span className="lib-fragpanel-lang">{analysis.language === 'en' ? '🇬🇧 EN' : '🇨🇴 ES'}</span>
+              </div>
+              <p className="lib-fragpanel-desc">{analysis.description}</p>
+              {analysis.suggested_smartblock && (
+                <div className="lib-fragpanel-smartblock">
+                  <span className="lib-fragpanel-label">SmartBlock sugerido</span>
+                  <code className="lib-fragpanel-code">
+                    {analysis.suggested_smartblock.type} · {analysis.suggested_smartblock.model}
+                  </code>
+                </div>
+              )}
+              <button
+                type="button"
+                className="lib-fragpanel-reanalyze"
+                onClick={handleAnalyze}
+                disabled={analyzing}
+              >
+                🔄 Reanálizar
+              </button>
+            </div>
+          )}
+
+          {/* Asignación pedagógica */}
+          <div className="lib-fragpanel-assign">
+            <span className="lib-fragpanel-label">Asignar a guía (opcional)</span>
+            <div className="lib-fragpanel-assign-row">
+              <select
+                value={assignSubject}
+                onChange={e => setAssignSubject(e.target.value)}
+                className="lib-fragpanel-select"
+              >
+                <option value="">Materia…</option>
+                {SUBJECTS_LIST.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+              <select
+                value={assignGrade}
+                onChange={e => setAssignGrade(e.target.value)}
+                className="lib-fragpanel-select"
+              >
+                <option value="">Grado…</option>
+                {GRADES_LIST.map(g => <option key={g} value={g}>{g}</option>)}
+              </select>
+              <input
+                type="number"
+                min={1} max={53}
+                placeholder="Semana"
+                value={assignWeek}
+                onChange={e => setAssignWeek(e.target.value)}
+                className="lib-fragpanel-week-input"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="lib-fragpanel-footer">
+          <button
+            type="button"
+            className="lib-fragpanel-save-btn"
+            onClick={handleSave}
+            disabled={saving}
+          >
+            {saving ? 'Guardando…' : '💾 Guardar fragmento'}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  )
+}
+
+// =============================================================================
 // PDF VIEWER — PDF.js page-by-page (Fase 2)
 // =============================================================================
 
 const PDFJS_WORKER_URL =
   'https://cdn.jsdelivr.net/npm/pdfjs-dist@5.7.284/build/pdf.worker.min.mjs'
 
-function PDFViewerCanvas({ url }) {
+function PDFViewerCanvas({ url, fragmentMode = false, onFragmentCapture }) {
   const canvasRef = useRef()
   const renderRef = useRef(null)
   const [doc,       setDoc]       = useState(null)
@@ -230,6 +549,7 @@ function PDFViewerCanvas({ url }) {
   const [scale,     setScale]     = useState(1.4)
   const [status,    setStatus]    = useState('loading')   // loading | ready | error
   const [rendering, setRendering] = useState(false)
+  const [pdfPage,   setPdfPage]   = useState(null)        // página actual para text extraction
 
   // Load PDF document
   useEffect(() => {
@@ -258,13 +578,14 @@ function PDFViewerCanvas({ url }) {
       }
       setRendering(true)
       try {
-        const pdfPage = await doc.getPage(page)
+        const pageObj = await doc.getPage(page)
         if (cancelled) return
-        const viewport = pdfPage.getViewport({ scale })
+        setPdfPage(pageObj)
+        const viewport = pageObj.getViewport({ scale })
         const canvas = canvasRef.current
         canvas.width  = viewport.width
         canvas.height = viewport.height
-        const task = pdfPage.render({ canvasContext: canvas.getContext('2d'), viewport })
+        const task = pageObj.render({ canvasContext: canvas.getContext('2d'), viewport })
         renderRef.current = task
         await task.promise
         if (!cancelled) setRendering(false)
@@ -319,6 +640,15 @@ function PDFViewerCanvas({ url }) {
           </div>
         )}
         <canvas ref={canvasRef} className="lib-pdf-canvas" />
+        {fragmentMode && !rendering && (
+          <FragmentSelector
+            canvasRef={canvasRef}
+            pdfPage={pdfPage}
+            scale={scale}
+            onCapture={data => onFragmentCapture?.({ ...data, page })}
+            onCancel={() => onFragmentCapture?.(null)}
+          />
+        )}
       </div>
     </div>
   )
@@ -405,9 +735,16 @@ function WaveformPlayer({ url, title, author }) {
 // DEEP ZOOM IMAGE — OpenSeadragon (Fase 2)
 // =============================================================================
 
-function DeepZoomImage({ url, title }) {
+function DeepZoomImage({ url, title, fragmentMode = false, onFragmentCapture }) {
   const containerRef = useRef()
   const viewerRef    = useRef(null)
+
+  function captureCurrentView() {
+    const canvas = viewerRef.current?.drawer?.canvas
+    if (!canvas) return
+    const base64 = canvas.toDataURL('image/webp', 0.92).split(',')[1]
+    onFragmentCapture?.({ base64, region: { x: 0, y: 0, w: 1, h: 1 }, extractedText: '', mediaType: 'image/webp', page: null })
+  }
 
   useEffect(() => {
     let viewer
@@ -444,6 +781,11 @@ function DeepZoomImage({ url, title }) {
       <p className="lib-osd-hint">
         🖱 Scroll para zoom · Arrastra para mover · Doble clic = zoom in · Pinch en móvil
       </p>
+      {fragmentMode && (
+        <button type="button" className="lib-frag-capture-view-btn" onClick={captureCurrentView}>
+          ✂️ Capturar vista actual
+        </button>
+      )}
     </div>
   )
 }
@@ -452,11 +794,21 @@ function DeepZoomImage({ url, title }) {
 // DOCUMENT VIEWER — visor universal
 // =============================================================================
 
-function DocumentViewer({ doc, onClose }) {
+function DocumentViewer({ doc, teacher, onClose }) {
   const cat  = getMimeCategory(doc.file_mime)
   const type = DOC_TYPES[doc.doc_type] || DOC_TYPES.other
+  const [fragmentMode,    setFragmentMode]    = useState(false)
+  const [capturedFragment, setCapturedFragment] = useState(null)  // { base64, region, extractedText, mediaType, page }
 
-  return createPortal(
+  const canFragment = (cat === 'pdf' || cat === 'image') && !!teacher
+
+  function handleFragmentCapture(data) {
+    if (!data) { setFragmentMode(false); return }
+    setCapturedFragment(data)
+    setFragmentMode(false)
+  }
+
+  const viewer = createPortal(
     <div className="lib-viewer-overlay" onClick={onClose}>
       <div className="lib-viewer-modal" onClick={e => e.stopPropagation()}>
 
@@ -469,6 +821,16 @@ function DocumentViewer({ doc, onClose }) {
             </span>
           </div>
           <div className="lib-viewer-header-actions">
+            {canFragment && (
+              <button
+                type="button"
+                className={`lib-viewer-frag-btn${fragmentMode ? ' lib-viewer-frag-btn--active' : ''}`}
+                onClick={() => setFragmentMode(m => !m)}
+                title="Modo fragmento — selecciona y extrae partes del documento"
+              >
+                ✂️ {fragmentMode ? 'Cancelar' : 'Fragmento'}
+              </button>
+            )}
             {(doc.file_url || doc.external_url) && (
               <a
                 href={doc.file_url || doc.external_url}
@@ -498,11 +860,20 @@ function DocumentViewer({ doc, onClose }) {
           )}
 
           {doc.file_url && cat === 'pdf' && (
-            <PDFViewerCanvas url={doc.file_url} />
+            <PDFViewerCanvas
+              url={doc.file_url}
+              fragmentMode={fragmentMode}
+              onFragmentCapture={handleFragmentCapture}
+            />
           )}
 
           {doc.file_url && cat === 'image' && (
-            <DeepZoomImage url={doc.file_url} title={doc.title} />
+            <DeepZoomImage
+              url={doc.file_url}
+              title={doc.title}
+              fragmentMode={fragmentMode}
+              onFragmentCapture={handleFragmentCapture}
+            />
           )}
 
           {doc.file_url && cat === 'video' && (
@@ -564,6 +935,22 @@ function DocumentViewer({ doc, onClose }) {
       </div>
     </div>,
     document.body
+  )
+
+  return (
+    <>
+      {viewer}
+      {capturedFragment && teacher && (
+        <FragmentPanel
+          fragment={capturedFragment}
+          doc={doc}
+          teacher={teacher}
+          pageNumber={capturedFragment.page}
+          onClose={() => setCapturedFragment(null)}
+          onSaved={() => setCapturedFragment(null)}
+        />
+      )}
+    </>
   )
 }
 
@@ -1694,7 +2081,7 @@ export default function LibraryPage({ teacher }) {
 
       {/* ── MODALS & DRAWER ── */}
       {viewingDoc && (
-        <DocumentViewer doc={viewingDoc} onClose={() => setViewingDoc(null)} />
+        <DocumentViewer doc={viewingDoc} teacher={teacher} onClose={() => setViewingDoc(null)} />
       )}
 
       {showUpload && (

@@ -1451,3 +1451,74 @@ Crea una tabla clara donde el estudiante pueda:
 
   return callClaude({ type: 'student_rubric', system, message, maxTokens: 3000 })
 }
+
+// ── analyzeTextbookFragment ────────────────────────────────────────────────────
+// Analiza una imagen (recorte de PDF o imagen) con Claude Vision y devuelve:
+// { content_type, description, language, structured_data, suggested_smartblock }
+// imageBase64 = string base64 sin prefijo data:...
+// mediaType   = 'image/webp' | 'image/jpeg' | 'image/png'
+// docContext  = { docTitle, subject, grade }
+export async function analyzeTextbookFragment(imageBase64, mediaType = 'image/webp', docContext = {}) {
+  const { docTitle = 'Documento', subject = '', grade = '' } = docContext
+
+  const system = `Eres un asistente pedagógico del Colegio Boston Flexible (CBF), Barranquilla, Colombia.
+Analizas imágenes extraídas de materiales educativos y las clasificas para uso en guías de aprendizaje.
+Devuelves ÚNICAMENTE JSON válido, sin markdown, sin backticks, sin texto adicional.`
+
+  const message = `Analiza esta imagen extraída de un material educativo.
+
+Documento: "${docTitle}"
+Materia: ${subject || 'no especificada'}
+Grado: ${grade || 'no especificado'}
+
+Clasifica el contenido y devuelve exactamente este JSON (respeta los tipos de structured_data según content_type):
+
+{
+  "content_type": "vocabulary" | "grammar" | "reading" | "table" | "exercise" | "image",
+  "description": "descripción breve del contenido en 1 oración",
+  "language": "es" | "en",
+  "structured_data": {
+    // vocabulary  → { "words": [{"w": "word", "d": "definition", "e": "example sentence"}] }
+    // grammar     → { "grammar_point": "...", "sentences": [{"sent": "La ___ está aquí.", "answer": "mesa"}] }
+    // reading     → { "passage": "texto del fragmento", "questions": [{"q": "pregunta de comprensión"}] }
+    // table       → { "headers": ["Columna 1", "Columna 2"], "rows": [["val1", "val2"]] }
+    // exercise    → { "instructions": "instrucción del ejercicio", "items": ["ítem 1", "ítem 2"] }
+    // image       → { "caption": "descripción visual de la imagen" }
+  },
+  "suggested_smartblock": {
+    "id": <número entero entre 1000 y 9999>,
+    "type": "VOCAB" | "GRAMMAR" | "READING" | "NOTICE" | "QUIZ" | "EXIT_TICKET",
+    "model": <modelo válido para el tipo>,
+    "data": { <datos estructurados listos para insertar en la guía CBF> }
+  }
+}
+
+Reglas para suggested_smartblock:
+- vocabulary → type=VOCAB, model=matching, data.words=[{w,d,e}]
+- grammar fill-in → type=GRAMMAR, model=fill-blank, data={grammar_point, sentences:[{sent,answer}]}
+- reading → type=READING, model=comprehension, data={passage, questions:[{q,lines:3}]}
+- table de referencia → type=NOTICE, model=banner, data={title:"...", message:"...", icon:"📋"}
+- exercise/quiz → type=QUIZ, model=topic-card, data={date:"", unit:"", topics:"...", format:""}
+- image ilustrativa → type=NOTICE, model=alert, data={title:"...", message:"descripción", icon:"🖼"}`
+
+  const imageBlock = {
+    type: 'image',
+    source: { type: 'base64', media_type: mediaType, data: imageBase64 },
+  }
+
+  const raw = await callClaude({
+    type:        'analyze_fragment',
+    system,
+    message,
+    maxTokens:   1500,
+    imageBlocks: [imageBlock],
+  })
+
+  // Parse — handle JSON wrapped in markdown fences
+  try { return JSON.parse(raw) } catch { /* not clean JSON */ }
+  const match = raw.match(/\{[\s\S]*\}/)
+  if (match) {
+    try { return JSON.parse(match[0]) } catch { /* malformed */ }
+  }
+  throw new Error('La IA no devolvió un análisis válido del fragmento.')
+}

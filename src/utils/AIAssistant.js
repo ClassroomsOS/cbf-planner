@@ -14,6 +14,7 @@ export {
   importGuideFromDocx,
   analyzeGuideCoverage,
   generateStudentRubric,
+  analyzeTextbookFragment,
 } from './guideAI'
 
 export { generateExamQuestions } from './examAI'

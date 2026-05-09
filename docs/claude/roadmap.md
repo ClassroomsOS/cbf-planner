@@ -42,8 +42,9 @@
 | **Biblioteca CBF — Fase 1** | ✅ Completo | `school_library` tabla + RLS dual + Storage bucket `cbf-library` · `LibraryPage` tabs Institucional/Personal · upload (PDF/imagen/video/audio/MIDI) · visor universal · quota meter · delete confirm |
 | **Biblioteca CBF — Fase 1.5** | ✅ Completo | `library_shares` (compartir con can_edit) · `library_edit_log` (triggers auto) · RPC `library_rollback` (SECURITY DEFINER) · Tab Supervisión admin · `EditModal` · `ShareModal` · `HistoryDrawer` con rollback |
 | **Biblioteca CBF — Fase 2** | ✅ Completo | PDF.js 5 página a página · WaveSurfer.js 7 waveform · OpenSeadragon 6 deep zoom · Lazy loading via dynamic import (bundle inicial no crece) |
-| **Biblioteca CBF — Fase 3** | ⬜ Pendiente | Syllabus integration: selección de páginas PDF, asignación a semana/día, páginas auto-aparecen en GuideEditorPage |
-| **Biblioteca CBF — Fase 4** | ⬜ Pendiente | IA multimodal: `analyzeTextbookPages()` en AIAssistant.js — Claude lee páginas seleccionadas y sugiere SmartBlocks basados en contenido real del libro |
+| **Biblioteca CBF — Fase 3** | ⬜ Pendiente | Fragment Extractor: selección de región rectangular sobre PDF/imagen → captura canvas → análisis Claude Vision → SmartBlock pre-populado → insertar en guía · tabla `library_fragments` · `FragmentSelector.jsx` · `analyzeTextbookFragment()` |
+| **Biblioteca CBF — Fase 4** | ⬜ Pendiente | Integración con generación de guías: fragmentos asignados a semana/materia/grado fluyen como bloque `📚 FRAGMENTOS DEL LIBRO` en el prompt de `generateGuideStructure()` · `FragmentContext.jsx` en GuideEditorPage |
+| **Instrumento Docente** | ⬜ Diseñado | Guión de sesión generado por IA para el docente (complemento de la Guía CBF-G AC-01) · IMS · estado del grupo · 3 opciones por fase · PREACHER CLOSE · prototipo en `theoric mark/teacher-instrument.jsx` |
 
 ---
 
@@ -196,6 +197,53 @@ Ver detalles en [`security.md`](security.md).
 
 ~~**Auditoría de seguridad del exam player**~~ ✅ completado en Sesión L
 - Sistema antitrampa 5 capas implementado (detección multi-evento, canvas watermark, fullscreen adaptativo, Telegram realtime, matriz de pruebas)
+
+### 🟢 Baja prioridad — Instrumento Docente
+
+**Módulo: Teacher Session Instrument** — diseñado en sesión Chat 2026-05-09
+
+Complemento de la Guía de Aprendizaje (CBF-G AC-01). El instrumento **opera desde el docente**, no desde el estudiante — lee la guía y la operacionaliza en micro-experiencias por sesión.
+
+**Decisiones de diseño ya tomadas:**
+
+- **No es diferenciación por estudiante** — aplica UDL: una sola actividad, rango amplio de outputs válidos. PDA/PiAR son canales institucionales separados.
+- **IMS (Índice de Madurez de Sesión):** las 3 dimensiones avanzan en paralelo por semanas del período:
+
+  | IMS | Semanas | Cognitivo | Autónomo | Social |
+  |---|---|---|---|---|
+  | 1 | 1–2 | Exposición | Muy guiado | Individual |
+  | 2 | 3–5 | Conexión | Guiado con opciones | Parejas |
+  | 3 | 6–8 | Aplicación | Semi-autónomo | Equipos |
+  | 4 | 9–10 | Producción | Autónomo | Comunidad |
+
+- **Estado del grupo** (5 estados, selector visual): Presentes · Dispersos · Caídos · Eléctricos · Ansiosos → cambia el instrumento estructuralmente
+- **Estructura de tiempo (límites duros):** Pre-desarrollo ≤ 17 min · Durante ≤ 20 min · Cierre ≤ 10 min
+- **Cada fase tiene 3 opciones:** A = Estructurada · B = Semi-abierta · C = Solo conversación
+- **ANCHOR:** una pregunta que sostiene toda la sesión
+- **PREACHER CLOSE:** habilidad → principio de vida → verdad del versículo → DECLARACIÓN en voz alta
+- **Versículo del indicador** como hilo estructural en todos los momentos (no decorativo)
+- **Ruta mínima:** sesión completa en 15 min
+
+**Flujo:**
+```
+Docente abre instrumento desde GuideEditorPage (o ruta /instrument/:planId)
+  → Selecciona materia · habilidad · estado del grupo · semana IMS
+  → IA genera el guión completo (JSON → renderizado por fases)
+  → Docente ajusta opciones A/B/C por fase
+  → Instrumento se guarda asociado al plan_id de la guía
+```
+
+**Archivos de referencia:**
+- `theoric mark/instrumento-docente-sesion.md` — diseño pedagógico completo
+- `theoric mark/teacher-instrument.jsx` — prototipo UI funcional con llamada a Claude
+
+**Pendiente antes de implementar:**
+- [ ] Definir ruta: `/instrument/:planId` vs panel dentro de GuideEditorPage
+- [ ] Tabla DB: `teacher_instruments` (plan_id FK, group_state, ims_index, generated_json, created_at)
+- [ ] Función IA: `generateTeacherInstrument()` en `guideAI.js` — ~2500 tokens, retorna JSON de fases
+- [ ] Componentes: `InstrumentViewer.jsx` (renderiza fases + opciones A/B/C) · `GroupStateSelector.jsx` · `IMSSelector.jsx`
+
+---
 
 ### 🟢 Baja prioridad / Fase 3
 
