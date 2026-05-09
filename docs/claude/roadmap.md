@@ -46,6 +46,7 @@
 | **Biblioteca CBF — Fase 3b** | ✅ Completo | Fragmentos fluyen a generación de guías: `getISOWeek` + fetch `library_fragments` en `GuideEditorPage` · callout azul en panel indicador · bloque `📚 FRAGMENTOS DEL LIBRO` en prompt `generateGuideStructure` · callout en paso 3 del modal |
 | **Biblioteca CBF — Fase 3c** | ✅ Completo | Fragmentos en PlannerPage: callout azul con chips de tipo/SmartBlock → pasan a `AIGeneratorModal` → `generateGuideStructure` los recibe como contexto al generar desde el Planner |
 | **Biblioteca CBF — Fase 4** | ✅ Completo | Imágenes de fragmentos fluyen como `imageBlocks` a `generateGuideStructure` (máx. 5, fragmentos prioritarios) · `analyzeTextbookPages()` acepta URLs o capturas base64 · UI "📖 Páginas" en PDF viewer: selección multi-página → renderizado offscreen → análisis Claude Vision → `PagesAnalysisPanel` con plan semanal + SmartBlock sugeridos |
+| **Biblioteca CBF — Fase 5** | ✅ Completo | Integración Syllabus: `syllabus_topics.library_doc_id + library_pages[]` (migración prod) · `SyllabusLinkPanel` en PDF viewer: asignar páginas actuales a un `syllabus_topic` · `SyllabusPage` TopicFormModal con selector PDF + páginas; TopicDetailCard chip doc/páginas · `GuideEditorPage` callout verde "Páginas del libro vinculadas al syllabus (semana N)" |
 | **Instrumento Docente** | ⬜ Diseñado | Guión de sesión generado por IA para el docente (complemento de la Guía CBF-G AC-01) · IMS · estado del grupo · 3 opciones por fase · PREACHER CLOSE · prototipo en `theoric mark/teacher-instrument.jsx` |
 
 ---

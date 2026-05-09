@@ -155,9 +155,9 @@ const MODULES = [
     name: 'Biblioteca CBF',
     icon: '📚',
     category: 'resources',
-    progress: 90,
+    progress: 98,
     status: 'active',
-    summary: 'Documentos institucionales y personales. Upload, visor universal (PDF.js 5 / WaveSurfer 7 / OpenSeadragon 6), compartición, historial con rollback, cuota personal. Fragment Extractor + IA multimodal. Pendiente: vinculación de páginas completas a temas del Syllabus.',
+    summary: 'Documentos institucionales y personales. Upload, visor universal (PDF.js 5 / WaveSurfer 7 / OpenSeadragon 6), compartición, historial con rollback, cuota personal. Fragment Extractor + IA multimodal. Fase 5: páginas del libro vinculadas al Syllabus aparecen en GuideEditorPage.',
     works: [
       'Tabs: Institucional · Personal · Supervisión (admin)',
       'Upload: PDF, imagen, video, audio, MIDI con cuota configurable',
@@ -172,11 +172,14 @@ const MODULES = [
       'Fragmentos (Fase 3b/3c): asignados a semana/grado/materia → callout en GuideEditorPage y PlannerPage → contexto en generateGuideStructure',
       'IA multimodal (Fase 4): imágenes de fragmentos como imageBlocks a Claude al generar guías (máx. 5)',
       'analyzeTextbookPages() (Fase 4): selección multi-página en PDF viewer → análisis Claude Vision → PagesAnalysisPanel con plan semanal + SmartBlocks',
+      'Fase 5 — Syllabus: SyllabusLinkPanel en PDF viewer para vincular páginas a un syllabus_topic; callout verde en GuideEditorPage muestra páginas del libro asignadas a esa semana',
+      'Fase 5 — SyllabusPage: TopicFormModal con selector de PDF de Biblioteca + campo de páginas; TopicDetailCard muestra chip del documento vinculado',
     ],
     pending: [
-      'Fase 5 — Integración Syllabus: seleccionar páginas completas del PDF → vincular a un tema de Syllabus (syllabus_topics.library_doc_id + library_pages[]) → páginas auto-aparecen en GuideEditorPage al abrir la semana correspondiente',
+      'Fase 6 — IA multimodal ampliada: re-enviar imagen de página completa a Claude para análisis profundo durante generación (analyzeTextbookPages múltiples páginas)',
     ],
     history: [
+      { date: '2026-05-09', reason: 'Fase 5 — Integración Syllabus', detail: 'syllabus_topics + library_doc_id + library_pages[]. SyllabusLinkPanel en PDF viewer. SyllabusPage con selector de PDF. GuideEditorPage callout verde con páginas de la semana.' },
       { date: '2026-05-09', reason: 'Fase 3c + Fase 4 — IA multimodal completa', detail: 'Fragmentos en PlannerPage. Imágenes de fragmentos como imageBlocks a Claude. analyzeTextbookPages() con selección multi-página y PagesAnalysisPanel.' },
       { date: '2026-05-09', reason: 'Fase 3 + 3b — Fragment Extractor', detail: 'FragmentSelector en PDF/imagen, analyzeTextbookFragment() Claude Vision, library_fragments tabla, fragmentos fluyen a generateGuideStructure.' },
       { date: '2026-05-09', reason: 'Fase 2 — Visores avanzados', detail: 'PDF.js 5 canvas, WaveSurfer 7 (API nueva), OpenSeadragon 6. Lazy loading — bundle sin cambios.' },
@@ -527,7 +530,7 @@ const ROADMAP_ITEMS = [
     how: 'Migración: library_doc_id uuid FK + library_pages integer[] en syllabus_topics. UI en LibraryPage PDF viewer: "📋 Asignar páginas al Syllabus". GuideEditorPage: callout con miniaturas de las páginas vinculadas.',
     complexity: 'medium',
     tables: ['syllabus_topics', 'school_library', 'lesson_plans'],
-    status: 'in_progress',
+    status: 'done',
   },
   {
     id: 'observability_100',
