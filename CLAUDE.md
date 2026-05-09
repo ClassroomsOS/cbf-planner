@@ -137,7 +137,11 @@ NUNCA usar solo el período como fuente primaria.
 ### 5. `upsert(onConflict)` solo si la constraint UNIQUE existe en prod
 Para operaciones críticas usar check-then-write (busca → update/insert).
 
-### 6. ExamPlayerV2 — `section_name` en `exam_instances.generated_questions`
+### 6. PDFJS_WORKER_URL — versión hardcodeada como trap de mantenimiento
+`LibraryPage.jsx` tiene hardcodeado `'https://cdn.jsdelivr.net/npm/pdfjs-dist@5.7.284/build/pdf.worker.min.mjs'`.
+Al actualizar `pdfjs-dist` en `package.json`, hay que actualizar TAMBIÉN esta URL o el visor PDF falla silenciosamente. Dynamic imports no admiten `?url` de Vite para el worker.
+
+### 6b. ExamPlayerV2 — `section_name` en `exam_instances.generated_questions`
 Si `section_name === ''` → preguntas sin tabs. Si hay valores distintos → tabs automáticos. **NUNCA hardcodear `section_name: ''`** — usar `q.section_name || ''`.
 
 ### 7. exam-integrity-alert — eventos de ciclo vs. violaciones
@@ -182,10 +186,19 @@ library_edit_log      — doc_id FK · editor_id FK · action CHECK('created','u
                         RLS: log_visible_to_doc_readers · log_insert_trigger_only
                         Triggers: fn_log_library_create (INSERT) · fn_log_library_edit (UPDATE, skip si app.library_skip_log='true')
                         RPC: library_rollback(p_log_id uuid) SECURITY DEFINER — restaura old_snapshot, registra 'restored'
-error_log · activity_log · ai_usage · cbf_error_log · health_snapshots
+error_log             — errores de cliente · level · message · stack · page · action
+activity_log          — acciones de usuario · action · entity_type · entity_id · description
+ai_usage              — uso de tokens IA por docente · input_tokens · output_tokens · cost_usd
+error_codes           — catálogo CBF-[MOD]-[TYPE]-[NNN] con descripciones y severity
 system_events         — cbf-logger Edge Fn · error_code · module · severity · payload_in/out · duration_ms
+system_health_snapshots — snapshots periódicos de salud del sistema (antes llamado health_snapshots en docs)
 alert_rules           — umbral-based alerting (threshold_count · threshold_minutes · notify_telegram)
 system_alerts         — alertas generadas · status(open/resolved) · telegram_sent
+notifications         — notificaciones in-app · school_id · to_id · type · read · data JSONB
+messages              — mensajes 1-a-1 · from_id · to_id · school_id · read_at
+message_rooms         — salas de mensajería grupal · name · school_id
+room_messages         — mensajes de sala · room_id FK · sender_id FK · content
+room_participants     — participantes de sala · room_id FK · teacher_id FK
 
 — DEPRECATED (no crear registros nuevos) —
 assessments · questions · assessment_versions · student_exam_sessions · student_submissions
@@ -208,13 +221,47 @@ exam_results          — instance_id UNIQUE · colombian_grade · total_score �
                         correction_status(pending|partial|complete)
 exam_feedback         — blueprint_id · reviewer_id · action(approved|returned|comment) · comments
                         RLS: supervisor insert, school-wide read
-exam_preflight_log · exam_offline_queue · exam_ai_queue
+exam_preflight_log · exam_offline_queue · ai_evaluation_queue
+ai_evaluations        — resultados de evaluación IA por respuesta · score · feedback · confidence
+ai_witness_events     — eventos de testigo durante examen (detección de violaciones)
+question_criteria     — criterios por pregunta de examen · criterion_text · max_points
+correction_requests   — solicitudes de corrección humana de exam_responses
+human_overrides       — correcciones manuales de score y feedback
 
 — MÓDULO PSICOSOCIAL —
 student_psychosocial_profiles — status · support_level · flags TEXT[]
                                 teacher_notes(visible todos) · confidential_notes(solo psico/rector/admin)
 student_observations          — obs_date · obs_type · description · action_taken · next_steps
 student_accommodation_plans   — accommodations JSONB · status(draft|active|archived)
+
+— ARCHIVADO (Fase 5) —
+lesson_plan_versions  — snapshots inmutables de guías · plan_id FK · version_number · storage_path (HTML en Storage)
+news_project_versions — snapshots inmutables de proyectos NEWS · project_id FK · version_number · storage_path
+document_feedback     — feedback en guías y documentos · plan_id · from_id · type · comments · status
+plan_comments         — comentarios en guías/planes · plan_id · author_id · body
+
+— CALIFICACIÓN —
+grading_sessions      — sesiones de calificación grupales · teacher_id · subject · grade · section
+micro_activities      — actividades pequeñas evaluables · session_id FK · name · max_score · date
+micro_activity_groups — agrupaciones de micro_activities · name · weight
+student_activity_grades — notas por micro_activity · student_id FK · activity_id FK · score
+qa_runs               — ejecuciones del módulo QA · school_id · run_date · results JSONB · status
+
+— CLASSROOM (Capa 2 — pendiente) —
+classroom_sessions    — sesiones de aula virtual · teacher_id · grade · section · start_at
+classroom_boards      — pizarras virtuales por sesión · session_id FK · content JSONB
+classroom_slides      — diapositivas de clase · session_id FK · order · content JSONB
+classroom_documents   — documentos compartidos en sesión · session_id FK · file_url
+livekit_rooms         — salas LiveKit para videoclase · room_name · session_id FK
+livekit_participants  — participantes LiveKit · room_id FK · teacher_id FK · joined_at
+presence_events       — eventos de presencia en clase (asistencia automática) · session_id FK
+network_access        — control de acceso de red por estudiante · school_id · allowed bool
+
+— OTROS —
+school_levels         — niveles educativos del colegio (elementary/middle/high) · name · grade_range
+announcements         — anuncios institucionales · school_id · title · body · expires_at
+generated_assets      — assets generados por IA (imágenes, PDFs) · owner_id · asset_url · expires_at
+submissions           — entregas de estudiantes (Capa 3 futura) · student_id FK · activity_id FK
 ```
 
 ---
@@ -291,12 +338,16 @@ Helpers → `src/utils/roles.js`: `canManage · isSuperAdmin · isRector · canA
 /editor/:id    GuideEditorPage          /library       GuideLibraryPage
 /principles    PrinciplesPage           /achievements  AchievementsPage
 /syllabus      SyllabusPage             /biblioteca    LibraryPage
-/news          NewsPage
+/news          NewsPage                 /news/timeline NewsTimelinePage
 /messages      MessagesPage             /ai-usage      AIUsagePage
 /students      StudentsPage             /exams         ExamDashboardPage
-/exams/review  ExamReviewPage           /psicosocial   PsicosocialPage
+/exams/create  ExamCreatorPage          /exams/review  ExamReviewPage
+/exams/:id     ExamViewPage             /psicosocial   PsicosocialPage
 /coverage      PeriodCoverageDashboard  /observations  ObservationLoggerPage
-/biblioteca    LibraryPage
+/player        StudentPlayerPage        /player/:studentId StudentDetailPage
+/grades        GradebookPage            /grades/quick/:id  QuickGradePage
+/grading       GradingHubPage           /grading/session/:id GradingSessionPage
+/grading/display/:id GradingDisplayPage /grading/history    GradingHistoryPage
 
 // ROLES ESPECIALES
 /agenda        AgendaPage    /director  DirectorPage
@@ -306,7 +357,7 @@ Helpers → `src/utils/roles.js`: `canManage · isSuperAdmin · isRector · canA
 /teachers      AdminTeachersPage   /notifications    NotificationsPage
 /curriculum    CurriculumPage      /sala-revision    ReviewRoomPage
 /subjects      SubjectManagerPage  /settings         SettingsPage
-/exams/revision ExamRevisionPage
+/exams/revision ExamRevisionPage   /academic-calendar AcademicCalendarPage
 
 // SOLO SUPERADMIN → /superadmin    SuperAdminPage
 // PÚBLICO (sin auth) → /eval       ExamPlayerV2Page

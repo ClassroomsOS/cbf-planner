@@ -42,6 +42,8 @@ import GradebookPage       from './GradebookPage'
 import QuickGradePage      from './QuickGradePage'
 import StudentPlayerPage   from './StudentPlayerPage'
 import StudentDetailPage   from './StudentDetailPage'
+import QADashboardPage     from './QADashboardPage'
+import DevStatusPage       from './DevStatusPage'
 import ProfileModal        from '../components/ProfileModal'
 import { FeaturesProvider, useFeatures } from '../context/FeaturesContext'
 import { QAProvider }    from '../qa/QAContext'
@@ -455,6 +457,16 @@ function DashboardInner({ session, teacher, setTeacher }) {
                 ⚙️ Panel de control
                 <span className="sb-admin-badge">Admin</span>
               </NavLink>
+              <NavLink to="/qa" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
+                <span className="dot" style={{ background: '#2563eb' }} />
+                📡 Observabilidad
+                <span className="sb-admin-badge" style={{ background: '#2563eb' }}>QA</span>
+              </NavLink>
+              <NavLink to="/dev-status" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
+                <span className="dot" style={{ background: '#7c3aed' }} />
+                🗺️ Estado del Sistema
+                <span className="sb-admin-badge" style={{ background: '#7c3aed' }}>DEV</span>
+              </NavLink>
               {isSuperAdm && (
                 <NavLink to="/superadmin" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
                   <span className="dot" style={{ background: '#C0504D' }} />
@@ -550,6 +562,8 @@ function DashboardInner({ session, teacher, setTeacher }) {
               <Route path="/settings"           element={<SettingsPage           teacher={teacher} />} />
               <Route path="/director"           element={<DirectorPage           teacher={teacher} />} />
               <Route path="/academic-calendar"  element={<AcademicCalendarPage   teacher={teacher} />} />
+              <Route path="/qa"                 element={<QADashboardPage        teacher={teacher} />} />
+              <Route path="/dev-status"         element={<DevStatusPage />} />
               {isSuperAdm && (
                 <Route path="/superadmin" element={<SuperAdminPage teacher={teacher} />} />
               )}
