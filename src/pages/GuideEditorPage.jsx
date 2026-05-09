@@ -216,6 +216,7 @@ export default function GuideEditorPage({ teacher }) {
   const [classAccommodations, setClassAccommodations] = useState([])  // students with active plans in this class
   const [piarData,            setPiarData]            = useState(null) // aggregated accommodations for AI
   const [textbookFragments,   setTextbookFragments]   = useState([])  // Biblioteca fragments assigned to this week
+  const [syllabusBookPages,   setSyllabusBookPages]   = useState([])  // Syllabus-linked book pages for this week
 
   // ── Load ──
   useEffect(() => {
@@ -492,6 +493,25 @@ export default function GuideEditorPage({ teacher }) {
     })()
     return () => { cancelled = true }
   }, [plan?.id, content !== null])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Load syllabus_topics with linked book pages for this guide's week ──
+  useEffect(() => {
+    if (!plan?.week_number || !plan?.subject || !plan?.grade) return
+    let cancelled = false
+    supabase
+      .from('syllabus_topics')
+      .select('id, topic, library_doc_id, library_pages, library_doc:school_library(id, title)')
+      .eq('teacher_id', teacher.id)
+      .eq('subject', plan.subject)
+      .eq('grade', plan.grade)
+      .eq('week_number', plan.week_number)
+      .not('library_doc_id', 'is', null)
+      .then(({ data }) => {
+        if (cancelled) return
+        setSyllabusBookPages((data || []).filter(t => t.library_pages?.length > 0))
+      })
+    return () => { cancelled = true }
+  }, [plan?.id, plan?.week_number, plan?.subject, plan?.grade])
 
   // ── Load linked achievement_indicator ──
   useEffect(() => {
@@ -1534,6 +1554,32 @@ export default function GuideEditorPage({ teacher }) {
                 </div>
                 <div style={{ fontSize: 11, color: '#3B82F6', marginTop: 6 }}>
                   La IA los usará automáticamente al generar la guía.
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Syllabus book pages callout ── */}
+          {syllabusBookPages.length > 0 && activePanel !== 'header' && activePanel !== 'info' && (
+            <div style={{
+              margin: '8px 0 4px', padding: '10px 14px',
+              background: '#F0FDF4', borderRadius: 8, border: '1px solid #BBF7D0',
+              display: 'flex', alignItems: 'flex-start', gap: 10,
+            }}>
+              <span style={{ fontSize: 18 }}>📖</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#15803D', marginBottom: 4 }}>
+                  Páginas del libro vinculadas al syllabus (semana {plan.week_number})
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {syllabusBookPages.map(t => (
+                    <span key={t.id} style={{ fontSize: 11, fontWeight: 600, color: '#15803D', background: '#DCFCE7', borderRadius: 4, padding: '2px 8px', border: '1px solid #BBF7D0' }}>
+                      📄 {t.library_doc?.title || 'Documento'} — p.{t.library_pages.join(', ')}
+                    </span>
+                  ))}
+                </div>
+                <div style={{ fontSize: 11, color: '#16A34A', marginTop: 6 }}>
+                  Asignadas desde Syllabus → Biblioteca CBF.
                 </div>
               </div>
             </div>

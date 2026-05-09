@@ -44,24 +44,39 @@ const UNIT_SUBJECTS = ['Language Arts', 'Science']
 
 // ── Topic Form Modal ──────────────────────────────────────────────────────────
 
-function TopicFormModal({ topic, assignments, goals = [], defaultWeek, defaultPeriod, onSave, onClose }) {
+function TopicFormModal({ topic, assignments, goals = [], defaultWeek, defaultPeriod, schoolId, onSave, onClose }) {
   const subjects = [...new Set(assignments.map(a => a.subject))].sort()
 
   const [form, setForm] = useState(topic || {
-    subject:      assignments[0]?.subject || '',
-    grade:        combinedGrade(assignments[0]),
-    period:       defaultPeriod || 1,
-    week_number:  defaultWeek   || 1,
-    topic:        '',
-    content_type: 'concept',
-    description:  '',
-    resources:    [],
-    indicator_id: null,
-    academic_year: CURRENT_YEAR,
-    unit_number:  null,
-    subunit:      '',
+    subject:        assignments[0]?.subject || '',
+    grade:          combinedGrade(assignments[0]),
+    period:         defaultPeriod || 1,
+    week_number:    defaultWeek   || 1,
+    topic:          '',
+    content_type:   'concept',
+    description:    '',
+    resources:      [],
+    indicator_id:   null,
+    academic_year:  CURRENT_YEAR,
+    unit_number:    null,
+    subunit:        '',
+    library_doc_id: null,
+    library_pages:  [],
   })
   const [saving, setSaving] = useState(false)
+  const [libraryDocs, setLibraryDocs] = useState([])
+  const [pagesInput, setPagesInput]   = useState((topic?.library_pages || []).join(', '))
+
+  useEffect(() => {
+    if (!schoolId) return
+    supabase
+      .from('school_library')
+      .select('id, title, doc_type, file_mime')
+      .eq('school_id', schoolId)
+      .in('file_mime', ['application/pdf'])
+      .order('title')
+      .then(({ data }) => setLibraryDocs(data || []))
+  }, [schoolId])
 
   const grades = [...new Set(
     assignments
@@ -106,12 +121,18 @@ function TopicFormModal({ topic, assignments, goals = [], defaultWeek, defaultPe
   const handleSave = async () => {
     if (!form.topic.trim())   return alert('El tema no puede estar vacío.')
     if (!form.subject.trim()) return alert('Selecciona una asignatura.')
+    const parsedPages = pagesInput
+      .split(/[,\s]+/)
+      .map(s => parseInt(s, 10))
+      .filter(n => !isNaN(n) && n > 0)
     setSaving(true)
     await onSave({
       ...form,
-      resources:   (form.resources || []).filter(r => r.ref?.trim()),
-      unit_number: form.unit_number || null,
-      subunit:     form.subunit || null,
+      resources:      (form.resources || []).filter(r => r.ref?.trim()),
+      unit_number:    form.unit_number || null,
+      subunit:        form.subunit || null,
+      library_doc_id: form.library_doc_id || null,
+      library_pages:  parsedPages,
     })
     setSaving(false)
   }
@@ -314,6 +335,43 @@ function TopicFormModal({ topic, assignments, goals = [], defaultWeek, defaultPe
               </p>
             )}
           </div>
+
+          {/* Book pages — Biblioteca CBF */}
+          <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 10, padding: '12px 14px' }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#1D4ED8', marginBottom: 10 }}>
+              📄 Páginas del libro (Biblioteca CBF)
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <label style={{ ...labelStyle, color: '#1D4ED8', fontWeight: 600 }}>
+                Documento
+                <select
+                  value={form.library_doc_id || ''}
+                  onChange={e => set('library_doc_id', e.target.value || null)}
+                  style={{ ...selectStyle, border: '1px solid #93C5FD', background: '#fff' }}
+                >
+                  <option value="">— Sin vinculación —</option>
+                  {libraryDocs.map(d => (
+                    <option key={d.id} value={d.id}>{d.title}</option>
+                  ))}
+                </select>
+              </label>
+              {form.library_doc_id && (
+                <label style={{ ...labelStyle, color: '#1D4ED8', fontWeight: 600 }}>
+                  Páginas
+                  <input
+                    value={pagesInput}
+                    onChange={e => setPagesInput(e.target.value)}
+                    placeholder="ej. 12, 13, 14"
+                    style={{ ...inputStyle, border: '1px solid #93C5FD' }}
+                  />
+                  <span style={{ fontSize: 11, color: '#2563EB', fontWeight: 400 }}>
+                    Separa con comas. Estas páginas aparecerán en el editor de guías de esta semana.
+                  </span>
+                </label>
+              )}
+            </div>
+          </div>
+
         </div>
 
         {/* Footer */}
@@ -520,6 +578,19 @@ function TopicDetailCard({ topic, onEdit, onDelete }) {
                 📎 <strong>{rtLabel(r.type)}:</strong> {r.ref}
               </span>
             ))}
+          </div>
+        )}
+
+        {/* Library book pages chip */}
+        {topic.library_doc_id && topic.library_pages?.length > 0 && (
+          <div style={{ marginTop: 8 }}>
+            <span style={{
+              fontSize: 11, color: '#1D4ED8', background: '#EFF6FF',
+              border: '1px solid #BFDBFE', borderRadius: 5, padding: '3px 8px',
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+            }}>
+              📄 {topic.library_doc?.title || 'Libro'} — p.{topic.library_pages.join(', ')}
+            </span>
           </div>
         )}
       </div>
@@ -984,6 +1055,7 @@ export default function SyllabusPage({ teacher }) {
           goals={goals}
           defaultWeek={topicModal.week_number}
           defaultPeriod={filterPeriod}
+          schoolId={teacher.school_id}
           onSave={handleSaveTopic}
           onClose={() => setTopicModal(null)}
         />

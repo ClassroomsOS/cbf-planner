@@ -36,7 +36,7 @@ export default function useSyllabus(teacher, filters = {}) {
     try {
       let q = supabase
         .from('syllabus_topics')
-        .select('*, indicator:achievement_indicators(id, dimension, text, goal_id)')
+        .select('*, indicator:achievement_indicators(id, dimension, text, goal_id), library_doc:school_library(id, title, file_url)')
         .eq('school_id', teacher.school_id)
         .eq('teacher_id', teacher.id)
         .order('period',      { ascending: true })
@@ -82,7 +82,7 @@ export default function useSyllabus(teacher, filters = {}) {
           academic_year: data.academic_year || new Date().getFullYear(),
           ...data,
         })
-        .select('*, indicator:achievement_indicators(id, dimension, text, goal_id)')
+        .select('*, indicator:achievement_indicators(id, dimension, text, goal_id), library_doc:school_library(id, title, file_url)')
         .single()
 
       if (err) throw err
@@ -107,7 +107,7 @@ export default function useSyllabus(teacher, filters = {}) {
         .from('syllabus_topics')
         .update({ ...updates, updated_at: new Date().toISOString() })
         .eq('id', id)
-        .select('*, indicator:achievement_indicators(id, dimension, text, goal_id)')
+        .select('*, indicator:achievement_indicators(id, dimension, text, goal_id), library_doc:school_library(id, title, file_url)')
         .single()
 
       if (err) throw err

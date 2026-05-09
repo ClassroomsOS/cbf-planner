@@ -663,13 +663,119 @@ function PagesAnalysisPanel({ analysis, pageNums, onClose }) {
 }
 
 // =============================================================================
+// SYLLABUS LINK PANEL — Fase 5: vincular páginas completas a syllabus_topics
+// =============================================================================
+
+function SyllabusLinkPanel({ doc, teacher, currentPage, onClose, onSaved }) {
+  const { showToast } = useToast()
+  const [topics,     setTopics]     = useState([])
+  const [topicId,    setTopicId]    = useState('')
+  const [pagesInput, setPagesInput] = useState(String(currentPage || 1))
+  const [saving,     setSaving]     = useState(false)
+
+  useEffect(() => {
+    supabase
+      .from('syllabus_topics')
+      .select('id, topic, subject, grade, week_number, period')
+      .eq('teacher_id', teacher.id)
+      .eq('school_id', teacher.school_id)
+      .order('period').order('week_number')
+      .then(({ data }) => setTopics(data || []))
+  }, [teacher.id, teacher.school_id])
+
+  async function handleSave() {
+    if (!topicId) { showToast('Selecciona un tema del Syllabus', 'error'); return }
+    const pages = pagesInput
+      .split(/[,\s]+/)
+      .map(s => parseInt(s, 10))
+      .filter(n => !isNaN(n) && n > 0)
+    if (!pages.length) { showToast('Ingresa al menos una página', 'error'); return }
+    setSaving(true)
+    const { error } = await supabase
+      .from('syllabus_topics')
+      .update({ library_doc_id: doc.id, library_pages: pages })
+      .eq('id', topicId)
+    setSaving(false)
+    if (error) { showToast('Error al guardar: ' + error.message, 'error'); return }
+    showToast('Páginas vinculadas al Syllabus', 'success')
+    onSaved?.()
+    onClose()
+  }
+
+  // Group topics for display
+  const grouped = topics.reduce((acc, t) => {
+    const k = `P${t.period} · Sem.${t.week_number ?? '?'}`
+    if (!acc[k]) acc[k] = []
+    acc[k].push(t)
+    return acc
+  }, {})
+
+  return createPortal(
+    <div className="lib-panel-overlay" onClick={onClose}>
+      <div className="lib-frag-panel" style={{ maxWidth: 420 }} onClick={e => e.stopPropagation()}>
+        <div className="lib-frag-panel-header" style={{ background: 'linear-gradient(135deg, #1D4ED8, #2563EB)' }}>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: 15 }}>📋 Vincular al Syllabus</div>
+            <div style={{ fontSize: 11, opacity: 0.85 }}>{doc.title}</div>
+          </div>
+          <button type="button" className="lib-frag-panel-close" onClick={onClose}>✕</button>
+        </div>
+
+        <div className="lib-frag-panel-body">
+          <div className="lib-frag-section-label">Tema del Syllabus</div>
+          <select
+            value={topicId}
+            onChange={e => setTopicId(e.target.value)}
+            style={{ width: '100%', padding: '8px 10px', border: '1px solid #93C5FD', borderRadius: 8, fontSize: 13, background: '#fff', marginBottom: 12 }}
+          >
+            <option value="">— Seleccionar tema —</option>
+            {Object.entries(grouped).map(([group, ts]) => (
+              <optgroup key={group} label={group}>
+                {ts.map(t => (
+                  <option key={t.id} value={t.id}>
+                    {t.topic} ({t.subject} · {t.grade})
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+
+          <div className="lib-frag-section-label">Páginas</div>
+          <input
+            value={pagesInput}
+            onChange={e => setPagesInput(e.target.value)}
+            placeholder="ej. 12, 13, 14"
+            style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', border: '1px solid #93C5FD', borderRadius: 8, fontSize: 13, marginBottom: 6 }}
+          />
+          <p style={{ margin: '0 0 4px', fontSize: 11, color: '#2563EB' }}>
+            Página actual: {currentPage}. Separa múltiples páginas con comas.
+          </p>
+        </div>
+
+        <div className="lib-frag-panel-footer">
+          <button type="button" onClick={onClose}
+            style={{ padding: '8px 16px', border: '1px solid #d0d8e8', borderRadius: 8, background: '#fff', cursor: 'pointer', fontSize: 13 }}>
+            Cancelar
+          </button>
+          <button type="button" className="lib-frag-save-btn" disabled={saving} onClick={handleSave}
+            style={{ background: '#1D4ED8', opacity: saving ? .6 : 1 }}>
+            {saving ? 'Guardando…' : '💾 Vincular páginas'}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  )
+}
+
+// =============================================================================
 // PDF VIEWER — PDF.js page-by-page (Fase 2)
 // =============================================================================
 
 const PDFJS_WORKER_URL =
   'https://cdn.jsdelivr.net/npm/pdfjs-dist@5.7.284/build/pdf.worker.min.mjs'
 
-function PDFViewerCanvas({ url, fragmentMode = false, onFragmentCapture, pageSelectionMode = false, onPagesReady }) {
+function PDFViewerCanvas({ url, fragmentMode = false, onFragmentCapture, pageSelectionMode = false, onPagesReady, onPageChange }) {
   const canvasRef = useRef()
   const renderRef = useRef(null)
   const [doc,           setDoc]           = useState(null)
@@ -684,6 +790,9 @@ function PDFViewerCanvas({ url, fragmentMode = false, onFragmentCapture, pageSel
 
   // Reset selection when mode is deactivated
   useEffect(() => { if (!pageSelectionMode) setSelectedPages(new Set()) }, [pageSelectionMode])
+
+  // Notify parent of current page
+  useEffect(() => { onPageChange?.(page) }, [page])
 
   async function handleAnalyzePages() {
     if (!doc || !selectedPages.size) return
@@ -986,9 +1095,12 @@ function DocumentViewer({ doc, teacher, onClose }) {
   const [pageSelectionMode, setPageSelectionMode] = useState(false)  // Fase 4
   const [analyzingPages,    setAnalyzingPages]    = useState(false)  // Fase 4
   const [pagesAnalysis,     setPagesAnalysis]     = useState(null)   // Fase 4 — { analysis, pageNums }
+  const [currentPdfPage,    setCurrentPdfPage]    = useState(1)      // Fase 5
+  const [syllabusLinkOpen,  setSyllabusLinkOpen]  = useState(false)  // Fase 5
 
   const canFragment = (cat === 'pdf' || cat === 'image') && !!teacher
   const canAnalyzePages = cat === 'pdf' && !!teacher
+  const canLinkSyllabus = cat === 'pdf' && !!teacher
 
   function handleFragmentCapture(data) {
     if (!data) { setFragmentMode(false); return }
@@ -1027,6 +1139,16 @@ function DocumentViewer({ doc, teacher, onClose }) {
             </span>
           </div>
           <div className="lib-viewer-header-actions">
+            {canLinkSyllabus && (
+              <button
+                type="button"
+                className="lib-viewer-frag-btn"
+                onClick={() => { setSyllabusLinkOpen(true); setFragmentMode(false); setPageSelectionMode(false) }}
+                title="Vincular páginas de este PDF a un tema del Syllabus"
+              >
+                📋 Syllabus
+              </button>
+            )}
             {canAnalyzePages && (
               <button
                 type="button"
@@ -1083,6 +1205,7 @@ function DocumentViewer({ doc, teacher, onClose }) {
               onFragmentCapture={handleFragmentCapture}
               pageSelectionMode={pageSelectionMode}
               onPagesReady={handlePagesReady}
+              onPageChange={setCurrentPdfPage}
             />
           )}
 
@@ -1174,6 +1297,15 @@ function DocumentViewer({ doc, teacher, onClose }) {
           analysis={pagesAnalysis.analysis}
           pageNums={pagesAnalysis.pageNums}
           onClose={() => setPagesAnalysis(null)}
+        />
+      )}
+      {syllabusLinkOpen && teacher && (
+        <SyllabusLinkPanel
+          doc={doc}
+          teacher={teacher}
+          currentPage={currentPdfPage}
+          onClose={() => setSyllabusLinkOpen(false)}
+          onSaved={() => setSyllabusLinkOpen(false)}
         />
       )}
     </>
