@@ -42,8 +42,9 @@
 | **Biblioteca CBF — Fase 1** | ✅ Completo | `school_library` tabla + RLS dual + Storage bucket `cbf-library` · `LibraryPage` tabs Institucional/Personal · upload (PDF/imagen/video/audio/MIDI) · visor universal · quota meter · delete confirm |
 | **Biblioteca CBF — Fase 1.5** | ✅ Completo | `library_shares` (compartir con can_edit) · `library_edit_log` (triggers auto) · RPC `library_rollback` (SECURITY DEFINER) · Tab Supervisión admin · `EditModal` · `ShareModal` · `HistoryDrawer` con rollback |
 | **Biblioteca CBF — Fase 2** | ✅ Completo | PDF.js 5 página a página · WaveSurfer.js 7 waveform · OpenSeadragon 6 deep zoom · Lazy loading via dynamic import (bundle inicial no crece) |
-| **Biblioteca CBF — Fase 3** | ⬜ Pendiente | Fragment Extractor: selección de región rectangular sobre PDF/imagen → captura canvas → análisis Claude Vision → SmartBlock pre-populado → insertar en guía · tabla `library_fragments` · `FragmentSelector.jsx` · `analyzeTextbookFragment()` |
-| **Biblioteca CBF — Fase 4** | ⬜ Pendiente | Integración con generación de guías: fragmentos asignados a semana/materia/grado fluyen como bloque `📚 FRAGMENTOS DEL LIBRO` en el prompt de `generateGuideStructure()` · `FragmentContext.jsx` en GuideEditorPage |
+| **Biblioteca CBF — Fase 3** | ✅ Completo | Fragment Extractor: selección de región rectangular sobre PDF/imagen → captura canvas → análisis Claude Vision → SmartBlock pre-populado → insertar en guía · tabla `library_fragments` · `FragmentSelector.jsx` · `analyzeTextbookFragment()` |
+| **Biblioteca CBF — Fase 3b** | ✅ Completo | Fragmentos fluyen a generación de guías: `getISOWeek` + fetch `library_fragments` en `GuideEditorPage` · callout azul en panel indicador · bloque `📚 FRAGMENTOS DEL LIBRO` en prompt `generateGuideStructure` · callout en paso 3 del modal |
+| **Biblioteca CBF — Fase 4** | ⬜ Pendiente | IA multimodal ampliada: re-enviar imagen del fragmento a Claude para análisis profundo durante generación · `analyzeTextbookPages()` para series de páginas seleccionadas |
 | **Instrumento Docente** | ⬜ Diseñado | Guión de sesión generado por IA para el docente (complemento de la Guía CBF-G AC-01) · IMS · estado del grupo · 3 opciones por fase · PREACHER CLOSE · prototipo en `theoric mark/teacher-instrument.jsx` |
 
 ---

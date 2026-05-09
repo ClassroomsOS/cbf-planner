@@ -300,6 +300,7 @@ Colores, eleot® items y modelos → `src/utils/smartBlockHtml.js` · `src/compo
 | `generateStudentRubric()` | 3000 |
 | `generateExamQuestions()` | 9000/sección |
 | `analyzeTextbookFragment()` | 1500 — Claude Vision: clasifica región de documento → SmartBlock sugerido |
+| `generateGuideStructure()` | ahora acepta `textbookFragments` — fragmentos de Biblioteca asignados a la semana; fluyen como bloque `📚 FRAGMENTOS DEL LIBRO` en el prompt |
 
 **Reglas de comportamiento no documentadas en ai-integration.md:**
 - `generateGuideStructure` acepta `piarData?: { [category]: string[] }` — acomodaciones sin nombres de estudiantes. `GuideEditorPage` las consulta y pasa al modal; `ConversationalGuideModal` muestra aviso naranja en paso 3.
