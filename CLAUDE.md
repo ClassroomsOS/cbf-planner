@@ -179,6 +179,11 @@ school_library        — Biblioteca CBF: doc_type · subjects[] · grades[] · 
                         Cuota personal: schools.features.library_quota_gb (default 2 GB)
                         Visores: PDF.js 5 (página a página) · WaveSurfer 7 (waveform) · OpenSeadragon 6 (deep zoom)
                         Carga lazy: pdfjs-dist · wavesurfer.js · openseadragon (dynamic import, no afecta bundle inicial)
+library_fragments     — doc_id FK · created_by FK · page_number · region JSONB({x,y,w,h}%) · image_url (Storage)
+                        extracted_text (PDF.js text layer) · ai_analysis JSONB (content_type/structured_data/suggested_smartblock)
+                        assigned_subject · assigned_grade · assigned_week (ISO)
+                        Storage path: cbf-library/{school_id}/fragments/{doc_id}/{id}.webp
+                        RLS: fragments_owner (ALL) · fragments_school_read (SELECT)
 library_shares        — doc_id FK · shared_by FK · shared_with FK · can_edit bool · UNIQUE(doc_id,shared_with)
                         RLS: shares_owner_manage · shares_admin_manage · shares_recipient_read
 library_edit_log      — doc_id FK · editor_id FK · action CHECK('created','updated','restored','shared','file_replaced')
@@ -294,6 +299,7 @@ Colores, eleot® items y modelos → `src/utils/smartBlockHtml.js` · `src/compo
 | `analyzeGuideCoverage()` | 1800 |
 | `generateStudentRubric()` | 3000 |
 | `generateExamQuestions()` | 9000/sección |
+| `analyzeTextbookFragment()` | 1500 — Claude Vision: clasifica región de documento → SmartBlock sugerido |
 
 **Reglas de comportamiento no documentadas en ai-integration.md:**
 - `generateGuideStructure` acepta `piarData?: { [category]: string[] }` — acomodaciones sin nombres de estudiantes. `GuideEditorPage` las consulta y pasa al modal; `ConversationalGuideModal` muestra aviso naranja en paso 3.
