@@ -409,6 +409,7 @@ Dame un análisis pedagógico completo. En la sección 🙏 evalúa específicam
 // ── Punto 3: Generar estructura completa desde objetivo ───────────────────────
 export async function generateGuideStructure({
   grade, subject, objective, unit, activeDays, period, planId, achievementGoal, activeNewsProject, principles, piarData,
+  textbookFragments,
   _focusHints, checkpointData
 }) {
   const isEnglishSubject = MODELO_B_SUBJECTS.includes(subject)
@@ -941,6 +942,44 @@ Las actividades de cada día deben estar ancladas a contenido REAL del libro vis
     return lines.join('\n')
   })() : ''
 
+  // Build textbook fragments block (Biblioteca CBF — Fase 3)
+  const FRAG_TYPE_EN = {
+    vocabulary: 'Vocabulary Table', grammar: 'Grammar Exercise',
+    reading: 'Reading Passage', table: 'Reference Table',
+    exercise: 'Exercise', image: 'Image',
+  }
+  const fragmentsBlock = (textbookFragments?.length > 0) ? (() => {
+    const lines = [
+      `\n📚 FRAGMENTOS DEL LIBRO DE TEXTO — SEMANA ACTUAL (${textbookFragments.length} fragmento${textbookFragments.length !== 1 ? 's' : ''} marcados por el docente):`,
+      '',
+      'MANDATO: Diseña los SmartBlocks de la guía basándote en ESTE contenido real del libro.',
+      'No inventes material nuevo cuando el fragmento ya lo provee — úsalo directamente.',
+      '',
+    ]
+    textbookFragments.forEach((frag, i) => {
+      const a = frag.ai_analysis || {}
+      const typeLabel = FRAG_TYPE_EN[a.content_type] || a.content_type || 'Fragment'
+      const pageTxt = frag.page_number ? ` (Pág. ${frag.page_number})` : ''
+      lines.push(`[${i + 1}] Tipo: ${typeLabel}${pageTxt}`)
+      if (a.description) lines.push(`    Descripción: ${sanitizeAIInput(a.description)}`)
+      if (a.language)    lines.push(`    Idioma: ${a.language === 'en' ? 'EN' : 'ES'}`)
+      // Include key structured data for the AI to use directly
+      if (a.structured_data) {
+        const sd = a.structured_data
+        if (sd.words?.length)    lines.push(`    Palabras/Vocab: ${sd.words.slice(0, 6).map(w => sanitizeAIInput(w.w || '')).filter(Boolean).join(', ')}`)
+        if (sd.grammar_point)   lines.push(`    Punto gramatical: ${sanitizeAIInput(sd.grammar_point)}`)
+        if (sd.passage)         lines.push(`    Texto: "${sanitizeAIInput(sd.passage.slice(0, 120))}…"`)
+        if (sd.headers?.length) lines.push(`    Columnas: ${sd.headers.map(h => sanitizeAIInput(h)).join(' | ')}`)
+      }
+      if (a.suggested_smartblock) {
+        const sb = a.suggested_smartblock
+        lines.push(`    → SmartBlock sugerido: ${sb.type} / ${sb.model}`)
+      }
+      lines.push('')
+    })
+    return lines.join('\n')
+  })() : ''
+
   // Build focus hints block (eleot domains, skill emphasis, preferred blocks)
   const focusBlock = (_focusHints?.length) ? (() => {
     const lines = [
@@ -1002,6 +1041,7 @@ Semana 2 NO repite Semana 1 — escala cognitiva evidente. Producto Sem.1 = parc
 - Días de clase ${isTwoWeeks ? 'estas dos semanas' : 'esta semana'}: ${daysStr}
 ${achievementBlock}
 ${newsBlock}
+${fragmentsBlock}
 ${dayPlanBlock}
 ${milestonesBlock}
 ${checkpointBlock}

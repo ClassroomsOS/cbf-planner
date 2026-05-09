@@ -79,6 +79,16 @@ function guessSmartBlock(act) {
   return null
 }
 
+// ── ISO week number from a YYYY-MM-DD date string ────────────────────────────
+function getISOWeek(dateStr) {
+  if (!dateStr) return null
+  const d = new Date(dateStr)
+  const day = d.getDay() || 7   // Mon=1 … Sun=7
+  const thursday = new Date(d.getTime() + (4 - day) * 86400000)
+  const yearStart = new Date(thursday.getFullYear(), 0, 1)
+  return Math.ceil(((thursday - yearStart) / 86400000 + 1) / 7)
+}
+
 // ── Indicator text helper (handles Modelo A strings + Modelo B objects) ─────
 function getIndText(ind) {
   if (!ind) return ''
@@ -205,6 +215,7 @@ export default function GuideEditorPage({ teacher }) {
   const [importingDocx, setImportingDocx] = useState(false)
   const [classAccommodations, setClassAccommodations] = useState([])  // students with active plans in this class
   const [piarData,            setPiarData]            = useState(null) // aggregated accommodations for AI
+  const [textbookFragments,   setTextbookFragments]   = useState([])  // Biblioteca fragments assigned to this week
 
   // ── Load ──
   useEffect(() => {
@@ -457,6 +468,30 @@ export default function GuideEditorPage({ teacher }) {
     }
     fetchAccommodations()
   }, [plan?.grade, plan?.id, teacher.school_id])
+
+  // ── Load Biblioteca fragments assigned to this guide's week ──
+  useEffect(() => {
+    if (!plan?.id || !content) return
+    const days = content.days || {}
+    const firstDay = Object.keys(days).sort()[0]
+    const isoWeek = getISOWeek(firstDay)
+    if (!isoWeek) return
+    let cancelled = false
+    ;(async () => {
+      const { data } = await supabase
+        .from('library_fragments')
+        .select('id, ai_analysis, assigned_subject, assigned_grade, image_url, page_number, doc_id')
+        .eq('school_id', teacher.school_id)
+        .eq('assigned_week', isoWeek)
+      if (cancelled) return
+      const relevant = (data || []).filter(f =>
+        (!f.assigned_subject || f.assigned_subject === plan.subject) &&
+        (!f.assigned_grade   || plan.grade?.startsWith(f.assigned_grade))
+      )
+      setTextbookFragments(relevant)
+    })()
+    return () => { cancelled = true }
+  }, [plan?.id, content !== null])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Load linked achievement_indicator ──
   useEffect(() => {
@@ -1472,6 +1507,38 @@ export default function GuideEditorPage({ teacher }) {
             </div>
           )}
 
+          {/* ── Textbook fragments callout ── */}
+          {textbookFragments.length > 0 && activePanel !== 'header' && activePanel !== 'info' && (
+            <div style={{
+              margin: '8px 0 4px', padding: '10px 14px',
+              background: '#EFF6FF', borderRadius: 8, border: '1px solid #BFDBFE',
+              display: 'flex', alignItems: 'flex-start', gap: 10,
+            }}>
+              <span style={{ fontSize: 18 }}>📚</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#1D4ED8', marginBottom: 4 }}>
+                  {textbookFragments.length === 1
+                    ? '1 fragmento del libro disponible para esta semana'
+                    : `${textbookFragments.length} fragmentos del libro disponibles para esta semana`}
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {textbookFragments.map(f => {
+                    const a = f.ai_analysis || {}
+                    const icon = { vocabulary: '🔤', grammar: '✏️', reading: '📖', table: '📋', exercise: '📝', image: '🖼' }[a.content_type] || '📄'
+                    return (
+                      <span key={f.id} style={{ fontSize: 11, fontWeight: 600, color: '#1D4ED8', background: '#DBEAFE', borderRadius: 4, padding: '2px 8px', border: '1px solid #BFDBFE' }}>
+                        {icon} {a.description ? a.description.slice(0, 40) : 'Fragmento'}
+                      </span>
+                    )
+                  })}
+                </div>
+                <div style={{ fontSize: 11, color: '#3B82F6', marginTop: 6 }}>
+                  La IA los usará automáticamente al generar la guía.
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* ── Back to editing button (shown inside admin-only panels) ── */}
           {(activePanel === 'header' || activePanel === 'info') && (
             <div style={{ marginBottom: '12px' }}>
@@ -1834,6 +1901,7 @@ export default function GuideEditorPage({ teacher }) {
           principles={principles}
           eleotCoverage={coverage}
           piarData={piarData}
+          textbookFragments={textbookFragments}
           checkpointData={prevCheckpoint}
           onApply={handleApplyGenerated}
           onClose={closeGenerator}

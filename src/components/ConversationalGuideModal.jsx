@@ -51,7 +51,7 @@ export const ConversationalGuideModal = memo(function ConversationalGuideModal({
   grade, subject, period, activeDays,
   indicator, achievementGoal, activeNewsProject,
   currentContent, principles, eleotCoverage,
-  piarData, checkpointData,
+  piarData, checkpointData, textbookFragments,
   onApply, onClose,
 }) {
   const { showToast } = useToast()
@@ -124,6 +124,7 @@ export const ConversationalGuideModal = memo(function ConversationalGuideModal({
         achievementGoal,
         activeNewsProject, principles,
         piarData,
+        textbookFragments,
         _focusHints: focusHints,
         checkpointData,
       })
@@ -366,6 +367,28 @@ export const ConversationalGuideModal = memo(function ConversationalGuideModal({
             <div style={{ fontSize: '11px', color: '#2E5598', background: '#f0f4ff', padding: '8px 12px', borderRadius: '8px' }}>
               {selectedBlocks.length} tipo{selectedBlocks.length !== 1 ? 's' : ''} seleccionado{selectedBlocks.length !== 1 ? 's' : ''}:&nbsp;
               {selectedBlocks.map(k => BLOCK_TYPES[k]?.icon + ' ' + BLOCK_TYPES[k]?.label).join(', ')}
+            </div>
+          )}
+
+          {/* Fragmentos de libro de texto */}
+          {textbookFragments?.length > 0 && (
+            <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: '8px', padding: '10px 14px' }}>
+              <div style={{ fontSize: '12px', fontWeight: 700, color: '#1D4ED8', marginBottom: 6 }}>
+                📚 {textbookFragments.length} fragmento{textbookFragments.length !== 1 ? 's' : ''} del libro de texto disponible{textbookFragments.length !== 1 ? 's' : ''}
+              </div>
+              <div style={{ fontSize: '11px', color: '#1E40AF', lineHeight: 1.6 }}>
+                La IA usará el contenido real del libro marcado para esta semana al generar los SmartBlocks:
+                {textbookFragments.map((f, i) => {
+                  const a = f.ai_analysis || {}
+                  const typeIcon = { vocabulary: '🔤', grammar: '✏️', reading: '📖', table: '📋', exercise: '📝', image: '🖼' }[a.content_type] || '📄'
+                  return (
+                    <div key={f.id} style={{ marginTop: 4 }}>
+                      {typeIcon} {a.description || `Fragmento ${i + 1}`}
+                      {a.suggested_smartblock && <span style={{ marginLeft: 6, background: '#DBEAFE', borderRadius: 3, padding: '1px 5px', fontSize: 10 }}>{a.suggested_smartblock.type}</span>}
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           )}
 
