@@ -5915,3 +5915,171 @@ input:not(:placeholder-shown):not(:focus):not([type=password]):valid {
 @media (max-width: 380px) {
   .lib-grid { grid-template-columns: 1fr; }
 }
+
+/* ==========================================================================
+   LIBRARY — Fase 2: card actions, share, history drawer, oversight
+   ========================================================================== */
+
+/* ── Card owner badge (oversight view) ─────────────────────────────────── */
+.lib-card-owner-badge {
+  font-size: 11px; font-weight: 600; color: #5C6F9E;
+  background: #eef1f9; border-radius: 20px;
+  padding: 2px 8px; margin-bottom: 6px;
+  display: inline-block; align-self: flex-start;
+}
+
+/* ── Card action buttons bar ────────────────────────────────────────────── */
+.lib-card-actions {
+  display: flex; gap: 4px; flex-wrap: wrap;
+  border-top: 1px solid #e8eef6; padding-top: 8px; margin-top: 8px;
+}
+.lib-card-action-btn {
+  font-size: 11px; font-weight: 600;
+  padding: 3px 9px; border-radius: 6px;
+  border: 1.5px solid #d0d9e8; background: #f5f8ff;
+  color: #2E5598; cursor: pointer; transition: all .14s;
+  white-space: nowrap;
+}
+.lib-card-action-btn:hover {
+  background: #2E5598; color: #fff; border-color: #2E5598;
+}
+
+/* ── File pill — new indicator ──────────────────────────────────────────── */
+.lib-file-pill-new {
+  font-size: 10px; font-weight: 700; color: #1A6B3A;
+  background: #e6f4ec; border-radius: 10px; padding: 1px 6px;
+  margin-left: 4px;
+}
+
+/* ── Oversight tab ──────────────────────────────────────────────────────── */
+.lib-tab-oversight { opacity: .85; }
+.lib-tab-oversight.active { opacity: 1; }
+.lib-oversight-info {
+  border-left-color: #5C6F9E;
+  background: linear-gradient(135deg, #eef1f9, #f5f7fd);
+  color: #3a4a72;
+}
+
+/* ── Share modal ────────────────────────────────────────────────────────── */
+.lib-share-modal { max-width: 560px; }
+.lib-share-add-row {
+  display: flex; gap: 8px; align-items: center;
+  flex-wrap: wrap; margin-bottom: 16px;
+}
+.lib-share-select { flex: 1; min-width: 160px; }
+.lib-share-edit-check {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 12px; font-weight: 600; color: #444;
+  white-space: nowrap; cursor: pointer;
+}
+.lib-share-edit-check input { cursor: pointer; accent-color: #2E5598; }
+.lib-share-list { margin-bottom: 8px; }
+.lib-share-row {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 9px 12px; border-radius: 8px; margin-bottom: 6px;
+  background: #f5f8ff; border: 1.5px solid #dce6f7;
+}
+.lib-share-name {
+  font-size: 13px; font-weight: 600; color: #1F3864; flex: 1;
+}
+.lib-share-perm {
+  font-size: 11px; font-weight: 700; padding: 2px 8px;
+  border-radius: 20px; white-space: nowrap;
+}
+.lib-share-perm.edit  { background: #e6f4ec; color: #1A6B3A; }
+.lib-share-perm.read  { background: #eef1f9; color: #44537A; }
+.lib-share-actions { display: flex; gap: 4px; }
+.lib-share-revoke { color: #C0504D !important; border-color: #f5c4c4 !important; }
+.lib-share-revoke:hover { background: #C0504D !important; color: #fff !important; border-color: #C0504D !important; }
+.lib-share-empty {
+  font-size: 13px; color: #888; font-style: italic;
+  padding: 12px 0; margin: 0;
+}
+
+/* ── History drawer ─────────────────────────────────────────────────────── */
+.lib-drawer-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.45);
+  z-index: 1050;
+  display: flex; justify-content: flex-end;
+}
+.lib-drawer {
+  width: 100%; max-width: 420px; height: 100%;
+  background: #fff;
+  display: flex; flex-direction: column;
+  box-shadow: -4px 0 32px rgba(0,0,0,.18);
+  animation: lib-slide-in .22s ease;
+}
+@keyframes lib-slide-in {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+.lib-drawer-header {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  padding: 18px 20px 16px;
+  border-bottom: 2px solid #e8eef6;
+  background: linear-gradient(135deg,#f5f7fd,#eef1f9);
+}
+.lib-drawer-title {
+  font-size: 15px; font-weight: 700; color: #1F3864; margin-bottom: 2px;
+}
+.lib-drawer-subtitle {
+  font-size: 12px; color: #666; max-width: 280px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.lib-drawer-body {
+  flex: 1; overflow-y: auto; padding: 12px 16px;
+}
+
+/* ── History entries ────────────────────────────────────────────────────── */
+.lib-history-entry {
+  border: 1.5px solid #e8eef6; border-radius: 10px;
+  padding: 12px 14px; margin-bottom: 10px;
+  background: #fafbff; transition: border-color .15s;
+}
+.lib-history-entry-latest {
+  border-color: #c2d3f5;
+  background: #f0f5ff;
+}
+.lib-history-entry-top {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; margin-bottom: 6px; flex-wrap: wrap;
+}
+.lib-action-badge {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  padding: 2px 8px; border-radius: 10px; border: 1px solid transparent;
+  letter-spacing: .4px;
+}
+.lib-history-date {
+  font-size: 11px; color: #888; white-space: nowrap;
+}
+.lib-history-editor {
+  font-size: 12px; font-weight: 600; color: #444; margin-bottom: 4px;
+}
+.lib-history-summary {
+  font-size: 12px; color: #555; margin-bottom: 8px;
+  padding: 5px 8px; background: #f0f2f8; border-radius: 6px;
+}
+.lib-history-rollback-btn {
+  font-size: 11px; font-weight: 700; color: #8064A2;
+  background: #f3effc; border: 1.5px solid #c8b8e8;
+  border-radius: 6px; padding: 4px 10px; cursor: pointer;
+  transition: all .14s;
+}
+.lib-history-rollback-btn:hover {
+  background: #8064A2; color: #fff; border-color: #8064A2;
+}
+.lib-history-confirm {
+  margin-top: 8px; padding: 10px 12px;
+  background: #fff8f0; border: 1.5px solid #ffd0a0; border-radius: 8px;
+  font-size: 12px; font-weight: 600; color: #7a4800;
+}
+.lib-history-confirm-btns {
+  display: flex; gap: 8px; margin-top: 8px; justify-content: flex-end;
+}
+
+@media (max-width: 640px) {
+  .lib-drawer { max-width: 100%; }
+  .lib-share-add-row { flex-direction: column; align-items: stretch; }
+  .lib-share-row { flex-direction: column; align-items: flex-start; }
+}

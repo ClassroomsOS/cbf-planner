@@ -29,7 +29,6 @@ const SUBJECTS_LIST = [
 
 const GRADES_LIST = ['7.°', '8.°', '9.°', '10.°', '11.°']
 
-// File types accepted — PDF, images, video, audio, MIDI
 const ACCEPT = [
   'application/pdf',
   'image/png', 'image/jpeg', 'image/webp', 'image/tiff', 'image/gif', 'image/bmp',
@@ -38,8 +37,15 @@ const ACCEPT = [
   'audio/midi', 'audio/x-midi',
 ].join(',')
 
-// Per-category max upload size in MB
 const MAX_FILE_MB = { pdf: 200, image: 100, video: 1000, audio: 200, midi: 10, other: 100 }
+
+const ACTION_BADGE = {
+  created:       { label: 'Creado',        color: '#1A6B3A' },
+  updated:       { label: 'Editado',       color: '#2E5598' },
+  restored:      { label: 'Restaurado',    color: '#8064A2' },
+  shared:        { label: 'Compartido',    color: '#F79646' },
+  file_replaced: { label: 'Archivo nuevo', color: '#4BACC6' },
+}
 
 // =============================================================================
 // HELPERS
@@ -82,10 +88,18 @@ function fmtBytes(bytes) {
 
 function sanitizeTitle(filename) {
   return filename
-    .replace(/\.[^.]+$/, '')        // quitar extensión
-    .replace(/[_\-]/g, ' ')         // guiones/barras bajas → espacio
+    .replace(/\.[^.]+$/, '')
+    .replace(/[_\-]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
+}
+
+function fmtDate(isoStr) {
+  if (!isoStr) return ''
+  return new Date(isoStr).toLocaleString('es-CO', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  })
 }
 
 // =============================================================================
@@ -119,7 +133,8 @@ function QuotaMeter({ usedBytes, quotaGB }) {
 // DOCUMENT CARD
 // =============================================================================
 
-function DocumentCard({ doc, onView, onDelete, canDelete }) {
+function DocumentCard({ doc, onView, onDelete, onEdit, onShare, onHistory,
+                        canDelete, canEditDoc, canShare, ownerName }) {
   const type = DOC_TYPES[doc.doc_type] || DOC_TYPES.other
   const cat  = getMimeCategory(doc.file_mime)
 
@@ -133,6 +148,8 @@ function DocumentCard({ doc, onView, onDelete, canDelete }) {
     doc.file_size ? fmtBytes(doc.file_size) : null,
   ].filter(Boolean).join(' · ')
 
+  const hasActions = canEditDoc || canShare || onHistory
+
   return (
     <div className="lib-card" onClick={() => onView(doc)}>
       {canDelete && (
@@ -141,6 +158,10 @@ function DocumentCard({ doc, onView, onDelete, canDelete }) {
           onClick={e => { e.stopPropagation(); onDelete(doc) }}>
           ✕
         </button>
+      )}
+
+      {ownerName && (
+        <div className="lib-card-owner-badge">👤 {ownerName}</div>
       )}
 
       <div className="lib-card-icon-wrap" style={{ background: type.color + '15' }}>
@@ -153,18 +174,42 @@ function DocumentCard({ doc, onView, onDelete, canDelete }) {
 
       <div className="lib-card-body">
         <div className="lib-card-title">{doc.title}</div>
-
         <span className="lib-card-type-tag"
           style={{ background: type.color + '18', color: type.color }}>
           {type.icon} {type.label}
         </span>
-
         {subtitle && <div className="lib-card-sub">{subtitle}</div>}
         {meta2    && <div className="lib-card-meta2">{meta2}</div>}
         {doc.description && (
           <div className="lib-card-desc">{doc.description}</div>
         )}
       </div>
+
+      {hasActions && (
+        <div className="lib-card-actions" onClick={e => e.stopPropagation()}>
+          {canEditDoc && (
+            <button className="lib-card-action-btn"
+              title="Editar metadatos"
+              onClick={e => { e.stopPropagation(); onEdit(doc) }}>
+              ✎ Editar
+            </button>
+          )}
+          {canShare && (
+            <button className="lib-card-action-btn"
+              title="Compartir con otros docentes"
+              onClick={e => { e.stopPropagation(); onShare(doc) }}>
+              🔗 Compartir
+            </button>
+          )}
+          {onHistory && (
+            <button className="lib-card-action-btn"
+              title="Ver historial de edición"
+              onClick={e => { e.stopPropagation(); onHistory(doc) }}>
+              🕐 Historial
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -174,14 +219,13 @@ function DocumentCard({ doc, onView, onDelete, canDelete }) {
 // =============================================================================
 
 function DocumentViewer({ doc, onClose }) {
-  const cat = getMimeCategory(doc.file_mime)
+  const cat  = getMimeCategory(doc.file_mime)
   const type = DOC_TYPES[doc.doc_type] || DOC_TYPES.other
 
   return createPortal(
     <div className="lib-viewer-overlay" onClick={onClose}>
       <div className="lib-viewer-modal" onClick={e => e.stopPropagation()}>
 
-        {/* Header */}
         <div className="lib-viewer-header">
           <div className="lib-viewer-header-left">
             <span className="lib-viewer-title">{doc.title}</span>
@@ -206,10 +250,8 @@ function DocumentViewer({ doc, onClose }) {
           </div>
         </div>
 
-        {/* Body */}
         <div className="lib-viewer-body">
 
-          {/* Enlace externo (sin archivo) */}
           {!doc.file_url && doc.external_url && (
             <div className="lib-viewer-external">
               <div className="lib-viewer-ext-icon">🔗</div>
@@ -221,7 +263,6 @@ function DocumentViewer({ doc, onClose }) {
             </div>
           )}
 
-          {/* PDF — iframe nativo (Chrome, Firefox, Edge, Safari) */}
           {doc.file_url && cat === 'pdf' && (
             <iframe
               src={doc.file_url}
@@ -230,7 +271,6 @@ function DocumentViewer({ doc, onClose }) {
             />
           )}
 
-          {/* Imagen — con zoom CSS */}
           {doc.file_url && cat === 'image' && (
             <div className="lib-viewer-image-wrap">
               <img
@@ -242,20 +282,14 @@ function DocumentViewer({ doc, onClose }) {
             </div>
           )}
 
-          {/* Video — HTML5 nativo */}
           {doc.file_url && cat === 'video' && (
             <div className="lib-viewer-video-wrap">
-              <video
-                src={doc.file_url}
-                controls
-                className="lib-viewer-video"
-              >
+              <video src={doc.file_url} controls className="lib-viewer-video">
                 Tu navegador no soporta reproducción de video.
               </video>
             </div>
           )}
 
-          {/* Audio — HTML5 nativo con visualización */}
           {doc.file_url && cat === 'audio' && (
             <div className="lib-viewer-audio-wrap">
               <div className="lib-viewer-audio-art">🎵</div>
@@ -263,15 +297,10 @@ function DocumentViewer({ doc, onClose }) {
               {doc.metadata?.author && (
                 <p className="lib-viewer-audio-artist">✍️ {doc.metadata.author}</p>
               )}
-              <audio
-                src={doc.file_url}
-                controls
-                className="lib-viewer-audio"
-              />
+              <audio src={doc.file_url} controls className="lib-viewer-audio" />
             </div>
           )}
 
-          {/* MIDI — descarga (reproductor en Fase 2 con Tone.js) */}
           {doc.file_url && cat === 'midi' && (
             <div className="lib-viewer-midi-wrap">
               <div className="lib-viewer-midi-icon">🎹</div>
@@ -282,37 +311,33 @@ function DocumentViewer({ doc, onClose }) {
               <p className="lib-viewer-midi-coming">
                 🚧 Reproductor MIDI en el navegador disponible próximamente
               </p>
-              <a href={doc.file_url} download={doc.file_name}
-                className="lib-viewer-dl-btn">
+              <a href={doc.file_url} download={doc.file_name} className="lib-viewer-dl-btn">
                 ⬇ Descargar MIDI
               </a>
             </div>
           )}
 
-          {/* Archivo genérico */}
           {doc.file_url && cat === 'other' && (
             <div className="lib-viewer-generic">
               <div className="lib-viewer-generic-icon">📁</div>
               <p className="lib-viewer-generic-name">{doc.file_name || 'Archivo'}</p>
               <p className="lib-viewer-generic-size">{fmtBytes(doc.file_size)}</p>
-              <a href={doc.file_url} download={doc.file_name}
-                className="lib-viewer-dl-btn">
+              <a href={doc.file_url} download={doc.file_name} className="lib-viewer-dl-btn">
                 ⬇ Descargar
               </a>
             </div>
           )}
         </div>
 
-        {/* Footer — metadata */}
         {(doc.description || doc.metadata?.author || doc.metadata?.year || doc.subjects?.length > 0) && (
           <div className="lib-viewer-footer">
             <div className="lib-viewer-footer-chips">
-              {doc.metadata?.author && <span>✍️ {doc.metadata.author}</span>}
-              {doc.metadata?.year   && <span>📅 {doc.metadata.year}</span>}
+              {doc.metadata?.author    && <span>✍️ {doc.metadata.author}</span>}
+              {doc.metadata?.year      && <span>📅 {doc.metadata.year}</span>}
               {doc.metadata?.publisher && <span>🏢 {doc.metadata.publisher}</span>}
-              {doc.page_count && <span>📄 {doc.page_count} págs.</span>}
+              {doc.page_count          && <span>📄 {doc.page_count} págs.</span>}
               {doc.subjects?.map(s => <span key={s} className="lib-footer-subject">{s}</span>)}
-              {doc.grades?.map(g => <span key={g} className="lib-footer-grade">{g}</span>)}
+              {doc.grades?.map(g   => <span key={g} className="lib-footer-grade">{g}</span>)}
             </div>
             {doc.description && (
               <p className="lib-viewer-footer-desc">{doc.description}</p>
@@ -326,6 +351,119 @@ function DocumentViewer({ doc, onClose }) {
 }
 
 // =============================================================================
+// SHARED FORM FIELDS — reutilizado en Upload y Edit
+// =============================================================================
+
+function DocMetaForm({ form, upd, file, fileRef, onFileChange, showFilePill, showReplaceBtn }) {
+  function toggleArr(arr, val) {
+    return arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val]
+  }
+
+  return (
+    <>
+      {/* File pill */}
+      {showFilePill && file && (
+        <div className="lib-file-pill">
+          <span>{DOC_TYPES[guessDocType(file.type)]?.icon || '📁'}</span>
+          <span className="lib-file-pill-name">{file.name}</span>
+          <span className="lib-file-pill-size">{fmtBytes(file.size)}</span>
+        </div>
+      )}
+      {showFilePill && !file && form.external_url && (
+        <div className="lib-file-pill lib-file-pill-ext">
+          <span>🔗</span>
+          <span className="lib-file-pill-name">{form.external_url}</span>
+        </div>
+      )}
+      {showReplaceBtn && (
+        <div className="lib-file-pill">
+          <span>📎</span>
+          <span className="lib-file-pill-name">{form._existingName}</span>
+          <span className="lib-file-pill-size">{fmtBytes(form._existingSize)}</span>
+          {file && <span className="lib-file-pill-new">→ {file.name}</span>}
+          <button type="button" className="lib-btn-ghost"
+            style={{ fontSize: 11, padding: '2px 8px', marginLeft: 6 }}
+            onClick={() => fileRef.current?.click()}>
+            {file ? 'Cambiar' : 'Reemplazar'}
+          </button>
+          <input ref={fileRef} type="file" accept={ACCEPT}
+            style={{ display: 'none' }} onChange={onFileChange} />
+        </div>
+      )}
+
+      {/* Title */}
+      <label className="lib-label">Título *</label>
+      <input className="lib-input" value={form.title}
+        onChange={e => upd('title', e.target.value)}
+        placeholder="Ej. Uncover 4 — Unit 1" />
+
+      {/* Type */}
+      <label className="lib-label">Tipo de documento</label>
+      <div className="lib-type-grid">
+        {Object.entries(DOC_TYPES).map(([k, v]) => (
+          <button key={k} type="button"
+            className={`lib-type-btn ${form.doc_type === k ? 'active' : ''}`}
+            style={form.doc_type === k
+              ? { borderColor: v.color, background: v.color + '18', color: v.color }
+              : {}}
+            onClick={() => upd('doc_type', k)}>
+            {v.icon} {v.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Description */}
+      <label className="lib-label">Descripción</label>
+      <textarea className="lib-textarea" rows={3}
+        value={form.description}
+        onChange={e => upd('description', e.target.value)}
+        placeholder="Contexto, contenido, uso pedagógico esperado…" />
+
+      {/* Subjects & grades */}
+      <div className="lib-two-col">
+        <div>
+          <label className="lib-label">Materias</label>
+          <div className="lib-tag-group">
+            {SUBJECTS_LIST.map(s => (
+              <button key={s} type="button"
+                className={`lib-tag ${form.subjects.includes(s) ? 'active' : ''}`}
+                onClick={() => upd('subjects', toggleArr(form.subjects, s))}>
+                {s}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <label className="lib-label">Grados</label>
+          <div className="lib-tag-group">
+            {GRADES_LIST.map(g => (
+              <button key={g} type="button"
+                className={`lib-tag ${form.grades.includes(g) ? 'active' : ''}`}
+                onClick={() => upd('grades', toggleArr(form.grades, g))}>
+                {g}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Metadata */}
+      <label className="lib-label" style={{ marginTop: 8 }}>Metadata (opcional)</label>
+      <div className="lib-meta-grid">
+        <input className="lib-input-sm" placeholder="Autor / Autores"
+          value={form.author} onChange={e => upd('author', e.target.value)} />
+        <input className="lib-input-sm" placeholder="Año de publicación"
+          value={form.year} onChange={e => upd('year', e.target.value)} />
+        <input className="lib-input-sm" placeholder="Editorial"
+          value={form.publisher} onChange={e => upd('publisher', e.target.value)} />
+        <input className="lib-input-sm" placeholder="ISBN / Código"
+          value={form.isbn} onChange={e => upd('isbn', e.target.value)} />
+      </div>
+    </>
+  )
+}
+
+// =============================================================================
 // UPLOAD MODAL
 // =============================================================================
 
@@ -333,10 +471,10 @@ function UploadModal({ visibility, teacher, onClose, onUploaded }) {
   const { showToast } = useToast()
   const fileRef = useRef()
 
-  const [step, setStep]       = useState('pick')   // pick | meta | uploading
-  const [file, setFile]       = useState(null)
+  const [step, setStep]         = useState('pick')
+  const [file, setFile]         = useState(null)
   const [progress, setProgress] = useState(0)
-  const [form, setForm]       = useState({
+  const [form, setForm]         = useState({
     title: '', description: '', doc_type: 'other',
     subjects: [], grades: [],
     author: '', year: '', publisher: '', isbn: '',
@@ -345,21 +483,15 @@ function UploadModal({ visibility, teacher, onClose, onUploaded }) {
 
   function upd(k, v) { setForm(f => ({ ...f, [k]: v })) }
 
-  function toggleArr(arr, val) {
-    return arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val]
-  }
-
   function handleFileChange(e) {
     const f = e.target.files?.[0]
     if (!f) return
-
     const cat     = getMimeCategory(f.type)
     const limitMB = MAX_FILE_MB[cat] ?? MAX_FILE_MB.other
     if (f.size > limitMB * 1024 * 1024) {
       showToast(`Archivo demasiado grande. Límite para ${cat.toUpperCase()}: ${limitMB} MB`, 'error')
       return
     }
-
     setFile(f)
     const guessed = guessDocType(f.type)
     if (guessed !== 'other') upd('doc_type', guessed)
@@ -388,7 +520,7 @@ function UploadModal({ visibility, teacher, onClose, onUploaded }) {
       const pathDir = visibility === 'school'
         ? `${teacher.school_id}/inst/${docId}`
         : `${teacher.school_id}/personal/${teacher.id}/${docId}`
-      const path    = `${pathDir}/${file.name}`
+      const path = `${pathDir}/${file.name}`
 
       setProgress(30)
 
@@ -462,7 +594,6 @@ function UploadModal({ visibility, teacher, onClose, onUploaded }) {
     <div className="lib-modal-overlay">
       <div className="lib-modal">
 
-        {/* Header */}
         <div className="lib-modal-header"
           style={{ background: visibility === 'school'
             ? 'linear-gradient(135deg,#1F3864,#2E5598)'
@@ -475,17 +606,11 @@ function UploadModal({ visibility, teacher, onClose, onUploaded }) {
           <button className="lib-modal-close-btn" onClick={onClose}>✕</button>
         </div>
 
-        {/* STEP: pick */}
         {step === 'pick' && (
           <div className="lib-modal-body">
             <div className="lib-upload-zone" onClick={() => fileRef.current?.click()}>
-              <input
-                ref={fileRef}
-                type="file"
-                accept={ACCEPT}
-                style={{ display: 'none' }}
-                onChange={handleFileChange}
-              />
+              <input ref={fileRef} type="file" accept={ACCEPT}
+                style={{ display: 'none' }} onChange={handleFileChange} />
               <div className="lib-upload-icon">📂</div>
               <p className="lib-upload-main">Clic o arrastra un archivo aquí</p>
               <div className="lib-upload-types">
@@ -504,13 +629,12 @@ function UploadModal({ visibility, teacher, onClose, onUploaded }) {
               <span>o ingresa una URL externa</span>
             </div>
 
-            <input
-              type="url"
+            <input type="url"
               placeholder="https://recurso.externo/documento"
               value={form.external_url}
               onChange={e => upd('external_url', e.target.value)}
-              className="lib-input"
-            />
+              className="lib-input" />
+
             {isExternalOnly && (
               <div style={{ marginTop: 12, textAlign: 'right' }}>
                 <button className="lib-btn-primary" onClick={() => {
@@ -524,107 +648,10 @@ function UploadModal({ visibility, teacher, onClose, onUploaded }) {
           </div>
         )}
 
-        {/* STEP: meta */}
         {step === 'meta' && (
           <div className="lib-modal-body lib-meta-form">
+            <DocMetaForm form={form} upd={upd} file={file} showFilePill />
 
-            {/* Indicador de archivo */}
-            {file ? (
-              <div className="lib-file-pill">
-                <span>{DOC_TYPES[guessDocType(file.type)]?.icon || '📁'}</span>
-                <span className="lib-file-pill-name">{file.name}</span>
-                <span className="lib-file-pill-size">{fmtBytes(file.size)}</span>
-              </div>
-            ) : (
-              <div className="lib-file-pill lib-file-pill-ext">
-                <span>🔗</span>
-                <span className="lib-file-pill-name">{form.external_url}</span>
-              </div>
-            )}
-
-            {/* Título */}
-            <label className="lib-label">Título *</label>
-            <input
-              className="lib-input"
-              value={form.title}
-              onChange={e => upd('title', e.target.value)}
-              placeholder="Ej. Uncover 4 — Unit 1"
-            />
-
-            {/* Tipo */}
-            <label className="lib-label">Tipo de documento</label>
-            <div className="lib-type-grid">
-              {Object.entries(DOC_TYPES).map(([k, v]) => (
-                <button
-                  key={k}
-                  type="button"
-                  className={`lib-type-btn ${form.doc_type === k ? 'active' : ''}`}
-                  style={form.doc_type === k
-                    ? { borderColor: v.color, background: v.color + '18', color: v.color }
-                    : {}
-                  }
-                  onClick={() => upd('doc_type', k)}>
-                  {v.icon} {v.label}
-                </button>
-              ))}
-            </div>
-
-            {/* Descripción */}
-            <label className="lib-label">Descripción</label>
-            <textarea
-              className="lib-textarea"
-              rows={3}
-              value={form.description}
-              onChange={e => upd('description', e.target.value)}
-              placeholder="Contexto, contenido, uso pedagógico esperado…"
-            />
-
-            {/* Materias y grados */}
-            <div className="lib-two-col">
-              <div>
-                <label className="lib-label">Materias</label>
-                <div className="lib-tag-group">
-                  {SUBJECTS_LIST.map(s => (
-                    <button
-                      key={s}
-                      type="button"
-                      className={`lib-tag ${form.subjects.includes(s) ? 'active' : ''}`}
-                      onClick={() => upd('subjects', toggleArr(form.subjects, s))}>
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className="lib-label">Grados</label>
-                <div className="lib-tag-group">
-                  {GRADES_LIST.map(g => (
-                    <button
-                      key={g}
-                      type="button"
-                      className={`lib-tag ${form.grades.includes(g) ? 'active' : ''}`}
-                      onClick={() => upd('grades', toggleArr(form.grades, g))}>
-                      {g}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Metadata opcional */}
-            <label className="lib-label" style={{ marginTop: 8 }}>Metadata (opcional)</label>
-            <div className="lib-meta-grid">
-              <input className="lib-input-sm" placeholder="Autor / Autores"
-                value={form.author} onChange={e => upd('author', e.target.value)} />
-              <input className="lib-input-sm" placeholder="Año de publicación"
-                value={form.year} onChange={e => upd('year', e.target.value)} />
-              <input className="lib-input-sm" placeholder="Editorial"
-                value={form.publisher} onChange={e => upd('publisher', e.target.value)} />
-              <input className="lib-input-sm" placeholder="ISBN / Código"
-                value={form.isbn} onChange={e => upd('isbn', e.target.value)} />
-            </div>
-
-            {/* Footer */}
             <div className="lib-modal-footer">
               <button type="button" className="lib-btn-ghost"
                 onClick={() => setStep('pick')}>
@@ -637,12 +664,10 @@ function UploadModal({ visibility, teacher, onClose, onUploaded }) {
           </div>
         )}
 
-        {/* STEP: uploading */}
         {step === 'uploading' && (
           <div className="lib-modal-body lib-uploading">
             <div className="lib-progress-track">
-              <div className="lib-progress-fill"
-                style={{ width: `${progress}%` }} />
+              <div className="lib-progress-fill" style={{ width: `${progress}%` }} />
             </div>
             <p className="lib-uploading-status">
               {progress < 60
@@ -656,6 +681,472 @@ function UploadModal({ visibility, teacher, onClose, onUploaded }) {
             )}
           </div>
         )}
+      </div>
+    </div>,
+    document.body
+  )
+}
+
+// =============================================================================
+// EDIT MODAL
+// =============================================================================
+
+function EditModal({ doc, teacher, onClose, onSaved }) {
+  const { showToast } = useToast()
+  const fileRef = useRef()
+
+  const [step, setStep]         = useState('meta')
+  const [newFile, setNewFile]   = useState(null)
+  const [progress, setProgress] = useState(0)
+  const [form, setForm]         = useState({
+    title:        doc.title || '',
+    description:  doc.description || '',
+    doc_type:     doc.doc_type || 'other',
+    subjects:     doc.subjects || [],
+    grades:       doc.grades || [],
+    author:       doc.metadata?.author || '',
+    year:         doc.metadata?.year || '',
+    publisher:    doc.metadata?.publisher || '',
+    isbn:         doc.metadata?.isbn || '',
+    external_url: doc.external_url || '',
+    // Internal — for the file pill display
+    _existingName: doc.file_name || '',
+    _existingSize: doc.file_size || 0,
+  })
+
+  function upd(k, v) { setForm(f => ({ ...f, [k]: v })) }
+
+  function handleFileChange(e) {
+    const f = e.target.files?.[0]
+    if (!f) return
+    const cat     = getMimeCategory(f.type)
+    const limitMB = MAX_FILE_MB[cat] ?? MAX_FILE_MB.other
+    if (f.size > limitMB * 1024 * 1024) {
+      showToast(`Archivo demasiado grande. Límite: ${limitMB} MB`, 'error')
+      return
+    }
+    setNewFile(f)
+  }
+
+  async function handleSave() {
+    if (!form.title.trim()) {
+      showToast('El título es obligatorio', 'error')
+      return
+    }
+
+    setStep('saving')
+    setProgress(10)
+
+    let file_url  = doc.file_url
+    let file_path = doc.file_path
+    let file_name = doc.file_name
+    let file_size = doc.file_size
+    let file_mime = doc.file_mime
+
+    if (newFile) {
+      const pathDir = doc.visibility === 'school'
+        ? `${teacher.school_id}/inst/${doc.id}`
+        : `${teacher.school_id}/personal/${teacher.id}/${doc.id}`
+      const path = `${pathDir}/${newFile.name}`
+
+      setProgress(30)
+
+      const { error: upErr } = await supabase.storage
+        .from('cbf-library')
+        .upload(path, newFile, { contentType: newFile.type, upsert: true })
+
+      if (upErr) {
+        showToast(`Error al subir: ${upErr.message}`, 'error')
+        setStep('meta')
+        return
+      }
+
+      setProgress(60)
+
+      const { data: urlData } = supabase.storage
+        .from('cbf-library')
+        .getPublicUrl(path)
+
+      if (doc.file_path && doc.file_path !== path) {
+        await supabase.storage.from('cbf-library').remove([doc.file_path])
+      }
+
+      file_url  = urlData.publicUrl
+      file_path = path
+      file_name = newFile.name
+      file_size = newFile.size
+      file_mime = newFile.type
+    }
+
+    setProgress(80)
+
+    const { data: updated, error } = await supabase
+      .from('school_library')
+      .update({
+        title:        form.title.trim(),
+        description:  form.description.trim() || null,
+        doc_type:     form.doc_type,
+        subjects:     form.subjects,
+        grades:       form.grades,
+        external_url: form.external_url.trim() || null,
+        file_url,
+        file_path,
+        file_name,
+        file_size,
+        file_mime,
+        metadata: {
+          author:    form.author.trim()    || null,
+          year:      form.year.trim()      || null,
+          publisher: form.publisher.trim() || null,
+          isbn:      form.isbn.trim()      || null,
+        },
+      })
+      .eq('id', doc.id)
+      .select()
+      .single()
+
+    if (error) {
+      showToast(`Error al guardar: ${error.message}`, 'error')
+      setStep('meta')
+      return
+    }
+
+    setProgress(100)
+    showToast('Documento actualizado', 'success')
+    onSaved(updated)
+    onClose()
+  }
+
+  return createPortal(
+    <div className="lib-modal-overlay">
+      <div className="lib-modal">
+        <div className="lib-modal-header"
+          style={{ background: doc.visibility === 'school'
+            ? 'linear-gradient(135deg,#1F3864,#2E5598)'
+            : 'linear-gradient(135deg,#1A6B3A,#2D8A50)' }}>
+          <span>✎ Editar documento</span>
+          <button className="lib-modal-close-btn" onClick={onClose}>✕</button>
+        </div>
+
+        {step === 'meta' && (
+          <div className="lib-modal-body lib-meta-form">
+            {doc.file_name && (
+              <div className="lib-file-pill">
+                <span>📎</span>
+                <span className="lib-file-pill-name">{doc.file_name}</span>
+                <span className="lib-file-pill-size">{fmtBytes(doc.file_size)}</span>
+                {newFile
+                  ? <span className="lib-file-pill-new">→ {newFile.name}</span>
+                  : <button type="button"
+                      className="lib-btn-ghost"
+                      style={{ fontSize: 11, padding: '2px 8px', marginLeft: 6 }}
+                      onClick={() => fileRef.current?.click()}>
+                      Reemplazar
+                    </button>
+                }
+                <input ref={fileRef} type="file" accept={ACCEPT}
+                  style={{ display: 'none' }} onChange={handleFileChange} />
+              </div>
+            )}
+
+            <DocMetaForm form={form} upd={upd} />
+
+            <div className="lib-modal-footer">
+              <button type="button" className="lib-btn-ghost" onClick={onClose}>
+                Cancelar
+              </button>
+              <button type="button" className="lib-btn-primary" onClick={handleSave}>
+                💾 Guardar cambios
+              </button>
+            </div>
+          </div>
+        )}
+
+        {step === 'saving' && (
+          <div className="lib-modal-body lib-uploading">
+            <div className="lib-progress-track">
+              <div className="lib-progress-fill" style={{ width: `${progress}%` }} />
+            </div>
+            <p className="lib-uploading-status">
+              {progress < 60 ? '⬆ Subiendo archivo…' : '💾 Guardando cambios…'}
+            </p>
+          </div>
+        )}
+      </div>
+    </div>,
+    document.body
+  )
+}
+
+// =============================================================================
+// SHARE MODAL
+// =============================================================================
+
+function ShareModal({ doc, teacher, teachersMap, onClose }) {
+  const { showToast } = useToast()
+  const [shares,     setShares]     = useState([])
+  const [loading,    setLoading]    = useState(true)
+  const [addingId,   setAddingId]   = useState('')
+  const [addingEdit, setAddingEdit] = useState(false)
+  const [saving,     setSaving]     = useState(false)
+
+  const allTeachers = Object.entries(teachersMap)
+    .filter(([id]) => id !== teacher.id)
+    .sort((a, b) => a[1].localeCompare(b[1]))
+
+  async function fetchShares() {
+    setLoading(true)
+    const { data } = await supabase
+      .from('library_shares')
+      .select('*')
+      .eq('doc_id', doc.id)
+    setShares(data || [])
+    setLoading(false)
+  }
+
+  useEffect(() => { fetchShares() }, [])
+
+  async function handleAdd() {
+    if (!addingId) { showToast('Selecciona un docente', 'warning'); return }
+    if (shares.find(s => s.shared_with === addingId)) {
+      showToast('Ya se compartió con este docente', 'warning'); return
+    }
+    setSaving(true)
+    const { error } = await supabase.from('library_shares').insert({
+      doc_id:      doc.id,
+      shared_by:   teacher.id,
+      shared_with: addingId,
+      can_edit:    addingEdit,
+    })
+    if (error) showToast(`Error: ${error.message}`, 'error')
+    else {
+      showToast('Compartido exitosamente', 'success')
+      setAddingId('')
+      setAddingEdit(false)
+    }
+    setSaving(false)
+    fetchShares()
+  }
+
+  async function handleToggleEdit(share) {
+    await supabase.from('library_shares')
+      .update({ can_edit: !share.can_edit })
+      .eq('id', share.id)
+    fetchShares()
+  }
+
+  async function handleRevoke(share) {
+    const { error } = await supabase.from('library_shares').delete().eq('id', share.id)
+    if (error) showToast(`Error: ${error.message}`, 'error')
+    else showToast('Acceso revocado', 'success')
+    fetchShares()
+  }
+
+  const sharedIds         = shares.map(s => s.shared_with)
+  const availableTeachers = allTeachers.filter(([id]) => !sharedIds.includes(id))
+
+  return createPortal(
+    <div className="lib-modal-overlay">
+      <div className="lib-modal lib-share-modal">
+        <div className="lib-modal-header"
+          style={{ background: 'linear-gradient(135deg,#44537A,#5C6F9E)' }}>
+          <span>🔗 Compartir — {doc.title}</span>
+          <button className="lib-modal-close-btn" onClick={onClose}>✕</button>
+        </div>
+
+        <div className="lib-modal-body">
+
+          <label className="lib-label">Compartir con un docente</label>
+          <div className="lib-share-add-row">
+            <select className="lib-input lib-share-select"
+              value={addingId}
+              onChange={e => setAddingId(e.target.value)}>
+              <option value="">Seleccionar docente…</option>
+              {availableTeachers.map(([id, name]) => (
+                <option key={id} value={id}>{name}</option>
+              ))}
+            </select>
+            <label className="lib-share-edit-check">
+              <input type="checkbox"
+                checked={addingEdit}
+                onChange={e => setAddingEdit(e.target.checked)} />
+              Puede editar
+            </label>
+            <button className="lib-btn-primary"
+              disabled={!addingId || saving}
+              onClick={handleAdd}>
+              + Compartir
+            </button>
+          </div>
+
+          {/* Current shares */}
+          <div className="lib-share-list">
+            <div className="lib-label" style={{ marginBottom: 8 }}>
+              {shares.length > 0
+                ? `Compartido con ${shares.length} docente${shares.length !== 1 ? 's' : ''}`
+                : 'Sin accesos compartidos aún'}
+            </div>
+            {loading ? (
+              <p className="lib-share-empty">Cargando…</p>
+            ) : shares.length === 0 ? (
+              <p className="lib-share-empty">
+                Este documento no se ha compartido con nadie. Usa el formulario de arriba para compartirlo.
+              </p>
+            ) : (
+              shares.map(s => (
+                <div key={s.id} className="lib-share-row">
+                  <span className="lib-share-name">
+                    👤 {teachersMap[s.shared_with] || 'Docente desconocido'}
+                  </span>
+                  <span className={`lib-share-perm ${s.can_edit ? 'edit' : 'read'}`}>
+                    {s.can_edit ? '✏ Edición' : '👁 Lectura'}
+                  </span>
+                  <div className="lib-share-actions">
+                    <button className="lib-card-action-btn"
+                      onClick={() => handleToggleEdit(s)}>
+                      {s.can_edit ? '→ Solo lectura' : '→ Edición'}
+                    </button>
+                    <button className="lib-card-action-btn lib-share-revoke"
+                      onClick={() => handleRevoke(s)}>
+                      ✕ Revocar
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className="lib-modal-footer">
+            <button type="button" className="lib-btn-ghost" onClick={onClose}>
+              Cerrar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body
+  )
+}
+
+// =============================================================================
+// HISTORY DRAWER
+// =============================================================================
+
+function HistoryDrawer({ doc, teachersMap, onClose, onRollback }) {
+  const { showToast } = useToast()
+  const [log,       setLog]       = useState([])
+  const [loading,   setLoading]   = useState(true)
+  const [confirmId, setConfirmId] = useState(null)
+  const [rolling,   setRolling]   = useState(false)
+
+  useEffect(() => {
+    supabase
+      .from('library_edit_log')
+      .select('*')
+      .eq('doc_id', doc.id)
+      .order('created_at', { ascending: false })
+      .then(({ data }) => {
+        setLog(data || [])
+        setLoading(false)
+      })
+  }, [])
+
+  async function handleRollback(entry) {
+    setRolling(true)
+    const { error } = await supabase.rpc('library_rollback', { p_log_id: entry.id })
+    setRolling(false)
+    setConfirmId(null)
+    if (error) {
+      showToast(`Error al restaurar: ${error.message}`, 'error')
+    } else {
+      showToast('Documento restaurado al estado anterior', 'success')
+      onRollback()
+      onClose()
+    }
+  }
+
+  return createPortal(
+    <div className="lib-drawer-overlay" onClick={onClose}>
+      <div className="lib-drawer" onClick={e => e.stopPropagation()}>
+
+        <div className="lib-drawer-header">
+          <div>
+            <div className="lib-drawer-title">🕐 Historial de edición</div>
+            <div className="lib-drawer-subtitle">{doc.title}</div>
+          </div>
+          <button className="lib-viewer-close" onClick={onClose}>✕</button>
+        </div>
+
+        <div className="lib-drawer-body">
+          {loading ? (
+            <div className="lib-loading">
+              <div className="lib-loading-spinner" />
+              Cargando historial…
+            </div>
+          ) : log.length === 0 ? (
+            <p className="lib-share-empty" style={{ padding: '20px 0' }}>
+              Sin historial de edición registrado.
+            </p>
+          ) : (
+            log.map((entry, i) => {
+              const badge       = ACTION_BADGE[entry.action] || { label: entry.action, color: '#718096' }
+              const editorName  = entry.editor_id
+                ? (teachersMap[entry.editor_id] || 'Docente')
+                : 'Sistema'
+              const isConfirm   = confirmId === entry.id
+              const canRollback = !!entry.old_snapshot && entry.action !== 'created'
+
+              return (
+                <div key={entry.id}
+                  className={`lib-history-entry ${i === 0 ? 'lib-history-entry-latest' : ''}`}>
+
+                  <div className="lib-history-entry-top">
+                    <span className="lib-action-badge"
+                      style={{
+                        background:   badge.color + '20',
+                        color:        badge.color,
+                        borderColor:  badge.color + '40',
+                      }}>
+                      {badge.label}
+                    </span>
+                    <span className="lib-history-date">{fmtDate(entry.created_at)}</span>
+                  </div>
+
+                  <div className="lib-history-editor">👤 {editorName}</div>
+
+                  {entry.change_summary && (
+                    <div className="lib-history-summary">{entry.change_summary}</div>
+                  )}
+
+                  {canRollback && !isConfirm && (
+                    <button className="lib-history-rollback-btn"
+                      onClick={() => setConfirmId(entry.id)}>
+                      ↩ Restaurar a este estado
+                    </button>
+                  )}
+
+                  {isConfirm && (
+                    <div className="lib-history-confirm">
+                      <span>¿Confirmar restauración?</span>
+                      <div className="lib-history-confirm-btns">
+                        <button className="lib-btn-ghost"
+                          onClick={() => setConfirmId(null)}>
+                          Cancelar
+                        </button>
+                        <button className="lib-btn-primary"
+                          style={{ background: 'linear-gradient(135deg,#8064A2,#A08BC4)' }}
+                          disabled={rolling}
+                          onClick={() => handleRollback(entry)}>
+                          {rolling ? 'Restaurando…' : '↩ Sí, restaurar'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })
+          )}
+        </div>
       </div>
     </div>,
     document.body
@@ -710,16 +1201,36 @@ export default function LibraryPage({ teacher }) {
   const isAdmin       = canManage(teacher.role)
   const quotaGB       = features.library_quota_gb || 2
 
-  const [tab,          setTab]          = useState('school')    // 'school' | 'personal'
-  const [docs,         setDocs]         = useState([])
-  const [loading,      setLoading]      = useState(true)
-  const [search,       setSearch]       = useState('')
-  const [filterType,   setFilterType]   = useState('')
-  const [filterSubject,setFilterSubject]= useState('')
-  const [usedBytes,    setUsedBytes]    = useState(0)
-  const [viewingDoc,   setViewingDoc]   = useState(null)
-  const [showUpload,   setShowUpload]   = useState(false)
-  const [confirmDel,   setConfirmDel]   = useState(null)   // doc | null
+  // 'school' | 'personal' | 'oversight' (admin only)
+  const [tab,           setTab]           = useState('school')
+  const [docs,          setDocs]          = useState([])
+  const [loading,       setLoading]       = useState(true)
+  const [search,        setSearch]        = useState('')
+  const [filterType,    setFilterType]    = useState('')
+  const [filterSubject, setFilterSubject] = useState('')
+  const [usedBytes,     setUsedBytes]     = useState(0)
+  const [viewingDoc,    setViewingDoc]    = useState(null)
+  const [showUpload,    setShowUpload]    = useState(false)
+  const [editingDoc,    setEditingDoc]    = useState(null)
+  const [sharingDoc,    setSharingDoc]    = useState(null)
+  const [historyDoc,    setHistoryDoc]    = useState(null)
+  const [confirmDel,    setConfirmDel]    = useState(null)
+  // id → full_name map for sharing/history/oversight
+  const [teachersMap, setTeachersMap]     = useState({})
+
+  // ── Fetch teacher list (admin only) ───────────────────────────
+  useEffect(() => {
+    if (!isAdmin) return
+    supabase
+      .from('teachers')
+      .select('id,full_name')
+      .eq('school_id', teacher.school_id)
+      .then(({ data }) => {
+        const map = {}
+        ;(data || []).forEach(t => { map[t.id] = t.full_name })
+        setTeachersMap(map)
+      })
+  }, [])
 
   // ── Fetch docs ────────────────────────────────────────────────
   async function fetchDocs() {
@@ -731,17 +1242,20 @@ export default function LibraryPage({ teacher }) {
 
     if (tab === 'school') {
       q = q.eq('visibility', 'school').eq('school_id', teacher.school_id)
-    } else {
+    } else if (tab === 'personal') {
       q = q.eq('visibility', 'personal').eq('teacher_id', teacher.id)
+    } else {
+      // oversight — admin oversight RLS policy handles access
+      q = q.eq('visibility', 'personal').eq('school_id', teacher.school_id)
     }
 
     const { data, error } = await q
-    if (error) { showToast('Error cargando documentos', 'error') }
+    if (error) showToast('Error cargando documentos', 'error')
     setDocs(data || [])
     setLoading(false)
   }
 
-  // ── Quota (personal) ──────────────────────────────────────────
+  // ── Quota ─────────────────────────────────────────────────────
   async function fetchQuota() {
     const { data } = await supabase
       .from('school_library')
@@ -759,29 +1273,36 @@ export default function LibraryPage({ teacher }) {
   async function handleDeleteConfirmed() {
     const doc = confirmDel
     setConfirmDel(null)
-
     if (doc.file_path) {
       await supabase.storage.from('cbf-library').remove([doc.file_path])
     }
     const { error } = await supabase.from('school_library').delete().eq('id', doc.id)
     if (error) { showToast('Error al eliminar', 'error'); return }
-
     showToast('Documento eliminado', 'success')
     setDocs(prev => prev.filter(d => d.id !== doc.id))
     if (doc.visibility === 'personal') fetchQuota()
   }
 
-  function canDeleteDoc(doc) {
-    return doc.teacher_id === teacher.id || isAdmin
+  // ── Edit saved ────────────────────────────────────────────────
+  function handleDocSaved(updated) {
+    setDocs(prev => prev.map(d => d.id === updated.id ? updated : d))
+    if (updated.visibility === 'personal') fetchQuota()
   }
 
-  function handleUploaded(doc) {
-    // Only add to current list if it matches the active tab
-    if (doc.visibility === tab) setDocs(prev => [doc, ...prev])
-    if (doc.visibility === 'personal') fetchQuota()
+  // ── Upload ────────────────────────────────────────────────────
+  function handleUploaded(newDoc) {
+    if (newDoc.visibility === tab || (tab === 'oversight' && newDoc.visibility === 'personal')) {
+      setDocs(prev => [newDoc, ...prev])
+    }
+    if (newDoc.visibility === 'personal') fetchQuota()
   }
 
-  // ── Filtered list ─────────────────────────────────────────────
+  // ── Permissions ───────────────────────────────────────────────
+  function canDeleteDoc(doc) { return doc.teacher_id === teacher.id || isAdmin }
+  function canEditDoc(doc)   { return doc.teacher_id === teacher.id || isAdmin }
+  function canShareDoc(doc)  { return doc.teacher_id === teacher.id || isAdmin }
+
+  // ── Filter ────────────────────────────────────────────────────
   const filtered = docs.filter(d => {
     const q = search.toLowerCase()
     if (q && !d.title.toLowerCase().includes(q) &&
@@ -793,9 +1314,14 @@ export default function LibraryPage({ teacher }) {
   })
 
   const allSubjects = [...new Set(docs.flatMap(d => d.subjects || []))].sort()
+  const canUpload   = tab === 'personal' || (tab === 'school' && isAdmin)
 
-  // ── Can upload to current tab ─────────────────────────────────
-  const canUpload = tab === 'personal' || isAdmin
+  function switchTab(newTab) {
+    setTab(newTab)
+    setSearch('')
+    setFilterType('')
+    setFilterSubject('')
+  }
 
   return (
     <div className="lib-page">
@@ -810,48 +1336,56 @@ export default function LibraryPage({ teacher }) {
             </p>
           </div>
           {canUpload && (
-            <button className="lib-btn-primary lib-btn-upload" onClick={() => setShowUpload(true)}>
+            <button className="lib-btn-primary lib-btn-upload"
+              onClick={() => setShowUpload(true)}>
               + Subir documento
             </button>
           )}
         </div>
 
-        {/* Tabs */}
         <div className="lib-tabs">
-          <button
-            className={`lib-tab ${tab === 'school' ? 'active' : ''}`}
-            onClick={() => { setTab('school'); setSearch(''); setFilterType(''); setFilterSubject('') }}>
+          <button className={`lib-tab ${tab === 'school' ? 'active' : ''}`}
+            onClick={() => switchTab('school')}>
             🏫 Institucional
           </button>
-          <button
-            className={`lib-tab ${tab === 'personal' ? 'active' : ''}`}
-            onClick={() => { setTab('personal'); setSearch(''); setFilterType(''); setFilterSubject('') }}>
+          <button className={`lib-tab ${tab === 'personal' ? 'active' : ''}`}
+            onClick={() => switchTab('personal')}>
             👤 Mi Biblioteca
           </button>
+          {isAdmin && (
+            <button className={`lib-tab lib-tab-oversight ${tab === 'oversight' ? 'active' : ''}`}
+              onClick={() => switchTab('oversight')}>
+              👁 Supervisión
+            </button>
+          )}
         </div>
       </div>
 
-      {/* ── QUOTA METER (personal only) ── */}
+      {/* ── QUOTA (personal only) ── */}
       {tab === 'personal' && (
         <QuotaMeter usedBytes={usedBytes} quotaGB={quotaGB} />
       )}
 
-      {/* ── INSTITUTIONAL INFO (school, non-admin) ── */}
+      {/* ── INFO BANNERS ── */}
       {tab === 'school' && !isAdmin && (
         <div className="lib-inst-info">
           📋 Los documentos institucionales son gestionados por el Coordinador o Rector.
           Cualquier docente puede consultarlos y usarlos en sus guías.
         </div>
       )}
+      {tab === 'oversight' && (
+        <div className="lib-inst-info lib-oversight-info">
+          👁 Supervisión institucional — documentos personales de todos los docentes del colegio.
+          Esta vista es exclusiva para Coordinadores y Rectores. Los docentes no saben que sus documentos son visibles aquí.
+        </div>
+      )}
 
       {/* ── TOOLBAR ── */}
       <div className="lib-toolbar">
-        <input
-          className="lib-search"
+        <input className="lib-search"
           placeholder="🔍 Buscar por título, descripción o autor…"
           value={search}
-          onChange={e => setSearch(e.target.value)}
-        />
+          onChange={e => setSearch(e.target.value)} />
         <select className="lib-select" value={filterType}
           onChange={e => setFilterType(e.target.value)}>
           <option value="">Todos los tipos</option>
@@ -889,18 +1423,23 @@ export default function LibraryPage({ teacher }) {
           Cargando documentos…
         </div>
       ) : filtered.length === 0 && docs.length === 0 ? (
-        /* Empty state */
         <div className="lib-empty">
-          <div className="lib-empty-icon">{tab === 'school' ? '🏫' : '👤'}</div>
+          <div className="lib-empty-icon">
+            {tab === 'school' ? '🏫' : tab === 'oversight' ? '👁' : '👤'}
+          </div>
           <h3 className="lib-empty-title">
             {tab === 'school'
               ? 'Biblioteca institucional vacía'
-              : 'Tu biblioteca personal está vacía'}
+              : tab === 'oversight'
+                ? 'Ningún docente ha subido documentos personales'
+                : 'Tu biblioteca personal está vacía'}
           </h3>
           <p className="lib-empty-desc">
             {tab === 'school'
-              ? 'El Coordinador o Rector puede subir libros de texto, investigaciones y material institucional que todos los docentes podrán consultar.'
-              : 'Sube tus documentos personales: investigaciones, tesis, recursos propios, grabaciones. Solo tú los verás.'}
+              ? 'El Coordinador o Rector puede subir libros de texto, investigaciones y material que todos los docentes podrán consultar.'
+              : tab === 'oversight'
+                ? 'Los docentes podrán subir sus materiales — investigaciones, tesis, recursos y grabaciones propias.'
+                : 'Sube tus documentos personales: investigaciones, tesis, recursos propios, grabaciones. Solo tú los verás.'}
           </p>
           {canUpload && (
             <button className="lib-btn-primary" onClick={() => setShowUpload(true)}>
@@ -909,12 +1448,9 @@ export default function LibraryPage({ teacher }) {
           )}
         </div>
       ) : filtered.length === 0 ? (
-        /* No results after filter */
         <div className="lib-empty">
           <div className="lib-empty-icon">🔍</div>
-          <p className="lib-empty-desc">
-            No se encontraron documentos con esos filtros.
-          </p>
+          <p className="lib-empty-desc">No se encontraron documentos con esos filtros.</p>
           <button className="lib-btn-ghost" onClick={() => {
             setSearch(''); setFilterType(''); setFilterSubject('')
           }}>Limpiar filtros</button>
@@ -927,23 +1463,56 @@ export default function LibraryPage({ teacher }) {
               doc={doc}
               onView={setViewingDoc}
               onDelete={setConfirmDel}
+              onEdit={setEditingDoc}
+              onShare={setSharingDoc}
+              onHistory={setHistoryDoc}
               canDelete={canDeleteDoc(doc)}
+              canEditDoc={canEditDoc(doc)}
+              canShare={canShareDoc(doc)}
+              ownerName={tab === 'oversight' ? teachersMap[doc.teacher_id] : null}
             />
           ))}
         </div>
       )}
 
-      {/* ── MODALS ── */}
+      {/* ── MODALS & DRAWER ── */}
       {viewingDoc && (
         <DocumentViewer doc={viewingDoc} onClose={() => setViewingDoc(null)} />
       )}
 
       {showUpload && (
         <UploadModal
-          visibility={tab}
+          visibility={tab === 'oversight' ? 'personal' : tab}
           teacher={teacher}
           onClose={() => setShowUpload(false)}
           onUploaded={handleUploaded}
+        />
+      )}
+
+      {editingDoc && (
+        <EditModal
+          doc={editingDoc}
+          teacher={teacher}
+          onClose={() => setEditingDoc(null)}
+          onSaved={handleDocSaved}
+        />
+      )}
+
+      {sharingDoc && (
+        <ShareModal
+          doc={sharingDoc}
+          teacher={teacher}
+          teachersMap={teachersMap}
+          onClose={() => setSharingDoc(null)}
+        />
+      )}
+
+      {historyDoc && (
+        <HistoryDrawer
+          doc={historyDoc}
+          teachersMap={teachersMap}
+          onClose={() => setHistoryDoc(null)}
+          onRollback={fetchDocs}
         />
       )}
 
