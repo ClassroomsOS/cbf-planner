@@ -785,6 +785,7 @@ const STATUS_META = {
   complete: { label: 'Completo',  color: '#16a34a', bg: '#f0fdf4', bar: '#16a34a' },
   active:   { label: 'En curso',  color: '#2563eb', bg: '#eff6ff', bar: '#3b82f6' },
   pending:  { label: 'Pendiente', color: '#94a3b8', bg: '#f8fafc', bar: '#cbd5e1' },
+  designed: { label: 'Diseñado', color: '#7c3aed', bg: '#f5f3ff', bar: '#8b5cf6' },
 }
 
 const PRIORITY_META = {
