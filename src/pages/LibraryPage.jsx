@@ -1101,6 +1101,29 @@ function DocumentViewer({ doc, teacher, onClose }) {
   const canFragment = (cat === 'pdf' || cat === 'image') && !!teacher
   const canAnalyzePages = cat === 'pdf' && !!teacher
   const canLinkSyllabus = cat === 'pdf' && !!teacher
+  const isImage = cat === 'image'
+
+  async function handleDownloadJpeg() {
+    try {
+      const img = new window.Image()
+      img.crossOrigin = 'anonymous'
+      img.src = doc.file_url
+      await new Promise((res, rej) => { img.onload = res; img.onerror = rej })
+      const canvas = document.createElement('canvas')
+      canvas.width  = img.naturalWidth
+      canvas.height = img.naturalHeight
+      canvas.getContext('2d').drawImage(img, 0, 0)
+      canvas.toBlob(blob => {
+        const a = document.createElement('a')
+        a.href = URL.createObjectURL(blob)
+        a.download = (doc.file_name || doc.title || 'imagen').replace(/\.\w+$/, '') + '.jpg'
+        a.click()
+        URL.revokeObjectURL(a.href)
+      }, 'image/jpeg', 0.85)
+    } catch {
+      showToast('No se pudo convertir la imagen', 'error')
+    }
+  }
 
   function handleFragmentCapture(data) {
     if (!data) { setFragmentMode(false); return }
@@ -1170,6 +1193,15 @@ function DocumentViewer({ doc, teacher, onClose }) {
                 ✂️ {fragmentMode ? 'Cancelar' : 'Fragmento'}
               </button>
             )}
+            {isImage && doc.file_url && (
+              <button
+                type="button"
+                className="lib-viewer-dl lib-viewer-dl--jpeg"
+                onClick={handleDownloadJpeg}
+                title="Descargar como JPEG — compatible con Word y todas las apps">
+                ⬇ JPEG
+              </button>
+            )}
             {(doc.file_url || doc.external_url) && (
               <a
                 href={doc.file_url || doc.external_url}
@@ -1177,8 +1209,9 @@ function DocumentViewer({ doc, teacher, onClose }) {
                 target="_blank"
                 rel="noreferrer"
                 className="lib-viewer-dl"
-                onClick={e => e.stopPropagation()}>
-                ⬇ Descargar
+                onClick={e => e.stopPropagation()}
+                title="Descargar archivo original">
+                ⬇ Original
               </a>
             )}
             <button className="lib-viewer-close" onClick={onClose}>✕</button>
@@ -1474,21 +1507,44 @@ function UploadModal({ visibility, teacher, onClose, onUploaded }) {
     setStep('uploading')
     setProgress(10)
 
-    let file_url  = null
-    let file_path = null
+    let file_url   = null
+    let file_path  = null
+    let uploadFile = file  // may be replaced by WebP-converted version
 
     if (file) {
+      // ── Convert images to WebP for optimal storage & display ──
+      uploadFile = file
+      let uploadMime = file.type
+      let uploadExt  = file.name.split('.').pop().toLowerCase()
+      const isConvertible = file.type.startsWith('image/') && file.type !== 'image/webp'
+      if (isConvertible) {
+        try {
+          const bmp = await createImageBitmap(file)
+          const canvas = document.createElement('canvas')
+          canvas.width  = bmp.width
+          canvas.height = bmp.height
+          canvas.getContext('2d').drawImage(bmp, 0, 0)
+          bmp.close()
+          const webpBlob = await new Promise(res => canvas.toBlob(res, 'image/webp', 0.85))
+          uploadFile = new File([webpBlob], file.name.replace(/\.\w+$/, '.webp'), { type: 'image/webp' })
+          uploadMime = 'image/webp'
+          uploadExt  = 'webp'
+        } catch {
+          // conversion failed — upload original silently
+        }
+      }
+
       const docId   = crypto.randomUUID()
       const pathDir = visibility === 'school'
         ? `${teacher.school_id}/inst/${docId}`
         : `${teacher.school_id}/personal/${teacher.id}/${docId}`
-      const path = `${pathDir}/${file.name}`
+      const path = `${pathDir}/${uploadFile.name}`
 
       setProgress(30)
 
       const { error: upErr } = await supabase.storage
         .from('cbf-library')
-        .upload(path, file, { contentType: file.type, upsert: false })
+        .upload(path, uploadFile, { contentType: uploadMime, upsert: false })
 
       if (upErr) {
         showToast(`Error al subir: ${upErr.message}`, 'error')
@@ -1519,9 +1575,9 @@ function UploadModal({ visibility, teacher, onClose, onUploaded }) {
       visibility,
       file_url,
       file_path,
-      file_name:    file?.name    || null,
-      file_size:    file?.size    || null,
-      file_mime:    file?.type    || null,
+      file_name:    uploadFile?.name || null,
+      file_size:    uploadFile?.size || null,
+      file_mime:    uploadFile?.type || null,
       external_url: form.external_url.trim() || null,
       metadata: {
         author:    form.author.trim()    || null,

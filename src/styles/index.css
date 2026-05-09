@@ -5707,6 +5707,8 @@ input:not(:placeholder-shown):not(:focus):not([type=password]):valid {
   cursor: pointer; transition: background .15s;
 }
 .lib-viewer-dl:hover { background: rgba(255,255,255,.3); }
+.lib-viewer-dl--jpeg { background: rgba(245,158,11,.25); border-color: rgba(245,158,11,.5); }
+.lib-viewer-dl--jpeg:hover { background: rgba(245,158,11,.4); }
 .lib-viewer-close {
   width: 28px; height: 28px; border-radius: 50%; border: none;
   background: rgba(255,255,255,.2); color: #fff; font-size: 13px;

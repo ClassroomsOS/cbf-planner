@@ -589,11 +589,25 @@ async function fetchImageData(url) {
   try {
     const res  = await fetch(url)
     if (!res.ok) return null
+    const lower = url.toLowerCase().split('?')[0]
+    const isWebP = lower.endsWith('.webp') || (res.headers.get('content-type') || '').includes('webp')
+
+    if (isWebP) {
+      // Convert WebP → JPEG via canvas (docx doesn't support WebP natively)
+      const blob = await res.blob()
+      const bmp  = await createImageBitmap(blob)
+      const canvas = document.createElement('canvas')
+      canvas.width  = bmp.width
+      canvas.height = bmp.height
+      canvas.getContext('2d').drawImage(bmp, 0, 0)
+      bmp.close()
+      const jpegBlob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.85))
+      const buf = await jpegBlob.arrayBuffer()
+      return { data: buf, type: 'jpg' }
+    }
+
     const buf  = await res.arrayBuffer()
-    const lower = url.toLowerCase().split('?')[0]  // strip query params before checking ext
-    const type = lower.endsWith('.png') ? 'png'
-      : lower.endsWith('.webp') ? 'png'  // docx doesn't support webp — re-declare as png; Word renders it
-      : 'jpg'
+    const type = lower.endsWith('.png') ? 'png' : 'jpg'
     return { data: buf, type }
   } catch { return null }
 }
