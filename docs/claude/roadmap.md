@@ -1,7 +1,7 @@
 # Roadmap y Estado del Proyecto
 
 > Extraído de `CLAUDE.md` + auditoría `docs/auditoria/2026-04-04-auditoria-sistema.md`
-> Última actualización: 2026-05-01
+> Última actualización: 2026-05-09
 
 ---
 
@@ -35,10 +35,15 @@
 | **Módulo de Evaluación — Backend** | ✅ Completo | 10 tablas, triggers, cola AI, corrección Claude, escala colombiana. Probado E2E. |
 | **Módulo de Evaluación — Frontend** | ✅ Completo | ~~Pantalla creación~~ ✅ · ~~N versiones anti-copia~~ ✅ · ~~Print CBF-G AC-01~~ ✅ · ~~ExamPlayerV2 email-auth~~ ✅ · ~~Antitrampa 5 capas~~ ✅ · ~~Generar instancias por roster~~ ✅ · ~~Preview+edición preguntas por versión~~ ✅ · ~~Dashboard resultados~~ ✅ · ~~Monitor en vivo~~ ✅ · ~~Revisión humana~~ ✅ |
 | **Roster de Estudiantes** | ✅ Completo | school_students · StudentsPage · exam-instance-generator auto-query · email auth en /eval · displayName apellido-nombre · CSV robusto · import row-by-row · ordenamiento columna · eliminación por lotes |
-| **CBF Observability Layer** | ✅ Completo | 16 códigos error `CBF-[MOD]-[TYPE]-[NNN]`, cbf-logger, alertas Telegram, health snapshots |
+| **CBF Observability Layer** | 🔶 Infraestructura ✅ · Adopción ❌ | Tablas + cbf-logger + alert_rules ✅ · Solo 3/46 páginas usan logger · cbf-logger nunca llamado desde frontend · **Pendiente: instrumentar todos los módulos + QA Dashboard** |
 | **CBF Quality Standard** | ✅ Completo | Definition of Done, clasificación bugs, estándares performance y disponibilidad |
 | **Quiz vs Examen Final** | ✅ Completo | EXAM_PRESETS (quiz/final_lower/final_upper) · ExamCreatorPage wizard · prompt IA diferenciado · metadata exam_type · badge en dashboard · 23 tests |
 | **Módulo Logros — Rediseño** | ✅ Completo | ObjectivesPage → AchievementsPage · ruta /achievements · header gradiente · stat cards · agrupación por materia+grado · GoalCard borde coloreado · 3 columnas por dimensión · WeightBar · CompletenessChecklist · CascadePanel · modales mejorados · empty state con diagrama |
+| **Biblioteca CBF — Fase 1** | ✅ Completo | `school_library` tabla + RLS dual + Storage bucket `cbf-library` · `LibraryPage` tabs Institucional/Personal · upload (PDF/imagen/video/audio/MIDI) · visor universal · quota meter · delete confirm |
+| **Biblioteca CBF — Fase 1.5** | ✅ Completo | `library_shares` (compartir con can_edit) · `library_edit_log` (triggers auto) · RPC `library_rollback` (SECURITY DEFINER) · Tab Supervisión admin · `EditModal` · `ShareModal` · `HistoryDrawer` con rollback |
+| **Biblioteca CBF — Fase 2** | ✅ Completo | PDF.js 5 página a página · WaveSurfer.js 7 waveform · OpenSeadragon 6 deep zoom · Lazy loading via dynamic import (bundle inicial no crece) |
+| **Biblioteca CBF — Fase 3** | ⬜ Pendiente | Syllabus integration: selección de páginas PDF, asignación a semana/día, páginas auto-aparecen en GuideEditorPage |
+| **Biblioteca CBF — Fase 4** | ⬜ Pendiente | IA multimodal: `analyzeTextbookPages()` en AIAssistant.js — Claude lee páginas seleccionadas y sugiere SmartBlocks basados en contenido real del libro |
 
 ---
 
@@ -58,7 +63,47 @@
 
 ## Próximas tareas — orden de prioridad
 
-### 🔴 Alta prioridad
+### 🔴 Alta prioridad — Próximo sprint (2026-05-09)
+
+**Observabilidad al 100% + QA Dashboard**
+
+**Problema:** La infraestructura (`cbf-logger`, `logError`, `logActivity`, `safeAsync`) existe y funciona, pero solo 3 de 46 páginas la usan. El 94% de los errores del sistema son silenciosos.
+
+**Plan de ejecución:**
+
+*Paso 1 — Instrumentar módulos críticos* (todos los módulos con escrituras Supabase):
+- `LibraryPage.jsx` — uploads, shares, rollback, edits (0 logs actualmente)
+- `AdminTeachersPage.jsx` — crear/editar/eliminar docentes
+- `StudentsPage.jsx` — importar CSV, crear, eliminar
+- `NewsPage.jsx` + `NewsProjectEditor.jsx` — CRUD proyectos
+- `PlannerPage.jsx` — creación de guías
+- `AchievementsPage.jsx` — logros e indicadores
+- `ReviewRoomPage.jsx` — aprobar/devolver/publicar guías
+- `ExamCreatorPage.jsx` + `ExamDashboardPage.jsx` + `ExamRevisionPage.jsx`
+- `PsicosocialPage.jsx` — perfiles y observaciones
+- Resto de páginas con mutaciones Supabase
+
+*Paso 2 — Instrumentar Edge Functions con cbf-logger:*
+- `claude-proxy` (IA) — latencia, tokens, errores de rate limit
+- `admin-create-teacher` — creación exitosa / rollback
+- `exam-ai-corrector` — ya usa console.log, migrar a cbf-logger
+
+*Paso 3 — QA Dashboard* (ruta `/qa` o tab en SuperAdminPage):
+- Vista `system_events` ordenada por severity + fecha
+- Vista `error_log` + `activity_log` por módulo
+- Vista `system_alerts` (open/resolved) con acción "resolver"
+- Vista `ai_usage` — tokens consumidos por docente y total
+- Vista `library_edit_log` — actividad en Biblioteca
+- Protocolos de operación por módulo (estado esperado, umbrales de alerta)
+- Filtros: fecha, severity, módulo, usuario
+
+*Paso 4 — Alert rules en prod* para los módulos nuevos instrumentados
+
+**Cobertura objetivo:** logError/safeAsync en 100% de las operaciones Supabase · activity_log en creación/edición/eliminación de entidades principales.
+
+---
+
+### 🔴 Alta prioridad — Pendiente histórico
 
 **Módulo de Evaluación — Frontend** (Fase 6)
 El backend está completo y probado. El frontend avanza.

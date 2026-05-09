@@ -166,10 +166,26 @@ schedule_slots        — franjas horario institucional por nivel
 school_calendar       — is_school_day · affects_planning
 news_legacy           — LEGACY — no borrar
 school_library        — Biblioteca CBF: doc_type · subjects[] · grades[] · visibility('school'|'personal')
-                        RLS dual: institucional (admin gestiona, todos leen) / personal (solo dueño)
-                        Storage bucket: cbf-library (público, 1 GB/archivo max)
+                        RLS: library_personal_owner · library_school_read · library_admin_manage
+                             library_admin_oversight (admin ve TODOS los docs personales del colegio)
+                             library_shared_read · library_shared_update (recipients via shares)
+                        Storage bucket: cbf-library (público) · paths:
+                          inst:      {school_id}/inst/{doc_id}/{filename}
+                          personal:  {school_id}/personal/{teacher_id}/{doc_id}/{filename}
                         Cuota personal: schools.features.library_quota_gb (default 2 GB)
+                        Visores: PDF.js 5 (página a página) · WaveSurfer 7 (waveform) · OpenSeadragon 6 (deep zoom)
+                        Carga lazy: pdfjs-dist · wavesurfer.js · openseadragon (dynamic import, no afecta bundle inicial)
+library_shares        — doc_id FK · shared_by FK · shared_with FK · can_edit bool · UNIQUE(doc_id,shared_with)
+                        RLS: shares_owner_manage · shares_admin_manage · shares_recipient_read
+library_edit_log      — doc_id FK · editor_id FK · action CHECK('created','updated','restored','shared','file_replaced')
+                        old_snapshot jsonb · new_snapshot jsonb · change_summary text
+                        RLS: log_visible_to_doc_readers · log_insert_trigger_only
+                        Triggers: fn_log_library_create (INSERT) · fn_log_library_edit (UPDATE, skip si app.library_skip_log='true')
+                        RPC: library_rollback(p_log_id uuid) SECURITY DEFINER — restaura old_snapshot, registra 'restored'
 error_log · activity_log · ai_usage · cbf_error_log · health_snapshots
+system_events         — cbf-logger Edge Fn · error_code · module · severity · payload_in/out · duration_ms
+alert_rules           — umbral-based alerting (threshold_count · threshold_minutes · notify_telegram)
+system_alerts         — alertas generadas · status(open/resolved) · telegram_sent
 
 — DEPRECATED (no crear registros nuevos) —
 assessments · questions · assessment_versions · student_exam_sessions · student_submissions
@@ -280,6 +296,7 @@ Helpers → `src/utils/roles.js`: `canManage · isSuperAdmin · isRector · canA
 /students      StudentsPage             /exams         ExamDashboardPage
 /exams/review  ExamReviewPage           /psicosocial   PsicosocialPage
 /coverage      PeriodCoverageDashboard  /observations  ObservationLoggerPage
+/biblioteca    LibraryPage
 
 // ROLES ESPECIALES
 /agenda        AgendaPage    /director  DirectorPage

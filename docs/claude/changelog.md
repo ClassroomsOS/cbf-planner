@@ -226,12 +226,90 @@
 
 ---
 
-## Próxima sesión — pendientes conocidos
+## Próxima sesión — pendientes conocidos (actualizado 2026-05-09)
 
 Ver `docs/claude/roadmap.md` para el estado completo. Items de alta prioridad:
 
+- **Observabilidad al 100%** — instrumentar los 43 módulos restantes + QA Dashboard (SuperAdmin o nueva ruta /qa)
 - **Google OAuth** — configurar en Supabase Dashboard + validar dominio post-OAuth en `App.jsx`
+- **Biblioteca Fase 3** — integración con Syllabus: selección de páginas PDF → asignación a semana/día → aparecen en GuideEditorPage
+- **Biblioteca Fase 4** — IA multimodal: `analyzeTextbookPages()` en AIAssistant.js
 - **Email al representante** — nota final al completar corrección IA
-- **ExamPlayerV2** — UI de puntos extra (scoring base vs. extra points separado)
 - **Sprint 6 PASO 3** — Export Legacy DOCX (`exportLegacyGuide.js` + botón en `GuideEditorPage`)
-- **Sprint 6 PASO 4** — Verificar `validateUnitWeekRule` en `SyllabusPage`
+
+---
+
+## [2026-05-09] Sesiones O·P — Biblioteca CBF completa (Fases 1, 1.5, 2)
+
+**Archivos clave modificados:**
+- `supabase/migrations/20260508000001_school_library.sql` (nuevo)
+- `supabase/migrations/20260508000002_library_sharing_history.sql` (nuevo)
+- `src/pages/LibraryPage.jsx` (nuevo — ~980 líneas)
+- `src/styles/index.css` (+580 líneas aprox)
+- `CLAUDE.md` (actualizado: DB section + rutas)
+
+**Commits:**
+- `22e14b7` — QA: historial en Supabase + notificaciones de fallos (sesión anterior)
+- `d7efcad` — Biblioteca Fase 1+1.5: oversight + compartir + historial con rollback
+- `2ae9e4a` — Biblioteca Fase 2: PDF.js, WaveSurfer, OpenSeadragon
+
+---
+
+### Fase 1 — Base de datos y visor universal
+
+**Qué se hizo:**
+- Tabla `school_library`: `doc_type` CHECK (9 tipos) · `subjects[]` · `grades[]` · `visibility` ('school'|'personal') · `file_url/path/name/size/mime` · `page_count` · `external_url` · `metadata` JSONB · `ai_summary`
+- Índices: GIN sobre `subjects[]` · compuestos por `school_id+visibility` · por `teacher_id` · por `doc_type`
+- RLS: 3 políticas base — `library_personal_owner` (CRUD dueño) · `library_school_read` (SELECT todos del colegio) · `library_admin_manage` (CRUD admin/rector/superadmin)
+- Storage bucket `cbf-library` público · paths `{school_id}/inst/{doc_id}/` e `{school_id}/personal/{teacher_id}/{doc_id}/`
+- Cuota personal: `schools.features.library_quota_gb` (default 2 GB) — tracked sumando `file_size` en DB, no en Storage
+- `LibraryPage.jsx` con tabs Institucional / Mi Biblioteca · upload de PDF/imagen/video/audio/MIDI · viewer universal · quota meter · delete con confirm modal
+- `getMimeCategory()` → 'pdf'|'image'|'video'|'midi'|'audio'|'other' — controla visor y límites de tamaño
+- Límites por categoría: PDF 200MB · Imagen 100MB · Video 1GB · Audio 200MB · MIDI 10MB
+
+**Decisión clave:** La cuota se controla sumando `file_size` desde la DB, no consultando el Storage API — más confiable y más rápido.
+
+---
+
+### Fase 1.5 — Supervisión, compartir y historial
+
+**Qué se hizo:**
+- **`library_admin_oversight` policy**: admin/rector/superadmin puede SELECT cualquier doc personal de su colegio sin ver los de otros colegios. Política separada — no modifica las existentes.
+- **`library_shares`**: Many-to-many doc↔docente con `can_edit` bool y `UNIQUE(doc_id, shared_with)`. RLS: dueño gestiona sus shares · admin gestiona shares del colegio · recipient lee los suyos.
+- **Políticas en `school_library` vía shares**: `library_shared_read` (SELECT si eres recipient) · `library_shared_update` (UPDATE si `can_edit=true`).
+- **`library_edit_log`**: Trigger `fn_log_library_create` (AFTER INSERT) + `fn_log_library_edit` (AFTER UPDATE). `action` CHECK ('created','updated','restored','shared','file_replaced'). Guarda `old_snapshot` + `new_snapshot` como JSONB completo.
+- **Skip-log flag**: `SET LOCAL app.library_skip_log = 'true'` antes del UPDATE en el RPC de rollback para evitar que el trigger genere un log 'updated' duplicado además del 'restored'.
+- **RPC `library_rollback(p_log_id uuid)` SECURITY DEFINER**: verifica caller (dueño o admin), restaura campos editables desde `old_snapshot`, registra entrada 'restored' en el log.
+- **UI nueva**: Tab "👁 Supervisión" (solo admin) · `EditModal` (form pre-llenado, archivo opcional, UPDATE en DB) · `ShareModal` (add/toggle/revoke shares, lista teachersMap) · `HistoryDrawer` (panel lateral, timeline, botón rollback con confirmación inline).
+
+**Decisión clave:** `fn_log_library_edit` usa `current_setting('app.library_skip_log', TRUE)` con el segundo argumento `TRUE` (missing_ok) para no lanzar error si el setting no existe. Sin `TRUE`, lanza `unrecognized configuration parameter` en el contexto de INSERT donde la variable de sesión no fue seteada.
+
+---
+
+### Fase 2 — Visores avanzados
+
+**Qué se hizo:**
+- **`PDFViewerCanvas`**: PDF.js 5.7.284 · worker via CDN `cdn.jsdelivr.net` (evita conflictos Vite con `?url` en dynamic imports) · renderizado en `<canvas>` · navegación página a página · zoom −/+ (0.5×–4×) · indicador de rendering por página · cancelación de renders pendientes via `task.cancel()`.
+- **`WaveformPlayer`**: WaveSurfer.js 7.12.6 · API actualizada (evento `timeupdate` en lugar de `audioprocess`; `ready` recibe `duration` como argumento) · waveform con barras redondeadas · play/pause · tiempo actual/total · control de volumen.
+- **`DeepZoomImage`**: OpenSeadragon 6.0.2 · zoom por scroll/pinch/drag · `defaultZoomLevel:0` = ajustar al contenedor · botones +/−/↺ flotantes · hint de controles en overlay.
+- **Lazy loading**: los tres paquetes se cargan via `dynamic import()` dentro de `useEffect` — Vite los split en chunks separados: `pdf-*.js` (136KB gzip) · `openseadragon-*.js` (86KB gzip) · `wavesurfer.esm-*.js` (12KB gzip). El bundle inicial no aumentó.
+
+**Bugs potenciales a monitorear:**
+- PDF.js worker CDN: si `cdn.jsdelivr.net` cae, los PDFs no cargan. Alternativa futura: usar `?url` import con configuración explícita de Vite.
+- WaveSurfer `timeupdate` vs `audioprocess`: en v6 era `audioprocess`, en v7 es `timeupdate`. Si se hace downgrade, hay que revistar.
+- OpenSeadragon en Safari iOS: el gesto pinch-to-zoom puede competir con el scroll del modal — a verificar en dispositivos reales.
+
+**Pendiente Fase 3:**
+- Integración con Syllabus: al abrir un PDF en LibraryPage, poder seleccionar páginas individuales, asignarlas a una semana/día del plan de estudios, y que aparezcan automáticamente en GuideEditorPage como imágenes de la sección `activity` o `skill`.
+- `page_selections` tabla nueva: `doc_id FK · page_number · week_key · day_key · section · teacher_id`
+
+**Pendiente Fase 4:**
+- `analyzeTextbookPages(pageUrls[], context)` en `AIAssistant.js` — Claude Sonnet multimodal lee las páginas seleccionadas y sugiere SmartBlocks con actividades basadas en el contenido real del libro.
+- Bucket `guide-images/textbook/{school_id}/{news_id}/page_{n}.webp` para imágenes de páginas.
+
+**Errores pendientes de instrumentar (Biblioteca no tiene logger):**
+- Upload errors (Storage + DB) → silenciosos actualmente
+- Share errors → no quedan registrados
+- Rollback failures → solo showToast, sin log
+- Edit save errors → solo showToast, sin log
+- PDF/audio/image load failures → solo estado local, sin log
