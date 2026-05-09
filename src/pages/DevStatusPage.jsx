@@ -404,6 +404,36 @@ const MODULES = [
     ],
     history: [],
   },
+  {
+    id: 'teacher_instrument',
+    name: 'Instrumento Docente de Sesión',
+    icon: '🎙️',
+    category: 'future',
+    progress: 12,
+    status: 'designed',
+    summary: 'Guión de sesión generado por IA para el docente — complemento operativo de la Guía CBF-G AC-01. El instrumento lee la guía y la convierte en micro-experiencias por fase con opciones A/B/C según el estado del grupo y el IMS (Índice de Madurez de Sesión).',
+    works: [
+      'Diseño pedagógico completo — docs: theoric mark/instrumento-docente-sesion.md',
+      'Prototipo UI funcional — theoric mark/teacher-instrument.jsx',
+      'IMS definido: 4 niveles × 3 dimensiones (cognitivo/autónomo/social) por semanas del período',
+      '5 estados de grupo: Presentes · Dispersos · Caídos · Eléctricos · Ansiosos',
+      'Estructura de tiempo con límites duros: Pre-desarrollo ≤17 min · Durante ≤20 min · Cierre ≤10 min',
+      'ANCHOR (pregunta que sostiene la sesión) + PREACHER CLOSE definidos',
+      'Versículo del indicador como hilo estructural en todos los momentos',
+      'Ruta mínima: sesión completa en 15 min',
+    ],
+    pending: [
+      'DB: tabla teacher_instruments (plan_id FK, group_state, ims_index, generated_json, created_at)',
+      'IA: generateTeacherInstrument() en guideAI.js (~2500 tokens, retorna JSON de fases)',
+      'UI: InstrumentViewer.jsx — renderiza fases + opciones A/B/C',
+      'UI: GroupStateSelector.jsx — 5 estados con descripción visual',
+      'UI: IMSSelector.jsx — semana del período → nivel IMS automático',
+      'Ruta: /instrument/:planId o panel dentro de GuideEditorPage',
+    ],
+    history: [
+      { date: '2026-05-09', reason: 'Diseño completo en sesión Chat', detail: 'IMS, estados de grupo, ANCHOR, PREACHER CLOSE, estructura de tiempo, 3 opciones por fase. Prototipo UI en theoric mark/. Pendiente implementación.' },
+    ],
+  },
 ]
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -510,6 +540,18 @@ const ROADMAP_ITEMS = [
     status: 'pending',
   },
   // ── Baja prioridad / Arquitectura ───────────────────────────────────────
+  {
+    id: 'teacher_instrument_impl',
+    priority: 'low',
+    title: 'Instrumento Docente de Sesión — implementación',
+    module: 'planner',
+    why: 'El docente tiene la Guía CBF-G AC-01 pero no tiene un guión operativo para conducir la clase. El instrumento convierte la guía en micro-decisiones de aula según el estado real del grupo.',
+    impact: 'Cierra el ciclo Diseño → Ejecución. El docente entra al aula con un plan de 15-47 min estructurado por fases, ajustable en tiempo real según el grupo (Disperso, Caído, Eléctrico...).',
+    how: 'Tabla teacher_instruments (plan_id FK). generateTeacherInstrument() en guideAI.js. InstrumentViewer, GroupStateSelector, IMSSelector. Ruta /instrument/:planId o panel en GuideEditorPage. Prototipo en theoric mark/.',
+    complexity: 'medium',
+    tables: ['teacher_instruments', 'lesson_plans'],
+    status: 'designed',
+  },
   {
     id: 'refactoring',
     priority: 'low',
