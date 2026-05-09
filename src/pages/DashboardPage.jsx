@@ -26,6 +26,7 @@ import StudentsPage             from './StudentsPage'
 import PsicosocialPage          from './PsicosocialPage'
 import SubjectManagerPage       from './SubjectManagerPage'
 import GuideLibraryPage         from './GuideLibraryPage'
+import LibraryPage              from './LibraryPage'
 import PeriodCoverageDashboard  from './PeriodCoverageDashboard'
 import ObservationLoggerPage    from './ObservationLoggerPage'
 import PrinciplesPage      from './PrinciplesPage'
@@ -264,6 +265,10 @@ function DashboardInner({ session, teacher, setTeacher }) {
             <span className="dot" style={{ background: '#8064A2' }} />
             📚 Syllabus
           </NavLink>
+          <NavLink to="/biblioteca" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
+            <span className="dot" style={{ background: '#2E5598' }} />
+            📖 Biblioteca CBF
+          </NavLink>
           <NavLink to="/news" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
             <span className="dot" style={{ background: '#C0504D' }} />
             📋 NEWS Projects
@@ -498,6 +503,7 @@ function DashboardInner({ session, teacher, setTeacher }) {
           <Route path="/news"        element={<NewsPage             teacher={teacher} />} />
           <Route path="/achievements"  element={<AchievementsPage     teacher={teacher} />} />
           <Route path="/syllabus"    element={<SyllabusPage        teacher={teacher} />} />
+          <Route path="/biblioteca"  element={<LibraryPage         teacher={teacher} />} />
           <Route path="/principles"  element={<PrinciplesPage       teacher={teacher} />} />
           <Route path="/ai-usage"    element={<AIUsagePage          teacher={teacher} />} />
           <Route path="/library"     element={<GuideLibraryPage        teacher={teacher} />} />
