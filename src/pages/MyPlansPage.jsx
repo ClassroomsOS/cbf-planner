@@ -19,6 +19,18 @@ export default function MyPlansPage({ teacher }) {
 
   useEffect(() => { fetchPlans() }, [teacher.id])
 
+  // ── Realtime — refleja cambios de status sin refrescar ────────────────────
+  useEffect(() => {
+    const channel = supabase
+      .channel('my-plans-status')
+      .on('postgres_changes', {
+        event: 'UPDATE', schema: 'public', table: 'lesson_plans',
+        filter: `teacher_id=eq.${teacher.id}`,
+      }, () => { fetchPlans() })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [teacher.id])
+
   useEffect(() => {
     supabase
       .from('teacher_assignments')

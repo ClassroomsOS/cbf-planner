@@ -423,6 +423,16 @@ export default function ReviewRoomPage({ teacher }) {
 
   useEffect(() => { load() }, [load])
 
+  // ── Realtime — actualización automática al cambiar lesson_plans ───────────
+  useEffect(() => {
+    const channel = supabase
+      .channel('review-room-plans')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'lesson_plans' },
+        () => { load() })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [load])
+
   // ── Status change ─────────────────────────────────────────────────────────
   async function handleChangeStatus(plan, newStatus) {
     setChangingId(plan.id)
