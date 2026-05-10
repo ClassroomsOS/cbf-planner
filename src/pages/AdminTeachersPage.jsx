@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../supabase'
 import { useToast } from '../context/ToastContext'
 import { teacherStatusUpdateSchema, teacherRoleUpdateSchema } from '../utils/validationSchemas'
@@ -650,6 +650,57 @@ function AssignmentModal({ teacher, admin, school, allAssignments, allTeachers, 
 
   const hasDirty = myAssignments.some(a => a._dirty)
 
+  // ── Occupancy map: (dayKey, periodId) → list of all occupants across the school ──
+  // Built from allAssignments + live edits in myAssignments
+  const occupancyMap = useMemo(() => {
+    const map = {}
+    DAYS.forEach(d => {
+      map[d.key] = {}
+      PERIODS.forEach(p => { map[d.key][p.id] = [] })
+    })
+    // Merge: use myAssignments (live edits) for this teacher, allAssignments for others
+    const others = allAssignments.filter(a => a.teacher_id !== teacher.id)
+    const merged = [...others, ...myAssignments]
+    merged.forEach(a => {
+      const tName = a.teacher_id === teacher.id
+        ? teacher.full_name
+        : (allTeachers.find(t => t.id === a.teacher_id)?.full_name || 'Otro docente')
+      DAYS.forEach(d => {
+        ;(a.schedule?.[d.key] || []).forEach(periodId => {
+          if (!map[d.key][periodId]) map[d.key][periodId] = []
+          map[d.key][periodId].push({
+            teacherId: a.teacher_id,
+            teacherName: tName,
+            grade: a.grade,
+            section: a.section,
+            subject: a.subject,
+            isSelf: a.teacher_id === teacher.id,
+          })
+        })
+      })
+    })
+    return map
+  }, [allAssignments, myAssignments, allTeachers, teacher.id, teacher.full_name])
+
+  // Returns conflict info for a given cell in the context of assignment `a`
+  function getCellConflict(a, dayKey, periodId) {
+    const occupants = occupancyMap[dayKey]?.[periodId] || []
+    const active = (a.schedule?.[dayKey] || []).includes(periodId)
+    // Other assignments of the same teacher that have this slot
+    const selfClash = occupants.filter(o =>
+      o.isSelf && !(o.grade === a.grade && o.section === a.section && o.subject === a.subject)
+    )
+    // Other teachers in the same grade+section
+    const gradeClash = occupants.filter(o =>
+      !o.isSelf && o.grade === a.grade && o.section === a.section
+    )
+    // Any other occupant (different grade, different teacher — informational)
+    const otherOccupants = occupants.filter(o =>
+      !o.isSelf || !(o.grade === a.grade && o.section === a.section && o.subject === a.subject)
+    )
+    return { active, selfClash, gradeClash, otherOccupants }
+  }
+
   return (
     <div className="sb-modal-overlay">
       <div className="sb-modal" style={{ maxWidth: '800px' }}>
@@ -779,13 +830,59 @@ function AssignmentModal({ teacher, admin, school, allAssignments, allTeachers, 
                         <span className="asgn-period-time">{p.time}</span>
                       </div>
                       {DAYS.map(d => {
-                        const active = (a.schedule?.[d.key] || []).includes(p.id)
+                        const { active, selfClash, gradeClash, otherOccupants } = getCellConflict(a, d.key, p.id)
+                        const hasHardConflict = selfClash.length > 0 || gradeClash.length > 0
+                        const hasOthers = otherOccupants.length > 0
+
+                        // Cell color logic
+                        let cellStyle = {}
+                        let cellClass = `asgn-cell ${active ? 'active' : ''}`
+                        let icon = active ? '✓' : ''
+                        let title = ''
+
+                        if (active && selfClash.length > 0) {
+                          // This teacher double-booked (orange/red)
+                          cellStyle = { background: '#FEF3C7', border: '2px solid #F59E0B', color: '#92400E' }
+                          icon = '⚠'
+                          title = `⚠️ SOLAPE PROPIO: ${selfClash.map(o => `${o.grade} ${o.section} · ${o.subject}`).join(', ')}`
+                        } else if (active && gradeClash.length > 0) {
+                          // Two teachers in same grade+section (red)
+                          cellStyle = { background: '#FEE2E2', border: '2px solid #EF4444', color: '#991B1B' }
+                          icon = '✕'
+                          title = `❌ CONFLICTO DE GRADO: ${gradeClash.map(o => `${o.teacherName} · ${o.subject}`).join(', ')}`
+                        } else if (!active && selfClash.length > 0) {
+                          // Slot would cause self-conflict if selected
+                          cellStyle = { background: '#FFF7ED', border: '1px dashed #F59E0B' }
+                          icon = '!'
+                          title = `⚠️ Este docente ya tiene clase aquí: ${selfClash.map(o => `${o.grade} ${o.section} · ${o.subject}`).join(', ')}`
+                        } else if (!active && gradeClash.length > 0) {
+                          // Slot occupied by another teacher for same grade (light red)
+                          cellStyle = { background: '#FFF1F2', border: '1px dashed #FDA4AF' }
+                          icon = '!'
+                          title = `⚠️ ${a.grade} ${a.section} ya tiene clase aquí: ${gradeClash.map(o => `${o.teacherName} · ${o.subject}`).join(', ')}`
+                        } else if (!active && hasOthers) {
+                          // Other teachers occupy this slot (gray info)
+                          cellStyle = { background: '#F8FAFC', border: '1px dashed #CBD5E1', color: '#94A3B8' }
+                          icon = '·'
+                          title = `Ocupado por: ${otherOccupants.map(o => `${o.teacherName} (${o.grade} ${o.section} · ${o.subject})`).join(' | ')}`
+                        }
+
                         return (
                           <div key={d.key} className="asgn-day-col">
                             <div
-                              className={`asgn-cell ${active ? 'active' : ''}`}
-                              onClick={() => togglePeriod(a.id, d.key, p.id)}>
-                              {active ? '✓' : ''}
+                              className={cellClass}
+                              style={cellStyle}
+                              title={title}
+                              onClick={() => {
+                                if (!active && hasHardConflict) {
+                                  const msg = selfClash.length > 0
+                                    ? `⚠️ ${teacher.full_name} ya tiene clase en este bloque: ${selfClash.map(o => `${o.grade} ${o.section} · ${o.subject}`).join(', ')}`
+                                    : `⚠️ ${a.grade} ${a.section} ya tiene clase aquí con ${gradeClash.map(o => o.teacherName).join(', ')}`
+                                  setWarnings(prev => prev.find(w => w === msg) ? prev : [...prev, msg])
+                                }
+                                togglePeriod(a.id, d.key, p.id)
+                              }}>
+                              {icon}
                             </div>
                           </div>
                         )
