@@ -263,13 +263,13 @@ function DashboardInner({ session, teacher, setTeacher }) {
             <span className="dot" style={{ background: '#C9A84C' }} />
             🎯 Logros
           </NavLink>
-          <NavLink to="/syllabus" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
-            <span className="dot" style={{ background: '#8064A2' }} />
-            📚 Syllabus
-          </NavLink>
           <NavLink to="/biblioteca" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
             <span className="dot" style={{ background: '#2E5598' }} />
             📖 Biblioteca CBF
+          </NavLink>
+          <NavLink to="/syllabus" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
+            <span className="dot" style={{ background: '#8064A2' }} />
+            📚 Syllabus
           </NavLink>
           <NavLink to="/news" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
             <span className="dot" style={{ background: '#C0504D' }} />
