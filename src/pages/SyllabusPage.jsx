@@ -4,6 +4,7 @@ import useSyllabus, { validateUnitWeekRule } from '../hooks/useSyllabus'
 import useAchievements from '../hooks/useAchievements'
 import { useToast } from '../context/ToastContext'
 import { combinedGrade } from '../utils/constants'
+import { logError, logActivity } from '../utils/logger'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -816,16 +817,18 @@ export default function SyllabusPage({ teacher }) {
     const { error: err } = isEdit
       ? await updateTopic(form.id, form)
       : await createTopic(form)
-    if (err) { showToast(err, 'error'); return }
+    if (err) { showToast(err, 'error'); logError(err, { page: 'SyllabusPage', action: isEdit ? 'updateTopic' : 'createTopic', entityId: form.id }); return }
     showToast(isEdit ? 'Contenido actualizado' : 'Contenido agregado', 'success')
+    logActivity(isEdit ? 'update' : 'create', 'syllabus_topics', form.id || null, `${isEdit ? 'Actualizó' : 'Agregó'} contenido syllabus: ${form.content?.substring(0, 50) || form.name || ''}`)
     setTopicModal(null)
   }
 
   const handleDeleteTopic = async (id) => {
     if (!confirm('¿Eliminar este contenido?')) return
     const { error: err } = await deleteTopic(id)
-    if (err) { showToast(err, 'error'); return }
+    if (err) { showToast(err, 'error'); logError(err, { page: 'SyllabusPage', action: 'deleteTopic', entityId: id }); return }
     showToast('Contenido eliminado', 'success')
+    logActivity('delete', 'syllabus_topics', id, 'Eliminó contenido del syllabus')
   }
 
   const handleCopyWeek = (week) => {

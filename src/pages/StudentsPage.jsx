@@ -8,6 +8,7 @@ import {
   composeName, displayName, normalizeGrade, normalizeEmail, parseCSV,
   VALID_SECTIONS as SECTIONS, VALID_GRADES as GRADES, DOMAIN,
 } from '../utils/studentUtils'
+import { logError, logActivity } from '../utils/logger'
 
 // ─── Componente principal ─────────────────────────────────────
 
@@ -128,9 +129,11 @@ export default function StudentsPage({ teacher }) {
     })
 
     if (error) {
+      logError(error, { page: 'StudentsPage', action: 'addStudent' })
       if (error.code === '23505') setFormErr('Este correo ya está registrado en el colegio.')
       else setFormErr('Error al agregar. ' + error.message)
     } else {
+      logActivity('create', 'school_students', null, `Estudiante agregado: ${name} (${grade} ${section})`)
       showToast(`${name} agregado correctamente`, 'success')
       setForm(EMPTY_FORM)
       loadStudents()
@@ -190,9 +193,11 @@ export default function StudentsPage({ teacher }) {
     }).eq('id', editingStudent.id)
 
     if (error) {
+      logError(error, { page: 'StudentsPage', action: 'editStudent', entityId: editingStudent.id })
       if (error.code === '23505') setEditErr('Este correo ya está registrado en el colegio.')
       else setEditErr('Error al guardar. ' + error.message)
     } else {
+      logActivity('update', 'school_students', editingStudent.id, `Estudiante actualizado: ${name}`)
       showToast(`${name} actualizado`, 'success')
       setEditingStudent(null)
       loadStudents()
@@ -264,6 +269,7 @@ export default function StudentsPage({ teacher }) {
       }
     }
 
+    if (imported > 0) logActivity('create', 'school_students', null, `CSV importado: ${imported} estudiantes agregados, ${skipped} duplicados, ${failed} fallidos`)
     showToast(`${imported} importados · ${skipped} duplicados omitidos${failed ? ` · ${failed} fallidos` : ''}`, 'success')
     setCsvText(''); setCsvParsed(null); setCsvErrors([]); setCsvWarnings([]); setShowImport(false); setCsvEditingIdx(null)
     loadStudents()
@@ -276,8 +282,8 @@ export default function StudentsPage({ teacher }) {
     if (confirmingDeleteId !== id) { setConfirmingDeleteId(id); return }
     setConfirmingDeleteId(null)
     const { error } = await supabase.from('school_students').delete().eq('id', id)
-    if (error) showToast('Error al eliminar', 'error')
-    else { showToast(`${name} eliminado`, 'success'); loadStudents() }
+    if (error) { logError(error, { page: 'StudentsPage', action: 'deleteStudent', entityId: id }); showToast('Error al eliminar', 'error') }
+    else { logActivity('delete', 'school_students', id, `Estudiante eliminado: ${name}`); showToast(`${name} eliminado`, 'success'); loadStudents() }
   }
 
   async function handleBulkDelete() {
@@ -286,8 +292,9 @@ export default function StudentsPage({ teacher }) {
     setSaving(true)
     const ids = [...selectedIds]
     const { error } = await supabase.from('school_students').delete().in('id', ids)
-    if (error) showToast('Error al eliminar: ' + error.message, 'error')
+    if (error) { logError(error, { page: 'StudentsPage', action: 'bulkDelete' }); showToast('Error al eliminar: ' + error.message, 'error') }
     else {
+      logActivity('delete', 'school_students', null, `Eliminación masiva: ${ids.length} estudiantes`)
       showToast(`${ids.length} estudiante${ids.length !== 1 ? 's' : ''} eliminado${ids.length !== 1 ? 's' : ''}`, 'success')
       setSelectedIds(new Set())
     }

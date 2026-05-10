@@ -12,6 +12,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { supabase } from '../supabase'
 import { useToast } from '../context/ToastContext'
 import { canManage } from '../utils/roles'
+import { logError, logActivity } from '../utils/logger'
 
 function fmt(d) {
   if (!d) return '—'
@@ -140,10 +141,12 @@ export default function ExamRevisionPage({ teacher }) {
         })
       } catch { /* non-blocking */ }
 
+      logActivity('approve', 'exam_blueprints', selected.id, `Examen aprobado: "${selected.title}"`)
       showToast('Examen aprobado. El docente será notificado.', 'success')
       setSelected(null)
       await loadExams()
     } catch (err) {
+      logError(err, { page: 'ExamRevisionPage', action: 'handleApprove', entityId: selected?.id })
       showToast('Error: ' + (err.message || err), 'error')
     } finally {
       setProcessing(false)
@@ -193,10 +196,12 @@ export default function ExamRevisionPage({ teacher }) {
         })
       } catch { /* non-blocking */ }
 
+      logActivity('update', 'exam_blueprints', selected.id, `Examen devuelto con feedback: "${selected.title}"`)
       showToast('Examen devuelto con feedback. El docente será notificado.', 'success')
       setSelected(null)
       await loadExams()
     } catch (err) {
+      logError(err, { page: 'ExamRevisionPage', action: 'handleReturn', entityId: selected?.id })
       showToast('Error: ' + (err.message || err), 'error')
     } finally {
       setProcessing(false)

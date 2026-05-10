@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { canManage } from '../utils/roles'
 import { useToast } from '../context/ToastContext'
+import { logError, logActivity } from '../utils/logger'
 
 const TYPE_CONFIG = {
   plan_submitted: { icon: '📬', label: 'Guía enviada',   color: '#F79646' },
@@ -77,7 +78,8 @@ export default function NotificationsPage({ teacher, onRead }) {
       body:        form.body.trim(),
       target_role: form.target_role,
     })
-    if (error) { showToast('Error al publicar el anuncio', 'error'); setSending(false); return }
+    if (error) { showToast('Error al publicar el anuncio', 'error'); logError(error, { page: 'NotificationsPage', action: 'sendAnnouncement' }); setSending(false); return }
+    logActivity('create', 'announcements', null, `Publicó anuncio: ${form.title?.substring(0, 50)}`)
     setForm({ title: '', body: '', target_role: 'all' })
     setShowForm(false)
     await fetchAnnouncements()
@@ -87,7 +89,8 @@ export default function NotificationsPage({ teacher, onRead }) {
   async function deleteAnnouncement(id) {
     if (!confirm('¿Eliminar este anuncio?')) return
     const { error } = await supabase.from('announcements').delete().eq('id', id)
-    if (error) { showToast('Error al eliminar el anuncio', 'error'); return }
+    if (error) { showToast('Error al eliminar el anuncio', 'error'); logError(error, { page: 'NotificationsPage', action: 'deleteAnnouncement', entityId: id }); return }
+    logActivity('delete', 'announcements', id, 'Eliminó anuncio institucional')
     setAnnounce(prev => prev.filter(a => a.id !== id))
   }
 

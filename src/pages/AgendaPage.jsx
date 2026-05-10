@@ -3,6 +3,7 @@ import { supabase } from '../supabase'
 import { DAYS, ACADEMIC_PERIODS } from '../utils/constants'
 import { useToast } from '../context/ToastContext'
 import { isCoteacherActive as checkCoteacherActive } from '../utils/roles'
+import { logError, logActivity } from '../utils/logger'
 
 const MONTHS_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
   'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
@@ -253,8 +254,8 @@ export default function AgendaPage({ teacher }) {
       } else {
         ;({ error } = await supabase.from('weekly_agendas').insert(payload))
       }
-      if (error) showToast(`Error: ${error.message}`, 'error')
-      else { showToast(`Agenda ${grade} ${section} generada`, 'success'); await fetchAll() }
+      if (error) { showToast(`Error: ${error.message}`, 'error'); logError(error, { page: 'AgendaPage', action: 'generateAgenda' }) }
+      else { showToast(`Agenda ${grade} ${section} generada`, 'success'); logActivity('create', 'weekly_agendas', null, `Generó agenda ${grade} ${section} semana ${dashWeek}`); await fetchAll() }
     } finally {
       setDashGenerating(prev => ({ ...prev, [key]: false }))
     }
@@ -287,7 +288,7 @@ export default function AgendaPage({ teacher }) {
         }
         if (error) fail++; else ok++
       }
-      if (fail === 0) showToast(`✅ ${ok} agenda${ok !== 1 ? 's' : ''} generada${ok !== 1 ? 's' : ''}`, 'success')
+      if (fail === 0) { showToast(`✅ ${ok} agenda${ok !== 1 ? 's' : ''} generada${ok !== 1 ? 's' : ''}`, 'success'); logActivity('create', 'weekly_agendas', null, `Generó ${ok} agendas masivas semana ${dashWeek}`) }
       else showToast(`${ok} generadas, ${fail} con error`, 'warning')
       await fetchAll()
     } finally {
@@ -298,7 +299,8 @@ export default function AgendaPage({ teacher }) {
   async function handleDelete(id) {
     if (!confirm('¿Eliminar esta agenda?')) return
     const { error } = await supabase.from('weekly_agendas').delete().eq('id', id)
-    if (error) { showToast('Error al eliminar la agenda', 'error'); return }
+    if (error) { showToast('Error al eliminar la agenda', 'error'); logError(error, { page: 'AgendaPage', action: 'deleteAgenda', entityId: id }); return }
+    logActivity('delete', 'weekly_agendas', id, 'Eliminó agenda semanal')
     setAgendas(prev => prev.filter(a => a.id !== id))
   }
 
@@ -789,8 +791,9 @@ function AgendaEditor({ agenda, teacher, allPlans, allTeachers, schoolAssignment
       ;({ error } = await supabase.from('weekly_agendas').insert(payload))
     }
     setSaving(false)
-    if (error) { showToast(`Error al guardar: ${error.message}`, 'error'); return }
+    if (error) { showToast(`Error al guardar: ${error.message}`, 'error'); logError(error, { page: 'AgendaPage', action: 'saveAgenda', entityId: form.id }); return }
     showToast('Agenda guardada', 'success')
+    logActivity(form.id ? 'update' : 'create', 'weekly_agendas', form.id || null, `${form.id ? 'Actualizó' : 'Creó'} agenda ${form.grade} ${form.section} semana ${form.week_start}`)
     onSave()
   }
 

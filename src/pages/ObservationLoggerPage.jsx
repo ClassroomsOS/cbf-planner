@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import { canManage } from '../utils/roles'
 import { useToast } from '../context/ToastContext'
+import { logError, logActivity } from '../utils/logger'
 
 const DOMAINS = {
   A: { label: 'Learning Environment',   color: '#2E5598', items: ['A1','A2','A3','A4'] },
@@ -125,9 +126,11 @@ export default function ObservationLoggerPage({ teacher }) {
     setSaving(false)
     if (error) {
       showToast('Error al guardar observación: ' + error.message, 'error')
+      logError(error, { page: 'ObservationLoggerPage', action: 'saveObservation' })
       return
     }
     showToast('Observación registrada', 'success')
+    logActivity('create', 'eleot_observations', null, `Registró observación eleot® dominio ${form.domain} ítem ${form.item}`)
     setShowForm(false)
     setForm({ ...BLANK, observed_teacher_id: teacher.id })
     init()

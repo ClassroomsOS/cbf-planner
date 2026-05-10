@@ -4,6 +4,7 @@ import { useToast } from '../context/ToastContext'
 import { teacherStatusUpdateSchema, teacherRoleUpdateSchema } from '../utils/validationSchemas'
 import { PERIODS, DAYS, DEFAULT_SUBJECTS } from '../utils/constants'
 import { canManage, canChangeRole, roleLabel, ROLE_STYLES, LEVEL_LABELS, isSuperAdmin } from '../utils/roles'
+import { logError, logActivity } from '../utils/logger'
 
 // ── Main Page ─────────────────────────────────────────────────
 export default function AdminTeachersPage({ teacher: admin }) {
@@ -114,10 +115,12 @@ export default function AdminTeachersPage({ teacher: admin }) {
 
                       const { error } = await supabase.from('teachers').update({ status: 'approved' }).eq('id', t.id)
                       if (error) {
+                        logError(error, { page: 'AdminTeachersPage', action: 'approveTeacher', entityId: t.id })
                         showToast('Error al aprobar: ' + error.message, 'error')
                         return
                       }
 
+                      logActivity('update', 'teachers', t.id, `Docente aprobado: ${t.full_name}`)
                       setTeachers(prev => prev.map(x => x.id === t.id ? { ...x, status: 'approved' } : x))
                       showToast(`${t.full_name} aprobado exitosamente`, 'success')
                     }}
@@ -144,10 +147,12 @@ export default function AdminTeachersPage({ teacher: admin }) {
 
                       const { error } = await supabase.from('teachers').update({ status: 'rejected' }).eq('id', t.id)
                       if (error) {
+                        logError(error, { page: 'AdminTeachersPage', action: 'rejectTeacher', entityId: t.id })
                         showToast('Error al rechazar: ' + error.message, 'error')
                         return
                       }
 
+                      logActivity('update', 'teachers', t.id, `Docente rechazado: ${t.full_name}`)
                       setTeachers(prev => prev.map(x => x.id === t.id ? { ...x, status: 'rejected' } : x))
                       showToast(`${t.full_name} rechazado`, 'info')
                     }}
@@ -582,10 +587,12 @@ function AssignmentModal({ teacher, admin, school, allAssignments, allTeachers, 
 
     setSaving(false)
     if (error) {
+      logError(error, { page: 'AdminTeachersPage', action: 'addAssignment', entityId: teacher.id })
       showToast('Error al agregar: ' + error.message, 'error')
       return
     }
     if (data) {
+      logActivity('create', 'teacher_assignments', data.id, `Asignación agregada: ${teacher.full_name} → ${newGrade} ${newSection} · ${subject}`)
       setMyAssignments(prev => [...prev, { ...data, _dirty: false }])
       setNewGrade(''); setNewSection(''); setNewSubject(''); setNewCustomSubject(''); setNewClassroom('')
     }
@@ -635,7 +642,9 @@ function AssignmentModal({ teacher, admin, school, allAssignments, allTeachers, 
 
   // ── Remove assignment ────────────────────────────────────
   async function handleRemove(id) {
-    await supabase.from('teacher_assignments').delete().eq('id', id)
+    const { error } = await supabase.from('teacher_assignments').delete().eq('id', id)
+    if (!error) logActivity('delete', 'teacher_assignments', id, `Asignación eliminada para ${teacher.full_name}`)
+    else logError(error, { page: 'AdminTeachersPage', action: 'removeAssignment', entityId: id })
     setMyAssignments(prev => prev.filter(a => a.id !== id))
   }
 
@@ -830,8 +839,9 @@ function HomeroomEditor({ teacher, sections }) {
       .update({ homeroom_grade: grade || null, homeroom_section: section || null })
       .eq('id', teacher.id)
     setSaving(false)
-    if (error) showToast('Error al guardar: ' + error.message, 'error')
+    if (error) { logError(error, { page: 'AdminTeachersPage', action: 'saveHomeroom', entityId: teacher.id }); showToast('Error al guardar: ' + error.message, 'error') }
     else {
+      logActivity('update', 'teachers', teacher.id, `Dirección de grupo: ${grade ? `${grade} ${section}` : 'removida'}`)
       teacher.homeroom_grade   = grade   || null
       teacher.homeroom_section = section || null
       showToast(grade ? `Director de ${grade} ${section} asignado` : 'Dirección de grupo removida', 'success')
@@ -908,7 +918,8 @@ function CoteacherEditor({ teacher, teachers, sections }) {
       director_absent_until: absentUntil  || null,
     }).eq('id', teacher.id)
     setSaving(false)
-    if (error) { showToast('Error al guardar: ' + error.message, 'error'); return }
+    if (error) { logError(error, { page: 'AdminTeachersPage', action: 'saveCoteacher', entityId: teacher.id }); showToast('Error al guardar: ' + error.message, 'error'); return }
+    logActivity('update', 'teachers', teacher.id, `Co-teacher: ${grade ? `${grade} ${section}` : 'removido'}`)
     teacher.coteacher_grade       = grade        || null
     teacher.coteacher_section     = section      || null
     teacher.director_absent_until = absentUntil  || null
@@ -1028,8 +1039,10 @@ function RoleAndLevelEditor({ teacher, admin }) {
       .eq('id', teacher.id)
     setSaving(false)
     if (error) {
+      logError(error, { page: 'AdminTeachersPage', action: 'saveRole', entityId: teacher.id })
       showToast('Error al guardar: ' + error.message, 'error')
     } else {
+      logActivity('update', 'teachers', teacher.id, `Rol actualizado: ${role}, nivel: ${level || 'ninguno'}, límite IA: ${parseInt(aiLimit) || 0}`)
       showToast(`Guardado: rol ${role}, límite IA ${parseInt(aiLimit) || 0} tok/mes`, 'success')
     }
   }
@@ -1122,8 +1135,10 @@ function TeacherProfileEditor({ teacher, isSelf }) {
       .eq('id', teacher.id)
     setSaving(false)
     if (error) {
+      logError(error, { page: 'AdminTeachersPage', action: 'saveProfile', entityId: teacher.id })
       showToast('Error al guardar: ' + error.message, 'error')
     } else {
+      logActivity('update', 'teachers', teacher.id, `Perfil actualizado: ${fullName.trim()}`)
       teacher.full_name = fullName.trim()
       teacher.initials  = initials.trim().toUpperCase().slice(0, 3) || null
       showToast('Datos del docente actualizados', 'success')
@@ -1197,10 +1212,12 @@ function DeleteTeacherZone({ teacher, onDeleted }) {
     await supabase.from('teacher_assignments').delete().eq('teacher_id', teacher.id)
     const { error } = await supabase.from('teachers').delete().eq('id', teacher.id)
     if (error) {
+      logError(error, { page: 'AdminTeachersPage', action: 'deleteTeacher', entityId: teacher.id })
       showToast('Error al eliminar: ' + error.message, 'error')
       setDeleting(false)
       return
     }
+    logActivity('delete', 'teachers', teacher.id, `Docente eliminado: ${teacher.full_name}`)
     showToast(`${teacher.full_name} eliminado del sistema`, 'success')
     onDeleted()
   }

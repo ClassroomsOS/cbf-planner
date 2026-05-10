@@ -4,7 +4,7 @@ import { supabase } from '../../supabase'
 import { useToast } from '../../context/ToastContext'
 import { useFocusTrap } from '../../hooks/useFocusTrap'
 import { generateRubric } from '../../utils/AIAssistant'
-import { logError } from '../../utils/logger'
+import { logError, logActivity } from '../../utils/logger'
 import { exportRubricHtml, downloadRubricHtml } from '../../utils/exportRubricHtml'
 import { MODELO_B_SUBJECTS } from '../../utils/constants'
 import ImageUploader from '../ImageUploader'
@@ -486,11 +486,12 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
     const result = await onSave(payload)
     setSaving(false)
     if (!result.error) {
+      logActivity(isEditing ? 'update' : 'create', 'news_projects', result.id || project?.id || null, `Proyecto NEWS ${isEditing ? 'actualizado' : 'creado'}: "${form.title}"`)
       showToast(isEditing ? 'Proyecto actualizado' : 'Proyecto creado', 'success')
     } else {
       showToast(result.error, 'error')
     }
-  }, [form, isEditing, onSave, saving, showToast])
+  }, [form, isEditing, onSave, project, saving, showToast])
 
   // ── Archivar versión (snapshot inmutable en news_project_versions) ──────────
   const handleArchive = useCallback(async () => {
@@ -511,8 +512,10 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
       })
       if (error) throw error
       setVersionCount(nextVersion)
+      logActivity('create', 'news_project_versions', project.id, `Versión v${nextVersion} archivada del proyecto "${form.title}"`)
       showToast(`📦 Versión v${nextVersion} archivada`, 'success')
     } catch (err) {
+      logError(err, { page: 'NewsProjectEditor', action: 'handleArchive', entityId: project.id })
       showToast('Error al archivar: ' + err.message, 'error')
     }
     setArchiving(false)

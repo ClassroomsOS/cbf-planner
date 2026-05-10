@@ -5,6 +5,7 @@ import { useToast } from '../context/ToastContext'
 import { useFeatures } from '../context/FeaturesContext'
 import { canManage } from '../utils/roles'
 import { analyzeTextbookFragment, analyzeTextbookPages } from '../utils/AIAssistant'
+import { logError, logActivity } from '../utils/logger'
 
 // =============================================================================
 // CONSTANTS
@@ -404,9 +405,11 @@ function FragmentPanel({ fragment, doc, teacher, pageNumber, onClose, onSaved })
       })
       if (dbErr) throw dbErr
 
+      logActivity('create', 'library_fragments', fragId, `Fragmento guardado del doc "${doc.title}"`)
       showToast('Fragmento guardado correctamente', 'success')
       onSaved()
     } catch (err) {
+      logError(err, { page: 'LibraryPage', action: 'handleSaveFragment', entityId: doc.id })
       showToast('Error al guardar fragmento: ' + err.message, 'error')
     } finally {
       setSaving(false)
@@ -696,7 +699,8 @@ function SyllabusLinkPanel({ doc, teacher, currentPage, onClose, onSaved }) {
       .update({ library_doc_id: doc.id, library_pages: pages })
       .eq('id', topicId)
     setSaving(false)
-    if (error) { showToast('Error al guardar: ' + error.message, 'error'); return }
+    if (error) { logError(error, { page: 'LibraryPage', action: 'syllabusLink', entityId: topicId }); showToast('Error al guardar: ' + error.message, 'error'); return }
+    logActivity('update', 'syllabus_topics', topicId, `Páginas ${pages.join(',')} vinculadas al syllabus desde "${doc.title}"`)
     showToast('Páginas vinculadas al Syllabus', 'success')
     onSaved?.()
     onClose()
@@ -1595,11 +1599,13 @@ function UploadModal({ visibility, teacher, onClose, onUploaded }) {
 
     if (dbErr) {
       if (file_path) await supabase.storage.from('cbf-library').remove([file_path])
+      logError(dbErr, { page: 'LibraryPage', action: 'handleUpload' })
       showToast(`Error al guardar: ${dbErr.message}`, 'error')
       setStep('meta')
       return
     }
 
+    logActivity('create', 'school_library', inserted?.id || null, `Documento subido: "${form.title}" (${visibility})`)
     setProgress(100)
     showToast('Documento subido exitosamente', 'success')
     onUploaded(inserted)
@@ -1824,11 +1830,13 @@ function EditModal({ doc, teacher, onClose, onSaved }) {
       .single()
 
     if (error) {
+      logError(error, { page: 'LibraryPage', action: 'handleEdit', entityId: doc.id })
       showToast(`Error al guardar: ${error.message}`, 'error')
       setStep('meta')
       return
     }
 
+    logActivity('update', 'school_library', doc.id, `Documento editado: "${form.title}"`)
     setProgress(100)
     showToast('Documento actualizado', 'success')
     onSaved(updated)
@@ -1936,8 +1944,9 @@ function ShareModal({ doc, teacher, teachersMap, onClose }) {
       shared_with: addingId,
       can_edit:    addingEdit,
     })
-    if (error) showToast(`Error: ${error.message}`, 'error')
+    if (error) { logError(error, { page: 'LibraryPage', action: 'handleShare', entityId: doc.id }); showToast(`Error: ${error.message}`, 'error') }
     else {
+      logActivity('create', 'library_shares', doc.id, `Documento compartido con docente ${addingId}`)
       showToast('Compartido exitosamente', 'success')
       setAddingId('')
       setAddingEdit(false)
@@ -1955,8 +1964,8 @@ function ShareModal({ doc, teacher, teachersMap, onClose }) {
 
   async function handleRevoke(share) {
     const { error } = await supabase.from('library_shares').delete().eq('id', share.id)
-    if (error) showToast(`Error: ${error.message}`, 'error')
-    else showToast('Acceso revocado', 'success')
+    if (error) { logError(error, { page: 'LibraryPage', action: 'handleRevoke', entityId: share.id }); showToast(`Error: ${error.message}`, 'error') }
+    else { logActivity('delete', 'library_shares', share.id, `Acceso revocado del doc ${doc.id}`); showToast('Acceso revocado', 'success') }
     fetchShares()
   }
 
@@ -2075,8 +2084,10 @@ function HistoryDrawer({ doc, teachersMap, onClose, onRollback }) {
     setRolling(false)
     setConfirmId(null)
     if (error) {
+      logError(error, { page: 'LibraryPage', action: 'handleRollback', entityId: doc.id })
       showToast(`Error al restaurar: ${error.message}`, 'error')
     } else {
+      logActivity('update', 'school_library', doc.id, `Rollback del documento al estado anterior (log ${entry.id})`)
       showToast('Documento restaurado al estado anterior', 'success')
       onRollback()
       onClose()
@@ -2295,7 +2306,8 @@ export default function LibraryPage({ teacher }) {
       await supabase.storage.from('cbf-library').remove([doc.file_path])
     }
     const { error } = await supabase.from('school_library').delete().eq('id', doc.id)
-    if (error) { showToast('Error al eliminar', 'error'); return }
+    if (error) { logError(error, { page: 'LibraryPage', action: 'handleDelete', entityId: doc.id }); showToast('Error al eliminar', 'error'); return }
+    logActivity('delete', 'school_library', doc.id, `Documento eliminado: "${doc.title}"`)
     showToast('Documento eliminado', 'success')
     setDocs(prev => prev.filter(d => d.id !== doc.id))
     if (doc.visibility === 'personal') fetchQuota()

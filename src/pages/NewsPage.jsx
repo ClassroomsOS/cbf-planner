@@ -8,6 +8,7 @@ import NewsPeriodTimeline from '../components/news/NewsPeriodTimeline'
 import { supabase } from '../supabase'
 import { ACADEMIC_PERIODS, getDefaultPeriodNumber } from '../utils/constants'
 import { useToast } from '../context/ToastContext'
+import { logError, logActivity } from '../utils/logger'
 
 // Map to legacy format for this component
 const PERIODS = ACADEMIC_PERIODS.map(p => ({
@@ -104,15 +105,24 @@ export default function NewsPage({ teacher }) {
       result = await createProject(data)
     }
     if (!result.error) {
+      const projectId = editingProject?.id || result.data?.id || null
+      logActivity(editingProject ? 'update' : 'create', 'news_projects', projectId, `${editingProject ? 'Actualizó' : 'Creó'} proyecto NEWS: ${data.title?.substring(0, 50)}`)
       setEditorOpen(false)
       setEditingProject(null)
+    } else {
+      logError(result.error, { page: 'NewsPage', action: editingProject ? 'updateProject' : 'createProject', entityId: editingProject?.id })
     }
     return result
   }
 
   const handleDelete = async (id) => {
     if (!window.confirm('¿Eliminar este proyecto NEWS? Las guías vinculadas no se borrarán.')) return
-    await deleteProject(id)
+    const result = await deleteProject(id)
+    if (result?.error) {
+      logError(result.error, { page: 'NewsPage', action: 'deleteProject', entityId: id })
+    } else {
+      logActivity('delete', 'news_projects', id, 'Eliminó proyecto NEWS')
+    }
   }
 
   const handleStatusChange = async (id, newStatus) => {
@@ -151,8 +161,9 @@ export default function NewsPage({ teacher }) {
       status:                  'draft',
     })
     setDuplicatingProject(null)
-    if (error) { showToast(typeof error === 'string' ? error : error.message, 'error'); return }
+    if (error) { showToast(typeof error === 'string' ? error : error.message, 'error'); logError(error, { page: 'NewsPage', action: 'duplicateProject', entityId: project.id }); return }
     showToast(`Proyecto duplicado para ${grade} ${targetSection}`, 'success')
+    logActivity('create', 'news_projects', null, `Duplicó proyecto NEWS "${title?.substring(0, 40)}" para ${grade} ${targetSection}`)
   }
 
   const statusCounts = useMemo(() => {

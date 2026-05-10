@@ -13,6 +13,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { useFeatures } from '../context/FeaturesContext'
 import { useToast } from '../context/ToastContext'
+import { logError, logActivity } from '../utils/logger'
 
 export default function SuperAdminPage({ teacher }) {
   const navigate       = useNavigate()
@@ -82,9 +83,11 @@ export default function SuperAdminPage({ teacher }) {
       .eq('id', teacher.school_id)
     if (error) {
       showToast('Error al guardar datos institucionales: ' + error.message, 'error')
+      logError(error, { page: 'SuperAdminPage', action: 'updateSchool' })
     } else {
       setSchool(s => ({ ...s, ...schoolForm }))
       showToast('Datos institucionales guardados', 'success')
+      logActivity('update', 'schools', teacher.school_id, 'Actualizó datos institucionales del colegio')
     }
     setSchoolSaving(false)
   }
@@ -123,8 +126,10 @@ export default function SuperAdminPage({ teacher }) {
 
       setSchool(s => ({ ...s, logo_url: publicUrl }))
       showToast('Logo actualizado correctamente', 'success')
+      logActivity('update', 'schools', teacher.school_id, 'Actualizó logo institucional')
     } catch (err) {
       showToast('Error al subir el logo: ' + (err.message || ''), 'error')
+      logError(err, { page: 'SuperAdminPage', action: 'uploadLogo' })
     } finally {
       setLogoUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
@@ -137,9 +142,10 @@ export default function SuperAdminPage({ teacher }) {
       .from('schools')
       .update({ logo_url: null })
       .eq('id', teacher.school_id)
-    if (error) { showToast('Error al quitar el logo', 'error'); return }
+    if (error) { showToast('Error al quitar el logo', 'error'); logError(error, { page: 'SuperAdminPage', action: 'removeLogo' }); return }
     setSchool(s => ({ ...s, logo_url: null }))
     showToast('Logo eliminado', 'success')
+    logActivity('update', 'schools', teacher.school_id, 'Eliminó logo institucional')
   }
 
   // ── Security toggles ─────────────────────────────────────────────────────────

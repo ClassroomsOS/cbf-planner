@@ -11,6 +11,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { useFeatures } from '../context/FeaturesContext'
 import { useToast } from '../context/ToastContext'
+import { logError, logActivity } from '../utils/logger'
 
 const FEATURE_GROUPS = [
   {
@@ -128,7 +129,8 @@ export default function SettingsPage({ teacher }) {
       level:      slotForm.level || null,
       color:      slotForm.color,
     }).select().single()
-    if (error) { showToast('Error al agregar la franja', 'error'); setSlotSaving(false); return }
+    if (error) { showToast('Error al agregar la franja', 'error'); logError(error, { page: 'SettingsPage', action: 'addScheduleSlot' }); setSlotSaving(false); return }
+    logActivity('create', 'schedule_slots', data?.id || null, `Agregó franja: ${slotForm.name}`)
     if (data) setSlots(prev => [...prev, data].sort((a, b) => a.start_time.localeCompare(b.start_time)))
     setSlotForm({ name: '', start_time: '', end_time: '', level: '', color: '#F79646' })
     setSlotSaving(false)
@@ -137,7 +139,8 @@ export default function SettingsPage({ teacher }) {
   async function handleDeleteSlot(id) {
     if (!confirm('¿Eliminar esta franja?')) return
     const { error } = await supabase.from('schedule_slots').delete().eq('id', id)
-    if (error) { showToast('Error al eliminar la franja', 'error'); return }
+    if (error) { showToast('Error al eliminar la franja', 'error'); logError(error, { page: 'SettingsPage', action: 'deleteScheduleSlot', entityId: id }); return }
+    logActivity('delete', 'schedule_slots', id, 'Eliminó franja del horario')
     setSlots(prev => prev.filter(s => s.id !== id))
   }
 

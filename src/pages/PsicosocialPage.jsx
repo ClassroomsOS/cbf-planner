@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { useToast } from '../context/ToastContext'
+import { logError, logActivity } from '../utils/logger'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -702,20 +703,22 @@ function StudentDetail({ student, canEdit, teacher }) {
     const { error } = profile
       ? await supabase.from('student_psychosocial_profiles').update(payload).eq('student_id', student.id)
       : await supabase.from('student_psychosocial_profiles').upsert(payload, { onConflict: 'student_id' })
-    if (error) { showToast(error.message, 'error'); return }
+    if (error) { logError(error, { page: 'PsicosocialPage', action: 'handleSaveProfile', entityId: student.id }); showToast(error.message, 'error'); return }
+    logActivity(profile ? 'update' : 'create', 'student_psychosocial_profiles', student.id, `Perfil psicosocial ${profile ? 'actualizado' : 'creado'} — ${student.full_name || student.id}`)
     showToast('Perfil guardado', 'success')
     load()
   }
 
   const handleAddObs = async (form) => {
-    const { error } = await supabase.from('student_observations').insert({
+    const { data: obsData, error } = await supabase.from('student_observations').insert({
       school_id:  teacher.school_id,
       student_id: student.id,
       created_by: teacher.id,
       ...form,
       next_followup: form.next_followup || null,
     })
-    if (error) { showToast(error.message, 'error'); return }
+    if (error) { logError(error, { page: 'PsicosocialPage', action: 'handleAddObs', entityId: student.id }); showToast(error.message, 'error'); return }
+    logActivity('create', 'student_observations', student.id, `Observación registrada — ${student.full_name || student.id}`)
     showToast('Observación registrada', 'success')
     load()
   }
@@ -723,7 +726,8 @@ function StudentDetail({ student, canEdit, teacher }) {
   const handleDeleteObs = async (id) => {
     if (!confirm('¿Eliminar esta observación?')) return
     const { error } = await supabase.from('student_observations').delete().eq('id', id)
-    if (error) { showToast(error.message, 'error'); return }
+    if (error) { logError(error, { page: 'PsicosocialPage', action: 'handleDeleteObs', entityId: id }); showToast(error.message, 'error'); return }
+    logActivity('delete', 'student_observations', id, `Observación eliminada`)
     showToast('Observación eliminada', 'success')
     load()
   }
@@ -739,14 +743,16 @@ function StudentDetail({ student, canEdit, teacher }) {
       accommodations: form.accommodations,
       status:       'active',
     })
-    if (error) { showToast(error.message, 'error'); return }
+    if (error) { logError(error, { page: 'PsicosocialPage', action: 'handleSavePlan', entityId: student.id }); showToast(error.message, 'error'); return }
+    logActivity('create', 'student_accommodation_plans', student.id, `Plan de acomodación creado — ${student.full_name || student.id}`)
     showToast('Plan creado', 'success')
     load()
   }
 
   const handleArchivePlan = async (id) => {
     const { error } = await supabase.from('student_accommodation_plans').update({ status: 'archived' }).eq('id', id)
-    if (error) { showToast(error.message, 'error'); return }
+    if (error) { logError(error, { page: 'PsicosocialPage', action: 'handleArchivePlan', entityId: id }); showToast(error.message, 'error'); return }
+    logActivity('update', 'student_accommodation_plans', id, `Plan de acomodación archivado`)
     showToast('Plan archivado', 'success')
     load()
   }

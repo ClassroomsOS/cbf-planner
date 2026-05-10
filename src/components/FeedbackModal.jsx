@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { supabase } from '../supabase'
 import { useToast } from '../context/ToastContext'
 import { roleLabel, ROLE_STYLES } from '../utils/roles'
+import { logError, logActivity } from '../utils/logger'
 
 // ── FeedbackModal ─────────────────────────────────────────────────────────────
 // Shared feedback panel for rector and coordinator to leave observations on
@@ -64,7 +65,8 @@ export default function FeedbackModal({ entityType, entityId, entityTitle, teach
       body:         body.trim(),
     })
     setSending(false)
-    if (error) { showToast('Error al enviar feedback', 'error'); return }
+    if (error) { showToast('Error al enviar feedback', 'error'); logError(error, { page: 'FeedbackModal', action: 'sendFeedback', entityId: entityId }); return }
+    logActivity('create', 'document_feedback', null, `Envió feedback en ${entityType}: ${entityTitle?.substring(0, 50)}`)
     setBody('')
     await loadFeedback()
     showToast('Feedback enviado', 'success')

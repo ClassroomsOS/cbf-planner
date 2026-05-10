@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
+import { logError, logActivity } from '../utils/logger'
 import { AIGeneratorModal } from '../components/AIComponents'
 import CheckpointModal from '../components/CheckpointModal'
 import { SECTIONS, SKILL_COLOR, detectActivityType, isoMonday, formatWeekRange } from '../utils/constants'
@@ -362,7 +363,8 @@ export default function PlannerPage({ teacher }) {
       .select()
       .single()
 
-    if (insertError) { setError(insertError.message); stopCreating(); return }
+    if (insertError) { setError(insertError.message); logError(insertError, { page: 'PlannerPage', action: 'createLessonPlan' }); stopCreating(); return }
+    logActivity('create', 'lesson_plans', newPlan.id, `Creó guía: ${grade} · ${subject} semana ${weekNumber}`)
     navigate(`/editor/${newPlan.id}`)
   }
 

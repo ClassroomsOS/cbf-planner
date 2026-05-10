@@ -3,6 +3,7 @@ import { supabase } from '../supabase'
 import useAchievements from '../hooks/useAchievements'
 import { useToast } from '../context/ToastContext'
 import { combinedGrade, ACADEMIC_PERIODS, getDefaultPeriodNumber } from '../utils/constants'
+import { logError, logActivity } from '../utils/logger'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -717,25 +718,28 @@ export default function AchievementsPage({ teacher }) {
       year_verse:    form.year_verse || null,
       status:        form.status,
     }
-    const { error: err } = isEdit
+    const { error: err, data: savedGoal } = isEdit
       ? await updateGoal(form.id, payload)
       : await createGoal(payload)
-    if (err) { showToast(err, 'error'); return }
+    if (err) { showToast(err, 'error'); logError(err, { page: 'AchievementsPage', action: isEdit ? 'updateGoal' : 'createGoal' }); return }
     showToast(isEdit ? 'Logro actualizado' : 'Logro creado', 'success')
+    logActivity(isEdit ? 'update' : 'create', 'achievement_goals', form.id || savedGoal?.id || null, `${isEdit ? 'Actualizó' : 'Creó'} logro: ${form.text?.substring(0, 50)}`)
     setGoalModal(null)
     refetch()
   }
 
   const handleDeleteGoal = async (id) => {
     const { error: err } = await deleteGoal(id)
-    if (err) { showToast(err, 'error'); return }
+    if (err) { showToast(err, 'error'); logError(err, { page: 'AchievementsPage', action: 'deleteGoal', entityId: id }); return }
     showToast('Logro eliminado', 'success')
+    logActivity('delete', 'achievement_goals', id, 'Eliminó logro de desempeño')
   }
 
   const handlePublishGoal = async (id) => {
     const { error: err } = await publishGoal(id)
-    if (err) { showToast(err, 'error'); return }
+    if (err) { showToast(err, 'error'); logError(err, { page: 'AchievementsPage', action: 'publishGoal', entityId: id }); return }
     showToast('Logro publicado — visible para compañeros del colegio', 'success')
+    logActivity('publish', 'achievement_goals', id, 'Publicó logro de desempeño')
   }
 
   // ── Indicator handlers ─────────────────────────────────────────────────────
@@ -752,15 +756,17 @@ export default function AchievementsPage({ teacher }) {
     const { error: err } = isEdit
       ? await updateIndicator(form.id, payload)
       : await createIndicator(form.goal_id, payload)
-    if (err) { showToast(err, 'error'); return }
+    if (err) { showToast(err, 'error'); logError(err, { page: 'AchievementsPage', action: isEdit ? 'updateIndicator' : 'createIndicator' }); return }
     showToast(isEdit ? 'Indicador actualizado' : 'Indicador creado', 'success')
+    logActivity(isEdit ? 'update' : 'create', 'achievement_indicators', form.id || null, `${isEdit ? 'Actualizó' : 'Creó'} indicador: ${form.text?.substring(0, 50)}`)
     setIndicatorModal(null)
   }
 
   const handleDeleteIndicator = async (id) => {
     const { error: err } = await deleteIndicator(id)
-    if (err) { showToast(err, 'error'); return }
+    if (err) { showToast(err, 'error'); logError(err, { page: 'AchievementsPage', action: 'deleteIndicator', entityId: id }); return }
     showToast('Indicador eliminado', 'success')
+    logActivity('delete', 'achievement_indicators', id, 'Eliminó indicador de logro')
   }
 
   // ── Duplicate goal for another section ────────────────────────────────────

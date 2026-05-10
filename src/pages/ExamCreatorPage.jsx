@@ -12,6 +12,7 @@ import {
   TypeCard, ExamInstitutionalHeader,
 } from './ExamDashboardPage'
 import { EXAM_PRESETS, getExamPreset, extractGradeNumber } from '../utils/examUtils'
+import { logError, logActivity } from '../utils/logger'
 
 const STEP_LABELS = ['Contexto', 'Tipos de pregunta', 'Revisar preguntas', 'Publicar']
 
@@ -311,9 +312,11 @@ export default function ExamCreatorPage({ teacher }) {
 
       if (bErr || !blueprint?.id) throw new Error('Error al crear examen: ' + (bErr?.message || 'sin ID'))
 
+      logActivity('create', 'exam_blueprints', blueprint.id, `Examen creado: "${form.title.trim()}" — ${form.subject} ${form.grade}`)
       showToast('Examen creado — revísalo y envíalo al supervisor para aprobación', 'success')
       navigate(`/exams/${blueprint.id}`)
     } catch (err) {
+      logError(err, { page: 'ExamCreatorPage', action: 'handlePublish' })
       showToast(err.message, 'error')
     } finally {
       setSaving(false)

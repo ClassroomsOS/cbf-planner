@@ -2,6 +2,7 @@ import { useState, useCallback, memo } from 'react'
 import { supabase } from '../supabase'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import { useToast } from '../context/ToastContext'
+import { logError, logActivity } from '../utils/logger'
 
 // ── CheckpointModal ─────────────────────────────────────────────────────────
 // Appears before creating a new guide when the previous week had a
@@ -94,7 +95,8 @@ const CheckpointModal = memo(function CheckpointModal({ previousPlan, indicator,
     }
 
     setSaving(false)
-    if (error) { showToast('Error al guardar el checkpoint', 'error'); return }
+    if (error) { showToast('Error al guardar el checkpoint', 'error'); logError(error, { page: 'CheckpointModal', action: existingId ? 'updateCheckpoint' : 'createCheckpoint', entityId: previousPlan?.id }); return }
+    logActivity(existingId ? 'update' : 'create', 'checkpoints', null, `Registró checkpoint de indicador semana ${previousPlan?.week_number}`)
     onComplete()
   }, [selected, notes, indicator, previousPlan, teacher, onComplete, showToast])
 

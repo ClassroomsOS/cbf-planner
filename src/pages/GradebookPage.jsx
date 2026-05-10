@@ -12,6 +12,7 @@ import { displayName } from '../utils/studentUtils'
 import { gradeLevel } from '../utils/examUtils'
 import { useToast } from '../context/ToastContext'
 import MicroActivityModal from '../components/MicroActivityModal'
+import { logError } from '../utils/logger'
 
 // ── Categorías institucionales Boston Flex ───────────────────────────────────
 const CATEGORIES = [
@@ -226,6 +227,7 @@ export default function GradebookPage({ teacher }) {
 
     if (result.error) {
       showToast('Error guardando nota', 'error')
+      logError(result.error, { page: 'GradebookPage', action: existing ? 'updateGrade' : 'createGrade', entityId: studentId })
     } else if (result.data?.[0]) {
       setGrades(prev => {
         const idx = prev.findIndex(g => g.id === result.data[0].id)

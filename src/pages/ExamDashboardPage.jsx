@@ -14,6 +14,7 @@ import { useToast } from '../context/ToastContext'
 import { seededShuffle, gradeLevel as _gradeLevel, gradeColor as _gradeColor, GRADE_SCALE } from '../utils/examUtils'
 import { printExamHtml } from '../utils/exportExamHtml'
 import { canManage } from '../utils/roles'
+import { logError, logActivity } from '../utils/logger'
 
 // ── UI helpers ────────────────────────────────────────────────────────────────
 function fmt(d) {
@@ -261,7 +262,8 @@ function ExamPreviewModal({ exam, onClose }) {
       }))
       const { error } = await supabase.from('exam_blueprints').update({ sections: updatedSections }).eq('id', bp.id)
       setSaving(false)
-      if (error) { showToast('Error: ' + error.message, 'error'); return }
+      if (error) { logError(error, { page: 'ExamDashboardPage', action: 'saveEdit', entityId: bp.id }); showToast('Error: ' + error.message, 'error'); return }
+      logActivity('update', 'exam_blueprints', bp.id, `Pregunta editada en examen "${bp.title}"`)
       bp.sections = updatedSections
     } else {
       setSaving(false)
@@ -574,10 +576,12 @@ function GenerarRosterModal({ exam, teacher, onClose, onDone }) {
         setProgress(Math.round(((i + 1) / roster.length) * 100))
       }
 
+      logActivity('create', 'exam_instances', sessionId, `${created} instancias generadas para "${exam.title}" — ${failed} fallidas`)
       setResult({ created, failed, total: roster.length, v2Code, sessionId })
       setPhase('done')
       onDone?.()
     } catch (err) {
+      logError(err, { page: 'ExamDashboardPage', action: 'handleGenerate', entityId: exam.id })
       showToast(err.message, 'error')
       setPhase('error')
     }
@@ -754,8 +758,8 @@ function ExamDetailModal({ exam, results, onClose, onStatusChange, teacher }) {
     if (exam._session?.id) {
       await supabase.from('exam_sessions').update({ status: isActive ? 'completed' : 'active' }).eq('id', exam._session.id)
     }
-    if (error) { showToast('Error: ' + error.message, 'error') }
-    else { onStatusChange(exam.id, newUiStatus); showToast(`Examen ${newUiStatus === 'active' ? 'activado' : 'cerrado'}`, 'success') }
+    if (error) { logError(error, { page: 'ExamDashboardPage', action: 'toggleStatus', entityId: exam.id }); showToast('Error: ' + error.message, 'error') }
+    else { logActivity('update', 'exam_blueprints', exam.id, `Examen "${exam.title}" ${newUiStatus === 'active' ? 'activado' : 'cerrado'}`); onStatusChange(exam.id, newUiStatus); showToast(`Examen ${newUiStatus === 'active' ? 'activado' : 'cerrado'}`, 'success') }
     setChanging(false)
   }
 
@@ -1444,7 +1448,8 @@ function TelegramConfigPanel({ teacher, showToast }) {
     setSaving(true)
     const { error } = await supabase.from('teachers').update({ telegram_chat_id: trimmed }).eq('id', teacher.id)
     setSaving(false)
-    if (error) { showToast('Error al guardar: ' + error.message, 'error'); return }
+    if (error) { logError(error, { page: 'ExamDashboardPage', action: 'saveTelegram', entityId: teacher.id }); showToast('Error al guardar: ' + error.message, 'error'); return }
+    logActivity('update', 'teachers', teacher.id, 'Telegram Chat ID configurado')
     teacher.telegram_chat_id = trimmed   // mutate prop for immediate feedback (page re-renders on next load)
     setEditing(false)
     showToast('✅ Telegram configurado — recibirás alertas en tiempo real.', 'success')

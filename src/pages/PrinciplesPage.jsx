@@ -8,6 +8,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import { useToast } from '../context/ToastContext'
+import { logError, logActivity } from '../utils/logger'
 
 const MONTHS = [
   'Enero','Febrero','Marzo','Abril','Mayo','Junio',
@@ -65,8 +66,8 @@ export default function PrinciplesPage({ teacher }) {
       .update({ year_verse: yearVerse.trim(), year_verse_ref: yearVerseRef.trim() })
       .eq('id', teacher.school_id)
     setSavingYear(false)
-    if (error) showToast('Error al guardar el versículo del año', 'error')
-    else showToast('Versículo del año guardado', 'success')
+    if (error) { showToast('Error al guardar el versículo del año', 'error'); logError(error, { page: 'PrinciplesPage', action: 'saveYearVerse' }) }
+    else { showToast('Versículo del año guardado', 'success'); logActivity('update', 'schools', teacher.school_id, 'Guardó versículo del año') }
   }
 
   // ── Open month editor ──
@@ -108,8 +109,10 @@ export default function PrinciplesPage({ teacher }) {
     setSavingMonth(false)
     if (error) {
       showToast('Error al guardar', 'error')
+      logError(error, { page: 'PrinciplesPage', action: 'saveMonthVerse' })
     } else {
       showToast(`Principios de ${MONTHS[m-1]} guardados`, 'success')
+      logActivity('update', 'school_monthly_principles', null, `Guardó principio de ${MONTHS[m-1]} ${y}`)
       setMonthly(prev => ({ ...prev, [editing]: payload }))
       setEditing(null)
     }

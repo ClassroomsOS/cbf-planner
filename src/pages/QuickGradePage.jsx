@@ -10,6 +10,7 @@ import { displayName } from '../utils/studentUtils'
 import { gradeLevel } from '../utils/examUtils'
 import { useToast } from '../context/ToastContext'
 import { SIMPLE_RUBRIC } from './GradebookPage'
+import { logError, logActivity } from '../utils/logger'
 
 export default function QuickGradePage({ teacher }) {
   const { id: microId } = useParams()
@@ -84,6 +85,7 @@ export default function QuickGradePage({ teacher }) {
 
     if (result.error) {
       showToast('Error guardando', 'error')
+      logError(result.error, { page: 'QuickGradePage', action: existing ? 'updateGrade' : 'createGrade', entityId: studentId })
     } else if (result.data?.[0]) {
       setGrades(prev => {
         const idx = prev.findIndex(g => g.id === result.data[0].id)

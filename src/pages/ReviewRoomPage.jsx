@@ -17,6 +17,7 @@ import VersionHistoryModal from '../components/VersionHistoryModal'
 import { canGiveFeedback } from '../utils/roles'
 import { useToast }      from '../context/ToastContext'
 import { buildHtml, inlineImages } from '../utils/exportHtml'
+import { logError, logActivity } from '../utils/logger'
 
 // ── Status meta ───────────────────────────────────────────────────────────────
 const STATUS_META = {
@@ -426,8 +427,9 @@ export default function ReviewRoomPage({ teacher }) {
   async function handleChangeStatus(plan, newStatus) {
     setChangingId(plan.id)
     const { error } = await supabase.from('lesson_plans').update({ status: newStatus }).eq('id', plan.id)
-    if (error) { showToast('Error: ' + error.message, 'error'); setChangingId(null); return }
+    if (error) { logError(error, { page: 'ReviewRoomPage', action: 'changeStatus', entityId: plan.id }); showToast('Error: ' + error.message, 'error'); setChangingId(null); return }
 
+    logActivity('update', 'lesson_plans', plan.id, `Guía ${newStatus === 'approved' ? 'aprobada' : 'devuelta'}: "${plan.content?.info?.asignatura || ''}"`)
     setPlans(prev => prev.map(p => p.id === plan.id ? { ...p, status: newStatus } : p))
     const planTitle = `${plan.subject} — ${plan.grade}, Sem. ${plan.week_number}`
     const t = teacherMap[plan.teacher_id]
@@ -492,8 +494,9 @@ export default function ReviewRoomPage({ teacher }) {
     const { error: planErr } = await supabase.from('lesson_plans')
       .update({ status: 'published', locked: true }).eq('id', plan.id)
 
-    if (planErr) { showToast('Error al publicar: ' + planErr.message, 'error'); setChangingId(null); return }
+    if (planErr) { logError(planErr, { page: 'ReviewRoomPage', action: 'handlePublish', entityId: plan.id }); showToast('Error al publicar: ' + planErr.message, 'error'); setChangingId(null); return }
 
+    logActivity('publish', 'lesson_plans', plan.id, `Guía publicada (v${nextVersion}): "${plan.content?.info?.asignatura || ''}"`)
     setPlans(prev => prev.map(p => p.id === plan.id ? { ...p, status: 'published', locked: true } : p))
 
     const t = teacherMap[plan.teacher_id]
@@ -511,7 +514,8 @@ export default function ReviewRoomPage({ teacher }) {
   async function handleUnlock(plan) {
     setChangingId(plan.id)
     const { error } = await supabase.from('lesson_plans').update({ locked: false, status: 'approved' }).eq('id', plan.id)
-    if (error) { showToast('Error al desbloquear', 'error'); setChangingId(null); return }
+    if (error) { logError(error, { page: 'ReviewRoomPage', action: 'handleUnlock', entityId: plan.id }); showToast('Error al desbloquear', 'error'); setChangingId(null); return }
+    logActivity('update', 'lesson_plans', plan.id, `Guía desbloqueada para edición`)
     setPlans(prev => prev.map(p => p.id === plan.id ? { ...p, locked: false, status: 'approved' } : p))
     showToast('Guía desbloqueada — puede editarse y re-publicarse', 'info')
     setChangingId(null)

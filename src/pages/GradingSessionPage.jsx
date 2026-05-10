@@ -10,6 +10,7 @@ import useLiveGrades from '../hooks/useLiveGrades'
 import { useToast } from '../context/ToastContext'
 import { displayName } from '../utils/studentUtils'
 import { gradeLevel } from '../utils/examUtils'
+import { logError, logActivity } from '../utils/logger'
 
 export default function GradingSessionPage({ teacher }) {
   const { id: sessionId } = useParams()
@@ -72,7 +73,7 @@ export default function GradingSessionPage({ teacher }) {
       score,
       maxScore:      session.max_score,
     })
-    if (error) showToast('Error al calificar', 'error')
+    if (error) { showToast('Error al calificar', 'error'); logError(error, { page: 'GradingSessionPage', action: 'gradeStudent', entityId: studentId }) }
     setTimeout(() => setGrading(null), 400)
   }
 
@@ -86,9 +87,10 @@ export default function GradingSessionPage({ teacher }) {
       score,
       maxScore:      session.max_score,
     })
-    if (error) showToast('Error al calificar grupo', 'error')
+    if (error) { showToast('Error al calificar grupo', 'error'); logError(error, { page: 'GradingSessionPage', action: 'gradeGroup' }) }
     else {
       showToast(`${selected.size} estudiantes calificados`, 'success')
+      logActivity('update', 'student_activity_grades', null, `Calificó grupo de ${selected.size} estudiantes`)
       setSelected(new Set())
     }
     setTimeout(() => setGrading(null), 400)

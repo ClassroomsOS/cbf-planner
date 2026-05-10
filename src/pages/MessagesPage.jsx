@@ -4,6 +4,7 @@ import { supabase } from '../supabase'
 import { canManage } from '../utils/roles'
 import { useToast } from '../context/ToastContext'
 import GroupChat from '../components/GroupChat'
+import { logError, logActivity } from '../utils/logger'
 
 export default function MessagesPage({ teacher }) {
   const { features } = useFeatures()
@@ -64,7 +65,8 @@ export default function MessagesPage({ teacher }) {
       body:      form.body.trim(),
       read:      false,
     })
-    if (error) { showToast('Error al enviar el mensaje', 'error'); setSending(false); return }
+    if (error) { showToast('Error al enviar el mensaje', 'error'); logError(error, { page: 'MessagesPage', action: 'sendMessage' }); setSending(false); return }
+    logActivity('create', 'messages', null, `Envió mensaje a ${form.to_id}: ${form.subject?.substring(0, 40)}`)
     setForm({ to_id: '', subject: '', body: '' })
     setShowCompose(false)
     await fetchMessages()
