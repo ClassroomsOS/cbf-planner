@@ -183,6 +183,7 @@ const MODULES = [
       'Fase 6 — IA multimodal ampliada: re-enviar imagen de página completa a Claude para análisis profundo durante generación (analyzeTextbookPages múltiples páginas)',
     ],
     history: [
+      { date: '2026-05-10', reason: 'Fix RLS — infinite recursion', detail: 'shares_owner_manage hacía SELECT a school_library causando ciclo con library_shared_read → library_shares → school_library. Fix: eliminar subquery circular, solo shared_by = auth.uid(). Resuelve "Error cargando documentos" en LibraryPage y el error de Syllabus.' },
       { date: '2026-05-10', reason: 'Pipeline dual WebP/JPEG', detail: 'Upload convierte imágenes a WebP 0.85 (storage + Claude Vision). DOCX export convierte WebP→JPEG via canvas real (elimina hack PNG). Botón "⬇ JPEG" en visor para descargar en formato compatible. Row DB usa uploadFile convertido.' },
       { date: '2026-05-09', reason: 'Fase 5 — Integración Syllabus', detail: 'syllabus_topics + library_doc_id + library_pages[]. SyllabusLinkPanel en PDF viewer. SyllabusPage con selector de PDF. GuideEditorPage callout verde con páginas de la semana.' },
       { date: '2026-05-09', reason: 'Fase 3c + Fase 4 — IA multimodal completa', detail: 'Fragmentos en PlannerPage. Imágenes de fragmentos como imageBlocks a Claude. analyzeTextbookPages() con selección multi-página y PagesAnalysisPanel.' },
@@ -294,16 +295,19 @@ const MODULES = [
     category: 'admin',
     progress: 100,
     status: 'complete',
-    summary: 'Cola de guías enviadas. Coordinador/Rector aprueba, devuelve o publica. Justificación obligatoria, snapshot en Storage, notificación al docente.',
+    summary: 'Cola de guías enviadas. Coordinador/Rector aprueba, devuelve o publica. Justificación obligatoria, snapshot en Storage, notificación al docente. Realtime: coordinador ve guías enviadas y docente ve aprobaciones al instante.',
     works: [
       'ReviewRoomPage: acordeón por grado, cola de guías submitted',
       'Actions: Aprobar → submitted→approved · Devolver → returned · Publicar → published',
       'IntentModal: justificación obligatoria al editar guía ajena',
       'Snapshot HTML inmutable en Storage al publicar (lesson_plan_versions)',
       'FeedbackModal: comentarios sin modificar el doc',
+      'Realtime (ReviewRoomPage): suscripción postgres_changes en lesson_plans — coordinador ve nuevas guías sin refrescar',
+      'Realtime (MyPlansPage): suscripción UPDATE filtrada por teacher_id — docente ve cambios de status al instante',
     ],
     pending: [],
     history: [
+      { date: '2026-05-10', reason: 'Realtime bidireccional', detail: 'ReviewRoomPage: canal review-room-plans escucha todo evento en lesson_plans → recarga automática. MyPlansPage: canal my-plans-status filtrado por teacher_id UPDATE → docente ve aprobación/devolución sin refrescar.' },
       { date: '2026-04-20', reason: 'Sala completa', detail: 'ReviewRoomPage con cola, acordeón, stats. IntentModal. Snapshot en Storage. Notificaciones.' },
     ],
   },
