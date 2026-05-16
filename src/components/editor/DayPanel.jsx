@@ -88,7 +88,14 @@ function VideoList({ videos = [], onChange }) {
 
 // ── DayPanel ─────────────────────────────────────────────────────────────────
 
-export default function DayPanel({ iso, day, setContentField, toggleDayActive, openSections, toggleSection, planId, grade, subject, objective, principles, activeNewsProject, syllabusTopics = [] }) {
+const CLASS_STATUSES = [
+  { value: 'normal',      label: 'Clase normal',     icon: '✅', color: '#16a34a' },
+  { value: 'no_class',    label: 'Sin clase',         icon: '🚫', color: '#dc2626' },
+  { value: 'async',       label: 'Clase asincrónica', icon: '🏠', color: '#2563eb' },
+  { value: 'interrupted', label: 'Clase interrumpida',icon: '⚑',  color: '#d97706' },
+]
+
+export default function DayPanel({ iso, day, setContentField, toggleDayActive, openSections, toggleSection, planId, grade, subject, objective, principles, activeNewsProject, syllabusTopics = [], calendarEvents = [] }) {
   const { features } = useFeatures()
   const base = ['days', iso]
   const [layoutModal,     setLayoutModal]     = useState(null)
@@ -135,22 +142,113 @@ export default function DayPanel({ iso, day, setContentField, toggleDayActive, o
     return html.replace(/<[^>]+>/g, ' ').trim().split(/\s+/).filter(Boolean).length
   }
 
+  // Derive effective status (backward compat: day.active===false → no_class)
+  const effectiveStatus = day.class_status
+    || (day.active === false ? 'no_class' : 'normal')
+
+  function setStatus(val) {
+    setContentField([...base, 'class_status'], val)
+    // If switching to normal, clear legacy active flag
+    if (val === 'normal') setContentField([...base, 'active'], true)
+    if (val === 'no_class') setContentField([...base, 'active'], false)
+    // Auto-suggest reason from calendar if switching away from normal
+    if (val !== 'normal' && !day.status_reason && calendarEvents.length > 0) {
+      const ev = calendarEvents[0]
+      const suggested = ev.no_class ? ev.name : `${ev.name}${ev.organizer ? ` — ${ev.organizer}` : ''}`
+      setContentField([...base, 'status_reason'], suggested)
+    }
+  }
+
+  function setReason(val) {
+    setContentField([...base, 'status_reason'], val)
+  }
+
+  const statusMeta = CLASS_STATUSES.find(s => s.value === effectiveStatus) || CLASS_STATUSES[0]
+  const hasCalendarAlert = calendarEvents.some(e => e.no_class || e.affects_planning)
+
   return (
     <div className="card">
       <div className="ge-day-header" style={{ background: '#1F3864', color: '#fff' }}>
         📅 {getDayName(iso)} — {formatDateEN(iso)}
       </div>
 
-      <div className="ge-toggle-row">
-        <input type="checkbox" id={`active-${iso}`}
-          checked={day.active !== false}
-          onChange={e => toggleDayActive(iso, e.target.checked)} />
-        <label htmlFor={`active-${iso}`}>Hay clase este día</label>
+      {/* ── Calendar alert banner ── */}
+      {hasCalendarAlert && effectiveStatus === 'normal' && (
+        <div style={{
+          background: '#fef3c7', border: '1px solid #f59e0b', borderRadius: 6,
+          padding: '8px 12px', margin: '10px 14px 0', fontSize: 12, color: '#92400e',
+          display: 'flex', flexDirection: 'column', gap: 4,
+        }}>
+          <strong>⚠️ Evento de Coordinación en este día:</strong>
+          {calendarEvents.filter(e => e.no_class || e.affects_planning).map((ev, i) => (
+            <div key={i}>{ev.no_class ? '🚫' : '⚑'} {ev.name}{ev.time_slot ? ` — ${ev.time_slot}` : ''}</div>
+          ))}
+          <button
+            onClick={() => setStatus('interrupted')}
+            style={{ alignSelf: 'flex-start', marginTop: 4, fontSize: 11, padding: '3px 10px',
+              borderRadius: 4, border: '1px solid #f59e0b', background: '#fff7ed',
+              color: '#b45309', cursor: 'pointer', fontWeight: 600 }}>
+            Marcar como interrumpida
+          </button>
+        </div>
+      )}
+
+      {/* ── Day status selector ── */}
+      <div style={{ padding: '10px 14px 6px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {CLASS_STATUSES.map(s => (
+            <button
+              key={s.value}
+              onClick={() => setStatus(s.value)}
+              style={{
+                fontSize: 11, padding: '4px 10px', borderRadius: 5, fontWeight: 600, cursor: 'pointer',
+                border: `1px solid ${effectiveStatus === s.value ? s.color : '#ddd'}`,
+                background: effectiveStatus === s.value ? `${s.color}18` : '#f8fafc',
+                color: effectiveStatus === s.value ? s.color : '#64748b',
+              }}
+            >
+              {s.icon} {s.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Reason field when not normal */}
+        {effectiveStatus !== 'normal' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label style={{ fontSize: 11, color: '#64748b', fontWeight: 600 }}>
+              {effectiveStatus === 'no_class' ? 'Motivo de no clase' :
+               effectiveStatus === 'async'    ? 'Instrucciones para trabajo en casa' :
+               'Descripción de la interrupción'}
+            </label>
+            <input
+              value={day.status_reason || ''}
+              onChange={e => setReason(e.target.value)}
+              placeholder={
+                calendarEvents.length > 0
+                  ? `ej. ${calendarEvents[0].name}`
+                  : effectiveStatus === 'no_class' ? 'ej. Festivo — Día del Maestro'
+                  : effectiveStatus === 'async'    ? 'ej. Los estudiantes trabajan las páginas 45-48 del libro'
+                  : 'ej. Elección de Gobierno Escolar'
+              }
+              style={{ fontSize: 12, padding: '6px 10px', borderRadius: 6,
+                border: `1px solid ${statusMeta.color}66`, outline: 'none',
+                background: `${statusMeta.color}08` }}
+            />
+          </div>
+        )}
       </div>
 
-      {day.active === false ? (
-        <div className="coming-soon-notice">
-          ⚠️ Sin clase este día. Activa la casilla para agregar contenido.
+      {effectiveStatus === 'no_class' ? (
+        <div style={{
+          margin: '0 14px 14px', padding: '12px 16px', borderRadius: 8,
+          background: '#fef2f2', border: '1px solid #fecaca',
+          fontSize: 13, color: '#991b1b',
+        }}>
+          🚫 <strong>Sin clase</strong>
+          {day.status_reason && <> — {day.status_reason}</>}
+          <div style={{ fontSize: 11, color: '#dc2626', marginTop: 4 }}>
+            Este día aparecerá en la guía y en ClassroomOS indicando el motivo.
+          </div>
         </div>
       ) : (
         <>

@@ -218,6 +218,28 @@ export default function GuideEditorPage({ teacher }) {
   const [piarData,            setPiarData]            = useState(null) // aggregated accommodations for AI
   const [textbookFragments,   setTextbookFragments]   = useState([])  // Biblioteca fragments assigned to this week
   const [syllabusBookPages,   setSyllabusBookPages]   = useState([])  // Syllabus-linked book pages for this week
+  const [dayCalendarEvents,   setDayCalendarEvents]   = useState({})   // school_calendar events keyed by ISO date
+
+  // ── Fetch school_calendar events for plan days ──
+  useEffect(() => {
+    if (!content?.days || !teacher?.school_id) return
+    const isos = Object.keys(content.days)
+    if (!isos.length) return
+    supabase
+      .from('school_calendar')
+      .select('date, name, event_type, no_class, is_school_day, organizer, notes, time_slot')
+      .eq('school_id', teacher.school_id)
+      .in('date', isos)
+      .then(({ data }) => {
+        const evMap = {}
+        ;(data || []).forEach(ev => {
+          if (!evMap[ev.date]) evMap[ev.date] = []
+          evMap[ev.date].push(ev)
+        })
+        setDayCalendarEvents(evMap)
+      })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [Object.keys(content?.days || {}).sort().join(','), teacher?.school_id])
 
   // ── Load ──
   useEffect(() => {
@@ -1869,6 +1891,7 @@ export default function GuideEditorPage({ teacher }) {
               principles={principles}
               activeNewsProject={activeNewsProject}
               syllabusTopics={linkedSyllabusTopics}
+              calendarEvents={dayCalendarEvents[activeDayISO] || []}
             />
           )}
 
