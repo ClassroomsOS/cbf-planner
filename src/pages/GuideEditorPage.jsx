@@ -580,7 +580,7 @@ export default function GuideEditorPage({ teacher }) {
 
   // ── Load syllabus topics for current week ──
   useEffect(() => {
-    if (!plan?.subject || !plan?.grade || !plan?.period || !plan?.week_number) {
+    if (!plan?.subject || !plan?.grade || !plan?.week_number) {
       setLinkedSyllabusTopics([]); return
     }
     supabase
@@ -589,7 +589,6 @@ export default function GuideEditorPage({ teacher }) {
       .eq('teacher_id', teacher.id)
       .eq('subject', plan.subject)
       .eq('grade', plan.grade)
-      .eq('period', plan.period)
       .eq('week_number', plan.week_number)
       .order('created_at')
       .then(({ data }) => setLinkedSyllabusTopics(data || []))
