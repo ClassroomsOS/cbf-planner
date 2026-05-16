@@ -5,6 +5,7 @@ import useAchievements from '../hooks/useAchievements'
 import { useToast } from '../context/ToastContext'
 import { combinedGrade } from '../utils/constants'
 import { logError, logActivity } from '../utils/logger'
+import SyllabusPlanView from '../components/SyllabusPlanView'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -899,6 +900,16 @@ export default function SyllabusPage({ teacher }) {
               }}>
               📅 Semanas
             </button>
+            <button type="button"
+              onClick={() => setViewMode('plan')}
+              style={{
+                padding: '8px 14px', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                borderLeft: '1px solid #d0d8e8',
+                background: viewMode === 'plan' ? pc.accent : '#fff',
+                color:      viewMode === 'plan' ? '#fff' : '#666',
+              }}>
+              📋 Plan IA
+            </button>
           </div>
           <button onClick={() => openNewTopic()}
             style={{ padding: '9px 18px', background: pc.accent, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
@@ -992,6 +1003,17 @@ export default function SyllabusPage({ teacher }) {
                 onEdit={t => setTopicModal(t)}
                 onDelete={handleDeleteTopic}
                 onNew={openNewTopic}
+              />
+            )}
+
+            {/* ── Vista Plan IA ── */}
+            {viewMode === 'plan' && filterSubject && filterGrade && (
+              <SyllabusPlanView
+                teacher={teacher}
+                subject={filterSubject}
+                grade={filterGrade}
+                period={filterPeriod}
+                pc={pc}
               />
             )}
 

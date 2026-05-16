@@ -409,7 +409,7 @@ Dame un análisis pedagógico completo. En la sección 🙏 evalúa específicam
 // ── Punto 3: Generar estructura completa desde objetivo ───────────────────────
 export async function generateGuideStructure({
   grade, subject, objective, unit, activeDays, period, planId, achievementGoal, activeNewsProject, principles, piarData,
-  textbookFragments,
+  textbookFragments, syllabusTopics,
   _focusHints, checkpointData
 }) {
   const isEnglishSubject = MODELO_B_SUBJECTS.includes(subject)
@@ -984,6 +984,19 @@ Las actividades de cada día deben estar ancladas a contenido REAL del libro vis
     return lines.join('\n')
   })() : ''
 
+  // Build syllabus topics block (weekly curriculum context from teacher's syllabus plan)
+  const syllabusBlock = (syllabusTopics?.length) ? (() => {
+    const lines = ['\n📚 MALLA CURRICULAR — TEMAS ASIGNADOS A ESTA SEMANA:']
+    syllabusTopics.forEach(t => {
+      const type = t.content_type ? `[${sanitizeAIInput(t.content_type)}]` : ''
+      const topic = sanitizeAIInput(t.topic || '')
+      const desc = t.description ? `: ${sanitizeAIInput(t.description).slice(0, 250)}` : ''
+      lines.push(`  • ${type} ${topic}${desc}`)
+    })
+    lines.push('→ La guía DEBE cubrir estos temas. No inventar contenido alternativo que los contradiga.')
+    return lines.join('\n')
+  })() : ''
+
   // Build focus hints block (eleot domains, skill emphasis, preferred blocks)
   const focusBlock = (_focusHints?.length) ? (() => {
     const lines = [
@@ -1049,6 +1062,7 @@ ${fragmentsBlock}
 ${dayPlanBlock}
 ${milestonesBlock}
 ${checkpointBlock}
+${syllabusBlock}
 ${focusBlock}
 ${piarBlock}
 

@@ -52,6 +52,7 @@ export const ConversationalGuideModal = memo(function ConversationalGuideModal({
   indicator, achievementGoal, activeNewsProject,
   currentContent, principles, eleotCoverage,
   piarData, checkpointData, textbookFragments,
+  syllabusTopics,
   onApply, onClose,
 }) {
   const { showToast } = useToast()
@@ -125,6 +126,7 @@ export const ConversationalGuideModal = memo(function ConversationalGuideModal({
         activeNewsProject, principles,
         piarData,
         textbookFragments,
+        syllabusTopics,
         _focusHints: focusHints,
         checkpointData,
       })

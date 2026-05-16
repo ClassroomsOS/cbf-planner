@@ -1949,6 +1949,7 @@ export default function GuideEditorPage({ teacher }) {
           eleotCoverage={coverage}
           piarData={piarData}
           textbookFragments={textbookFragments}
+          syllabusTopics={linkedSyllabusTopics}
           checkpointData={prevCheckpoint}
           onApply={handleApplyGenerated}
           onClose={closeGenerator}
