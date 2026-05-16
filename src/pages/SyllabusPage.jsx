@@ -41,7 +41,7 @@ function rtLabel(v) {
 }
 
 const CURRENT_YEAR = new Date().getFullYear()
-const MAX_WEEKS    = 40
+const MAX_WEEKS    = 20   // máx semanas por período (ningún período dura más de 20 semanas)
 const UNIT_SUBJECTS = ['Language Arts', 'Science']
 
 // ── Topic Form Modal ──────────────────────────────────────────────────────────
@@ -875,7 +875,7 @@ export default function SyllabusPage({ teacher }) {
         <div>
           <h2 style={{ margin: 0, fontSize: 20, color: '#1F3864', fontWeight: 700 }}>📚 Syllabus de Contenidos</h2>
           <p style={{ margin: '2px 0 0', fontSize: 13, color: '#888' }}>
-            Contenidos teóricos por semana y unidad — {CURRENT_YEAR}
+            Contenidos por semana del período — {CURRENT_YEAR} · Semana 1 = inicio del período
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
