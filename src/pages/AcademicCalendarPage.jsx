@@ -127,7 +127,7 @@ export default function AcademicCalendarPage({ teacher }) {
   const [savingEvent, setSavingEvent] = useState(false)
 
   useEffect(() => { fetchConfigs() }, [])
-  useEffect(() => { if (tab === 'events' || tab === 'communicado') fetchEvents() }, [tab, selectedPeriod])
+  useEffect(() => { if (tab === 'events' || tab === 'communicado') fetchEvents() }, [tab, selectedPeriod, configs])
 
   async function fetchConfigs() {
     const { data } = await supabase
@@ -141,13 +141,28 @@ export default function AcademicCalendarPage({ teacher }) {
 
   async function fetchEvents() {
     setLoadingEvents(true)
-    const { data } = await supabase
-      .from('school_calendar')
-      .select('*')
-      .eq('school_id', teacher.school_id)
-      .eq('period', selectedPeriod)
-      .order('date')
-    setEvents(data || [])
+    const config = configs.find(c => c.period === selectedPeriod)
+
+    const [{ data: periodData }, { data: holidayData }] = await Promise.all([
+      supabase.from('school_calendar').select('*')
+        .eq('school_id', teacher.school_id)
+        .eq('period', selectedPeriod)
+        .order('date'),
+      config?.start_date && config?.end_date
+        ? supabase.from('school_calendar').select('*')
+            .eq('school_id', teacher.school_id)
+            .is('period', null)
+            .gte('date', config.start_date)
+            .lte('date', config.end_date)
+            .order('date')
+        : Promise.resolve({ data: [] }),
+    ])
+
+    const seen = new Set()
+    const all = [...(periodData || []), ...(holidayData || [])]
+      .filter(e => { if (seen.has(e.id)) return false; seen.add(e.id); return true })
+      .sort((a, b) => a.date.localeCompare(b.date))
+    setEvents(all)
     setLoadingEvents(false)
   }
 
@@ -181,9 +196,9 @@ export default function AcademicCalendarPage({ teacher }) {
 
   // ── Event CRUD ────────────────────────────────────────────────────────────
 
-  function openEventForm(ev = null) {
+  function openEventForm(ev = null, prefillDate = '') {
     setEventForm(ev ?? {
-      name: '', date: '', time_slot: '', organizer: '',
+      name: '', date: prefillDate, time_slot: '', organizer: '',
       notes: '', no_class: false, period: selectedPeriod,
     })
   }
@@ -288,7 +303,7 @@ export default function AcademicCalendarPage({ teacher }) {
       {/* ── Tab: Cronograma ── */}
       {tab === 'events' && (
         <div className="acp-section">
-          {/* Period selector */}
+          {/* Period selector + global add */}
           <div className="acp-period-tabs">
             {ACADEMIC_PERIODS.map(p => (
               <button key={p.value}
@@ -302,46 +317,91 @@ export default function AcademicCalendarPage({ teacher }) {
             </button>
           </div>
 
-          {loadingEvents ? (
-            <div className="acp-loading">Cargando…</div>
-          ) : events.length === 0 ? (
+          {!activeConfig && (
             <div className="acp-empty">
-              <p>No hay eventos para {ACADEMIC_PERIODS.find(p => parseInt(p.value) === selectedPeriod)?.label}.</p>
-              <button className="acp-add-btn" onClick={() => openEventForm()}>
-                + Agregar el primer evento
-              </button>
+              <p>Primero configura las fechas del período {selectedPeriod} en la pestaña <strong>Períodos</strong>.</p>
             </div>
-          ) : (
-            <div className="acp-events-table-wrap">
-              <table className="acp-events-table">
-                <thead>
-                  <tr>
-                    <th>Evento / Actividad</th>
-                    <th>Fecha</th>
-                    <th>Hora</th>
-                    <th>Organiza</th>
-                    <th>Observaciones</th>
-                    <th>Sin clase</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {events.map(ev => (
-                    <tr key={ev.id} className={ev.no_class ? 'acp-row-holiday' : ''}>
-                      <td className="acp-td-name">{ev.name}</td>
-                      <td className="acp-td-date">{formatDateShort(ev.date)}</td>
-                      <td>{ev.time_slot || '—'}</td>
-                      <td>{ev.organizer || '—'}</td>
-                      <td className="acp-td-notes">{ev.notes || '—'}</td>
-                      <td>{ev.no_class ? '🚫' : ''}</td>
-                      <td className="acp-td-actions">
-                        <button className="acp-btn-icon" onClick={() => openEventForm(ev)} title="Editar">✎</button>
-                        <button className="acp-btn-icon acp-btn-del" onClick={() => deleteEvent(ev.id)} title="Eliminar">✕</button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          )}
+
+          {activeConfig && loadingEvents && (
+            <div className="acp-loading">Cargando…</div>
+          )}
+
+          {activeConfig && !loadingEvents && (
+            <div className="acp-weeks-view">
+              {weeks.length === 0 && (
+                <div className="acp-empty">
+                  <p>No se pudieron calcular las semanas. Verifica las fechas del período.</p>
+                </div>
+              )}
+              {weeks.map((week, i) => {
+                const isLast    = i === weeks.length - 1
+                const weekLabel = isLast
+                  ? `Evaluaciones finales`
+                  : `Semana ${week.weekNum}${week.isPartial ? ' — Compuesta' : ''}`
+                const dateRange = `${formatDateEs(week.displayStart, { weekday: true })} al ${formatDateEs(week.displayEnd, { weekday: true })}`
+                const weekEvents = events.filter(e => e.date >= week.start && e.date <= week.end)
+                const isCurrentWeek = curWeek === week.weekNum
+
+                return (
+                  <div key={week.weekNum}
+                    className={`acp-week-group ${isCurrentWeek ? 'acp-week-current' : ''} ${isLast ? 'acp-week-final' : ''}`}>
+                    <div className="acp-week-header">
+                      <div className="acp-week-label">
+                        {isCurrentWeek && <span className="acp-week-now">Semana actual</span>}
+                        <strong>{weekLabel}</strong>
+                        <span className="acp-week-dates">{dateRange}</span>
+                        {week.holidays?.length > 0 && (
+                          <span className="acp-week-hols">
+                            🚫 {week.holidays.map(d => {
+                              const ev = events.find(e => e.date === d)
+                              return ev ? ev.name : d
+                            }).join(', ')}
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        className="acp-week-add"
+                        onClick={() => openEventForm(null, week.displayStart)}
+                        title="Agregar evento en esta semana"
+                      >
+                        + Evento
+                      </button>
+                    </div>
+
+                    {weekEvents.length === 0 ? (
+                      <div className="acp-week-empty">Sin eventos registrados</div>
+                    ) : (
+                      <table className="acp-events-table">
+                        <tbody>
+                          {weekEvents.map(ev => (
+                            <tr key={ev.id} className={ev.no_class ? 'acp-row-holiday' : ev.affects_planning ? 'acp-row-important' : ''}>
+                              <td className="acp-td-date-narrow">
+                                {formatDateEs(ev.date, { weekday: true })}
+                                {ev.time_slot && <div className="acp-td-time">{ev.time_slot}</div>}
+                              </td>
+                              <td className="acp-td-name">
+                                <div>{ev.no_class && '🚫 '}{ev.affects_planning && !ev.no_class ? '⚑ ' : ''}{ev.name}</div>
+                                {ev.organizer && <div className="acp-td-org">{ev.organizer}</div>}
+                                {ev.notes && <div className="acp-td-notes-inline">{ev.notes}</div>}
+                              </td>
+                              {ev.period === selectedPeriod && (
+                                <td className="acp-td-actions">
+                                  <button className="acp-btn-icon" onClick={() => openEventForm(ev)} title="Editar">✎</button>
+                                  <button className="acp-btn-icon acp-btn-del" onClick={() => deleteEvent(ev.id)} title="Eliminar">✕</button>
+                                </td>
+                              )}
+                              {ev.period === null && (
+                                <td className="acp-td-national">Festivo nacional</td>
+                              )}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           )}
         </div>
@@ -570,57 +630,79 @@ function ComunicadoPreview({ period, config, events, weeks, curWeek, year, schoo
     day: 'numeric', month: 'long', year: 'numeric'
   })
 
-  const periodLabel = ACADEMIC_PERIODS.find(p => parseInt(p.value) === period)?.label || `Período ${period}`
-
-  // Split events: holidays (no_class) vs cronograma
-  const cronograma = events.filter(e => !e.no_class)
+  // Total pages estimate (rough: 1 page per ~20 events)
+  const cronograma = events.filter(e => !e.no_class && e.period !== null)
   const holidays   = events.filter(e => e.no_class)
-  const holidayIsos = new Set(holidays.map(h => h.date))
 
   return (
     <div className="acp-communicado-wrap">
-      {/* Screen note */}
       <p className="acp-print-note">
-        Vista previa · Usa el botón <strong>🖨 Imprimir</strong> para generar el PDF
+        Vista previa del formato institucional · <strong>🖨 Imprimir</strong> genera el PDF
       </p>
 
-      {/* ── Document — this is what prints ── */}
+      {/* ── Document ── */}
       <div className="comm-doc" id="comm-print-area">
 
-        {/* Header */}
-        <div className="comm-header">
-          <div className="comm-school">{schoolName}</div>
-          <div className="comm-location">Barranquilla, {today}</div>
-        </div>
+        {/* ── Encabezado institucional CBF (formato oficial) ── */}
+        <table className="comm-cbf-header">
+          <tbody>
+            <tr>
+              <td className="comm-cbf-logo" rowSpan={4}>
+                <img src="/assets/logo-bf.png" alt="Boston Flex" />
+              </td>
+              <td className="comm-cbf-school-name" colSpan={2}>
+                COLEGIO BOSTON FLEXIBLE
+              </td>
+              <td className="comm-cbf-code" rowSpan={2}>CÓD: CBF-G AC-01</td>
+            </tr>
+            <tr>
+              <td className="comm-cbf-dane" colSpan={2}>
+                DANE: 308001800455 — RESOLUCIÓN 09685 DE 2019
+              </td>
+            </tr>
+            <tr>
+              <td className="comm-cbf-proceso" colSpan={2}>
+                <strong>PROCESO: Comunicado a Docentes</strong>
+              </td>
+              <td className="comm-cbf-version">Versión 02: Mayo 2019</td>
+            </tr>
+            <tr>
+              <td colSpan={2}></td>
+              <td className="comm-cbf-page">Página 1 de 2</td>
+            </tr>
+          </tbody>
+        </table>
 
+        {/* ── Fecha y saludo ── */}
+        <p className="comm-location">Barranquilla, {today}</p>
         <p className="comm-salutation">Apreciados Docentes.</p>
 
-        {/* Intro */}
+        {/* ── Bienvenida ── */}
         <p className="comm-intro">
           {config.intro_message ||
-            `Bienvenidos al ${periodLabel} ${year}${config.year_theme ? ` "${config.year_theme}"` : ''}. Como institución educativa, gozamos de poder caminar y crecer juntos en este período. El siguiente comunicado tiene la finalidad de desplegar una serie de indicaciones correspondientes al inicio del período académico.`}
+            `Bienvenidos al año ${year}${config.year_theme ? ` "${config.year_theme}"` : ''}. Como institución educativa, gozamos de poder caminar y crecer juntos en este nuevo tiempo. El siguiente comunicado tiene la finalidad de desplegar una serie de indicaciones correspondientes al inicio del período académico.`}
         </p>
 
-        {/* División de semanas */}
+        {/* ── 1. División de semanas ── */}
         <div className="comm-section">
-          <h3 className="comm-section-title">
-            División de semanas{curWeek ? ` (Estamos en la semana ${curWeek})` : ''}
-          </h3>
+          <p className="comm-section-title">
+            <strong>1. División de semanas{curWeek ? ` (Estamos en la semana ${curWeek})` : ''}</strong>
+          </p>
           <ul className="comm-weeks-list">
             {weeks.map((w, i) => {
-              // Collect holidays in this week
               const weekHols = holidays.filter(h => h.date >= w.start && h.date <= w.end)
               const isLast   = i === weeks.length - 1
+              const isCur    = curWeek === w.weekNum
               const label    = isLast
-                ? `Evaluaciones finales: ${formatDateShort(w.displayStart)} - ${formatDateShort(w.displayEnd)}`
+                ? `Evaluaciones finales: ${formatDateShort(w.displayStart)} al ${formatDateShort(w.displayEnd)}`
                 : `Semana ${w.weekNum}: ${formatDateShort(w.displayStart)} - ${formatDateShort(w.displayEnd)}${w.isPartial ? ' (Semana Compuesta)' : ''}`
               return (
-                <li key={w.weekNum}>
-                  {label}
+                <li key={w.weekNum} className={isCur ? 'comm-week-current' : isLast ? 'comm-week-final' : ''}>
+                  <span className="comm-week-bullet">-</span> {label}
                   {weekHols.map(h => (
-                    <span key={h.id} className="comm-holiday-note">
-                      {' · '}{h.name}: {formatDateShort(h.date)}
-                    </span>
+                    <div key={h.id} className="comm-holiday-note">
+                      &emsp;{h.name}: {formatDateShort(h.date)} al {formatDateShort(h.date)}
+                    </div>
                   ))}
                 </li>
               )
@@ -628,30 +710,35 @@ function ComunicadoPreview({ period, config, events, weeks, curWeek, year, schoo
           </ul>
         </div>
 
-        {/* Documentos */}
+        {/* ── 2. Documentos ── */}
         <div className="comm-section">
-          <h3 className="comm-section-title">
-            Documentos a tener en cuenta: ESTUDIANTES BOSTON FLEX {year}
-          </h3>
+          <p className="comm-section-title">
+            <strong>2. Documentos a tener en cuenta:</strong><br />
+            <span className="comm-docs-link">📎 ESTUDIANTES BOSTON FLEX {year}</span>
+          </p>
         </div>
 
-        {/* Cronograma */}
-        {cronograma.length > 0 && (
-          <div className="comm-section">
-            <h3 className="comm-section-title">Cronograma:</h3>
+        {/* ── 3. Cronograma ── */}
+        <div className="comm-section">
+          <p className="comm-section-title"><strong>3. Cronograma:</strong></p>
+          {cronograma.length === 0 ? (
+            <p style={{ fontStyle: 'italic', color: '#888', fontSize: '11pt' }}>
+              No hay eventos registrados para este período.
+            </p>
+          ) : (
             <table className="comm-table">
               <thead>
                 <tr>
-                  <th>Evento / Actividad</th>
-                  <th>Fecha</th>
-                  <th>Observaciones</th>
+                  <th style={{ width: '48%' }}></th>
+                  <th style={{ width: '18%' }}></th>
+                  <th style={{ width: '34%' }}>Observaciones</th>
                 </tr>
               </thead>
               <tbody>
                 {cronograma.map(ev => (
                   <tr key={ev.id}>
                     <td>
-                      {ev.name}
+                      <div style={{ fontWeight: ev.affects_planning ? '700' : '400' }}>{ev.name}</div>
                       {ev.organizer && <div className="comm-organizer">{ev.organizer}</div>}
                     </td>
                     <td className="comm-td-date">
@@ -663,10 +750,10 @@ function ComunicadoPreview({ period, config, events, weeks, curWeek, year, schoo
                 ))}
               </tbody>
             </table>
-          </div>
-        )}
+          )}
+        </div>
 
-        {/* Footer */}
+        {/* ── Cierre y firmas ── */}
         <div className="comm-footer">
           <p className="comm-closing">Cordialmente,</p>
           <div className="comm-signatures">
@@ -675,8 +762,8 @@ function ComunicadoPreview({ period, config, events, weeks, curWeek, year, schoo
               <div className="comm-sig-role">Director de sede</div>
             </div>
             <div className="comm-sig">
-              <div className="comm-sig-name">{config.coordinator_name || 'Coordinación Académica'}</div>
-              <div className="comm-sig-role">Coordinación Académica</div>
+              <div className="comm-sig-name">{config.coordinator_name || 'Coordinación Académico.'}</div>
+              <div className="comm-sig-role">Coordinación Académico.</div>
             </div>
           </div>
         </div>
