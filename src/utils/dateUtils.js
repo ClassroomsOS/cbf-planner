@@ -94,6 +94,18 @@ export function getSchoolWeek(monday) {
 }
 
 /**
+ * Calculate week number within a period (restarts at 1 when the period starts).
+ * @param {Date} monday - The Monday of the week being planned
+ * @param {string} periodStartISO - ISO date (YYYY-MM-DD) of the period's first day
+ * @returns {number} Week number within the period (1-based)
+ */
+export function getPeriodWeek(monday, periodStartISO) {
+  const periodMonday = getMondayOf(new Date(periodStartISO + 'T12:00:00'))
+  const diff = Math.floor((monday - periodMonday) / (7 * 24 * 3600 * 1000))
+  return Math.max(1, diff + 1)
+}
+
+/**
  * Format date range for display (e.g., "Ene. 13–17, 2026")
  * @param {Date[]} days - Array of Date objects
  * @returns {string}

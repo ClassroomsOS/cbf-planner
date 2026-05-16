@@ -4,9 +4,9 @@ import { supabase } from '../supabase'
 import { logError, logActivity } from '../utils/logger'
 import { AIGeneratorModal } from '../components/AIComponents'
 import CheckpointModal from '../components/CheckpointModal'
-import { SECTIONS, SKILL_COLOR, detectActivityType, isoMonday, formatWeekRange } from '../utils/constants'
+import { SECTIONS, SKILL_COLOR, detectActivityType, isoMonday, formatWeekRange, ACADEMIC_PERIODS } from '../utils/constants'
 import {
-  getMondayOf, getWeekDays, toISO, getSchoolWeek, formatRange, formatDateEN,
+  getMondayOf, getWeekDays, toISO, getPeriodWeek, formatRange, formatDateEN,
   MONTHS_ES, DAYS_ES
 } from '../utils/dateUtils'
 import { useToggle } from '../hooks'
@@ -68,6 +68,17 @@ export default function PlannerPage({ teacher }) {
   const [monthPrinciple, setMonthPrinciple] = useState(null)
   // ── Biblioteca fragments assigned to this week ──
   const [textbookFragments, setTextbookFragments] = useState([])
+  // ── Period configs from academic_period_config (for per-period week numbering) ──
+  const [periodConfigs, setPeriodConfigs] = useState([])
+
+  useEffect(() => {
+    supabase
+      .from('academic_period_config')
+      .select('period, start_date, end_date')
+      .eq('school_id', teacher.school_id)
+      .eq('year', new Date().getFullYear())
+      .then(({ data }) => { if (data) setPeriodConfigs(data) })
+  }, [teacher.school_id])
 
   useEffect(() => {
     const now = new Date()
@@ -170,8 +181,14 @@ export default function PlannerPage({ teacher }) {
   const week1Days   = getWeekDays(monday)
   const week2Days   = getWeekDays(monday2)
   const allWeekDays = weekCount === 2 ? [...week1Days, ...week2Days] : week1Days
-  const weekNumber  = getSchoolWeek(monday)
   const dateRange   = formatRange(allWeekDays)
+
+  // Per-period week number: extract period number from label ("2.do Período 2026" → 2)
+  const periodNum = parseInt(period.match(/\d+/)?.[0]) || 1
+  const periodStartISO = periodConfigs.find(c => c.period === periodNum)?.start_date
+    || ACADEMIC_PERIODS.find(p => parseInt(p.value) === periodNum)?.start
+    || toISO(monday)
+  const weekNumber = getPeriodWeek(monday, periodStartISO)
 
   // Derive active NEWS project and indicator for the selected week
   const plannerActiveNewsProject = useMemo(() => {
@@ -971,7 +988,7 @@ function PlannerPeriodTimeline({ projects, currentMonday, weekCount }) {
         {sortedWeeks.map((wk, wIdx) => {
           const isCurrent = wk === currentWeekKey || (nextWeekKey && wk === nextWeekKey)
           const weekEvents = weekMap[wk]
-          const wkNum = getSchoolWeek(new Date(wk + 'T12:00:00'))
+          const wkNum = getPeriodWeek(new Date(wk + 'T12:00:00'), periodStartISO)
 
           return (
             <div key={wk} style={{
