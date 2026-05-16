@@ -50,9 +50,8 @@ function formatWeekRange(mondayStr) {
 
 function htmlToText(html) {
   if (!html) return ''
-  const div = document.createElement('div')
-  div.innerHTML = html
-  return div.textContent?.trim() || ''
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  return doc.body.textContent?.trim() || ''
 }
 
 function todayMonday() {

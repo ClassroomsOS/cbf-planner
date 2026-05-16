@@ -261,7 +261,6 @@ export default function AdminTeachersPage({ teacher: admin }) {
 }
 
 // ── Create Teacher Modal ──────────────────────────────────────
-const EDGE_BASE = (import.meta.env.VITE_SUPABASE_URL || 'https://vouxrqsiyoyllxgcriic.supabase.co') + '/functions/v1'
 
 function CreateTeacherModal({ admin, onClose, onCreated }) {
   const { showToast } = useToast()
@@ -287,25 +286,17 @@ function CreateTeacherModal({ admin, onClose, onCreated }) {
     }
     setSaving(true)
     try {
-      const { data: { session } } = await supabase.auth.getSession()
-      const res = await fetch(`${EDGE_BASE}/admin-create-teacher`, {
-        method: 'POST',
-        headers: {
-          'Content-Type':  'application/json',
-          'Authorization': `Bearer ${session?.access_token}`,
-          'apikey':        import.meta.env.VITE_SUPABASE_ANON_KEY || '',
-        },
-        body: JSON.stringify({
+      const { data: json, error: fnErr } = await supabase.functions.invoke('admin-create-teacher', {
+        body: {
           email:     form.email.trim().toLowerCase(),
           full_name: form.full_name.trim(),
           role:      form.role,
           level:     form.level || null,
           school_id: admin.school_id,
-        }),
+        },
       })
-      const json = await res.json()
-      if (!res.ok || json.error) {
-        showToast(json.error || 'Error al crear el docente', 'error')
+      if (fnErr || json?.error) {
+        showToast(json?.error || fnErr?.message || 'Error al crear el docente', 'error')
         return
       }
       if (json.recovery_url) {

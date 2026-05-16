@@ -128,12 +128,13 @@ export default function ExamCreatorPage({ teacher }) {
 
     if (form.grade && form.subject && form.period) {
       supabase.from('syllabus_topics')
-        .select('week, content')
+        .select('week_number, topic, indicator_id')
         .eq('school_id', teacher.school_id)
+        .eq('teacher_id', teacher.id)
         .eq('grade', form.grade)
         .eq('subject', form.subject)
         .eq('period', parseInt(form.period))
-        .order('week')
+        .order('week_number')
         .then(({ data }) => setF('syllabusTopics', data || []))
     }
   }, [form.indicatorId, indicators])
@@ -292,7 +293,7 @@ export default function ExamCreatorPage({ teacher }) {
           period: form.period ? parseInt(form.period) : 1,
           learning_objectives: form.indicator?.text ? [form.indicator.text] : [],
           skills_targeted: form.indicator?.skill_area ? [form.indicator.skill_area] : [],
-          content_topics: form.syllabusTopics.map(t => String(t.content || t)).slice(0, 10),
+          content_topics: form.syllabusTopics.map(t => String(t.topic || t)).slice(0, 10),
           biblical_connection: form.biblicalContext?.principle || null,
           total_points: totalScore,
           estimated_minutes: form.time_limit || 60,
@@ -516,8 +517,8 @@ export default function ExamCreatorPage({ teacher }) {
                   </p>
                   <div style={{ fontSize: 12, color: '#374151', display: 'flex', flexWrap: 'wrap', gap: '4px 12px' }}>
                     {form.syllabusTopics.slice(0, 6).map(t => (
-                      <span key={t.week} style={{ whiteSpace: 'nowrap' }}>
-                        <strong>Sem {t.week}:</strong> {t.content?.substring(0, 40)}{t.content?.length > 40 ? '…' : ''}
+                      <span key={t.week_number} style={{ whiteSpace: 'nowrap' }}>
+                        <strong>Sem {t.week_number}:</strong> {t.topic?.substring(0, 40)}{t.topic?.length > 40 ? '…' : ''}
                       </span>
                     ))}
                   </div>

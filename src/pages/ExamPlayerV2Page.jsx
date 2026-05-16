@@ -8,6 +8,14 @@ import { supabase } from '../supabase'
 import { colombianGrade as calcColombianGrade, gradeLevel, gradeColor } from '../utils/examUtils'
 import { logError } from '../utils/logger'
 
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const TELEGRAM_THROTTLE_MS = 60000        // 1 alerta Telegram cada 60s máx
+const XHR_TIMEOUT_MS       = 600000       // 10 min timeout para uploads
+const AUTOSAVE_INTERVAL_MS = 30000        // Autosave IndexedDB cada 30s
+const DEVTOOLS_CHECK_MS    = 3000         // Chequeo DevTools cada 3s
+const HIGH_RISK_THRESHOLD  = 3            // Violaciones para marcar high_risk
+
 // ── IndexedDB helper ──────────────────────────────────────────────────────────
 
 const IDB_NAME    = 'cbf_exam_v2'
@@ -502,7 +510,7 @@ export default function ExamPlayerV2Page() {
           // eslint-disable-next-line no-console
           console.clear()
           if (triggered) registerViolation('devtools_open')
-        }, 3000)
+        }, DEVTOOLS_CHECK_MS)
       }
       // e) Teclas sospechosas — bloquear + registrar
       function onKeyDown(e) {
@@ -590,14 +598,14 @@ export default function ExamPlayerV2Page() {
       return () => clearInterval(timerRef.current)
     }, [])
 
-    // IndexedDB autosave cada 30s
+    // IndexedDB autosave
     useEffect(() => {
       autosaveRef.current = setInterval(() => {
         if (!idbRef.current || !instance) return
         Object.entries(answers).forEach(([qId, val]) => {
           idbSave(idbRef.current, instance.id, qId, val).catch(() => {})
         })
-      }, 30000)
+      }, AUTOSAVE_INTERVAL_MS)
       return () => clearInterval(autosaveRef.current)
     }, [answers])
 
@@ -831,34 +839,32 @@ export default function ExamPlayerV2Page() {
 
       // Telegram throttle: máximo 1 alerta cada 60s
       const now = Date.now()
-      if (now - lastAlertRef.current > 60000) {
+      if (now - lastAlertRef.current > TELEGRAM_THROTTLE_MS) {
         lastAlertRef.current = now
-        fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/exam-integrity-alert`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          },
-          body: JSON.stringify({
+        supabase.functions.invoke('exam-integrity-alert', {
+          body: {
             instance_id:     inst.id,
             session_id:      inst.session_id,
             student_section: inst.student_section,
             exam_title:      sess?.title || '',
             event_type:      eventType,
             count:           next,
-          }),
+          },
         }).catch(() => {})
         // La Edge Function actualiza DB — no duplicar aquí
       } else {
-        // Throttled: solo actualizar DB localmente
+        // Throttled: actualizar DB con valor actual (no race-prone: usamos el valor local como source of truth)
         supabase.from('exam_instances').update({
           tab_switches: next,
           integrity_flags: {
-            high_risk: next >= 3,
+            high_risk: next >= HIGH_RISK_THRESHOLD,
             last_event: eventType,
             violation_count: next,
+            updated_at: new Date().toISOString(),
           },
-        }).eq('id', inst.id).then(() => {})
+        }).eq('id', inst.id)
+          .eq('tab_switches', next - 1) // optimistic lock: solo actualiza si DB tiene el valor anterior
+          .then(() => {})
       }
 
       return next
@@ -870,13 +876,8 @@ export default function ExamPlayerV2Page() {
     const inst = instanceRef.current
     const sess = sessionRef.current
     if (!inst) return
-    fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/exam-integrity-alert`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-      },
-      body: JSON.stringify({
+    supabase.functions.invoke('exam-integrity-alert', {
+      body: {
         instance_id:     inst.id,
         session_id:      inst.session_id,
         student_section: inst.student_section,
@@ -884,7 +885,7 @@ export default function ExamPlayerV2Page() {
         event_type:      eventType,
         count:           violationsRef.current,
         ...extra,
-      }),
+      },
     }).catch(() => {})
   }, [])
 
@@ -893,14 +894,10 @@ export default function ExamPlayerV2Page() {
   async function callAICorrector(instanceId) {
     setCorrecting(true)
     try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-      const res = await fetch(`${supabaseUrl}/functions/v1/exam-response-corrector`, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json', 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` },
-        body:    JSON.stringify({ instance_id: instanceId }),
+      const { data, error: fnErr } = await supabase.functions.invoke('exam-response-corrector', {
+        body: { instance_id: instanceId },
       })
-      const data = await res.json()
+      if (fnErr) throw fnErr
       if (data.colombian_grade) {
         setExamScore(prev => ({
           ...prev,
@@ -923,7 +920,6 @@ export default function ExamPlayerV2Page() {
     setSubmitting(true)
     clearInterval(timerRef.current)
     clearInterval(autosaveRef.current)
-    window.removeEventListener('beforeunload', () => {})
 
     try {
       const inst = instance || instanceRef.current
@@ -1174,11 +1170,14 @@ export default function ExamPlayerV2Page() {
   }
 
   // ── Render ──────────────────────────────────────────────────
+  // IMPORTANT: Call as functions (not <Component />) to avoid remounting on every
+  // parent re-render. These are defined inside the parent for closure access to state,
+  // so React would see a new component type each render if used as JSX elements.
 
-  if (phase === PHASE.ENTRY)        return <EntryPhase />
-  if (phase === PHASE.INSTRUCTIONS) return <InstructionsPhase />
-  if (phase === PHASE.EXAM)         return <ExamPhase />
-  if (phase === PHASE.SUBMITTED)    return <SubmittedPhase />
+  if (phase === PHASE.ENTRY)        return EntryPhase()
+  if (phase === PHASE.INSTRUCTIONS) return InstructionsPhase()
+  if (phase === PHASE.EXAM)         return ExamPhase()
+  if (phase === PHASE.SUBMITTED)    return SubmittedPhase()
   return null
 }
 

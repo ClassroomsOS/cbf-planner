@@ -230,7 +230,8 @@ export default function GuideEditorPage({ teacher }) {
       .select('date, name, event_type, no_class, is_school_day, organizer, notes, time_slot')
       .eq('school_id', teacher.school_id)
       .in('date', isos)
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        if (error) { logError(error, { page: 'GuideEditor', action: 'fetchCalendar' }); return }
         const evMap = {}
         ;(data || []).forEach(ev => {
           if (!evMap[ev.date]) evMap[ev.date] = []
@@ -1188,15 +1189,14 @@ export default function GuideEditorPage({ teacher }) {
       return
     }
 
-    const allInds = []
-    for (const goal of goals) {
-      const { data: inds } = await supabase
-        .from('achievement_indicators')
-        .select('id, text, dimension, skill_area, order_index')
-        .eq('goal_id', goal.id)
-        .order('order_index', { ascending: true })
-      ;(inds || []).forEach(i => allInds.push({ ...i, goalText: goal.text }))
-    }
+    const goalIds = goals.map(g => g.id)
+    const { data: indsRaw } = await supabase
+      .from('achievement_indicators')
+      .select('id, text, dimension, skill_area, order_index, goal_id')
+      .in('goal_id', goalIds)
+      .order('order_index', { ascending: true })
+    const goalTextMap = Object.fromEntries(goals.map(g => [g.id, g.text]))
+    const allInds = (indsRaw || []).map(i => ({ ...i, goalText: goalTextMap[i.goal_id] }))
 
     if (!allInds.length) {
       showToast('El logro no tiene indicadores aún. Ve a Objetivos para agregarlos.', 'warning')

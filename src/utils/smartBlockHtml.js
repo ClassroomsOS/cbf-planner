@@ -597,13 +597,13 @@ function ${bid}_chk(){
     else{s.style.borderColor='#C0504D';s.style.background='#fff0f0';}
   });
   var el=document.getElementById('${bid}_res'),pct=Math.round(ok/w.length*100);
-  el.innerHTML=ok+'/'+w.length+' correct ('+pct+'%)';
+  el.textContent=ok+'/'+w.length+' correct ('+pct+'%)';
   el.style.color=pct>=80?'#375623':pct>=50?'#F79646':'#C0504D';
 }
 function ${bid}_rst(){
   var w=${JSON.stringify(words)};
   w.forEach(function(_,i){var s=document.getElementById('${bid}_s'+i);if(s){s.value='';s.style.borderColor='#ddd';s.style.background='#fff';}});
-  document.getElementById('${bid}_res').innerHTML='';
+  document.getElementById('${bid}_res').textContent='';
 }
 </script>`
     return dialog('VOCAB — Match Columns', body, footer) + script
@@ -642,13 +642,13 @@ function ${bid}_chk(){
     else if(val){inp.style.borderBottomColor='#C0504D';inp.style.color='#C0504D';}
   });
   var el=document.getElementById('${bid}_res');
-  el.innerHTML=ok+'/'+s.length+' correct';
+  el.textContent=ok+'/'+s.length+' correct';
   el.style.color=ok===s.length?'#375623':'#C0504D';
 }
 function ${bid}_rst(){
   var s=${JSON.stringify(sentences)};
   s.forEach(function(_,i){var inp=document.getElementById('${bid}_i'+i);if(inp){inp.value='';inp.style.borderBottomColor='#375623';inp.style.color='#222';}});
-  document.getElementById('${bid}_res').innerHTML='';
+  document.getElementById('${bid}_res').textContent='';
 }
 </script>`
     return dialog('Grammar — Fill in the Blank', body, footer) + script
@@ -699,14 +699,14 @@ function ${bid}_chk(){
     }
   });
   var el=document.getElementById('${bid}_res');
-  el.innerHTML=ok+'/'+items.length+' correct';
+  el.textContent=ok+'/'+items.length+' correct';
   el.style.color=ok===items.length?'#375623':'#C0504D';
 }
 function ${bid}_rst(){
   var items=${JSON.stringify(items)};
   ${bid}_sel_map={};
   items.forEach(function(item,i){(item.options||[]).forEach(function(_,j){var b=document.getElementById('${bid}_i'+i+'_'+j);if(b){b.style.background='#f9f9f9';b.style.borderColor='#ddd';b.style.color='#222';}});});
-  document.getElementById('${bid}_res').innerHTML='';
+  document.getElementById('${bid}_res').textContent='';
 }
 </script>`
     return dialog('Grammar — Choose the Form', body, footer) + script
@@ -752,8 +752,8 @@ function ${bid}_pick(i,v){
 function ${bid}_done(){
   var tot=${stmts.length},answered=Object.keys(${bid}_ans).length;
   var el=document.getElementById('${bid}_res');
-  if(answered<tot){el.innerHTML='<span style="color:#C0504D">'+(tot-answered)+' sin responder</span>';}
-  else{el.innerHTML='<span style="color:#375623">¡Completado! ✓</span>';}
+  if(answered<tot){el.textContent=(tot-answered)+' sin responder';el.style.color='#C0504D';}
+  else{el.textContent='¡Completado! ✓';el.style.color='#375623';}
 }
 function ${bid}_rst(){
   ${bid}_ans={};
@@ -762,7 +762,7 @@ function ${bid}_rst(){
     if(t){t.style.background='#fff';t.style.color='#17375E';}
     if(f){f.style.background='#fff';f.style.color='#17375E';}
   }
-  document.getElementById('${bid}_res').innerHTML='';
+  document.getElementById('${bid}_res').textContent='';
 }
 </script>`
     return dialog('Reading — True / False', body, footer) + script
@@ -795,8 +795,8 @@ function ${bid}_done(){
   var tot=${questions.length},ok=0;
   for(var i=0;i<tot;i++){var ta=document.getElementById('${bid}_a'+i);if(ta&&ta.value.trim())ok++;}
   var el=document.getElementById('${bid}_res');
-  if(ok<tot){el.innerHTML='<span style="color:#C0504D">'+(tot-ok)+' pregunta(s) sin responder</span>';}
-  else{el.innerHTML='<span style="color:#375623">¡Completado! ✓</span>';}
+  if(ok<tot){el.textContent=(tot-ok)+' pregunta(s) sin responder';el.style.color='#C0504D';}
+  else{el.textContent='¡Completado! ✓';el.style.color='#375623';}
 }
 </script>`
     return dialog('Reading — Comprehension', body, footer) + script
@@ -840,13 +840,13 @@ function ${bid}_pick(i,j,tot){
 }
 function ${bid}_done(){
   var tot=${skills.length},answered=Object.keys(${bid}_picks).length,el=document.getElementById('${bid}_res');
-  if(answered<tot){el.innerHTML='<span style="color:#C0504D">'+(tot-answered)+' sin completar</span>';}
-  else{el.innerHTML='<span style="color:#C55A11">¡Exit Ticket enviado! ✓</span>';}
+  if(answered<tot){el.textContent=(tot-answered)+' sin completar';el.style.color='#C0504D';}
+  else{el.textContent='¡Exit Ticket enviado! ✓';el.style.color='#C55A11';}
 }
 function ${bid}_rst(){
   ${bid}_picks={};
   for(var i=0;i<${skills.length};i++)for(var j=0;j<3;j++){var b=document.getElementById('${bid}_e'+i+'_'+j);if(b){b.style.borderColor='#ddd';b.style.background='#fff';}}
-  document.getElementById('${bid}_res').innerHTML='';
+  document.getElementById('${bid}_res').textContent='';
 }
 </script>`
     return dialog('Exit Ticket — Can-Do', body, footer) + script
@@ -885,13 +885,13 @@ function ${bid}_rate(i,n){
 }
 function ${bid}_done(){
   var tot=${statements.length},answered=Object.keys(${bid}_ratings).length,el=document.getElementById('${bid}_res');
-  if(answered<tot){el.innerHTML='<span style="color:#C0504D">'+(tot-answered)+' sin calificar</span>';}
-  else{el.innerHTML='<span style="color:#C55A11">¡Self-Rating enviado! ✓</span>';}
+  if(answered<tot){el.textContent=(tot-answered)+' sin calificar';el.style.color='#C0504D';}
+  else{el.textContent='¡Self-Rating enviado! ✓';el.style.color='#C55A11';}
 }
 function ${bid}_rst(){
   ${bid}_ratings={};
   for(var i=0;i<${statements.length};i++)for(var k=1;k<=5;k++){var b=document.getElementById('${bid}_r'+i+'_'+k);if(b){b.style.background='#fff';b.style.color='#C55A11';}}
-  document.getElementById('${bid}_res').innerHTML='';
+  document.getElementById('${bid}_res').textContent='';
 }
 </script>`
     return dialog('Exit Ticket — Self-Rating', body, footer) + script

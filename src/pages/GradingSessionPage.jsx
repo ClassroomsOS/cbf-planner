@@ -9,7 +9,7 @@ import useGradingSession from '../hooks/useGradingSession'
 import useLiveGrades from '../hooks/useLiveGrades'
 import { useToast } from '../context/ToastContext'
 import { displayName } from '../utils/studentUtils'
-import { gradeLevel } from '../utils/examUtils'
+import { gradeLevel, colombianGrade } from '../utils/examUtils'
 import { logError, logActivity } from '../utils/logger'
 
 export default function GradingSessionPage({ teacher }) {
@@ -113,7 +113,7 @@ export default function GradingSessionPage({ teacher }) {
   // Stats
   const gradedCount = students.filter(s => gradeMap[s.id]).length
   const average = gradedCount > 0
-    ? (grades.reduce((sum, g) => sum + Number(g.colombian_grade || 0), 0) / gradedCount).toFixed(1)
+    ? (grades.reduce((sum, g) => sum + Number(colombianGrade(g.score, g.max_score) || 0), 0) / gradedCount).toFixed(1)
     : null
   const avgLevel = average ? gradeLevel(Number(average)) : null
 
@@ -184,7 +184,8 @@ export default function GradingSessionPage({ teacher }) {
       <div className="gs-students">
         {gradesLoading ? <div className="gs-loading">Cargando...</div> : students.map(s => {
           const g = gradeMap[s.id]
-          const level = g ? gradeLevel(Number(g.colombian_grade)) : null
+          const cgr = g ? colombianGrade(g.score, g.max_score) : null
+          const level = cgr ? gradeLevel(Number(cgr)) : null
           const isGrading = grading === s.id
 
           return (
@@ -203,9 +204,9 @@ export default function GradingSessionPage({ teacher }) {
               )}
               <div className="gs-student-info">
                 <span className="gs-student-name">{displayName(s)}</span>
-                {g && (
+                {g && cgr && (
                   <span className="gs-student-grade" style={{ color: level?.color }}>
-                    {Number(g.colombian_grade).toFixed(1)} {level?.icon}
+                    {cgr} {level?.icon}
                   </span>
                 )}
               </div>

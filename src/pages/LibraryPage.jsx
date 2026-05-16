@@ -39,7 +39,7 @@ const ACCEPT = [
   'audio/midi', 'audio/x-midi',
 ].join(',')
 
-const MAX_FILE_MB = { pdf: 200, image: 100, video: 1000, audio: 200, midi: 10, other: 100 }
+const MAX_FILE_MB = { pdf: 500, image: 100, video: 1000, audio: 200, midi: 10, other: 100 }
 
 const ACTION_BADGE = {
   created:       { label: 'Creado',        color: '#1A6B3A' },
@@ -1546,9 +1546,49 @@ function UploadModal({ visibility, teacher, onClose, onUploaded }) {
 
       setProgress(30)
 
-      const { error: upErr } = await supabase.storage
-        .from('cbf-library')
-        .upload(path, uploadFile, { contentType: uploadMime, upsert: false })
+      // Archivos grandes (>50MB): usar createSignedUploadUrl + XHR para progreso real
+      // y evitar timeout del método upload() estándar.
+      const LARGE_FILE_THRESHOLD = 50 * 1024 * 1024 // 50 MB
+      let upErr = null
+
+      if (uploadFile.size > LARGE_FILE_THRESHOLD) {
+        // 1. Obtener URL firmada para upload directo
+        const { data: signedData, error: signErr } = await supabase.storage
+          .from('cbf-library')
+          .createSignedUploadUrl(path)
+
+        if (signErr) {
+          upErr = signErr
+        } else {
+          // 2. Subir con XHR para trackear progreso y evitar timeout
+          const uploadResult = await new Promise((resolve) => {
+            const xhr = new XMLHttpRequest()
+            xhr.open('PUT', signedData.signedUrl, true)
+            xhr.setRequestHeader('Content-Type', uploadMime)
+            xhr.upload.onprogress = (e) => {
+              if (e.lengthComputable) {
+                const pct = Math.round(30 + (e.loaded / e.total) * 40)
+                setProgress(pct)
+              }
+            }
+            xhr.onload = () => {
+              if (xhr.status >= 200 && xhr.status < 300) resolve({ error: null })
+              else resolve({ error: { message: `Upload failed: HTTP ${xhr.status}` } })
+            }
+            xhr.onerror = () => resolve({ error: { message: 'Error de red durante la subida. Verifica tu conexión.' } })
+            xhr.ontimeout = () => resolve({ error: { message: 'Tiempo agotado. El archivo es muy grande para tu conexión actual.' } })
+            xhr.timeout = 600000 // 10 minutos
+            xhr.send(uploadFile)
+          })
+          upErr = uploadResult.error
+        }
+      } else {
+        // Archivos pequeños: método estándar
+        const result = await supabase.storage
+          .from('cbf-library')
+          .upload(path, uploadFile, { contentType: uploadMime, upsert: false })
+        upErr = result.error
+      }
 
       if (upErr) {
         showToast(`Error al subir: ${upErr.message}`, 'error')
@@ -1775,9 +1815,40 @@ function EditModal({ doc, teacher, onClose, onSaved }) {
 
       setProgress(30)
 
-      const { error: upErr } = await supabase.storage
-        .from('cbf-library')
-        .upload(path, newFile, { contentType: newFile.type, upsert: true })
+      const LARGE_FILE_THRESHOLD = 50 * 1024 * 1024
+      let upErr = null
+
+      if (newFile.size > LARGE_FILE_THRESHOLD) {
+        const { data: signedData, error: signErr } = await supabase.storage
+          .from('cbf-library')
+          .createSignedUploadUrl(path)
+        if (signErr) {
+          upErr = signErr
+        } else {
+          const uploadResult = await new Promise((resolve) => {
+            const xhr = new XMLHttpRequest()
+            xhr.open('PUT', signedData.signedUrl, true)
+            xhr.setRequestHeader('Content-Type', newFile.type)
+            xhr.upload.onprogress = (e) => {
+              if (e.lengthComputable) setProgress(Math.round(30 + (e.loaded / e.total) * 30))
+            }
+            xhr.onload = () => {
+              if (xhr.status >= 200 && xhr.status < 300) resolve({ error: null })
+              else resolve({ error: { message: `Upload failed: HTTP ${xhr.status}` } })
+            }
+            xhr.onerror = () => resolve({ error: { message: 'Error de red durante la subida.' } })
+            xhr.timeout = 600000
+            xhr.ontimeout = () => resolve({ error: { message: 'Tiempo agotado subiendo el archivo.' } })
+            xhr.send(newFile)
+          })
+          upErr = uploadResult.error
+        }
+      } else {
+        const result = await supabase.storage
+          .from('cbf-library')
+          .upload(path, newFile, { contentType: newFile.type, upsert: true })
+        upErr = result.error
+      }
 
       if (upErr) {
         showToast(`Error al subir: ${upErr.message}`, 'error')
