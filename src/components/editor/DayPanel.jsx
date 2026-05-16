@@ -2,13 +2,14 @@ import { useState, useRef } from 'react'
 import { useFeatures } from '../../context/FeaturesContext'
 import { SECTIONS, RICH_SECTIONS } from '../../utils/constants'
 import { getDayName, formatDateEN } from '../../utils/dateUtils'
-import { buildEmptySection } from '../../utils/guideEditorUtils'
+import { buildEmptySection, sectionHasBlocks } from '../../utils/guideEditorUtils'
 import LayoutSelectorModal, { LAYOUT_ELIGIBLE } from '../LayoutSelectorModal'
 import RichEditor from '../RichEditor'
 import ImageUploader from '../ImageUploader'
 import { SmartBlocksList } from '../SmartBlocks'
 import { AISuggestButton } from '../AIComponents'
 import SectionPreview from '../SectionPreview'
+import BlockEditor from './BlockEditor'
 
 // ── VideoList ─────────────────────────────────────────────────────────────────
 
@@ -87,15 +88,32 @@ function VideoList({ videos = [], onChange }) {
 
 // ── DayPanel ─────────────────────────────────────────────────────────────────
 
-export default function DayPanel({ iso, day, setContentField, toggleDayActive, openSections, toggleSection, planId, grade, subject, objective, principles, activeNewsProject }) {
+export default function DayPanel({ iso, day, setContentField, toggleDayActive, openSections, toggleSection, planId, grade, subject, objective, principles, activeNewsProject, syllabusTopics = [] }) {
   const { features } = useFeatures()
   const base = ['days', iso]
-  const [layoutModal,    setLayoutModal]    = useState(null)
+  const [layoutModal,     setLayoutModal]     = useState(null)
   const [sectionPreviews, setSectionPreviews] = useState({})
+  // blockMode[sectionKey] = true → BlockEditor | false → RichEditor
+  // Sections that already have blocks always open in block mode.
+  const [blockMode, setBlockMode] = useState({})
   const sectionRefs = useRef({})
 
   function togglePreview(key) {
     setSectionPreviews(p => ({ ...p, [key]: !p[key] }))
+  }
+
+  // Returns true if this section should show the block editor
+  function isBlockMode(sKey, section) {
+    if (sectionHasBlocks(section)) return true
+    // skill section defaults to block mode for new sections
+    if (sKey === 'skill' && blockMode[sKey] !== false) return blockMode[sKey] !== undefined ? blockMode[sKey] : false
+    return blockMode[sKey] === true
+  }
+
+  function toggleBlockMode(sKey, section) {
+    // If section already has blocks, can't go back to legacy (data would be lost)
+    if (sectionHasBlocks(section)) return
+    setBlockMode(p => ({ ...p, [sKey]: !isBlockMode(sKey, section) }))
   }
 
   function jumpToSection(s) {
@@ -148,6 +166,26 @@ export default function DayPanel({ iso, day, setContentField, toggleDayActive, o
               <input type="text" value={day.unit || ''}
                 placeholder="Ej: Unit 1 – Tell Me About It!"
                 onChange={e => setContentField([...base,'unit'], e.target.value)} />
+              {syllabusTopics.length > 0 && !day.unit && (
+                <div style={{
+                  display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4,
+                }}>
+                  {syllabusTopics.slice(0, 3).map(st => (
+                    <button
+                      key={st.id}
+                      onClick={() => setContentField([...base, 'unit'], st.topic)}
+                      style={{
+                        fontSize: 10, padding: '3px 8px', borderRadius: 5,
+                        border: '1px solid #d4c8f0', background: '#f8f6ff',
+                        color: '#5a3a8a', cursor: 'pointer', fontWeight: 600,
+                      }}
+                      title={`Usar "${st.topic}" como tema del día`}
+                    >
+                      📚 {st.topic.length > 32 ? st.topic.slice(0, 32) + '…' : st.topic}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="ge-field">
               <label>Fecha (etiqueta)</label>
@@ -250,32 +288,70 @@ export default function DayPanel({ iso, day, setContentField, toggleDayActive, o
                       </div>
                     )}
 
-                    <div className="ge-field">
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                        <label style={{ margin: 0 }}>Contenido / Actividades</label>
-                        <button
-                          onClick={e => { e.stopPropagation(); togglePreview(s.key) }}
-                          style={{
-                            fontSize: '11px', padding: '2px 8px', borderRadius: '6px',
-                            border: '1px solid #c5d5f0', background: showPreview ? '#f0f4ff' : '#fff',
-                            color: '#2E5598', cursor: 'pointer', fontWeight: 600,
-                          }}>
-                          {showPreview ? '👁 Ocultar preview' : '👁 Ver preview'}
-                        </button>
-                      </div>
-                      <RichEditor
-                        value={section.content || ''}
-                        onChange={val => setContentField([...base,'sections',s.key,'content'], val)}
-                        placeholder="Describe las actividades de esta sección…"
-                        minHeight={120}
-                      />
-                      {wc > 0 && (
-                        <div className="ge-word-count">{wc} palabra{wc !== 1 ? 's' : ''}</div>
-                      )}
-                      {features.wysiwyg !== false && showPreview && (section.content || imgCount > 0) && (
-                        <SectionPreview section={section} sectionMeta={s} />
-                      )}
+                    {/* ── Mode toggle bar ── */}
+                    <div className="be-section-mode-bar">
+                      <button
+                        className={`be-mode-btn ${!isBlockMode(s.key, section) ? 'be-mode-btn--active' : ''}`}
+                        onClick={() => { if (isBlockMode(s.key, section)) toggleBlockMode(s.key, section) }}
+                        disabled={sectionHasBlocks(section)}
+                        title={sectionHasBlocks(section) ? 'Esta sección ya usa bloques' : 'Texto libre con editor enriquecido'}
+                      >
+                        📝 Texto libre
+                      </button>
+                      <button
+                        className={`be-mode-btn ${isBlockMode(s.key, section) ? 'be-mode-btn--active' : ''}`}
+                        onClick={() => { if (!isBlockMode(s.key, section)) toggleBlockMode(s.key, section) }}
+                        title="Editor de bloques estructurado"
+                      >
+                        ✨ Bloques
+                      </button>
                     </div>
+
+                    {isBlockMode(s.key, section) ? (
+                      /* ── Block Editor ── */
+                      <BlockEditor
+                        blocks={section.blocks || []}
+                        onChange={blocks => setContentField([...base,'sections',s.key,'blocks'], blocks)}
+                        sectionKey={s.key}
+                        aiContext={{
+                          sectionMeta:     s,
+                          grade,
+                          subject,
+                          objective,
+                          unit:            day.unit,
+                          dayName:         getDayName(iso),
+                          principles,
+                        }}
+                      />
+                    ) : (
+                      /* ── Legacy Rich Editor ── */
+                      <div className="ge-field">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                          <label style={{ margin: 0 }}>Contenido / Actividades</label>
+                          <button
+                            onClick={e => { e.stopPropagation(); togglePreview(s.key) }}
+                            style={{
+                              fontSize: '11px', padding: '2px 8px', borderRadius: '6px',
+                              border: '1px solid #c5d5f0', background: showPreview ? '#f0f4ff' : '#fff',
+                              color: '#2E5598', cursor: 'pointer', fontWeight: 600,
+                            }}>
+                            {showPreview ? '👁 Ocultar preview' : '👁 Ver preview'}
+                          </button>
+                        </div>
+                        <RichEditor
+                          value={section.content || ''}
+                          onChange={val => setContentField([...base,'sections',s.key,'content'], val)}
+                          placeholder="Describe las actividades de esta sección…"
+                          minHeight={120}
+                        />
+                        {wc > 0 && (
+                          <div className="ge-word-count">{wc} palabra{wc !== 1 ? 's' : ''}</div>
+                        )}
+                        {features.wysiwyg !== false && showPreview && (section.content || imgCount > 0) && (
+                          <SectionPreview section={section} sectionMeta={s} />
+                        )}
+                      </div>
+                    )}
 
                     {/* ── Notas del docente — nunca se proyectan en ClassroomOS ── */}
                     <div className="ge-field" style={{ marginTop: '4px' }}>

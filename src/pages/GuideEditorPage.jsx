@@ -21,6 +21,7 @@ import { toISO, formatDateEN, getDayName, MONTHS_EN, DAYS_EN, MONTHS_ES } from '
 import { useToggle } from '../hooks'
 import { importGuideFromDocx } from '../utils/AIAssistant'
 import DayPanel from '../components/editor/DayPanel'
+import SyllabusResourcePanel from '../components/editor/SyllabusResourcePanel'
 import { buildEmptySection, buildEmptyDay } from '../utils/guideEditorUtils'
 import EleotCoveragePanel from '../components/EleotCoveragePanel'
 import useEleot from '../hooks/useEleot'
@@ -500,7 +501,7 @@ export default function GuideEditorPage({ teacher }) {
     let cancelled = false
     supabase
       .from('syllabus_topics')
-      .select('id, topic, library_doc_id, library_pages, library_doc:school_library(id, title)')
+      .select('id, topic, library_doc_id, library_pages, library_doc:school_library(id, title, file_url)')
       .eq('teacher_id', teacher.id)
       .eq('subject', plan.subject)
       .eq('grade', plan.grade)
@@ -1559,30 +1560,16 @@ export default function GuideEditorPage({ teacher }) {
             </div>
           )}
 
-          {/* ── Syllabus book pages callout ── */}
-          {syllabusBookPages.length > 0 && activePanel !== 'header' && activePanel !== 'info' && (
-            <div style={{
-              margin: '8px 0 4px', padding: '10px 14px',
-              background: '#F0FDF4', borderRadius: 8, border: '1px solid #BBF7D0',
-              display: 'flex', alignItems: 'flex-start', gap: 10,
-            }}>
-              <span style={{ fontSize: 18 }}>📖</span>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#15803D', marginBottom: 4 }}>
-                  Páginas del libro vinculadas al syllabus (semana {plan.week_number})
-                </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  {syllabusBookPages.map(t => (
-                    <span key={t.id} style={{ fontSize: 11, fontWeight: 600, color: '#15803D', background: '#DCFCE7', borderRadius: 4, padding: '2px 8px', border: '1px solid #BBF7D0' }}>
-                      📄 {t.library_doc?.title || 'Documento'} — p.{t.library_pages.join(', ')}
-                    </span>
-                  ))}
-                </div>
-                <div style={{ fontSize: 11, color: '#16A34A', marginTop: 6 }}>
-                  Asignadas desde Syllabus → Biblioteca CBF.
-                </div>
-              </div>
-            </div>
+          {/* ── Syllabus + Library resource panel (GXE Sprint 5) ── */}
+          {(syllabusBookPages.length > 0) && activePanel !== 'header' && activePanel !== 'info' && (
+            <SyllabusResourcePanel
+              plan={plan}
+              linkedSyllabusTopics={[]}
+              syllabusBookPages={syllabusBookPages}
+              activeDayISO={activeDayISO}
+              content={content}
+              setContentField={setContentField}
+            />
           )}
 
           {/* ── Back to editing button (shown inside admin-only panels) ── */}
@@ -1778,24 +1765,15 @@ export default function GuideEditorPage({ teacher }) {
                 </div>
               )}
 
-              {/* ── Syllabus topics for this week ── */}
-              {linkedSyllabusTopics.length > 0 && (
-                <div style={{ background: '#f8f6ff', border: '1px solid #d4c8f0', borderRadius: 8, padding: '10px 14px', marginBottom: 12 }}>
-                  <div style={{ fontSize: 10, fontWeight: 800, color: '#5a3a8a', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: 6 }}>
-                    📚 Contenidos del Syllabus — Semana {plan?.week_number}
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    {linkedSyllabusTopics.map(st => (
-                      <div key={st.id} style={{ fontSize: 12, color: '#2a1a4a', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                        <span style={{ fontSize: 10, fontWeight: 600, color: '#8a6aaa', background: '#ece8f8', padding: '1px 6px', borderRadius: 3, flexShrink: 0, marginTop: 1, textTransform: 'uppercase' }}>
-                          {st.content_type}
-                        </span>
-                        <span style={{ lineHeight: 1.4 }}>{st.topic}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+              {/* ── Syllabus topics + Library (GXE Sprint 5) ── */}
+              <SyllabusResourcePanel
+                plan={plan}
+                linkedSyllabusTopics={linkedSyllabusTopics}
+                syllabusBookPages={syllabusBookPages}
+                activeDayISO={activeDayISO}
+                content={content}
+                setContentField={setContentField}
+              />
 
               {activeNewsProject && (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', margin: '0 0 12px', alignItems: 'center' }}>
@@ -1891,6 +1869,7 @@ export default function GuideEditorPage({ teacher }) {
               objective={content.objetivo.general}
               principles={principles}
               activeNewsProject={activeNewsProject}
+              syllabusTopics={linkedSyllabusTopics}
             />
           )}
 

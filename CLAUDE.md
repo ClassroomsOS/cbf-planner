@@ -1,8 +1,8 @@
-# CBF PLANNER — v6.0
+# CBF PLANNER — v6.1
 ## CLAUDE.md — Documento maestro
 
 > **Principio rector:** *"Nosotros diseñamos. El docente enseña."*
-> Léelo completo antes de escribir código. · Última actualización: Mayo 1, 2026
+> Léelo completo antes de escribir código. · Última actualización: Mayo 10, 2026
 
 ---
 
@@ -75,6 +75,9 @@ SYLLABUS TOPICS → ACHIEVEMENT GOAL → ACHIEVEMENT INDICATORS
     Restaurar link a dev (gfjiicfnwpkbkptwgnte) al terminar
 15. Tablas DEPRECATED (assessments/questions/student_exam_sessions/assessment_results):
     No crear nuevos registros. Para evaluaciones usar exam_blueprints → exam_sessions
+16. DevStatusPage SIEMPRE al día: toda mejora, fix o feature completada debe reflejarse en
+    src/pages/DevStatusPage.jsx antes del commit final. Actualizar: progress, status, works[],
+    pending[], history[] del módulo afectado. Si hay backlog item relacionado, marcar como 'done'.
 ```
 
 ---
@@ -143,6 +146,11 @@ Al actualizar `pdfjs-dist` en `package.json`, hay que actualizar TAMBIÉN esta U
 
 ### 6b. ExamPlayerV2 — `section_name` en `exam_instances.generated_questions`
 Si `section_name === ''` → preguntas sin tabs. Si hay valores distintos → tabs automáticos. **NUNCA hardcodear `section_name: ''`** — usar `q.section_name || ''`.
+
+### 8. RLS — nunca crear un ciclo entre tablas relacionadas
+Si la tabla A tiene una policy que consulta tabla B, y tabla B tiene una policy que consulta tabla A → **infinite recursion**. Síntoma: `ERROR: infinite recursion detected in policy for relation`.
+Caso real: `school_library.library_shared_read` → `library_shares`, y `library_shares.shares_owner_manage` → `school_library`. Fix: eliminar el subquery circular en la policy de `library_shares`. Usar solo `shared_by = auth.uid()` sin referenciar la tabla padre.
+**Regla:** las policies de tablas hijas (shares, log, versions) NUNCA deben hacer SELECT a la tabla padre que las referencia.
 
 ### 7. exam-integrity-alert — eventos de ciclo vs. violaciones
 `CYCLE_EVENTS = ['exam_started', 'exam_resumed', 'exam_submitted']` NO actualizan `integrity_flags`; usan formato Telegram distinto. Cualquier otro `event_type` → violación → actualiza `tab_switches` + mensaje rojo.

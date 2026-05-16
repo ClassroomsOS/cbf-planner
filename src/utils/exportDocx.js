@@ -890,37 +890,101 @@ export async function exportGuideDocx(content, filename) {
   })
   children.push(infoTable2, emptyPara())
 
-  // ── TABLE 2b: Logro ──
-  const rawInds = o.indicadores?.length ? o.indicadores : o.indicador ? [o.indicador] : []
-  const _indicadores = rawInds.map(ind => typeof ind === 'object' ? (ind.texto_es || ind.texto_en || ind.habilidad || '') : (ind || '')).filter(Boolean)
-  if (_indicadores.length) {
-    const indParas = _indicadores.flatMap((ind, idx) => [
-      mkP([
-        mkR(`${idx + 1}.  `, { bold: true, size: 18, color: '9BBB59' }),
-        mkR(ind, { size: 18 }),
-      ]),
-    ])
+  // ── TABLE 2b: Logro + Indicadores ──────────────────────────────────────────
+  //
+  // Institutional requirement: the LOGRO is the king of the printed guide.
+  // It appears prominently ABOVE the indicators, in its own dedicated row.
+  // `o.general` holds the Logro text (sourced from achievement_goals.text).
+  // `o.indicadores` holds the derived indicators — secondary, below the Logro.
+  //
+  const logroText   = (o.general || '').trim()
+  const rawInds     = o.indicadores?.length ? o.indicadores : o.indicador ? [o.indicador] : []
+  const _indicadores = rawInds
+    .map(ind => typeof ind === 'object'
+      ? (ind.texto_es || ind.texto_en || ind.habilidad || '')
+      : (ind || ''))
+    .map(s => s.trim())
+    .filter(Boolean)
+
+  const hasLogro      = logroText.length > 0
+  const hasIndicators = _indicadores.length > 0
+
+  if (hasLogro || hasIndicators) {
+    const rows = []
+
+    // ── Header row (blue, full width) ──
+    rows.push(new TableRow({ children: [
+      mkCell(
+        [mkP(mkR('LOGRO', { bold: true, size: 22, color: 'FFFFFF' }), AlignmentType.CENTER)],
+        PW, { fill: '1F3864', borders: allB(bBlue) }
+      ),
+    ]}))
+
+    // ── Logro body row — prominent, large, always present ──
+    rows.push(new TableRow({ children: [
+      mkCell([
+        emptyPara(),
+        mkP(mkR(logroText || 'Sin logro asignado.', {
+          bold:  true,
+          size:  24,        // Larger than indicators — visually dominant
+          color: logroText ? '1F3864' : 'AAAAAA',
+        })),
+        emptyPara(),
+      ], PW, {
+        fill:    'EEF3FA',
+        borders: allB(bBlue),
+        va:      VerticalAlign.CENTER,
+        margins: { top: 120, bottom: 120, left: 200, right: 200 },
+      }),
+    ]}))
+
+    // ── Indicators subheader (only rendered when indicators exist) ──
+    if (hasIndicators) {
+      rows.push(new TableRow({ children: [
+        mkCell(
+          [mkP(mkR('Indicadores de logro', { bold: true, size: 17, color: 'FFFFFF' }), AlignmentType.LEFT)],
+          PW, { fill: '2E5598', borders: allB(bBlue), margins: { top: 60, bottom: 60, left: 200, right: 120 } }
+        ),
+      ]}))
+
+      // ── Indicator items ──
+      const indParas = _indicadores.flatMap((ind, idx) => [
+        mkP([
+          mkR(`${idx + 1}.  `, { bold: true, size: 18, color: '2E5598' }),
+          mkR(ind, { size: 18, color: '333333' }),
+        ]),
+      ])
+
+      rows.push(new TableRow({ children: [
+        mkCell([
+          emptyPara(),
+          ...indParas,
+        ], PW, {
+          borders: allB(bGray),
+          va:      VerticalAlign.TOP,
+          margins: { top: 100, bottom: 100, left: 200, right: 120 },
+        }),
+      ]}))
+    }
+
+    // ── Biblical principle footer ──
+    if (o.principio) {
+      rows.push(new TableRow({ children: [
+        mkCell([mkP([
+          mkR('Principio Bíblico: ', { bold: true, size: 16, color: '5a4000' }),
+          mkR(o.principio, { italic: true, size: 16, color: '5a4000' }),
+        ])], PW, {
+          fill:    'FFF8E7',
+          borders: allB(bGray),
+          margins: { top: 80, bottom: 80, left: 200, right: 120 },
+        }),
+      ]}))
+    }
+
     const objTable = new Table({
       width:        { size: PW, type: WidthType.DXA },
       columnWidths: [PW],
-      rows: [
-        new TableRow({ children: [
-          mkCell([mkP(mkR('🎯  INDICADORES DE LOGRO', { bold: true, size: 20, color: 'FFFFFF' }), AlignmentType.CENTER)],
-            PW, { fill: '9BBB59', borders: allB(bBlue) }),
-        ]}),
-        new TableRow({ children: [
-          mkCell([
-            emptyPara(),
-            ...indParas,
-          ], PW, { borders: allB(bGray), va: VerticalAlign.TOP, margins: { top: 100, bottom: 100, left: 140, right: 120 } }),
-        ]}),
-        ...(o.principio ? [new TableRow({ children: [
-          mkCell([mkP([
-            mkR('Principio: ', { bold: true, size: 16, color: '9BBB59' }),
-            mkR(o.principio, { italic: true, size: 16, color: '444444' }),
-          ])], PW, { fill: 'F2F7F0', borders: allB(bGray), margins: { top: 80, bottom: 80, left: 140, right: 120 } }),
-        ]})] : []),
-      ],
+      rows,
     })
     children.push(objTable, emptyPara())
   }
