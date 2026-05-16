@@ -108,6 +108,19 @@ Deno.serve(async (req: Request) => {
 
     if (!instance_id) return json({ error: "instance_id requerido" }, 400);
 
+    // Validar event_type contra whitelist (previene inyección en Telegram)
+    const ALLOWED_EVENTS = new Set([
+      ...Object.keys(INTEGRITY_LABELS),
+      ...CYCLE_EVENTS,
+    ]);
+    if (!event_type || !ALLOWED_EVENTS.has(event_type)) {
+      return json({ error: "event_type inválido" }, 400);
+    }
+
+    if (typeof count !== "number" || count < 0 || count > 9999) {
+      return json({ error: "count inválido" }, 400);
+    }
+
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
