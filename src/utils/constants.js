@@ -9,60 +9,57 @@
 export const SECTIONS = [
   {
     key: 'subject',
-    label: 'ENCUENTRO · VOCABULARY LIST',
-    short: 'VOCAB',
+    label: 'TOPICS',
+    short: 'TOPICS',
     hex: '#C0504D',
     time: '~8 min',
-    abc: 'Saluda a presenciales y virtuales · Presenta la Vocabulary List del día · Anuncia el Principio Bíblico del mes',
+    abc: 'Present the topics, contents, and syllabus items for the day · Announce the Biblical Principle of the month',
   },
   {
     key: 'motivation',
-    label: 'TEMA DEL DÍA',
-    short: 'TEMA',
+    label: 'SUBJECT TO BE WORKED',
+    short: 'SUBJECT',
     hex: '#4F81BD',
     time: '~7 min',
-    sublevel: 'Tablero: Fecha · Tema · Objetivo · Principio',
-    abc: 'Escribe en el tablero: fecha, tema a trabajar, objetivo de la lección, principio bíblico · Enuncia el indicador del día',
+    abc: 'Inform students about the vocabulary and/or activities related to the topic to be worked today',
   },
   {
     key: 'activity',
-    label: 'MOTIVACIÓN',
+    label: 'MOTIVATION',
     short: 'MOTIV.',
     hex: '#F79646',
     time: '~10 min',
-    sublevel: 'Pre-conocimiento · Conexión temática',
-    abc: 'Pre-conocimiento: conecta temáticamente con la clase anterior · Reglas Whole Brain Teaching · Activa saberes previos',
+    abc: 'Ice-breaker activities to create engagement with students · Activate prior knowledge · Connect with previous class',
   },
   {
     key: 'skill',
-    label: 'DESARROLLO DE HABILIDADES',
+    label: 'SKILL DEVELOPMENT',
     short: 'SKILLS',
     hex: '#8064A2',
     time: '~25 min',
-    abc: 'Desarrolla la habilidad del día: explica, modela, practica · El estudiante produce un producto concreto · Integra el principio bíblico en ejemplos y contenido',
-  },
-  {
-    key: 'closing',
-    label: 'CIERRE Y REFLEXIÓN',
-    short: 'CIERRE',
-    hex: '#9BBB59',
-    time: '~5 min',
-    sublevel: 'Verificación · Reflexión bíblica',
-    abc: 'Verifica asimilación con preguntas · Reflexión emocional sobre el tema · Conecta el aprendizaje del día con el principio bíblico como cierre natural',
+    abc: 'Main activity of the session · Students are already engaged from Motivation · Explain, model, practice · Student produces concrete evidence',
   },
   {
     key: 'assignment',
-    label: 'TAREA / ASSIGNMENT',
-    short: 'TAREA',
+    label: 'ASSIGNMENT',
+    short: 'ASSIGN.',
     hex: '#4BACC6',
     time: '~3 min',
-    abc: 'Tarea concreta y alcanzable: actividad para terminar en casa, preparación para la siguiente clase, o plataforma virtual',
+    abc: 'Optional in-class assignment from the teacher · Not homework — never sent home',
+  },
+  {
+    key: 'closing',
+    label: 'CLOSING',
+    short: 'CLOSE',
+    hex: '#9BBB59',
+    time: '~5 min',
+    abc: 'Recap what was learned today · Students do a brief recap · Ask how they felt · Identify difficulties · Biblical reflection as natural closure',
   },
 ]
 
 // Sections that support rich content (images, SmartBlocks, videos, AI suggestions)
 // subject y closing ahora incluidos: subject necesita VOCAB block, closing necesita EXIT_TICKET
-export const RICH_SECTIONS = ['subject', 'motivation', 'activity', 'skill', 'closing']
+export const RICH_SECTIONS = ['subject', 'motivation', 'activity', 'skill', 'assignment', 'closing']
 
 // ── School Schedule ───────────────────────────────────────────────────────────
 export const PERIODS = [

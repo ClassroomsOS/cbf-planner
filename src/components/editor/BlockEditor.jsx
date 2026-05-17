@@ -77,45 +77,45 @@ const PHASE_BLOCKS = {
 const MOMENTO_HINTS = {
   subject: {
     icon: '🎒',
-    label: 'ENCUENTRO · Vocabulary List',
+    label: 'TOPICS',
     color: '#C0504D',
-    tip: 'Agrega los términos del día. ClassroomOS los proyecta como tarjetas grandes para pronunciación en coro. Recomendado: 6–10 términos.',
+    tip: 'Present the topics, contents, and syllabus items for the day. ClassroomOS displays them as large cards for choral pronunciation. Recommended: 6–10 terms.',
     suggestedFirst: BLOCK_TYPES.VOCAB,
   },
   motivation: {
     icon: '📋',
-    label: 'TEMA DEL DÍA',
+    label: 'SUBJECT TO BE WORKED',
     color: '#4F81BD',
-    tip: 'El tablero (fecha, tema, logro, principio) se actualiza automáticamente desde el Syllabus. Agrega notas de transición o instrucciones de organización del aula.',
+    tip: 'Inform students about the vocabulary and/or activities related to the topic. The board (date, topic, objective, principle) stays visible all class.',
     suggestedFirst: BLOCK_TYPES.TEACHER_NOTE,
   },
   activity: {
     icon: '🔥',
-    label: 'MOTIVACIÓN',
+    label: 'MOTIVATION',
     color: '#F79646',
-    tip: 'Activa saberes previos. Los Patrones de Activación (Hook, KWL, brainstorm) funcionan aquí. Conecta con la clase anterior. Tiempo: ~10 min.',
+    tip: 'Ice-breaker activities to create engagement. Activation Patterns (Hook, KWL, brainstorm) work here. Connect with the previous class. Time: ~10 min.',
     suggestedFirst: BLOCK_TYPES.PATTERN,
   },
   skill: {
     icon: '🎯',
-    label: 'DESARROLLO DE HABILIDADES',
+    label: 'SKILL DEVELOPMENT',
     color: '#8064A2',
-    tip: 'Estructura I DO → WE DO → YOU DO. Usa el scaffold para que ClassroomOS muestre las tres fases con claridad. El estudiante produce un producto concreto.',
+    tip: 'Main activity. Structure: I DO → WE DO → YOU DO. Students are already engaged from Motivation. Student produces concrete evidence.',
     suggestedFirst: null,
-  },
-  closing: {
-    icon: '✅',
-    label: 'CIERRE Y REFLEXIÓN',
-    color: '#9BBB59',
-    tip: 'Verifica comprensión. Un Exit Ticket + pregunta de reflexión bíblica es el cierre ideal. Tiempo: ~5 min.',
-    suggestedFirst: BLOCK_TYPES.EXIT_TICKET,
   },
   assignment: {
     icon: '📚',
-    label: 'TAREA / ASSIGNMENT',
+    label: 'ASSIGNMENT',
     color: '#4BACC6',
-    tip: 'Concreta y alcanzable. Incluye plataforma si aplica. Los padres ven esto en el reporte semanal. Tiempo: ~3 min.',
+    tip: 'Optional in-class assignment. Never homework sent home. Concrete and achievable. Time: ~3 min.',
     suggestedFirst: BLOCK_TYPES.HOMEWORK,
+  },
+  closing: {
+    icon: '✅',
+    label: 'CLOSING',
+    color: '#9BBB59',
+    tip: 'Recap what was learned. Ask students how they felt + identify difficulties. Exit Ticket + biblical reflection is the ideal close. Time: ~5 min.',
+    suggestedFirst: BLOCK_TYPES.EXIT_TICKET,
   },
 }
 
@@ -383,11 +383,11 @@ function BlockList({ blocks, onChange, phase = null, phaseLabel = null, sectionK
             {phase === 'i-do'   && 'Agrega una Explicación, Texto Modelo, o Pregunta Guía.'}
             {phase === 'we-do'  && 'Agrega un Patrón de Actividad para que los estudiantes practiquen juntos.'}
             {phase === 'you-do' && 'Agrega un Procedimiento o tarea de escritura guiada independiente.'}
-            {!phase && sectionKey === 'subject'    && 'Comienza con un bloque de Vocabulario — es el corazón del ENCUENTRO.'}
-            {!phase && sectionKey === 'motivation' && 'Agrega notas de transición o instrucciones de organización del aula.'}
-            {!phase && sectionKey === 'activity'   && 'Un Patrón de Activación conecta con saberes previos y activa la motivación.'}
-            {!phase && sectionKey === 'closing'    && 'Un Exit Ticket + reflexión bíblica es el cierre ideal.'}
-            {!phase && sectionKey === 'assignment' && 'Define la tarea: instrucción clara, fecha de entrega, y plataforma si aplica.'}
+            {!phase && sectionKey === 'subject'    && 'Start with a Vocabulary block — the core of TOPICS.'}
+            {!phase && sectionKey === 'motivation' && 'Inform about vocabulary/activities for today\'s topic.'}
+            {!phase && sectionKey === 'activity'   && 'An Activation Pattern creates engagement and bridges prior knowledge.'}
+            {!phase && sectionKey === 'closing'    && 'An Exit Ticket + biblical reflection is the ideal close.'}
+            {!phase && sectionKey === 'assignment' && 'Optional: define in-class assignment with clear instruction.'}
           </p>
         </div>
       )}

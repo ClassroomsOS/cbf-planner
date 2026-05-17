@@ -81,6 +81,9 @@ export const SmartBlocksList = memo(function SmartBlocksList({ blocks = [], onCh
               </div>
             </div>
             <div className="sb-chip-preview"
+              onClick={() => handleEdit(b.id)}
+              style={{ cursor: 'pointer' }}
+              title="Click para editar"
               dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(blockPreviewHTML(b)) }} />
           </div>
         )

@@ -1,6 +1,6 @@
 // ── VocabForm.jsx ─────────────────────────────────────────────────────────────
 // Form for the `vocab` block type.
-// Used in ENCUENTRO (Momento 1): the teacher fills in vocabulary terms for the day.
+// Used in TOPICS (Momento 1): the teacher fills in vocabulary terms for the day.
 // ClassroomOS renders each term as a large card (word + definition + example).
 
 import { useState } from 'react'
@@ -108,7 +108,7 @@ export default function VocabForm({ data, onChange }) {
       <div className="be-field">
         <label className="be-label">
           Modo de presentación en ClassroomOS
-          <span className="be-label-hint">¿Cómo se proyectan las palabras durante ENCUENTRO?</span>
+          <span className="be-label-hint">How are the words displayed during TOPICS?</span>
         </label>
         <div className="be-subtype-grid">
           {DISPLAY_MODES.map(m => (

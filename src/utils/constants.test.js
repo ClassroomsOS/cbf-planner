@@ -13,7 +13,7 @@ describe('SECTIONS', () => {
   })
   it('has the correct keys in order', () => {
     const keys = SECTIONS.map(s => s.key)
-    expect(keys).toEqual(['subject', 'motivation', 'activity', 'skill', 'closing', 'assignment'])
+    expect(keys).toEqual(['subject', 'motivation', 'activity', 'skill', 'assignment', 'closing'])
   })
   it('every section has required fields', () => {
     SECTIONS.forEach(s => {
