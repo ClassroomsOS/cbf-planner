@@ -409,7 +409,7 @@ Dame un análisis pedagógico completo. En la sección 🙏 evalúa específicam
 // ── Punto 3: Generar estructura completa desde objetivo ───────────────────────
 export async function generateGuideStructure({
   grade, subject, objective, unit, activeDays, period, planId, achievementGoal, activeNewsProject, principles, piarData,
-  textbookFragments, syllabusTopics,
+  textbookFragments, syllabusTopics, syllabusPageData,
   _focusHints, checkpointData
 }) {
   const isEnglishSubject = MODELO_B_SUBJECTS.includes(subject)
@@ -997,6 +997,43 @@ Las actividades de cada día deben estar ancladas a contenido REAL del libro vis
     return lines.join('\n')
   })() : ''
 
+  // Build syllabus page-level data block (from SyllabusWizard distribution)
+  const syllabusPageBlock = (syllabusPageData?.pages?.length) ? (() => {
+    const lines = ['\n📖 PÁGINAS DEL LIBRO ASIGNADAS A ESTA SEMANA (distribución del Syllabus):']
+    lines.push(`  Libro: ${sanitizeAIInput(syllabusPageData.bookTitle || 'Textbook')}`)
+    lines.push('  ─────────────────────────────────────')
+    syllabusPageData.pages.forEach(p => {
+      const type = p.content_type ? `[${p.content_type}]` : ''
+      const cmplx = p.complexity ? ` complexity:${p.complexity}` : ''
+      lines.push(`  Página ${p.page}: ${type}${cmplx} — "${sanitizeAIInput(p.summary || '')}" (~${p.estimated_minutes || 30}min)`)
+    })
+    if (syllabusPageData.dayAssignments) {
+      lines.push('  ─────────────────────────────────────')
+      lines.push('  ASIGNACIÓN POR DÍA:')
+      Object.entries(syllabusPageData.dayAssignments).forEach(([dayISO, info]) => {
+        if (info?.pages?.length) {
+          lines.push(`    ${dayISO}: pp. ${info.pages.join(', ')} — "${info.focus || ''}"`)
+        }
+      })
+    }
+    if (syllabusPageData.resources?.length) {
+      lines.push('  ─────────────────────────────────────')
+      lines.push('  RECURSOS ADICIONALES DEL DOCENTE:')
+      syllabusPageData.resources.forEach(r => {
+        const section = r.abc_section ? ` [usar en: ${r.abc_section}]` : ''
+        const mins = r.duration_minutes ? ` (~${r.duration_minutes}min)` : ''
+        lines.push(`    • ${sanitizeAIInput(r.title)}${section}${mins}`)
+        if (r.justification) lines.push(`      Propósito: ${sanitizeAIInput(r.justification).slice(0, 200)}`)
+        if (r.emphasis_notes) lines.push(`      Énfasis: ${sanitizeAIInput(r.emphasis_notes).slice(0, 150)}`)
+      })
+    }
+    lines.push('  ─────────────────────────────────────')
+    lines.push('  INSTRUCCIÓN: Diseña las actividades siguiendo estas páginas en el orden asignado por día.')
+    lines.push('  Cada recurso debe integrarse en la sección ABC indicada con actividades didácticas concretas (juegos, dinámicas de grupo, estrategias de enseñanza).')
+    lines.push('  Respeta los tiempos del ABC: Encuentro ~8min, Motivación ~10min, Skills ~25min, Cierre ~5min.')
+    return lines.join('\n')
+  })() : ''
+
   // Build focus hints block (eleot domains, skill emphasis, preferred blocks)
   const focusBlock = (_focusHints?.length) ? (() => {
     const lines = [
@@ -1063,6 +1100,7 @@ ${dayPlanBlock}
 ${milestonesBlock}
 ${checkpointBlock}
 ${syllabusBlock}
+${syllabusPageBlock}
 ${focusBlock}
 ${piarBlock}
 

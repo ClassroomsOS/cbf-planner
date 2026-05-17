@@ -6,6 +6,7 @@ import { useToast } from '../context/ToastContext'
 import { combinedGrade } from '../utils/constants'
 import { logError, logActivity } from '../utils/logger'
 import SyllabusPlanView from '../components/SyllabusPlanView'
+import SyllabusWizard from '../components/SyllabusWizard'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -910,6 +911,17 @@ export default function SyllabusPage({ teacher }) {
               }}>
               📋 Plan IA
             </button>
+            <button type="button"
+              onClick={() => setViewMode('wizard')}
+              style={{
+                padding: '8px 14px', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                borderLeft: '1px solid #d0d8e8',
+                borderRadius: '0 8px 8px 0',
+                background: viewMode === 'wizard' ? '#7c3aed' : '#fff',
+                color:      viewMode === 'wizard' ? '#fff' : '#666',
+              }}>
+              🧙 Wizard
+            </button>
           </div>
           <button onClick={() => openNewTopic()}
             style={{ padding: '9px 18px', background: pc.accent, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
@@ -1006,7 +1018,7 @@ export default function SyllabusPage({ teacher }) {
               />
             )}
 
-            {/* ── Vista Plan IA ── */}
+            {/* ── Vista Plan IA (legacy) ── */}
             {viewMode === 'plan' && filterSubject && filterGrade && (
               <SyllabusPlanView
                 teacher={teacher}
@@ -1014,6 +1026,16 @@ export default function SyllabusPage({ teacher }) {
                 grade={filterGrade}
                 period={filterPeriod}
                 pc={pc}
+              />
+            )}
+
+            {/* ── Wizard de planificación página a página ── */}
+            {viewMode === 'wizard' && filterSubject && filterGrade && (
+              <SyllabusWizard
+                teacher={teacher}
+                subject={filterSubject}
+                grade={filterGrade}
+                period={filterPeriod}
               />
             )}
 
