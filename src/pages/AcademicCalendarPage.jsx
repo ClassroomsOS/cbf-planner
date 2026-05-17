@@ -54,8 +54,10 @@ function weekMonday(date) {
   return d
 }
 
-/** Calculate school weeks for a period, marking holiday interruptions */
-function calculateWeeks(startIso, endIso, holidayIsos = []) {
+/** Calculate school weeks for a period, marking holiday interruptions.
+ *  compoundWeeks: array of arrays grouping calendar weeks as single planning units
+ *  e.g. [[1,2]] means calendar weeks 1 and 2 form one compound planning week */
+function calculateWeeks(startIso, endIso, holidayIsos = [], compoundWeeks = []) {
   if (!startIso || !endIso) return []
   const start   = new Date(startIso + 'T12:00:00')
   const end     = new Date(endIso   + 'T12:00:00')
@@ -63,8 +65,8 @@ function calculateWeeks(startIso, endIso, holidayIsos = []) {
 
   // Start from the Monday of the period's first week
   const cursor = weekMonday(start)
-  const weeks  = []
-  let weekNum  = 1
+  const rawWeeks = []
+  let calWeekNum = 1
 
   while (cursor <= end) {
     const monday = new Date(cursor)
@@ -81,8 +83,8 @@ function calculateWeeks(startIso, endIso, holidayIsos = []) {
       if (holidays.has(iso)) weekHols.push(iso)
     }
 
-    weeks.push({
-      weekNum,
+    rawWeeks.push({
+      calWeekNum,
       start: monday.toISOString().slice(0, 10),
       end:   friday.toISOString().slice(0, 10),
       displayStart: weekStart.toISOString().slice(0, 10),
@@ -91,8 +93,39 @@ function calculateWeeks(startIso, endIso, holidayIsos = []) {
       isPartial: monday < start || friday > end,
     })
 
-    weekNum++
+    calWeekNum++
     cursor.setDate(cursor.getDate() + 7)
+  }
+
+  // Merge compound weeks into single planning units
+  const weeks = []
+  let planningNum = 1
+  const processed = new Set()
+
+  for (const rw of rawWeeks) {
+    if (processed.has(rw.calWeekNum)) continue
+    const group = compoundWeeks.find(g => g.includes(rw.calWeekNum))
+    if (group) {
+      // Merge all weeks in this compound group
+      const groupWeeks = rawWeeks.filter(w => group.includes(w.calWeekNum))
+      groupWeeks.forEach(w => processed.add(w.calWeekNum))
+      const merged = {
+        weekNum: planningNum,
+        calWeekNums: group,
+        isCompound: true,
+        start: groupWeeks[0].start,
+        end: groupWeeks[groupWeeks.length - 1].end,
+        displayStart: groupWeeks[0].displayStart,
+        displayEnd: groupWeeks[groupWeeks.length - 1].displayEnd,
+        holidays: groupWeeks.flatMap(w => w.holidays),
+        isPartial: groupWeeks[0].isPartial || groupWeeks[groupWeeks.length - 1].isPartial,
+      }
+      weeks.push(merged)
+    } else {
+      processed.add(rw.calWeekNum)
+      weeks.push({ ...rw, weekNum: planningNum, isCompound: false })
+    }
+    planningNum++
   }
 
   return weeks
@@ -248,9 +281,10 @@ export default function AcademicCalendarPage({ teacher }) {
 
   const activeConfig = configs.find(c => c.period === selectedPeriod)
   const noClassDates = events.filter(e => e.no_class).map(e => e.date)
+  const compoundWeeks = activeConfig?.compound_weeks || []
   const weeks = useMemo(
-    () => calculateWeeks(activeConfig?.start_date, activeConfig?.end_date, noClassDates),
-    [activeConfig?.start_date, activeConfig?.end_date, noClassDates.join(',')]
+    () => calculateWeeks(activeConfig?.start_date, activeConfig?.end_date, noClassDates, compoundWeeks),
+    [activeConfig?.start_date, activeConfig?.end_date, noClassDates.join(','), JSON.stringify(compoundWeeks)]
   )
   const curWeek = currentWeekNum(weeks)
 
@@ -338,7 +372,9 @@ export default function AcademicCalendarPage({ teacher }) {
                 const isLast    = i === weeks.length - 1
                 const weekLabel = isLast
                   ? `Evaluaciones finales`
-                  : `Semana ${week.weekNum}${week.isPartial ? ' — Compuesta' : ''}`
+                  : week.isCompound
+                    ? `Semana ${week.weekNum} — Compuesta (sem. calendario ${week.calWeekNums.join(' y ')})`
+                    : `Semana ${week.weekNum}`
                 const dateRange = `${formatDateEs(week.displayStart, { weekday: true })} al ${formatDateEs(week.displayEnd, { weekday: true })}`
                 const weekEvents = events.filter(e => e.date >= week.start && e.date <= week.end)
                 const isCurrentWeek = curWeek === week.weekNum
@@ -507,6 +543,41 @@ export default function AcademicCalendarPage({ teacher }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// CompoundWeekAdder — small form to add a compound week group
+// ─────────────────────────────────────────────────────────────────────────────
+
+function CompoundWeekAdder({ totalWeeks, existing, onAdd }) {
+  const [from, setFrom] = useState('')
+  const [to, setTo]     = useState('')
+
+  function handleAdd() {
+    const f = parseInt(from)
+    const t = parseInt(to)
+    if (!f || !t || f >= t || f < 1 || t > totalWeeks) return
+    // Check overlap with existing groups
+    const newGroup = Array.from({ length: t - f + 1 }, (_, i) => f + i)
+    const allUsed = existing.flat()
+    if (newGroup.some(w => allUsed.includes(w))) return
+    onAdd(newGroup)
+    setFrom('')
+    setTo('')
+  }
+
+  return (
+    <div className="acp-compound-adder">
+      <span>Desde sem.</span>
+      <input type="number" min={1} max={totalWeeks} value={from}
+        onChange={e => setFrom(e.target.value)} style={{ width: 50 }} />
+      <span>hasta sem.</span>
+      <input type="number" min={1} max={totalWeeks} value={to}
+        onChange={e => setTo(e.target.value)} style={{ width: 50 }} />
+      <button type="button" className="acp-btn-secondary" onClick={handleAdd}
+        disabled={!from || !to}>+ Agrupar</button>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // PeriodCard — edits one period's dates and metadata
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -522,6 +593,7 @@ function PeriodCard({ period, config, saving, onSave }) {
       intro_message:    config?.intro_message     || '',
       director_name:    config?.director_name     || '',
       coordinator_name: config?.coordinator_name  || '',
+      compound_weeks:   config?.compound_weeks    || [],
     })
     setEditing(true)
   }
@@ -532,10 +604,11 @@ function PeriodCard({ period, config, saving, onSave }) {
     setEditing(false)
   }
 
+  const compoundWeeks = config?.compound_weeks || []
   const weeks = useMemo(() => {
     if (!config?.start_date || !config?.end_date) return []
-    return calculateWeeks(config.start_date, config.end_date)
-  }, [config?.start_date, config?.end_date])
+    return calculateWeeks(config.start_date, config.end_date, [], compoundWeeks)
+  }, [config?.start_date, config?.end_date, JSON.stringify(compoundWeeks)])
 
   const PERIOD_COLORS = { 1: '#C0504D', 2: '#4BACC6', 3: '#9BBB59' }
   const color = PERIOD_COLORS[parseInt(period.value)] || '#888'
@@ -609,6 +682,39 @@ function PeriodCard({ period, config, saving, onSave }) {
                 placeholder="Ms. Sisy Echeverría" />
             </div>
           </div>
+          {/* Semanas compuestas */}
+          {form.start_date && form.end_date && (() => {
+            const totalCalWeeks = calculateWeeks(form.start_date, form.end_date).length
+            return (
+              <div className="acp-compound-section">
+                <label>Semanas compuestas</label>
+                <p className="acp-hint" style={{ margin: '0 0 8px', fontSize: '0.82rem' }}>
+                  Agrupa semanas cortas que se planifican como una sola unidad.
+                </p>
+                {(form.compound_weeks || []).map((group, gi) => (
+                  <div key={gi} className="acp-compound-row">
+                    <span className="acp-compound-label">
+                      Sem. {group.join(' + ')} → planificación como 1 sola
+                    </span>
+                    <button type="button" className="acp-btn-icon acp-btn-del"
+                      onClick={() => setForm(f => ({
+                        ...f,
+                        compound_weeks: f.compound_weeks.filter((_, i) => i !== gi)
+                      }))}>✕</button>
+                  </div>
+                ))}
+                <CompoundWeekAdder
+                  totalWeeks={totalCalWeeks}
+                  existing={form.compound_weeks || []}
+                  onAdd={(group) => setForm(f => ({
+                    ...f,
+                    compound_weeks: [...(f.compound_weeks || []), group]
+                  }))}
+                />
+              </div>
+            )
+          })()}
+
           <div className="acp-pc-form-actions">
             <button className="acp-btn-secondary" onClick={() => setEditing(false)}>Cancelar</button>
             <button className="acp-btn-primary" onClick={handleSave} disabled={saving || !form.start_date || !form.end_date}>
@@ -695,7 +801,7 @@ function ComunicadoPreview({ period, config, events, weeks, curWeek, year, schoo
               const isCur    = curWeek === w.weekNum
               const label    = isLast
                 ? `Evaluaciones finales: ${formatDateShort(w.displayStart)} al ${formatDateShort(w.displayEnd)}`
-                : `Semana ${w.weekNum}: ${formatDateShort(w.displayStart)} - ${formatDateShort(w.displayEnd)}${w.isPartial ? ' (Semana Compuesta)' : ''}`
+                : `Semana ${w.weekNum}: ${formatDateShort(w.displayStart)} - ${formatDateShort(w.displayEnd)}${w.isCompound ? ' (Semana Compuesta)' : ''}`
               return (
                 <li key={w.weekNum} className={isCur ? 'comm-week-current' : isLast ? 'comm-week-final' : ''}>
                   <span className="comm-week-bullet">-</span> {label}

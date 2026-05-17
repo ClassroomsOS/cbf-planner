@@ -74,7 +74,7 @@ export default function PlannerPage({ teacher }) {
   useEffect(() => {
     supabase
       .from('academic_period_config')
-      .select('period, start_date, end_date')
+      .select('period, start_date, end_date, compound_weeks')
       .eq('school_id', teacher.school_id)
       .eq('year', new Date().getFullYear())
       .then(({ data }) => { if (data) setPeriodConfigs(data) })
@@ -185,10 +185,12 @@ export default function PlannerPage({ teacher }) {
 
   // Per-period week number: extract period number from label ("2.do Período 2026" → 2)
   const periodNum = parseInt(period.match(/\d+/)?.[0]) || 1
-  const periodStartISO = periodConfigs.find(c => c.period === periodNum)?.start_date
+  const activePeriodConfig = periodConfigs.find(c => c.period === periodNum)
+  const periodStartISO = activePeriodConfig?.start_date
     || ACADEMIC_PERIODS.find(p => parseInt(p.value) === periodNum)?.start
     || toISO(monday)
-  const weekNumber = getPeriodWeek(monday, periodStartISO)
+  const compoundWeeks = activePeriodConfig?.compound_weeks || []
+  const weekNumber = getPeriodWeek(monday, periodStartISO, compoundWeeks)
 
   // Derive active NEWS project and indicator for the selected week
   const plannerActiveNewsProject = useMemo(() => {

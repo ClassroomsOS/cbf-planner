@@ -94,15 +94,43 @@ export function getSchoolWeek(monday) {
 }
 
 /**
- * Calculate week number within a period (restarts at 1 when the period starts).
+ * Calculate PLANNING week number within a period (restarts at 1 when the period starts).
+ * Supports compound weeks: groups of calendar weeks that count as a single planning unit.
+ *
  * @param {Date} monday - The Monday of the week being planned
  * @param {string} periodStartISO - ISO date (YYYY-MM-DD) of the period's first day
- * @returns {number} Week number within the period (1-based)
+ * @param {number[][]} [compoundWeeks=[]] - Array of arrays grouping calendar weeks
+ *   e.g. [[1,2]] means calendar weeks 1 and 2 count as one planning week
+ * @returns {number} Planning week number within the period (1-based)
  */
-export function getPeriodWeek(monday, periodStartISO) {
+export function getPeriodWeek(monday, periodStartISO, compoundWeeks = []) {
   const periodMonday = getMondayOf(new Date(periodStartISO + 'T12:00:00'))
   const diff = Math.floor((monday - periodMonday) / (7 * 24 * 3600 * 1000))
-  return Math.max(1, diff + 1)
+  const calendarWeek = Math.max(1, diff + 1)
+
+  if (!compoundWeeks || compoundWeeks.length === 0) return calendarWeek
+
+  // Build mapping: calendar week → planning week
+  // Compound groups collapse multiple calendar weeks into one planning number
+  let planningWeek = 0
+  let calWeek = 1
+  const maxCal = Math.max(calendarWeek, 30) // enough range
+  const groupMap = new Map() // calendarWeek → planningWeek
+  for (let cw = 1; cw <= maxCal; cw++) {
+    const group = compoundWeeks.find(g => g.includes(cw))
+    if (group) {
+      // All weeks in this group share the same planning number
+      if (!groupMap.has(group[0])) {
+        planningWeek++
+        group.forEach(gw => groupMap.set(gw, planningWeek))
+      }
+    } else {
+      planningWeek++
+      groupMap.set(cw, planningWeek)
+    }
+  }
+
+  return groupMap.get(calendarWeek) || calendarWeek
 }
 
 /**

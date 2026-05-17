@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from 'react'
+import { useState, useEffect, lazy, Suspense, useCallback } from 'react'
 import { Routes, Route, NavLink, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import PlannerPage         from './PlannerPage'
@@ -255,230 +255,24 @@ function DashboardInner({ session, teacher, setTeacher }) {
 
         <PeriodWidget />
 
-        <nav className="sb-nav">
-          {/* ── PLANIFICACIÓN (flujo pedagógico) ── */}
-          <NavLink to="/principles" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
-            <span className="dot" style={{ background: '#C9A84C' }} />
-            📖 Principios
-          </NavLink>
-          <NavLink to="/achievements" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
-            <span className="dot" style={{ background: '#C9A84C' }} />
-            🎯 Logros
-          </NavLink>
-          <NavLink to="/biblioteca" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
-            <span className="dot" style={{ background: '#2E5598' }} />
-            📖 Biblioteca CBF
-          </NavLink>
-          <NavLink to="/syllabus" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
-            <span className="dot" style={{ background: '#8064A2' }} />
-            📚 Syllabus
-          </NavLink>
-          <NavLink to="/news" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
-            <span className="dot" style={{ background: '#C0504D' }} />
-            📋 NEWS Projects
-          </NavLink>
-          <NavLink to="/" end className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
-            <span className="dot" style={{ background: '#2E5598' }} />
-            📝 Nueva Guía
-          </NavLink>
-          <NavLink to="/plans" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
-            <span className="dot" style={{ background: '#9BBB59' }} />
-            📂 Mis Guías
-          </NavLink>
-          <NavLink to="/exams" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
-            <span className="dot" style={{ background: '#C0504D' }} />
-            📝 Evaluaciones
-          </NavLink>
-          {pendingAIReview > 0 && (
-            <NavLink to="/exams/review" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
-              <span className="dot" style={{ background: '#F59E0B' }} />
-              👁 Revisión IA
-              <span className="sb-notif-badge">{pendingAIReview}</span>
-            </NavLink>
-          )}
-          {canManage(teacher.role) && (
-            <NavLink to="/exams/revision" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
-              <span className="dot" style={{ background: '#991B1B' }} />
-              🏛 Aprobar Exámenes
-            </NavLink>
-          )}
-          <NavLink to="/player" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
-            <span className="dot" style={{ background: '#FFD700' }} />
-            👩‍🎓 Mis Estudiantes BF
-          </NavLink>
-          {isAdmin && (
-            <NavLink to="/students" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
-              <span className="dot" style={{ background: '#8064A2' }} />
-              🎓 Estudiantes BF
-            </NavLink>
-          )}
-          <NavLink to="/grades" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
-            <span className="dot" style={{ background: '#15803D' }} />
-            📊 Calificaciones
-          </NavLink>
-          <NavLink to="/psicosocial" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
-            <span className="dot" style={{ background: '#4BACC6' }} />
-            🧠 Área Psicosocial
-          </NavLink>
-
-          <div className="sb-nav-divider" />
-
-          {/* ── COMUNICACIÓN ── */}
-          {features.messages !== false && (
-            <NavLink to="/messages" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
-              <span className="dot" style={{ background: '#4BACC6' }} />
-              Mensajes
-              {unreadMessages > 0 && (
-                <span className="sb-notif-badge" style={{ background: '#4BACC6' }}>{unreadMessages}</span>
-              )}
-            </NavLink>
-          )}
-
-          <NavLink to="/library" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
-            <span className="dot" style={{ background: '#9BBB59' }} />
-            📚 Biblioteca de Guías
-          </NavLink>
-          <NavLink to="/ai-usage" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
-            <span className="dot" style={{ background: '#8064A2' }} />
-            Uso de IA
-          </NavLink>
-
-          {/* ── RECTOR standalone link — solo si NO es isAdmin (rector ya ve /director en el bloque admin) ── */}
-          {hasDirectorView && !isAdmin && (
-            <>
-              <div className="sb-nav-divider" />
-              <NavLink to="/director" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
-                <span className="dot" style={{ background: '#B8860B' }} />
-                🎓 Vista Rector
-              </NavLink>
-            </>
-          )}
-          {hasScheduleView && !isAdmin && (
-            <>
-              <div className="sb-nav-divider" />
-              <NavLink to="/schedule" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
-                <span className="dot" style={{ background: '#4BACC6' }} />
-                🗓 Horario Institucional
-              </NavLink>
-            </>
-          )}
-          {hasAgendas && !isAdmin && (
-            <>
-              <div className="sb-nav-divider" />
-              <NavLink to="/agenda" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
-                <span className="dot" style={{ background: '#9BBB59' }} />
-                {isHomeroomOnly
-                  ? `🏠 Mi Grupo · ${teacher.homeroom_grade} ${teacher.homeroom_section}`
-                  : isCoteacherOnly
-                    ? `🤝 Co-teacher · ${teacher.coteacher_grade} ${teacher.coteacher_section}${coteacherActive ? ' 🔓' : ''}`
-                    : '📋 Agenda Semanal'}
-              </NavLink>
-            </>
-          )}
-
-          {/* ── CALENDARIO (admin + psicopedagoga) ── */}
-          {hasCalendar && !isAdmin && (
-            <>
-              <div className="sb-nav-divider" />
-              <NavLink to="/calendar" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
-                <span className="dot" style={{ background: '#C9A84C' }} />
-                Calendario
-                <span className="sb-admin-badge">Psicoped.</span>
-              </NavLink>
-            </>
-          )}
-
-          {/* ── ADMINISTRACIÓN (admin + superadmin) ── */}
-          {isAdmin && (
-            <>
-              <div className="sb-nav-divider" />
-              <NavLink to="/teachers" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
-                <span className="dot" style={{ background: '#9BBB59' }} />
-                Docentes
-              </NavLink>
-              <NavLink to="/notifications" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
-                <span className="dot" style={{ background: '#C0504D' }} />
-                Notificaciones
-                {unread > 0 && <span className="sb-notif-badge">{unread}</span>}
-              </NavLink>
-              <NavLink to="/calendar" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
-                <span className="dot" style={{ background: '#C9A84C' }} />
-                Calendario
-                <span className="sb-admin-badge">Admin</span>
-              </NavLink>
-              <NavLink to="/schedule" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
-                <span className="dot" style={{ background: '#4BACC6' }} />
-                🗓 Horario
-                <span className="sb-admin-badge">Admin</span>
-              </NavLink>
-              <NavLink to="/agenda" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
-                <span className="dot" style={{ background: '#9BBB59' }} />
-                📋 Agenda Semanal
-                <span className="sb-admin-badge">Admin</span>
-              </NavLink>
-              <NavLink to="/curriculum" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
-                <span className="dot" style={{ background: '#4F81BD' }} />
-                📊 Malla Curricular
-                <span className="sb-admin-badge">Admin</span>
-              </NavLink>
-              <NavLink to="/sala-revision" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
-                <span className="dot" style={{ background: '#C0504D' }} />
-                🏛 Sala de Revisión
-                {pendingReview > 0
-                  ? <span className="sb-notif-badge">{pendingReview}</span>
-                  : <span className="sb-admin-badge">Admin</span>
-                }
-              </NavLink>
-              <NavLink to="/subjects" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
-                <span className="dot" style={{ background: '#F79646' }} />
-                📋 Materias
-                <span className="sb-admin-badge">Admin</span>
-              </NavLink>
-              <NavLink to="/library" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
-                <span className="dot" style={{ background: '#9BBB59' }} />
-                📚 Biblioteca
-                <span className="sb-admin-badge">Admin</span>
-              </NavLink>
-              <NavLink to="/coverage" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
-                <span className="dot" style={{ background: '#8064A2' }} />
-                🔭 Cobertura eleot®
-                <span className="sb-admin-badge">Admin</span>
-              </NavLink>
-              <NavLink to="/observations" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
-                <span className="dot" style={{ background: '#C0504D' }} />
-                🔎 Observaciones
-                <span className="sb-admin-badge">Admin</span>
-              </NavLink>
-              <NavLink to="/academic-calendar" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
-                <span className="dot" style={{ background: '#4BACC6' }} />
-                📅 Calendario Académico
-                <span className="sb-admin-badge">Admin</span>
-              </NavLink>
-              <NavLink to="/settings" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
-                <span className="dot" style={{ background: '#555' }} />
-                ⚙️ Panel de control
-                <span className="sb-admin-badge">Admin</span>
-              </NavLink>
-              <NavLink to="/qa" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
-                <span className="dot" style={{ background: '#2563eb' }} />
-                📡 Observabilidad
-                <span className="sb-admin-badge" style={{ background: '#2563eb' }}>QA</span>
-              </NavLink>
-              <NavLink to="/dev-status" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
-                <span className="dot" style={{ background: '#7c3aed' }} />
-                🗺️ Estado del Sistema
-                <span className="sb-admin-badge" style={{ background: '#7c3aed' }}>DEV</span>
-              </NavLink>
-              {isSuperAdm && (
-                <NavLink to="/superadmin" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
-                  <span className="dot" style={{ background: '#C0504D' }} />
-                  🔑 Panel Superadmin
-                  <span className="sb-admin-badge" style={{ background: '#C0504D' }}>Superadmin</span>
-                </NavLink>
-              )}
-            </>
-          )}
-        </nav>
+        <SidebarNav
+          teacher={teacher}
+          isAdmin={isAdmin}
+          isSuperAdm={isSuperAdm}
+          features={features}
+          closeSidebar={closeSidebar}
+          unread={unread}
+          unreadMessages={unreadMessages}
+          pendingReview={pendingReview}
+          pendingAIReview={pendingAIReview}
+          hasDirectorView={hasDirectorView}
+          hasScheduleView={hasScheduleView}
+          hasAgendas={hasAgendas}
+          hasCalendar={hasCalendar}
+          isHomeroomOnly={isHomeroomOnly}
+          isCoteacherOnly={isCoteacherOnly}
+          coteacherActive={coteacherActive}
+        />
 
         <div className="sb-profile-bar">
           {(teacher.role === 'admin' || isSuperAdmin(teacher) || isRector(teacher)) && (
@@ -596,6 +390,171 @@ function DashboardInner({ session, teacher, setTeacher }) {
 
     </div>
     </QAProvider>
+  )
+}
+
+// ── NavSection — collapsible + hideable sidebar group ────────────────────────
+function NavSection({ id, title, icon, defaultOpen = true, hidden, onHide, children }) {
+  const [open, setOpen] = useState(defaultOpen)
+  if (hidden) return null
+  return (
+    <div className={`sb-section ${open ? 'sb-section-open' : ''}`}>
+      <button className="sb-section-toggle" onClick={() => setOpen(!open)}>
+        <span className="sb-section-icon">{icon}</span>
+        <span className="sb-section-title">{title}</span>
+        <span className="sb-section-arrow">{open ? '▾' : '▸'}</span>
+      </button>
+      {onHide && (
+        <button className="sb-section-hide" onClick={onHide} title={`Ocultar sección "${title}"`}>✕</button>
+      )}
+      {open && <div className="sb-section-items">{children}</div>}
+    </div>
+  )
+}
+
+// ── SidebarNav — grouped collapsible navigation ──────────────────────────────
+const HIDDEN_SECTIONS_KEY = 'cbf_sidebar_hidden'
+
+function SidebarNav({
+  teacher, isAdmin, isSuperAdm, features, closeSidebar,
+  unread, unreadMessages, pendingReview, pendingAIReview,
+  hasDirectorView, hasScheduleView, hasAgendas, hasCalendar,
+  isHomeroomOnly, isCoteacherOnly, coteacherActive,
+}) {
+  const [hiddenSections, setHiddenSections] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(HIDDEN_SECTIONS_KEY)) || [] }
+    catch { return [] }
+  })
+
+  function hideSection(id) {
+    const next = [...hiddenSections, id]
+    setHiddenSections(next)
+    localStorage.setItem(HIDDEN_SECTIONS_KEY, JSON.stringify(next))
+  }
+
+  function restoreAll() {
+    setHiddenSections([])
+    localStorage.removeItem(HIDDEN_SECTIONS_KEY)
+  }
+
+  const L = ({ to, end, dot, children }) => (
+    <NavLink to={to} end={end} className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
+      <span className="dot" style={{ background: dot }} />
+      {children}
+    </NavLink>
+  )
+
+  return (
+    <nav className="sb-nav">
+      {/* ── OPERACIÓN DOCENTE ── */}
+      <NavSection id="operacion" title="Operación" icon="📝" defaultOpen={true}
+        hidden={hiddenSections.includes('operacion')} onHide={() => hideSection('operacion')}>
+        <L to="/principles" dot="#C9A84C">📖 Principios</L>
+        <L to="/achievements" dot="#C9A84C">🎯 Logros</L>
+        <L to="/biblioteca" dot="#2E5598">📖 Biblioteca CBF</L>
+        <L to="/syllabus" dot="#8064A2">📚 Syllabus</L>
+        <L to="/news" dot="#C0504D">📋 NEWS Projects</L>
+        <L to="/" end dot="#2E5598">📝 Nueva Guía</L>
+        <L to="/plans" dot="#9BBB59">📂 Mis Guías</L>
+        <L to="/exams" dot="#C0504D">📝 Evaluaciones</L>
+        {pendingAIReview > 0 && (
+          <NavLink to="/exams/review" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
+            <span className="dot" style={{ background: '#F59E0B' }} />
+            👁 Revisión IA
+            <span className="sb-notif-badge">{pendingAIReview}</span>
+          </NavLink>
+        )}
+        <L to="/player" dot="#FFD700">👩‍🎓 Mis Estudiantes BF</L>
+        <L to="/grades" dot="#15803D">📊 Calificaciones</L>
+        <L to="/psicosocial" dot="#4BACC6">🧠 Área Psicosocial</L>
+        {features.messages !== false && (
+          <NavLink to="/messages" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
+            <span className="dot" style={{ background: '#4BACC6' }} />
+            ✉ Mensajes
+            {unreadMessages > 0 && <span className="sb-notif-badge" style={{ background: '#4BACC6' }}>{unreadMessages}</span>}
+          </NavLink>
+        )}
+        <L to="/library" dot="#9BBB59">📚 Biblioteca de Guías</L>
+        <L to="/ai-usage" dot="#8064A2">🤖 Uso de IA</L>
+      </NavSection>
+
+      {/* ── SUPERVISIÓN (rector, homeroom, co-teacher, psicoped) ── */}
+      {(hasDirectorView || hasScheduleView || hasAgendas || hasCalendar || (isAdmin && canManage(teacher.role))) && (
+        <NavSection id="supervision" title={isAdmin ? 'Supervisión' : 'Mi Rol'} icon="🎓" defaultOpen={true}
+          hidden={hiddenSections.includes('supervision')} onHide={() => hideSection('supervision')}>
+          {hasDirectorView && (
+            <L to="/director" dot="#B8860B">🎓 Vista Rector</L>
+          )}
+          {canManage(teacher.role) && (
+            <L to="/exams/revision" dot="#991B1B">🏛 Aprobar Exámenes</L>
+          )}
+          {isAdmin && (
+            <NavLink to="/sala-revision" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
+              <span className="dot" style={{ background: '#C0504D' }} />
+              🏛 Sala de Revisión
+              {pendingReview > 0 && <span className="sb-notif-badge">{pendingReview}</span>}
+            </NavLink>
+          )}
+          {hasScheduleView && (
+            <L to="/schedule" dot="#4BACC6">🗓 Horario Institucional</L>
+          )}
+          {hasAgendas && (
+            <NavLink to="/agenda" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
+              <span className="dot" style={{ background: '#9BBB59' }} />
+              {isHomeroomOnly
+                ? `🏠 Mi Grupo · ${teacher.homeroom_grade} ${teacher.homeroom_section}`
+                : isCoteacherOnly
+                  ? `🤝 Co-teacher · ${teacher.coteacher_grade} ${teacher.coteacher_section}${coteacherActive ? ' 🔓' : ''}`
+                  : '📋 Agenda Semanal'}
+            </NavLink>
+          )}
+          {hasCalendar && !isAdmin && (
+            <L to="/calendar" dot="#C9A84C">📅 Calendario</L>
+          )}
+          {isAdmin && (
+            <>
+              <L to="/coverage" dot="#8064A2">🔭 Cobertura eleot®</L>
+              <L to="/observations" dot="#C0504D">🔎 Observaciones</L>
+              <L to="/curriculum" dot="#4F81BD">📊 Malla Curricular</L>
+            </>
+          )}
+        </NavSection>
+      )}
+
+      {/* ── ADMINISTRACIÓN (solo admin/superadmin) ── */}
+      {isAdmin && (
+        <NavSection id="admin" title="Administración" icon="⚙️" defaultOpen={false}
+          hidden={hiddenSections.includes('admin')} onHide={() => hideSection('admin')}>
+          <L to="/teachers" dot="#9BBB59">👥 Docentes</L>
+          {isAdmin && (
+            <NavLink to="/students" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
+              <span className="dot" style={{ background: '#8064A2' }} />
+              🎓 Estudiantes BF
+            </NavLink>
+          )}
+          <NavLink to="/notifications" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
+            <span className="dot" style={{ background: '#C0504D' }} />
+            🔔 Notificaciones
+            {unread > 0 && <span className="sb-notif-badge">{unread}</span>}
+          </NavLink>
+          <L to="/calendar" dot="#C9A84C">📅 Calendario</L>
+          <L to="/schedule" dot="#4BACC6">🗓 Horario</L>
+          <L to="/subjects" dot="#F79646">📋 Materias</L>
+          <L to="/academic-calendar" dot="#4BACC6">📅 Calendario Académico</L>
+          <L to="/settings" dot="#555">⚙️ Panel de control</L>
+          <L to="/qa" dot="#2563eb">📡 Observabilidad</L>
+          <L to="/dev-status" dot="#7c3aed">🗺️ Estado del Sistema</L>
+          {isSuperAdm && (
+            <L to="/superadmin" dot="#C0504D">🔑 Panel Superadmin</L>
+          )}
+        </NavSection>
+      )}
+      {hiddenSections.length > 0 && (
+        <button className="sb-restore-btn" onClick={restoreAll}>
+          👁 Mostrar secciones ocultas ({hiddenSections.length})
+        </button>
+      )}
+    </nav>
   )
 }
 

@@ -93,7 +93,7 @@ export default function SyllabusPlanView({ teacher, subject, grade, period, pc }
 
     Promise.all([
       supabase.from('academic_period_config')
-        .select('start_date, end_date')
+        .select('start_date, end_date, compound_weeks')
         .eq('school_id', teacher.school_id)
         .eq('period', parseInt(period))
         .eq('year', year)
