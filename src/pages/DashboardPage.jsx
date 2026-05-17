@@ -46,6 +46,7 @@ const StudentPlayerPage        = lazy(() => import('./StudentPlayerPage'))
 const StudentDetailPage        = lazy(() => import('./StudentDetailPage'))
 const QADashboardPage          = lazy(() => import('./QADashboardPage'))
 const DevStatusPage            = lazy(() => import('./DevStatusPage'))
+const InstrumentPage           = lazy(() => import('./InstrumentPage'))
 import ProfileModal        from '../components/ProfileModal'
 import { FeaturesProvider, useFeatures } from '../context/FeaturesContext'
 import { QAProvider }    from '../qa/QAContext'
@@ -326,6 +327,7 @@ function DashboardInner({ session, teacher, setTeacher }) {
           <Route path="/player/:studentId"    element={<StudentDetailPage   teacher={teacher} />} />
           <Route path="/grades"               element={<GradebookPage       teacher={teacher} />} />
           <Route path="/grades/quick/:id"    element={<QuickGradePage      teacher={teacher} />} />
+          <Route path="/instrument/:planId"  element={<InstrumentPage      teacher={teacher} />} />
           <Route path="/grading"             element={<GradingHubPage      teacher={teacher} />} />
           <Route path="/grading/session/:id" element={<GradingSessionPage  teacher={teacher} />} />
           <Route path="/grading/display/:id" element={<GradingDisplayPage  teacher={teacher} />} />

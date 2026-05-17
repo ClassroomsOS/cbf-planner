@@ -1350,6 +1350,14 @@ export default function GuideEditorPage({ teacher }) {
               🔧 Correcciones
             </button>
           )}
+          {/* Instrumento docente */}
+          <button
+            className="btn-secondary"
+            onClick={() => navigate(`/instrument/${id}`)}
+            style={{ fontSize: '12px' }}
+            title="Generar instrumento de sesión">
+            🎯 Instrumento
+          </button>
           {/* Botón principal — único formato de exportación institucional */}
           <button className="ge-print-btn"
             onClick={handleExportLegacy}

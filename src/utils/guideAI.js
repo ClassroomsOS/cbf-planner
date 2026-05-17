@@ -1709,3 +1709,115 @@ Reglas:
   }
   throw new Error('La IA no devolvió un análisis válido de las páginas.')
 }
+
+// ── generateTeacherInstrument ─────────────────────────────────────────────────
+// Generates a teacher session instrument (guión de sesión) linked to a lesson plan.
+// Returns JSON with opening, phases (A/B/C options), recalling, preacher close, minimal route.
+
+const GROUP_STATE_LABELS = {
+  present:   'Presentes — Atentos, llegaron bien → Plan completo',
+  scattered: 'Dispersos — Inquietos, distraídos → Ancla primero, acortar desarrollo',
+  down:      'Caídos — Cabezas bajas, monosílabos → Ruta mínima + conversación',
+  electric:  'Eléctricos — Sobreexcitados, algo pasó → Canalizar energía, cambiar formato',
+  anxious:   'Ansiosos — Tensión visible, evaluación cerca → Bajar presión, reforzar lo seguro',
+}
+
+const IMS_LABELS = [
+  'Semanas 1–2: Exposición · Muy guiado · Individual',
+  'Semanas 3–5: Conexión · Guiado con opciones · Parejas',
+  'Semanas 6–8: Aplicación · Semi-autónomo · Equipos',
+  'Semanas 9–10: Producción · Autónomo · Comunidad',
+]
+
+export async function generateTeacherInstrument({ subject, skill, verse, verseRef, objective, evidence, groupState, imsIndex, guideContext }) {
+  const stateLabel = GROUP_STATE_LABELS[groupState] || groupState
+  const imsLabel = IMS_LABELS[imsIndex] || ''
+
+  const system = `You are a master instructional designer for Colegio Boston Flexible, a bilingual Christian school in Barranquilla, Colombia. Theme: "AÑO DE LA PUREZA" (Génesis 1:27-28a TLA).
+
+You generate TEACHER SESSION INSTRUMENTS — operational scripts that tell the teacher exactly what to DO in the classroom, step by step. The verse is the structural thread through every moment — not decorative.
+
+RULES:
+1. Every instruction = one STEP. Imperative verb. One action. One line. NO paragraphs ever.
+2. The verse connects to every phase intentionally — never as an afterthought.
+3. Group state changes the instrument structurally (not just the tone).
+4. UDL: one activity, wide output range. No differentiation by student — differentiate entry and exit points.
+5. Recalling at open AND close — these are structural, not optional warm-ups.
+6. Each main phase has 3 OPTIONS: A=Structured, B=Semi-open, C=Conversation only.
+7. ANCHOR: one question so good that if the teacher ONLY does this, the class has value.
+8. PREACHER CLOSE: skill → life principle → verse truth → DECLARATION said out loud.
+9. MINIMAL ROUTE: whole session in ≤ 15 min for days that collapse.
+10. Respond ONLY in the language of instruction for this subject (English for English subjects, Spanish for Spanish subjects).`
+
+  const contextBlock = guideContext ? `\n📋 GUIDE CONTEXT FOR THIS SESSION:\n${guideContext}\n` : ''
+
+  const message = `Generate a Teacher Session Instrument with these parameters:
+
+- Subject: ${sanitizeAIInput(subject)}
+- Skill/Topic: ${sanitizeAIInput(skill)}
+- Verse: "${sanitizeAIInput(verse || 'not provided')}" (${sanitizeAIInput(verseRef || 'no ref')})
+- Objective: "${sanitizeAIInput(objective || 'infer from skill')}"
+- Evidence expected: "${sanitizeAIInput(evidence || 'infer from skill')}"
+- Group state: ${stateLabel}
+- IMS Week position: ${imsLabel}
+${contextBlock}
+Return ONLY valid JSON (no markdown, no backticks):
+{
+  "session_title": "Max 5 words — evocative, not descriptive",
+  "guide_connection": "One sentence linking to the student guide",
+  "anchor": "The one question that holds the entire session",
+  "anchor_note": "Why this anchor works for this group state",
+  "opening": {
+    "prayer_prompt": "One sentence guiding the prayer moment",
+    "verse_instruction": "How to present the verse — specific to group state",
+    "rules_focus": "Which class rule to highlight and why today",
+    "objective_statement": "Exact words the teacher says to present the objective"
+  },
+  "recalling_open": { "duration": "3-5 min", "steps": ["step 1", "step 2", "step 3"] },
+  "pre": {
+    "duration": "≤ 17 min",
+    "options": {
+      "A": { "label": "Structured", "steps": ["step 1", "step 2", "step 3", "step 4"] },
+      "B": { "label": "Semi-open", "steps": ["step 1", "step 2", "step 3"] },
+      "C": { "label": "Conversation", "steps": ["step 1", "step 2"] }
+    }
+  },
+  "dev": {
+    "duration": "≤ 20 min",
+    "options": {
+      "A": { "label": "Structured", "steps": ["step 1", "step 2", "step 3", "step 4", "step 5"] },
+      "B": { "label": "Semi-open", "steps": ["step 1", "step 2", "step 3", "step 4"] },
+      "C": { "label": "Conversation", "steps": ["step 1", "step 2", "step 3"] }
+    }
+  },
+  "close": {
+    "duration": "≤ 10 min",
+    "options": {
+      "A": { "label": "Structured", "steps": ["step 1", "step 2", "step 3"] },
+      "B": { "label": "Semi-open", "steps": ["step 1", "step 2"] },
+      "C": { "label": "Conversation", "steps": ["step 1"] }
+    }
+  },
+  "recalling_close": { "duration": "3-5 min", "steps": ["step 1", "step 2", "step 3"] },
+  "preacher_close": {
+    "bridge": "One sentence connecting skill to life principle",
+    "steps": ["step 1", "step 2", "step 3", "step 4"],
+    "declaration": "The sentence students say out loud — powerful, memorable, true"
+  },
+  "minimal_route": ["step 1 (X min)", "step 2 (X min)", "step 3 (X min)", "step 4 (X min)"]
+}`
+
+  const raw = await callClaude({
+    type:      'teacher_instrument',
+    system,
+    message,
+    maxTokens: 2500,
+  })
+
+  try { return JSON.parse(raw) } catch { /* not clean JSON */ }
+  const jsonMatch = raw.match(/\{[\s\S]*\}/)
+  if (jsonMatch) {
+    try { return JSON.parse(jsonMatch[0]) } catch { /* malformed */ }
+  }
+  throw new Error('La IA no devolvió un instrumento válido.')
+}

@@ -1,7 +1,7 @@
 # Roadmap y Estado del Proyecto
 
 > Extraído de `CLAUDE.md` + auditoría `docs/auditoria/2026-04-04-auditoria-sistema.md`
-> Última actualización: 2026-05-09
+> Última actualización: 2026-05-16
 
 ---
 
@@ -30,12 +30,12 @@
 | **Módulo Psicosocial** | ✅ Completo | 3 tablas · PsicosocialPage · semáforo · perfil/seguimiento/plan docente · modo consulta docentes · notas confidenciales ocultas |
 | **PIAR en IA** | ✅ Completo | Acomodaciones inyectadas en `generateGuideStructure` sin PII · aviso en ConversationalGuideModal |
 | **Privacidad Telegram** | ✅ Completo | Código anónimo (last-6 instance_id) en alertas y ciclo · columna Código en ExamLiveMonitor |
-| Pipeline imágenes IA | ⬜ Pendiente | Fotos de textbook → multimodal → prompt |
+| Pipeline imágenes IA | ✅ Completo | Syllabus Wizard: Vision batch 5 págs → analyzeBookPages + distributePagesByWeek + advisorCheckSession · syllabus_session_resources tabla |
 | Refactoring (Fase 3) | ⬜ Pendiente | Archivos grandes, CSS modular, TeacherContext |
 | **Módulo de Evaluación — Backend** | ✅ Completo | 10 tablas, triggers, cola AI, corrección Claude, escala colombiana. Probado E2E. |
 | **Módulo de Evaluación — Frontend** | ✅ Completo | ~~Pantalla creación~~ ✅ · ~~N versiones anti-copia~~ ✅ · ~~Print CBF-G AC-01~~ ✅ · ~~ExamPlayerV2 email-auth~~ ✅ · ~~Antitrampa 5 capas~~ ✅ · ~~Generar instancias por roster~~ ✅ · ~~Preview+edición preguntas por versión~~ ✅ · ~~Dashboard resultados~~ ✅ · ~~Monitor en vivo~~ ✅ · ~~Revisión humana~~ ✅ |
 | **Roster de Estudiantes** | ✅ Completo | school_students · StudentsPage · exam-instance-generator auto-query · email auth en /eval · displayName apellido-nombre · CSV robusto · import row-by-row · ordenamiento columna · eliminación por lotes |
-| **CBF Observability Layer** | 🔶 Infraestructura ✅ · Adopción ❌ | Tablas + cbf-logger + alert_rules ✅ · Solo 3/46 páginas usan logger · cbf-logger nunca llamado desde frontend · **Pendiente: instrumentar todos los módulos + QA Dashboard** |
+| **CBF Observability Layer** | ✅ ~80% completo | Tablas + cbf-logger + alert_rules ✅ · QADashboardPage 7 tabs ✅ · 41/156 archivos usan logger (26%) · claude-proxy tiene logEvent() propio · Pendiente: instrumentar archivos restantes sin mutaciones |
 | **CBF Quality Standard** | ✅ Completo | Definition of Done, clasificación bugs, estándares performance y disponibilidad |
 | **Quiz vs Examen Final** | ✅ Completo | EXAM_PRESETS (quiz/final_lower/final_upper) · ExamCreatorPage wizard · prompt IA diferenciado · metadata exam_type · badge en dashboard · 23 tests |
 | **Módulo Logros — Rediseño** | ✅ Completo | ObjectivesPage → AchievementsPage · ruta /achievements · header gradiente · stat cards · agrupación por materia+grado · GoalCard borde coloreado · 3 columnas por dimensión · WeightBar · CompletenessChecklist · CascadePanel · modales mejorados · empty state con diagrama |
@@ -47,7 +47,7 @@
 | **Biblioteca CBF — Fase 3c** | ✅ Completo | Fragmentos en PlannerPage: callout azul con chips de tipo/SmartBlock → pasan a `AIGeneratorModal` → `generateGuideStructure` los recibe como contexto al generar desde el Planner |
 | **Biblioteca CBF — Fase 4** | ✅ Completo | Imágenes de fragmentos fluyen como `imageBlocks` a `generateGuideStructure` (máx. 5, fragmentos prioritarios) · `analyzeTextbookPages()` acepta URLs o capturas base64 · UI "📖 Páginas" en PDF viewer: selección multi-página → renderizado offscreen → análisis Claude Vision → `PagesAnalysisPanel` con plan semanal + SmartBlock sugeridos |
 | **Biblioteca CBF — Fase 5** | ✅ Completo | Integración Syllabus: `syllabus_topics.library_doc_id + library_pages[]` (migración prod) · `SyllabusLinkPanel` en PDF viewer: asignar páginas actuales a un `syllabus_topic` · `SyllabusPage` TopicFormModal con selector PDF + páginas; TopicDetailCard chip doc/páginas · `GuideEditorPage` callout verde "Páginas del libro vinculadas al syllabus (semana N)" |
-| **Instrumento Docente** | ⬜ Diseñado | Guión de sesión generado por IA para el docente (complemento de la Guía CBF-G AC-01) · IMS · estado del grupo · 3 opciones por fase · PREACHER CLOSE · prototipo en `theoric mark/teacher-instrument.jsx` |
+| **Instrumento Docente** | 🔶 En desarrollo | Guión de sesión generado por IA para el docente (complemento de la Guía CBF-G AC-01) · IMS · estado del grupo · 3 opciones por fase · PREACHER CLOSE · prototipo en `theoric mark/teacher-instrument.jsx` |
 
 ---
 
@@ -67,43 +67,24 @@
 
 ## Próximas tareas — orden de prioridad
 
-### 🔴 Alta prioridad — Próximo sprint (2026-05-09)
+### 🔴 Alta prioridad — Sprint activo (2026-05-16)
 
-**Observabilidad al 100% + QA Dashboard**
+**Instrumento Docente** — Guión de sesión generado por IA
 
-**Problema:** La infraestructura (`cbf-logger`, `logError`, `logActivity`, `safeAsync`) existe y funciona, pero solo 3 de 46 páginas la usan. El 94% de los errores del sistema son silenciosos.
+Complemento de la Guía de Aprendizaje (CBF-G AC-01). Opera desde el docente: lee la guía y la operacionaliza en micro-experiencias por sesión.
 
 **Plan de ejecución:**
+1. Tabla DB: `teacher_instruments` (plan_id FK, group_state, ims_index, generated_json, created_at)
+2. Función IA: `generateTeacherInstrument()` en `guideAI.js` — ~2500 tokens
+3. Página: `/instrument/:planId` — `InstrumentPage.jsx`
+4. Componentes: `InstrumentViewer`, `GroupStateSelector`, `IMSSelector`
+5. Integración: botón en GuideEditorPage para abrir el instrumento de la guía actual
 
-*Paso 1 — Instrumentar módulos críticos* (todos los módulos con escrituras Supabase):
-- `LibraryPage.jsx` — uploads, shares, rollback, edits (0 logs actualmente)
-- `AdminTeachersPage.jsx` — crear/editar/eliminar docentes
-- `StudentsPage.jsx` — importar CSV, crear, eliminar
-- `NewsPage.jsx` + `NewsProjectEditor.jsx` — CRUD proyectos
-- `PlannerPage.jsx` — creación de guías
-- `AchievementsPage.jsx` — logros e indicadores
-- `ReviewRoomPage.jsx` — aprobar/devolver/publicar guías
-- `ExamCreatorPage.jsx` + `ExamDashboardPage.jsx` + `ExamRevisionPage.jsx`
-- `PsicosocialPage.jsx` — perfiles y observaciones
-- Resto de páginas con mutaciones Supabase
+---
 
-*Paso 2 — Instrumentar Edge Functions con cbf-logger:*
-- `claude-proxy` (IA) — latencia, tokens, errores de rate limit
-- `admin-create-teacher` — creación exitosa / rollback
-- `exam-ai-corrector` — ya usa console.log, migrar a cbf-logger
+### ~~🔴 Observabilidad al 100% + QA Dashboard~~ ✅ ~80% completo (2026-05-16)
 
-*Paso 3 — QA Dashboard* (ruta `/qa` o tab en SuperAdminPage):
-- Vista `system_events` ordenada por severity + fecha
-- Vista `error_log` + `activity_log` por módulo
-- Vista `system_alerts` (open/resolved) con acción "resolver"
-- Vista `ai_usage` — tokens consumidos por docente y total
-- Vista `library_edit_log` — actividad en Biblioteca
-- Protocolos de operación por módulo (estado esperado, umbrales de alerta)
-- Filtros: fecha, severity, módulo, usuario
-
-*Paso 4 — Alert rules en prod* para los módulos nuevos instrumentados
-
-**Cobertura objetivo:** logError/safeAsync en 100% de las operaciones Supabase · activity_log en creación/edición/eliminación de entidades principales.
+**Estado verificado:** QADashboardPage con 7 tabs existe y funciona. 41/156 archivos (26%) usan logger. cbf-logger Edge Fn operativo con Telegram. claude-proxy tiene logEvent() propio. El 74% restante son componentes sin mutaciones DB — no requieren instrumentación urgente.
 
 ---
 
