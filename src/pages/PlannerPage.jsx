@@ -122,9 +122,10 @@ export default function PlannerPage({ teacher }) {
   // Fetch active achievement_goal + indicators for subject/grade/period
   useEffect(() => {
     if (!grade || !subject || !period) { setActiveAchievementGoal(null); return }
+    let cancelled = false
     const p = parseInt(period) || 1
     ;(async () => {
-      const { data: goals } = await supabase
+      const { data: goals, error: err } = await supabase
         .from('achievement_goals')
         .select('id, text, period, subject, grade, status')
         .eq('school_id', teacher.school_id)
@@ -135,6 +136,8 @@ export default function PlannerPage({ teacher }) {
         .order('created_at', { ascending: false })
         .limit(1)
 
+      if (cancelled) return
+      if (err) { logError(err, { page: 'PlannerPage', action: 'fetchAchievementGoal' }); setActiveAchievementGoal(null); return }
       if (!goals?.length) { setActiveAchievementGoal(null); return }
       const goal = goals[0]
 
@@ -144,13 +147,16 @@ export default function PlannerPage({ teacher }) {
         .eq('goal_id', goal.id)
         .order('order_index', { ascending: true })
 
+      if (cancelled) return
       setActiveAchievementGoal({ ...goal, indicators: indicators || [] })
     })()
+    return () => { cancelled = true }
   }, [grade, subject, period, teacher.id, teacher.school_id])
 
   // Fetch NEWS projects — check existence + hitos for this week
   useEffect(() => {
-    if (!grade || !subject) { setWeeklyNewsHitos([]); setHasNews(null); return }
+    if (!grade || !subject) { setWeeklyNewsHitos([]); setHasNews(null); setPlannerNewsProjects([]); return }
+    let cancelled = false
     const w1 = getWeekDays(monday)
     const mon2 = new Date(monday); mon2.setDate(mon2.getDate() + 7)
     const allDays = weekCount === 2 ? [...w1, ...getWeekDays(mon2)] : w1
@@ -160,7 +166,9 @@ export default function PlannerPage({ teacher }) {
       .select('id, title, skill, grade, section, actividades_evaluativas, due_date, target_indicador, indicator_id')
       .eq('school_id', teacher.school_id)
       .eq('subject', subject)
-      .then(({ data }) => {
+      .then(({ data, error: err }) => {
+        if (cancelled) return
+        if (err) { logError(err, { page: 'PlannerPage', action: 'fetchNewsProjects' }); return }
         const all = (data || []).filter(np => grade.startsWith(np.grade || ''))
         setHasNews(all.length > 0)
         setPlannerNewsProjects(all)
@@ -175,6 +183,7 @@ export default function PlannerPage({ teacher }) {
         hitos.sort((a, b) => a.date.localeCompare(b.date))
         setWeeklyNewsHitos(hitos)
       })
+    return () => { cancelled = true }
   }, [grade, subject, monday, weekCount])
 
   const monday2     = (() => { const d = new Date(monday); d.setDate(d.getDate() + 7); return d })()
@@ -218,6 +227,7 @@ export default function PlannerPage({ teacher }) {
   // Fetch existing plan for current grade/subject/week selection
   useEffect(() => {
     if (!grade || !subject) { setExistingPlan(null); return }
+    let cancelled = false
     supabase
       .from('lesson_plans')
       .select('id, status, date_range, week_count, content')
@@ -226,7 +236,12 @@ export default function PlannerPage({ teacher }) {
       .eq('subject', subject)
       .eq('week_number', weekNumber)
       .maybeSingle()
-      .then(({ data }) => setExistingPlan(data || null))
+      .then(({ data, error: err }) => {
+        if (cancelled) return
+        if (err) { logError(err, { page: 'PlannerPage', action: 'fetchExistingPlan' }); return }
+        setExistingPlan(data || null)
+      })
+    return () => { cancelled = true }
   }, [grade, subject, weekNumber])
 
   // Fetch active exam for current grade+subject
@@ -269,7 +284,7 @@ export default function PlannerPage({ teacher }) {
   useEffect(() => {
     if (subject && !availableSubjects.includes(subject)) setSubject('')
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [grade, availableSubjects.length])
+  }, [grade, availableSubjects.join(',')])
 
   useEffect(() => {
     async function fetchCalendar() {
@@ -529,7 +544,6 @@ export default function PlannerPage({ teacher }) {
                 <div className="pnh-label">Actividades evaluativas programadas esta semana</div>
                 <div className="pnh-list">
                   {weeklyNewsHitos.map((h, i) => {
-                    const SKILL_COLOR = { Speaking: '#8064A2', Listening: '#4BACC6', Reading: '#F79646', Writing: '#9BBB59' }
                     const sc = SKILL_COLOR[h.skill]
                     return (
                       <div key={i} className="pnh-item">
@@ -749,6 +763,8 @@ export default function PlannerPage({ teacher }) {
           projects={plannerNewsProjects}
           currentMonday={monday}
           weekCount={weekCount}
+          periodStartISO={periodStartISO}
+          compoundWeeks={compoundWeeks}
         />
       )}
 
@@ -896,7 +912,7 @@ export default function PlannerPage({ teacher }) {
 }
 
 // ── PlannerPeriodTimeline ──────────────────────────────────────────────────────
-function PlannerPeriodTimeline({ projects, currentMonday, weekCount }) {
+function PlannerPeriodTimeline({ projects, currentMonday, weekCount, periodStartISO, compoundWeeks }) {
   const allEvents = useMemo(() => {
     const events = []
     projects.forEach(p => {
@@ -991,7 +1007,7 @@ function PlannerPeriodTimeline({ projects, currentMonday, weekCount }) {
         {sortedWeeks.map((wk, wIdx) => {
           const isCurrent = wk === currentWeekKey || (nextWeekKey && wk === nextWeekKey)
           const weekEvents = weekMap[wk]
-          const wkNum = getPeriodWeek(new Date(wk + 'T12:00:00'), periodStartISO)
+          const wkNum = getPeriodWeek(new Date(wk + 'T12:00:00'), periodStartISO, compoundWeeks)
 
           return (
             <div key={wk} style={{

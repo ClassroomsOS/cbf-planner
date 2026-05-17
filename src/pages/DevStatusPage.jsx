@@ -91,8 +91,10 @@ const MODULES = [
     pending: [
       'Pipeline de imágenes de textbook para IA multimodal (fotos físicas → SmartBlocks)',
       'Refactoring GuideEditorPage.jsx (~1521 líneas) — Fase 3',
+      'Mejora: TeacherContext global para eliminar prop drilling de teacher (19 páginas afectadas)',
     ],
     history: [
+      { date: '2026-05-16', reason: 'Fix crash al seleccionar materia + hardening', detail: 'PlannerPeriodTimeline crasheaba por ReferenceError: periodStartISO no pasado como prop. Corregido + compoundWeeks propagado. Race conditions corregidas con cancelled flags en 3 useEffects. Error logging añadido a fetches de NEWS/goals/existingPlan. SKILL_COLOR redundante eliminado.' },
       { date: '2026-05-16', reason: 'Per-period weeks + Syllabus→Guía pipeline', detail: 'getPeriodWeek() reemplaza getSchoolWeek(). classResolver usa monday_date. syllabusTopics inyectados en generateGuideStructure via ConversationalGuideModal.' },
       { date: '2026-04-20', reason: 'PIAR en IA', detail: 'GuideEditorPage consulta student_accommodation_plans y pasa acomodaciones por categoría a generateGuideStructure.' },
       { date: '2026-04-15', reason: 'Export Campus Virtual', detail: 'buildDayHtml / exportDayHtml: CSS scoped .cbf-day, SmartBlocks interactivos, imágenes base64.' },
