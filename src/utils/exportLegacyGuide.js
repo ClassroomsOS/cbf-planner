@@ -234,7 +234,7 @@ function drawingXml(rId, cx, cy, imgId, name) {
 // ── Word XML primitives ────────────────────────────────────────────────────────
 
 const FONT = `<w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>`
-const SZ   = `<w:sz w:val="20"/><w:szCs w:val="20"/>`
+const SZ   = `<w:sz w:val="22"/><w:szCs w:val="22"/>`
 const SP   = `<w:spacing w:after="0" w:line="240" w:lineRule="auto"/>`
 
 function emptyP() {
@@ -407,7 +407,7 @@ async function buildWeekXml({ plan, newsProject, indicator }, imageRefs) {
   const last      = parseDateDocx(activeDayKeys[activeDayKeys.length - 1])
   const grade     = parseGrade(plan?.grade || '')
   const weekType  = WEEK_TYPE_MAP[newsProject?.skill] || 'WEEKLY GUIDE'
-  const principle = (newsProject?.biblical_principle || '').toUpperCase()
+  const principle = newsProject?.biblical_principle || ''
   const verseRef  = newsProject?.indicator_verse_ref || ''
   const verseText = newsProject?.biblical_reflection || ''
   const objective = indicator?.text || content.objetivo?.general || ''

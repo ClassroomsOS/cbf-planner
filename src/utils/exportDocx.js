@@ -66,7 +66,7 @@ function emptyPara() {
 // Converts Tiptap HTML (bold, italic, underline, lists, paragraphs) to
 // an array of Paragraph objects safe for DOCX.
 
-function htmlToParas(html, baseSize = 20) {
+function htmlToParas(html, baseSize = 22) {
   if (!html || !html.trim()) return [mkP(mkR('', { size: baseSize }))]
 
   // Use DOMParser when available (browser); fallback to regex for SSR
@@ -644,7 +644,7 @@ async function buildSectionRow(s, sectionData) {
   })
 
   // ── Parse content & fetch images ─────────────────────────────────────────
-  const contentParas  = htmlToParas(text, 18)
+  const contentParas  = htmlToParas(text, 22)
   const smartElements = smartBlocks.flatMap(b => buildSmartBlockDocx(b))
 
   const imgDataList = []
@@ -998,8 +998,8 @@ export async function exportGuideDocx(content, filename) {
       columnWidths: [PW],
       rows: [new TableRow({ children: [
         mkCell([
-          mkP(mkR(`«${verseText}»`, { italic: true, size: 20, color: '5a4000' }), AlignmentType.CENTER),
-          mkP(mkR(`— ${verseRef}`,  { bold: true,  size: 18, color: 'C9A84C' }), AlignmentType.CENTER),
+          mkP(mkR(`«${verseText}»`, { italic: true, size: 22, color: '5a4000' }), AlignmentType.CENTER),
+          mkP(mkR(`— ${verseRef}`,  { bold: true,  size: 20, color: 'C9A84C' }), AlignmentType.CENTER),
         ], PW, { fill: 'FFF2CC', borders: allB(bBlue), margins: { top: 120, bottom: 120, left: 200, right: 200 } }),
       ]}),
     ]})
