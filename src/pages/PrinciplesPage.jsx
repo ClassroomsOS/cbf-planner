@@ -322,7 +322,12 @@ export default function PrinciplesPage({ teacher }) {
         .select().single()
 
       setFileProgresses(prev => { const n = {...prev}; delete n[file.name]; return n })
-      if (!docErr) uploaded.push(docData)
+      if (docErr) {
+        console.error('Error registrando documento:', docErr)
+        showToast(`Error al registrar ${file.name}`, 'error')
+      } else {
+        uploaded.push(docData)
+      }
     }
 
     if (uploaded.length) {
