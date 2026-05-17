@@ -263,7 +263,7 @@ export default function MessagesPage({ teacher }) {
                     <button className="btn-primary btn-save"
                       disabled={sending || !form.to_id || !form.body.trim()}
                       onClick={sendMessage}>
-                      {sending ? '⏳ Enviando…' : '📤 Enviar'}
+                      {sending ? <><span className="cbf-spin-inline"/>Enviando…</> : '📤 Enviar'}
                     </button>
                   </div>
                 </>

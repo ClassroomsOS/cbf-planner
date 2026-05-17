@@ -621,7 +621,7 @@ export default function ReviewRoomPage({ teacher }) {
             background: '#fff', color: '#64748B', fontSize: 12, fontWeight: 600,
             cursor: loading ? 'default' : 'pointer', opacity: loading ? .5 : 1,
           }}>
-          {loading ? '⏳' : '↺'} Actualizar
+          {loading ? <span className="cbf-spin-inline"/> : '↺'} Actualizar
         </button>
       </div>
 

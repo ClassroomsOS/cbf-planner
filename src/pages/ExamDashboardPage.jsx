@@ -438,7 +438,7 @@ function ExamPreviewModal({ exam, onClose }) {
                       style={{ width: 70, padding: '5px 8px', border: '1.5px solid #FCD34D', borderRadius: 6, fontSize: 13 }} />
                     <button type="button" onClick={() => saveEdit(q)} disabled={saving}
                       style={{ marginLeft: 'auto', padding: '7px 20px', borderRadius: 7, background: saving ? '#9CA3AF' : '#059669', color: '#fff', border: 'none', fontWeight: 700, fontSize: 13, cursor: saving ? 'default' : 'pointer' }}>
-                      {saving ? '⏳ Guardando…' : '💾 Guardar'}
+                      {saving ? <><span className="cbf-spin-inline"/>Guardando…</> : '💾 Guardar'}
                     </button>
                   </div>
                 </div>
@@ -850,7 +850,7 @@ function ExamDetailModal({ exam, results, onClose, onStatusChange, teacher }) {
                   <div key={r.session_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', background: '#F8FAFC', borderRadius: 7, border: '1px solid #E2E8F0' }}>
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>{r.student_name || '—'}</div>
-                      <div style={{ fontSize: 11, color: '#9CA3AF' }}>{r.status === 'complete' ? '✓ Completado' : '⏳ Parcial'}</div>
+                      <div style={{ fontSize: 11, color: '#9CA3AF' }}>{r.status === 'complete' ? '✓ Completado' : <><span className="cbf-spin-inline"/>Parcial</>}</div>
                     </div>
                     {r.final_grade != null && (
                       <span style={{ fontSize: 16, fontWeight: 800, color: gradeColor(r.final_grade) }}>{r.final_grade?.toFixed(1)}</span>
@@ -888,7 +888,7 @@ function ExamDetailModal({ exam, results, onClose, onStatusChange, teacher }) {
             <button type="button" onClick={handlePrint} disabled={printing}
               style={{ width: '100%', padding: '10px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: printing ? 'default' : 'pointer',
                 background: '#FFF8E1', color: '#7A6200', border: '1px solid #FDE68A', opacity: printing ? 0.7 : 1 }}>
-              {printing ? '⏳ Preparando…' : '🖨️ Imprimir / Guardar PDF'}
+              {printing ? <><span className="cbf-spin-inline"/>Preparando…</> : '🖨️ Imprimir / Guardar PDF'}
             </button>
             <button type="button" onClick={toggleStatus} disabled={changing}
               style={{ width: '100%', padding: '10px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: changing ? 'default' : 'pointer',
@@ -1175,7 +1175,7 @@ function ExamResultsDashboard({ exam, teacher, onClose }) {
                                 {tab === 'submitted'
                                   ? fmtDuration(r.time_spent_seconds)
                                   : <span style={{ background: r.instance_status === 'started' ? '#FEF9C3' : '#F1F5F9', color: r.instance_status === 'started' ? '#854D0E' : '#6B7280', borderRadius: 5, padding: '2px 7px', fontSize: 11, fontWeight: 700 }}>
-                                      {r.instance_status === 'started' ? '⏳ En curso' : '⬜ Sin iniciar'}
+                                      {r.instance_status === 'started' ? <><span className="cbf-spin-inline"/>En curso</> : '⬜ Sin iniciar'}
                                     </span>
                                 }
                               </td>
@@ -1285,7 +1285,7 @@ function ExamLiveMonitor({ exam, teacher, onClose }) {
   const waiting   = instances.filter(i => i.instance_status === 'ready')
 
   const STATUS_STYLE = {
-    started:   { label: '⏳ En curso',    bg: '#FEF9C3', color: '#854D0E' },
+    started:   { label: <><span className="cbf-spin-inline"/>En curso</>,    bg: '#FEF9C3', color: '#854D0E' },
     submitted: { label: '✅ Enviado',      bg: '#DCFCE7', color: '#15803D' },
     ready:     { label: '⬜ Sin iniciar',  bg: '#F1F5F9', color: '#6B7280' },
   }

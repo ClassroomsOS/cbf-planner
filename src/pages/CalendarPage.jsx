@@ -341,7 +341,7 @@ export default function CalendarPage({ teacher }) {
                   onClick={confirmHolidayImport}
                   disabled={loadingHolidays}
                   style={{ padding: '6px 18px', borderRadius: 7, border: 'none', background: '#d97706', color: 'white', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-                  {loadingHolidays ? '⏳ Importando…' : `✓ Confirmar importación`}
+                  {loadingHolidays ? <><span className="cbf-spin-inline"/>Importando…</> : `✓ Confirmar importación`}
                 </button>
               )}
               <button
@@ -412,7 +412,7 @@ export default function CalendarPage({ teacher }) {
             </div>
             <div style={{ display: 'flex', gap: '10px', marginTop: '6px' }}>
               <button className="btn-primary btn-save" onClick={handleSave} disabled={saving || !form.date || !form.name.trim()}>
-                {saving ? '⏳ Guardando...' : '💾 Guardar'}
+                {saving ? <><span className="cbf-spin-inline"/>Guardando...</> : '💾 Guardar'}
               </button>
               <button className="btn-secondary" onClick={() => setShowForm(false)}>Cancelar</button>
             </div>

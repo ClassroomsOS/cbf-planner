@@ -455,7 +455,7 @@ export default function ExamCreatorPage({ teacher }) {
               {form.grade && form.subject && form.period && (
                 <div>
                   <label style={lbl}>
-                    Logro de Desempeño {loadingCascade ? '⏳' : ''}
+                    Logro de Desempeño {loadingCascade ? <span className="cbf-spin-inline"/> : ''}
                   </label>
                   {goals.length === 0 && !loadingCascade ? (
                     <div style={{ fontSize: 12, color: '#9CA3AF', padding: '8px 10px', background: '#F8FAFC', borderRadius: 7, border: '1px solid #E2E8F0' }}>
@@ -1013,7 +1013,7 @@ export default function ExamCreatorPage({ teacher }) {
                 color: '#fff', border: 'none', cursor: cantGenerate ? 'default' : 'pointer',
                 opacity: cantGenerate && !generating ? .6 : 1,
               }}>
-              {generating ? '⏳ Generando…' : quizOver ? `⚠ Máx. 15 en Quiz (tienes ${total})` : `Generar ${total}${currentPreset.hasExtraPoints ? ' + 5 Extra' : ''} preguntas →`}
+              {generating ? <><span className="cbf-spin-inline"/>Generando…</> : quizOver ? `⚠ Máx. 15 en Quiz (tienes ${total})` : `Generar ${total}${currentPreset.hasExtraPoints ? ' + 5 Extra' : ''} preguntas →`}
             </button>
             )
           })()}
@@ -1026,7 +1026,7 @@ export default function ExamCreatorPage({ teacher }) {
           {step === 4 && (
             <button type="button" onClick={handlePublish} disabled={saving || !form.title.trim()}
               style={{ padding: '9px 22px', borderRadius: 9, fontSize: 14, fontWeight: 700, background: saving ? '#9CA3AF' : 'linear-gradient(135deg, #15803D, #166534)', color: '#fff', border: 'none', cursor: saving ? 'default' : 'pointer' }}>
-              {saving ? '⏳ Guardando…' : 'Publicar Examen'}
+              {saving ? <><span className="cbf-spin-inline"/>Guardando…</> : 'Publicar Examen'}
             </button>
           )}
         </div>

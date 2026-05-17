@@ -250,7 +250,7 @@ export default function SyllabusPlanView({ teacher, subject, grade, period, pc }
           {selectedDocId && (
             <button onClick={handleParseLibrary} disabled={parsing}
               style={{ width: '100%', padding: '8px 0', background: '#f0f4ff', border: '1px solid #c5d5f0', borderRadius: 8, fontSize: 13, color: '#2E5598', fontWeight: 600, cursor: 'pointer' }}>
-              {parsing ? '⏳ Analizando…' : '🤖 Parsear malla con IA'}
+              {parsing ? <><span className="cbf-spin-inline"/>Analizando…</> : '🤖 Parsear malla con IA'}
             </button>
           )}
           {!libraryDocs.length && (
@@ -330,16 +330,16 @@ export default function SyllabusPlanView({ teacher, subject, grade, period, pc }
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <button onClick={handleSaveConfig} disabled={saving}
             style={{ padding: '10px 0', background: pc.accent, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
-            {saving ? '⏳ Guardando…' : '💾 Guardar configuración'}
+            {saving ? <><span className="cbf-spin-inline"/>Guardando…</> : '💾 Guardar configuración'}
           </button>
           <button onClick={handleDistribute} disabled={distributing || !units.length || !workingWeeks.length}
             style={{ padding: '10px 0', background: '#7c3aed', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 14, cursor: distributing || !units.length ? 'not-allowed' : 'pointer', opacity: (!units.length || !workingWeeks.length) ? 0.5 : 1 }}>
-            {distributing ? '⏳ Distribuyendo…' : '🤖 Distribuir con IA'}
+            {distributing ? <><span className="cbf-spin-inline"/>Distribuyendo…</> : '🤖 Distribuir con IA'}
           </button>
           {distribution.length > 0 && (
             <button onClick={handlePublish} disabled={publishing}
               style={{ padding: '10px 0', background: '#16a34a', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
-              {publishing ? '⏳ Publicando…' : `📤 Publicar en Syllabus (${distribution.length} semanas)`}
+              {publishing ? <><span className="cbf-spin-inline"/>Publicando…</> : `📤 Publicar en Syllabus (${distribution.length} semanas)`}
             </button>
           )}
         </div>

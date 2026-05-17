@@ -158,7 +158,7 @@ const CorrectionRequestModal = memo(function CorrectionRequestModal({ planId, te
                 <button className="btn-primary btn-save"
                   disabled={sending || !form.body.trim()}
                   onClick={sendRequest}>
-                  {sending ? '⏳ Enviando…' : '📤 Enviar solicitud'}
+                  {sending ? <><span className="cbf-spin-inline"/>Enviando…</> : '📤 Enviar solicitud'}
                 </button>
               </div>
             </div>

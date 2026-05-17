@@ -170,7 +170,7 @@ const ProfileModal = memo(function ProfileModal({ teacher, onClose, onSave }) {
           <div style={{ flex: 1 }} />
           {saved && <span style={{ color: '#9BBB59', fontWeight: 600 }}>✅ Guardado</span>}
           <button className="btn-save-prof" onClick={handleSave} disabled={loading}>
-            {loading ? '⏳ Guardando...' : '💾 Guardar perfil'}
+            {loading ? <><span className="cbf-spin-inline"/>Guardando...</> : '💾 Guardar perfil'}
           </button>
         </div>
       </div>

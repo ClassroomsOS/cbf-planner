@@ -734,7 +734,7 @@ export default function PlannerPage({ teacher }) {
               className="planner-btn-primary"
               onClick={handleCreateGuide}
               disabled={creating || !grade || !subject || hasNews === false}>
-              {creating ? '⏳ Abriendo…'
+              {creating ? <><span className="cbf-spin-inline"/>Abriendo…</>
                 : existingPlan ? '📋 Continuar guía →'
                 : '✏️ Crear guía →'}
             </button>

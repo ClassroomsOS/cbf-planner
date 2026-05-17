@@ -448,7 +448,7 @@ export default function AgendaPage({ teacher }) {
             <button className="btn-primary" style={{ fontSize: '11px' }}
               onClick={generateAll}
               disabled={dashGenAll || gradePairs.length === 0}>
-              {dashGenAll ? '⏳ Generando…' : '🚀 Generar todas'}
+              {dashGenAll ? <><span className="cbf-spin-inline"/>Generando…</> : '🚀 Generar todas'}
             </button>
           </div>
         </div>
@@ -535,7 +535,7 @@ export default function AgendaPage({ teacher }) {
                       disabled={isGenning || dashGenAll}
                       title={existing ? 'Actualizar desde guías' : 'Generar desde guías'}
                     >
-                      {isGenning ? '⏳' : existing ? '🔄' : '⚡'}
+                      {isGenning ? <span className="cbf-spin-inline"/> : existing ? '🔄' : '⚡'}
                     </button>
                     {existing && (
                       <>
@@ -923,7 +923,7 @@ function AgendaEditor({ agenda, teacher, allPlans, allTeachers, schoolAssignment
             </button>
             <button className="btn-primary btn-save" onClick={handleSave}
               disabled={saving || !form.grade || !form.section || !form.week_start}>
-              {saving ? '⏳ Guardando…' : '💾 Guardar'}
+              {saving ? <><span className="cbf-spin-inline"/>Guardando…</> : '💾 Guardar'}
             </button>
           </div>
         </div>

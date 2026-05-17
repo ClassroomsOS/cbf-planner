@@ -42,7 +42,7 @@ export const AISuggestButton = memo(function AISuggestButton({ section, grade, s
   return (
     <div className="ai-suggest-wrap">
       <button className="ai-suggest-btn" onClick={handleSuggest} disabled={loading}>
-        {loading ? '⏳ Pensando…' : '✨ Sugerir con IA'}
+        {loading ? <><span className="cbf-spin-inline"/>Pensando…</> : '✨ Sugerir con IA'}
       </button>
 
       {open && (

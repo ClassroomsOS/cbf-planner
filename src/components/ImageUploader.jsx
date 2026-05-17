@@ -144,7 +144,7 @@ const ImageUploader = memo(function ImageUploader({ planId, dayIso, sectionKey, 
             onChange={handleFiles}
           />
           {uploading
-            ? <span>⏳ Subiendo…</span>
+            ? <span><span className="cbf-spin-inline"/>Subiendo…</span>
             : <span>🖼️ {images.length > 0 ? `+ Agregar (${images.length}/${limit})` : `Clic para subir imágenes (máx. ${limit})`}</span>
           }
         </div>

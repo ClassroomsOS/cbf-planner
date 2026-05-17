@@ -565,7 +565,7 @@ function StepDistribute({ pageAnalysis, distribution, workingWeeks, schedule, di
 
       {/* Generate button */}
       <button className="sw-btn sw-btn-primary" onClick={onDistribute} disabled={distributing}>
-        {distributing ? '⏳ Generando distribución...' : '🤖 Distribuir con IA'}
+        {distributing ? <><span className="cbf-spin-inline"/>Generando distribución...</> : '🤖 Distribuir con IA'}
       </button>
 
       {/* Distribution timeline */}

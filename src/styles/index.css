@@ -8627,3 +8627,105 @@ input:not(:placeholder-shown):not(:focus):not([type=password]):valid {
   .ins-states-grid { grid-template-columns: repeat(2, 1fr); }
   .ins-result-header { flex-direction: column; }
 }
+
+/* ================================================================
+   GLOBAL SPINNER & PROGRESS
+   ================================================================ */
+@keyframes cbf-spin { to { transform: rotate(360deg); } }
+
+.cbf-spinner {
+  display: inline-block;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: cbf-spin 0.55s linear infinite;
+  flex-shrink: 0;
+  vertical-align: -3px;
+}
+
+/* Button loading state — add .cbf-loading to any button */
+button.cbf-loading {
+  opacity: 0.8;
+  pointer-events: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+/* Progress ring */
+.cbf-progress-ring {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.cbf-ring-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #2E5598;
+}
+
+/* Progress bar */
+.cbf-progress-bar-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.cbf-progress-bar-label {
+  font-size: 11px;
+  color: #666;
+}
+.cbf-progress-bar-track {
+  background: #e8edf5;
+  border-radius: 999px;
+  overflow: hidden;
+  width: 100%;
+}
+.cbf-progress-bar-fill {
+  border-radius: 999px;
+}
+.cbf-progress-bar-pct {
+  font-size: 11px;
+  color: #888;
+  text-align: right;
+}
+
+/* File upload progress */
+.cbf-upload-progress {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.cbf-upload-file-row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  background: #f5f7fb;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.cbf-upload-file-name {
+  font-size: 12px;
+  color: #444;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Inline spin span for batch-replaced ⏳ */
+.cbf-spin-inline {
+  display: inline-block;
+  width: 12px; height: 12px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: cbf-spin 0.55s linear infinite;
+  margin-right: 5px;
+  vertical-align: -2px;
+}

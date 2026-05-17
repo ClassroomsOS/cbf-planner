@@ -148,7 +148,7 @@ export default function NewsProjectCard({ project, onEdit, onDelete, onStatusCha
                   disabled={duplicatingTarget === key}
                   title={`Duplicar proyecto para ${project.grade} ${sec}`}
                   style={{ ...actionBtnStyle, borderStyle: 'dashed', color: '#1a7a9a', borderColor: '#4BACC6' }}>
-                  {duplicatingTarget === key ? '⏳' : `📋 → ${sec}`}
+                  {duplicatingTarget === key ? <span className="cbf-spin-inline"/> : `📋 → ${sec}`}
                 </button>
               )
             })}

@@ -229,7 +229,7 @@ export default function NotificationsPage({ teacher, onRead }) {
                     <button className="btn-primary btn-save"
                       disabled={sending || !form.title.trim() || !form.body.trim()}
                       onClick={sendAnnouncement}>
-                      {sending ? '⏳ Publicando…' : '📢 Publicar anuncio'}
+                      {sending ? <><span className="cbf-spin-inline"/>Publicando…</> : '📢 Publicar anuncio'}
                     </button>
                   </div>
                 </div>

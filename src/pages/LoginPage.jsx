@@ -111,7 +111,7 @@ export default function LoginPage({ loginError = null }) {
 
             {!message && (
               <button type="submit" className="btn-primary" disabled={loading}>
-                {loading ? '⏳ Enviando...' : '📧 Enviar enlace de recuperación'}
+                {loading ? <><span className="cbf-spin-inline"/>Enviando...</> : '📧 Enviar enlace de recuperación'}
               </button>
             )}
             <p className="login-toggle">
@@ -182,7 +182,7 @@ export default function LoginPage({ loginError = null }) {
               {message && <div className="alert alert-success">✅ {message}</div>}
 
               <button type="submit" className="btn-primary" disabled={loading}>
-                {loading ? '⏳ Procesando...' :
+                {loading ? <><span className="cbf-spin-inline"/>Procesando...</> :
                   mode === 'login' ? 'Iniciar sesión' : 'Crear cuenta'}
               </button>
             </form>

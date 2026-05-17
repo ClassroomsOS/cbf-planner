@@ -1025,7 +1025,7 @@ export default function ExamPlayerV2Page() {
             ? `❌ Correcta: ${correct}`
             : aiFb
               ? `🤖 ${aiFb.score}/${aiFb.max} pts`
-              : '⏳ Pendiente revisión docente'
+              : <><span className="cbf-spin-inline"/>Pendiente revisión docente</>
         const feedbackRow = aiFb
           ? `<tr style="background:#F0F9FF"><td colspan="5" style="padding:6px 10px 10px 28px;border:1px solid #E5E7EB;font-size:12px;color:#1E3A8A;font-style:italic">💬 ${aiFb.feedback}${aiFb.requires_review ? ' <span style="color:#D97706">(el docente revisará)</span>' : ''}</td></tr>`
           : ''
@@ -1154,7 +1154,7 @@ export default function ExamPlayerV2Page() {
               disabled={correcting}
               style={{ ...styles.btn, background: correcting ? '#9CA3AF' : '#1F3864', marginTop: 8 }}
             >
-              {correcting ? '⏳ Esperando corrección IA...' : '📄 Descargar / guardar resultados como PDF'}
+              {correcting ? <><span className="cbf-spin-inline"/>Esperando corrección IA...</> : '📄 Descargar / guardar resultados como PDF'}
             </button>
 
             <p style={{ color: '#6B7280', fontSize: 13, textAlign: 'center', marginTop: 16 }}>

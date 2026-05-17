@@ -616,7 +616,7 @@ function QuestionPhase({ assessment, questions, session, onSubmit }) {
                   background: submitting ? '#9CA3AF' : '#15803D',
                   color: '#fff', border: 'none', cursor: submitting ? 'default' : 'pointer',
                 }}>
-                {submitting ? '⏳ Enviando…' : '✓ Sí, enviar'}
+                {submitting ? <><span className="cbf-spin-inline"/>Enviando…</> : '✓ Sí, enviar'}
               </button>
             </div>
           </div>

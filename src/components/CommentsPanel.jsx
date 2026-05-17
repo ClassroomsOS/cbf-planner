@@ -163,7 +163,7 @@ export default function CommentsPanel({ planId, teacher, onClose }) {
               cursor: 'pointer', fontWeight: 700,
               opacity: sending || !newComment.trim() ? 0.5 : 1,
             }}>
-            {sending ? '⏳' : '📤 Enviar'}
+            {sending ? <><span className="cbf-spin-inline"/>Enviar</> : '📤 Enviar'}
           </button>
         </div>
       </div>

@@ -104,7 +104,7 @@ export const SmartBlocksList = memo(function SmartBlocksList({ blocks = [], onCh
               onClick={handleAISuggest}
               disabled={suggesting || allCovered}
               title={allCovered ? 'Ya tienes todos los tipos de SmartBlocks disponibles en esta sección' : ''}>
-              {suggesting ? <span>⏳ Pensando…</span> : allCovered ? <><span>✅</span> Todos los tipos usados</> : <><span>✨</span> Sugerir con IA</>}
+              {suggesting ? <span><span className="cbf-spin-inline"/>Pensando…</span> : allCovered ? <><span>✅</span> Todos los tipos usados</> : <><span>✨</span> Sugerir con IA</>}
             </button>
           )
         })()}

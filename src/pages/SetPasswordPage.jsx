@@ -96,7 +96,7 @@ export default function SetPasswordPage({ onDone }) {
             {error && <div className="alert alert-error">⚠️ {error}</div>}
 
             <button type="submit" className="btn-primary" disabled={loading}>
-              {loading ? '⏳ Guardando…' : '🔐 Establecer contraseña'}
+              {loading ? <><span className="cbf-spin-inline"/>Guardando…</> : '🔐 Establecer contraseña'}
             </button>
           </form>
         )}

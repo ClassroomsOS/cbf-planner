@@ -219,7 +219,7 @@ export default function VersionHistoryModal({ planId, planTitle, teacher, onClos
                         color: restoring === ver.id ? '#94A3B8' : '#fff',
                         border: 'none', cursor: restoring ? 'default' : 'pointer',
                       }}>
-                      {restoring === ver.id ? '⏳ Restaurando…' : '🔄 Restaurar esta versión'}
+                      {restoring === ver.id ? <><span className="cbf-spin-inline"/>Restaurando…</> : '🔄 Restaurar esta versión'}
                     </button>
                   )}
                 </div>

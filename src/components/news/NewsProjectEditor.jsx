@@ -1842,7 +1842,7 @@ const NewsProjectEditor = memo(function NewsProjectEditor({ teacher, school, pro
                     color: '#065F46', fontSize: 13, fontWeight: 600,
                     cursor: archiving ? 'default' : 'pointer',
                   }}>
-                  {archiving ? '⏳…' : '📦 Archivar versión'}
+                  {archiving ? <><span className="cbf-spin-inline"/>Archivando…</> : '📦 Archivar versión'}
                 </button>
               )}
               <button

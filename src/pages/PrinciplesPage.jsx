@@ -9,6 +9,7 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../supabase'
 import { useToast } from '../context/ToastContext'
 import { logError, logActivity } from '../utils/logger'
+import { Spinner, ProgressBar } from '../components/Spinner'
 
 const MONTHS = [
   'Enero','Febrero','Marzo','Abril','Mayo','Junio',
@@ -32,8 +33,9 @@ export default function PrinciplesPage({ teacher }) {
   const [editing,      setEditing]      = useState(null) // "YYYY-MM"
   const [editForm,     setEditForm]     = useState({})
   const [savingMonth,  setSavingMonth]  = useState(false)
-  const [docs,         setDocs]         = useState({})   // { "YYYY-MM": [doc, ...] }
-  const [uploading,    setUploading]    = useState(false)
+  const [docs,          setDocs]          = useState({})   // { "YYYY-MM": [doc, ...] }
+  const [uploading,     setUploading]     = useState(false)
+  const [fileProgresses, setFileProgresses] = useState({}) // { fileName: pct }
   const fileRef = useRef()
 
   // ── Load all monthly principles + documents for this year ──
@@ -146,14 +148,50 @@ export default function PrinciplesPage({ teacher }) {
     const files = Array.from(e.target.files)
     if (!files.length || !editing) return
     setUploading(true)
+
     const [y, m] = editing.split('-').map(Number)
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+    if (!token) { showToast('No hay sesión activa.', 'error'); setUploading(false); return }
+
     const uploaded = []
     for (const file of files) {
       const path = `${teacher.school_id}/${y}/${m}/${Date.now()}_${file.name}`
-      const { error: upErr } = await supabase.storage
-        .from('principle-docs')
-        .upload(path, file, { contentType: file.type, upsert: false })
-      if (upErr) { showToast(`Error subiendo ${file.name}`, 'error'); continue }
+      const url = `https://vouxrqsiyoyllxgcriic.supabase.co/storage/v1/object/principle-docs/${path}`
+
+      // XHR upload with real progress events
+      const result = await new Promise((resolve) => {
+        const xhr = new XMLHttpRequest()
+        xhr.upload.onprogress = (ev) => {
+          if (ev.lengthComputable) {
+            const pct = Math.round((ev.loaded / ev.total) * 100)
+            setFileProgresses(prev => ({ ...prev, [file.name]: pct }))
+          }
+        }
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve({ ok: true })
+          } else {
+            console.error('Upload failed:', xhr.status, xhr.responseText)
+            resolve({ ok: false, error: xhr.responseText })
+          }
+        }
+        xhr.onerror = () => resolve({ ok: false, error: 'Error de red' })
+        xhr.open('POST', url)
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`)
+        xhr.setRequestHeader('cache-control', 'max-age=3600')
+        xhr.setRequestHeader('content-type', file.type || 'application/octet-stream')
+        xhr.setRequestHeader('x-upsert', 'false')
+        xhr.send(file)
+      })
+
+      if (!result.ok) {
+        showToast(`Error subiendo ${file.name}`, 'error')
+        setFileProgresses(prev => { const n = {...prev}; delete n[file.name]; return n })
+        continue
+      }
+
+      // Record in DB
       const { data: docData, error: docErr } = await supabase
         .from('principle_documents')
         .insert({
@@ -163,8 +201,11 @@ export default function PrinciplesPage({ teacher }) {
           uploaded_by: teacher.id,
         })
         .select().single()
+
+      setFileProgresses(prev => { const n = {...prev}; delete n[file.name]; return n })
       if (!docErr) uploaded.push(docData)
     }
+
     if (uploaded.length) {
       setDocs(prev => ({ ...prev, [editing]: [...(prev[editing] || []), ...uploaded] }))
       showToast(`${uploaded.length} documento(s) subido(s)`, 'success')
@@ -242,12 +283,12 @@ export default function PrinciplesPage({ teacher }) {
             />
           </div>
           <button
-            className="btn-primary"
+            className={`btn-primary${savingYear ? ' cbf-loading' : ''}`}
             onClick={saveYearVerse}
             disabled={savingYear}
             style={{ marginTop: '4px' }}
           >
-            {savingYear ? '⏳ Guardando…' : '💾 Guardar versículo del año'}
+            {savingYear ? <><Spinner /> Guardando…</> : '💾 Guardar versículo del año'}
           </button>
         </div>
 
@@ -385,7 +426,16 @@ export default function PrinciplesPage({ teacher }) {
                   </div>
                 )}
 
+                {Object.entries(fileProgresses).map(([name, pct]) => (
+                  <div key={name} className="cbf-upload-file-row" style={{ marginBottom: '6px' }}>
+                    <div className="cbf-upload-file-name">
+                      <Spinner size={12} /> {name}
+                    </div>
+                    <ProgressBar pct={pct} color="#2E5598" />
+                  </div>
+                ))}
                 <button
+                  className={`prin-upload-btn${uploading ? ' cbf-loading' : ''}`}
                   onClick={() => fileRef.current.click()}
                   disabled={uploading}
                   style={{
@@ -395,7 +445,7 @@ export default function PrinciplesPage({ teacher }) {
                     opacity: uploading ? .5 : 1,
                   }}
                 >
-                  {uploading ? '⏳ Subiendo…' : '+ Subir documento'}
+                  {uploading ? <><Spinner size={12} /> Subiendo…</> : '+ Subir documento'}
                 </button>
                 <input
                   ref={fileRef}
@@ -412,11 +462,11 @@ export default function PrinciplesPage({ teacher }) {
 
               <div style={{ display: 'flex', gap: '10px', marginTop: '14px' }}>
                 <button
-                  className="btn-primary"
+                  className={`btn-primary${savingMonth ? ' cbf-loading' : ''}`}
                   onClick={saveMonth}
                   disabled={savingMonth}
                 >
-                  {savingMonth ? '⏳ Guardando…' : '💾 Guardar principio'}
+                  {savingMonth ? <><Spinner /> Guardando…</> : '💾 Guardar principio'}
                 </button>
                 <button
                   className="btn-secondary"

@@ -919,7 +919,7 @@ function PDFViewerCanvas({ url, fragmentMode = false, onFragmentCapture, pageSel
                 disabled={capturing}
                 onClick={handleAnalyzePages}
               >
-                {capturing ? '⏳…' : `🔬 Analizar (${selectedPages.size} pág${selectedPages.size !== 1 ? 's' : ''})`}
+                {capturing ? <><span className="cbf-spin-inline"/>Analizando…</> : `🔬 Analizar (${selectedPages.size} pág${selectedPages.size !== 1 ? 's' : ''})`}
               </button>
             )}
             {selectedPages.size > 0 && (
@@ -1186,7 +1186,7 @@ function DocumentViewer({ doc, teacher, onClose }) {
                 onClick={() => { setPageSelectionMode(m => !m); setFragmentMode(false) }}
                 title="Selecciona páginas y analízalas con IA para obtener un plan semanal"
               >
-                {analyzingPages ? '⏳ Analizando…' : pageSelectionMode ? '↩ Cancelar selección' : '📖 Páginas'}
+                {analyzingPages ? <><span className="cbf-spin-inline"/>Analizando…</> : pageSelectionMode ? '↩ Cancelar selección' : '📖 Páginas'}
               </button>
             )}
             {canFragment && (

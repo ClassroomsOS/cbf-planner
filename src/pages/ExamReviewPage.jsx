@@ -293,7 +293,7 @@ function ReviewCard({ item, onDone }) {
               opacity: saving ? .7 : 1,
               transition: 'background .12s',
             }}>
-              {saving ? '⏳ Guardando…' : '💾 Guardar corrección'}
+              {saving ? <><span className="cbf-spin-inline"/>Guardando…</> : '💾 Guardar corrección'}
             </button>
           </>
         )}
@@ -305,7 +305,7 @@ function ReviewCard({ item, onDone }) {
             opacity: saving ? .7 : 1,
             transition: 'background .12s, transform .12s',
           }}>
-            {saving ? '⏳ Confirmando…' : '✓ Confirmar IA'}
+            {saving ? <><span className="cbf-spin-inline"/>Confirmando…</> : '✓ Confirmar IA'}
           </button>
         )}
       </div>

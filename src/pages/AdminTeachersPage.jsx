@@ -431,7 +431,7 @@ function CreateTeacherModal({ admin, onClose, onCreated }) {
                 </button>
                 <button className="btn-primary btn-save" style={{ fontSize: '12px' }}
                   onClick={handleCreate} disabled={saving || !form.full_name.trim() || !form.email.trim()}>
-                  {saving ? '⏳ Creando…' : '➕ Crear docente'}
+                  {saving ? <><span className="cbf-spin-inline"/>Creando…</> : '➕ Crear docente'}
                 </button>
               </div>
             </>
@@ -893,7 +893,7 @@ function AssignmentModal({ teacher, admin, school, allAssignments, allTeachers, 
             <div style={{ flex: 1 }} />
             {hasDirty && (
               <button className="btn-primary btn-save" onClick={handleSaveSchedules} disabled={saving}>
-                {saving ? '⏳ Guardando…' : '💾 Guardar horarios'}
+                {saving ? <><span className="cbf-spin-inline"/>Guardando…</> : '💾 Guardar horarios'}
               </button>
             )}
             {!hasDirty && myAssignments.length > 0 && (
@@ -963,7 +963,7 @@ function HomeroomEditor({ teacher, sections }) {
       {!unchanged && (
         <button className="btn-primary" style={{ fontSize: '12px' }}
           onClick={handleSave} disabled={saving}>
-          {saving ? '⏳ Guardando…' : '💾 Guardar dirección de grupo'}
+          {saving ? <><span className="cbf-spin-inline"/>Guardando…</> : '💾 Guardar dirección de grupo'}
         </button>
       )}
       {unchanged && teacher.homeroom_grade && (
@@ -1085,7 +1085,7 @@ function CoteacherEditor({ teacher, teachers, sections }) {
       {!unchanged && (
         <button className="btn-primary" style={{ fontSize: '12px' }}
           onClick={handleSave} disabled={saving}>
-          {saving ? '⏳ Guardando…' : '💾 Guardar co-teacher'}
+          {saving ? <><span className="cbf-spin-inline"/>Guardando…</> : '💾 Guardar co-teacher'}
         </button>
       )}
       {unchanged && teacher.coteacher_grade && (
@@ -1196,7 +1196,7 @@ function RoleAndLevelEditor({ teacher, admin }) {
           className="btn-primary btn-save"
           style={{ fontSize: '12px', padding: '6px 16px' }}
         >
-          {saving ? '⏳ Guardando…' : '💾 Guardar rol, nivel y límite IA'}
+          {saving ? <><span className="cbf-spin-inline"/>Guardando…</> : '💾 Guardar rol, nivel y límite IA'}
         </button>
       )}
     </div>
@@ -1262,7 +1262,7 @@ function TeacherProfileEditor({ teacher, isSelf }) {
       {!isSelf && !unchanged && (
         <button className="btn-primary btn-save" style={{ fontSize: '12px', padding: '6px 16px' }}
           onClick={handleSave} disabled={saving}>
-          {saving ? '⏳ Guardando…' : '💾 Guardar nombre'}
+          {saving ? <><span className="cbf-spin-inline"/>Guardando…</> : '💾 Guardar nombre'}
         </button>
       )}
     </div>
@@ -1360,7 +1360,7 @@ function DeleteTeacherZone({ teacher, onDeleted }) {
                   fontWeight: 700, cursor: deleting ? 'default' : 'pointer',
                   opacity: deleting ? 0.7 : 1,
                 }}>
-                {deleting ? '⏳ Eliminando…' : `🗑 Eliminar a ${teacher.full_name}`}
+                {deleting ? <><span className="cbf-spin-inline"/>Eliminando…</> : `🗑 Eliminar a ${teacher.full_name}`}
               </button>
             </>
           ) : (

@@ -1423,7 +1423,7 @@ export default function GuideEditorPage({ teacher }) {
                   Importar
                 </div>
                 <button onClick={() => { docxInputRef.current?.click() }} disabled={importingDocx}>
-                  {importingDocx ? '⏳ Importando…' : '📂 Importar desde .docx'}
+                  {importingDocx ? <><span className="cbf-spin-inline"/>Importando…</> : '📂 Importar desde .docx'}
                 </button>
               </div>
             )}

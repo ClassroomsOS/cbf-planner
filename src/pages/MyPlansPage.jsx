@@ -275,7 +275,7 @@ export default function MyPlansPage({ teacher }) {
                         onClick={e => duplicatePlan(plan, e)}
                         disabled={duplicating === plan.id}
                         title="Duplicar (semana +1)">
-                        {duplicating === plan.id ? '⏳' : '⎘'}
+                        {duplicating === plan.id ? <span className="cbf-spin-inline"/> : '⎘'}
                       </button>
                       {getAvailableSectionsForPlan(plan).map(tg => {
                         const key = `${plan.id}-${tg}`
@@ -286,7 +286,7 @@ export default function MyPlansPage({ teacher }) {
                             onClick={e => duplicatePlanForSection(plan, tg, e)}
                             disabled={duplicatingSection === key}
                             title={`Duplicar para ${tg}`}>
-                            {duplicatingSection === key ? '⏳' : `⎘→${tg.split(' ').pop()}`}
+                            {duplicatingSection === key ? <span className="cbf-spin-inline"/> : `⎘→${tg.split(' ').pop()}`}
                           </button>
                         )
                       })}

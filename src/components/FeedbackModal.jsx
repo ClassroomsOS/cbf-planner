@@ -110,7 +110,7 @@ export default function FeedbackModal({ entityType, entityId, entityTitle, teach
           </div>
           <button className="btn-primary" style={{ fontSize: '12px', marginBottom: '20px' }}
             onClick={handleSend} disabled={sending || !body.trim()}>
-            {sending ? '⏳ Enviando…' : '💬 Enviar feedback'}
+            {sending ? <><span className="cbf-spin-inline"/>Enviando…</> : '💬 Enviar feedback'}
           </button>
 
           {/* Divider + history */}

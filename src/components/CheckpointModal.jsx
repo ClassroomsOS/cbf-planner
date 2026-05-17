@@ -255,7 +255,7 @@ const CheckpointModal = memo(function CheckpointModal({ previousPlan, indicator,
               opacity: saving ? 0.7 : 1,
             }}
           >
-            {saving ? '⏳ Guardando…' : '📊 Registrar y continuar'}
+            {saving ? <><span className="cbf-spin-inline"/>Guardando…</> : '📊 Registrar y continuar'}
           </button>
         </div>
       </div>

@@ -593,7 +593,7 @@ export default function ExamViewPage({ teacher }) {
                     style={{ width: 70, padding: '5px 8px', border: '1.5px solid #FCD34D', borderRadius: 6, fontSize: 13 }} />
                   <button type="button" onClick={() => saveEdit(q)} disabled={saving}
                     style={{ marginLeft: 'auto', padding: '8px 22px', borderRadius: 8, background: saving ? '#9CA3AF' : '#059669', color: '#fff', border: 'none', fontWeight: 700, fontSize: 13, cursor: saving ? 'default' : 'pointer' }}>
-                    {saving ? '⏳ Guardando…' : '💾 Guardar'}
+                    {saving ? <><span className="cbf-spin-inline"/>Guardando…</> : '💾 Guardar'}
                   </button>
                 </div>
               </div>
@@ -626,14 +626,14 @@ export default function ExamViewPage({ teacher }) {
               flex: 1, minWidth: 160, padding: '12px 20px', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: printing ? 'default' : 'pointer',
               background: 'linear-gradient(135deg, #DC2626, #991B1B)', color: '#fff', border: 'none', opacity: printing ? 0.7 : 1,
             }}>
-            {printing ? '⏳ Preparando…' : '🖨️ PDF'}
+            {printing ? <><span className="cbf-spin-inline"/>Preparando…</> : '🖨️ PDF'}
           </button>
           <button type="button" onClick={handleDocx} disabled={exportingDocx}
             style={{
               flex: 1, minWidth: 160, padding: '12px 20px', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: exportingDocx ? 'default' : 'pointer',
               background: 'linear-gradient(135deg, #1D4ED8, #1E3A8A)', color: '#fff', border: 'none', opacity: exportingDocx ? 0.7 : 1,
             }}>
-            {exportingDocx ? '⏳ Generando…' : '📄 Word DOCX'}
+            {exportingDocx ? <><span className="cbf-spin-inline"/>Generando…</> : '📄 Word DOCX'}
           </button>
           <button type="button" onClick={handleArchive} disabled={archiving || archived}
             style={{
@@ -641,7 +641,7 @@ export default function ExamViewPage({ teacher }) {
               background: archived ? '#ECFDF5' : 'linear-gradient(135deg, #475569, #1E293B)', color: archived ? '#065F46' : '#fff',
               border: archived ? '1.5px solid #A7F3D0' : 'none', opacity: archiving ? 0.7 : 1,
             }}>
-            {archiving ? '⏳ Archivando…' : archived ? '✓ Archivado' : '📁 Archivar'}
+            {archiving ? <><span className="cbf-spin-inline"/>Archivando…</> : archived ? '✓ Archivado' : '📁 Archivar'}
           </button>
         </div>
 
@@ -655,7 +655,7 @@ export default function ExamViewPage({ teacher }) {
               boxShadow: submitting ? 'none' : '0 4px 14px rgba(5,150,105,.35)',
               transition: 'all .2s ease',
             }}>
-            {submitting ? '⏳ Enviando a revisión…' : '📨 Enviar a revisión del supervisor'}
+            {submitting ? <><span className="cbf-spin-inline"/>Enviando a revisión…</> : '📨 Enviar a revisión del supervisor'}
           </button>
         )}
 
@@ -845,7 +845,7 @@ function GenerarRosterInline({ exam, teacher, school, onDone }) {
   }
 
   if (phase === 'loading') {
-    return <div style={{ textAlign: 'center', padding: 16, color: '#64748B', fontSize: 13 }}>⏳ Cargando roster…</div>
+    return <div style={{ textAlign: 'center', padding: 16, color: '#64748B', fontSize: 13 }}><span className="cbf-spin-inline"/>Cargando roster…</div>
   }
 
   if (phase === 'confirm') {

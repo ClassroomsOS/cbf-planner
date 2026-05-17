@@ -134,7 +134,7 @@ export default function ProfileSetupPage({ session, onComplete }) {
           <button className="btn-primary btn-save"
             disabled={!fullName || !schoolId || loading}
             onClick={handleSave}>
-            {loading ? '⏳ Guardando...' : '✅ Entrar'}
+            {loading ? <><span className="cbf-spin-inline"/>Guardando...</> : '✅ Entrar'}
           </button>
         </div>
       </div>

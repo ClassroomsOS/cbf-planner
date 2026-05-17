@@ -231,7 +231,7 @@ export default function InstrumentPage({ teacher }) {
             className="ins-generate-btn"
             onClick={handleGenerate}
             disabled={groupState === null || imsIndex === null || generating}>
-            {generating ? '⏳ Generando instrumento...' : instrument ? '🔄 Regenerar instrumento' : '🎯 Generar instrumento'}
+            {generating ? <><span className="cbf-spin-inline"/>Generando instrumento...</> : instrument ? '🔄 Regenerar instrumento' : '🎯 Generar instrumento'}
           </button>
 
           {error && <div className="ins-error-msg">{error}</div>}

@@ -271,7 +271,7 @@ export default function ExamRevisionPage({ teacher }) {
 
         {/* ── Left: exam list ──────────────────────────────────────── */}
         <div style={{ flex: '0 0 380px', maxWidth: 380 }}>
-          {loading && <div style={{ textAlign: 'center', padding: 40, color: '#9CA3AF' }}>⏳ Cargando…</div>}
+          {loading && <div style={{ textAlign: 'center', padding: 40, color: '#9CA3AF' }}><span className="cbf-spin-inline"/>Cargando…</div>}
 
           {!loading && exams.length === 0 && (
             <div style={{ textAlign: 'center', padding: 40, color: '#9CA3AF' }}>
@@ -364,7 +364,7 @@ export default function ExamRevisionPage({ teacher }) {
               <div style={{ padding: '16px 20px' }}>
                 <h3 style={{ fontSize: 13, fontWeight: 700, color: '#374151', margin: '0 0 10px' }}>Vista previa del examen</h3>
                 {loadingHtml && (
-                  <div style={{ textAlign: 'center', padding: 40, color: '#9CA3AF' }}>⏳ Cargando vista previa…</div>
+                  <div style={{ textAlign: 'center', padding: 40, color: '#9CA3AF' }}><span className="cbf-spin-inline"/>Cargando vista previa…</div>
                 )}
                 {!loadingHtml && archiveHtml && (
                   <iframe
@@ -437,7 +437,7 @@ export default function ExamRevisionPage({ teacher }) {
                         color: '#fff', border: 'none',
                         boxShadow: processing ? 'none' : '0 4px 12px rgba(5,150,105,.3)',
                       }}>
-                      {processing ? '⏳…' : '✅ Aprobar examen'}
+                      {processing ? <><span className="cbf-spin-inline"/></> : '✅ Aprobar examen'}
                     </button>
                     <button type="button" onClick={handleReturn} disabled={processing || !comments.trim()}
                       style={{
@@ -448,7 +448,7 @@ export default function ExamRevisionPage({ teacher }) {
                         opacity: !comments.trim() ? 0.5 : 1,
                         boxShadow: (processing || !comments.trim()) ? 'none' : '0 4px 12px rgba(217,119,6,.3)',
                       }}>
-                      {processing ? '⏳…' : '🔄 Devolver con feedback'}
+                      {processing ? <><span className="cbf-spin-inline"/></> : '🔄 Devolver con feedback'}
                     </button>
                   </div>
 
