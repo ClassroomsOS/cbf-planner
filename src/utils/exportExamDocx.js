@@ -52,8 +52,8 @@ function mkR(text, { bold, italic, size, color, font, underline } = {}) {
     text: text || '',
     bold: bold || false,
     italics: italic || false,
-    size: size || 20,
-    color: color || '222222',
+    size: size || 22,
+    color: color || '000000',
     font: font || 'Arial',
     underline: underline ? {} : undefined,
   })

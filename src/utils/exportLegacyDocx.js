@@ -41,8 +41,8 @@ function mkR(text, { bold, italic, size, color, font } = {}) {
     text:    text || '',
     bold:    bold    || false,
     italics: italic  || false,
-    size:    size    || 20,
-    color:   color   || '222222',
+    size:    size    || 22,
+    color:   color   || '000000',
     font:    font    || 'Arial',
   })
 }
@@ -233,9 +233,9 @@ async function buildHeaderTable(header) {
         alignment: AlignmentType.CENTER,
         spacing: { before: 0, after: 40 },
         children: [
-          new TextRun({ text: 'PROCESO: ', bold: true, size: 17, font: 'Arial', color: '222222' }),
+          new TextRun({ text: 'PROCESO: ', bold: true, size: 17, font: 'Arial', color: '000000' }),
           new TextRun({
-            text: procesoBody, bold: true, size: 17, font: 'Arial', color: '222222',
+            text: procesoBody, bold: true, size: 17, font: 'Arial', color: '000000',
             underline: { type: UnderlineType.SINGLE },
           }),
         ],

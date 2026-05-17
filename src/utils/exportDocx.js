@@ -52,8 +52,8 @@ function mkR(text, { bold, italic, size, color, font } = {}) {
     text:    text || '',
     bold:    bold    || false,
     italics: italic  || false,
-    size:    size    || 20,
-    color:   color   || '222222',
+    size:    size    || 22,  // 22 half-points = 11pt (Arial 11)
+    color:   color   || '000000',
     font:    font    || 'Arial',
   })
 }
@@ -87,7 +87,7 @@ function htmlToParas(html, baseSize = 20) {
               bold:   state.bold,
               italic: state.italic,
               size:   baseSize,
-              color:  state.color || '222222',
+              color:  state.color || '000000',
             }))
           }
         } else if (child.nodeType === Node.ELEMENT_NODE) {
@@ -1044,10 +1044,10 @@ export async function exportGuideDocx(content, filename) {
         ]}),
         new TableRow({ children: [
           mkCell([
-            mkP(mkR('Lo trabajado:', { bold: true, size: 18, color: '222222' })),
+            mkP(mkR('Lo trabajado:', { bold: true, size: 18, color: '000000' })),
             ...htmlToParas(s.done, 18),
             emptyPara(),
-            mkP(mkR('Próxima semana:', { bold: true, size: 18, color: '222222' })),
+            mkP(mkR('Próxima semana:', { bold: true, size: 18, color: '000000' })),
             ...htmlToParas(s.next, 18),
           ], PW, { borders: allB(bGray), va: VerticalAlign.TOP, margins: { top: 120, bottom: 120, left: 160, right: 160 } }),
         ]}),
