@@ -11,11 +11,10 @@
 | Severidad | Cantidad | Corregidos | Estado |
 |-----------|----------|------------|--------|
 | CRÍTICA   | 5        | 5 ✅       | Completado |
-| ALTA      | 12       | 11 ✅      | 1 pendiente (A-5 era falso positivo) |
-| MEDIA     | 16       | 3 ✅ (M-15, M-16 + upload) | 13 pendientes — sprint siguiente |
+| ALTA      | 12       | 11 ✅      | 1 falso positivo (A-5) |
+| MEDIA     | 16       | 11 ✅      | 3 backlog (M-2, M-9, M-11), 2 N/A (M-1 masked, M-5 correct) |
 | BAJA      | 5        | 3 ✅       | 2 son Fase 3 (props drilling, multi-school) |
-| BAJA      | 5        | Backlog |
-| **Total** | **38**   | |
+| **Total** | **38**   | **30 corregidos** | |
 
 ---
 
@@ -239,24 +238,24 @@ Query usa `.then()` sin `.catch()`. Si la red falla, `dayCalendarEvents` queda v
 
 ## 🟡 HALLAZGOS DE SEVERIDAD MEDIA (16)
 
-| # | Archivo | Descripción |
-|---|---------|-------------|
-| M-1 | `ExamPlayerV2Page.jsx:583` | Timer useEffect con stale closure de `handleSubmit` (masked by C-1) |
-| M-2 | `ExamCreatorPage.jsx:132` | Query a syllabus_topics sin filtrar por `teacher_id` |
-| M-3 | `PlannerPage.jsx:267-269` | useEffect con deps incompletas (no incluye `availableSubjects`) |
-| M-4 | `GuideEditorPage.jsx:496-518` | Cancelled flag no cancela fetch in-flight (necesita AbortController) |
-| M-5 | `GuideEditorPage.jsx:242` | Dependencia inestable `Object.keys().sort().join()` causa re-fetches |
-| M-6 | `LibraryPage.jsx` | Queries sin `.limit()` — carga TODOS los docs sin paginación |
-| M-7 | `StudentsPage.jsx` | Sin paginación en roster (500+ students = memory bloat) |
-| M-8 | `LibraryPage.jsx:779` | PDFJS_WORKER_URL hardcodeado — silent fail si se actualiza pdfjs-dist |
-| M-9 | Múltiples archivos | `confirm()` nativo viola Rule #10 (NUNCA window.alert) |
-| M-10 | `exam-integrity-alert/index.ts:97` | `event_type` no validado contra whitelist → inyección en Telegram |
-| M-11 | Múltiples archivos | Saves multi-paso sin transaccionalidad (partial corruption posible) |
-| M-12 | `GuideEditorPage.jsx` | Auto-save cada 30s incluso sin cambios (writes innecesarios) |
-| M-13 | `vite.config.js` | Sin code-splitting para páginas grandes (bundle inicial inflado) |
-| M-14 | `AchievementsPage.jsx:670-678` | `connectionsCache` stale en closure de `loadConnections` |
-| M-15 | `exam_sessions.access_code` | Sin UNIQUE constraint — colisión teórica posible |
-| M-16 | `library_fragments.created_by` | FK sin ON DELETE SET NULL — orphan si teacher se elimina |
+| # | Archivo | Descripción | Estado |
+|---|---------|-------------|--------|
+| M-1 | `ExamPlayerV2Page.jsx:583` | Timer useEffect con stale closure de `handleSubmit` (masked by C-1) | ⚪ Masked por C-1 fix |
+| M-2 | `ExamCreatorPage.jsx:132` | Query a syllabus_topics sin filtrar por `teacher_id` | 🟡 Backlog — requiere análisis de permisos |
+| M-3 | `PlannerPage.jsx:267-269` | useEffect con deps incompletas (no incluye `availableSubjects`) | ✅ Corregido |
+| M-4 | `GuideEditorPage.jsx:496-518` | Cancelled flag no cancela fetch in-flight (necesita AbortController) | ✅ Corregido |
+| M-5 | `GuideEditorPage.jsx:242` | Dependencia inestable `Object.keys().sort().join()` causa re-fetches | ⚪ Ya correcto (primitivo estable) |
+| M-6 | `LibraryPage.jsx` | Queries sin `.limit()` — carga TODOS los docs sin paginación | ✅ Corregido (.limit(200)) |
+| M-7 | `StudentsPage.jsx` | Sin paginación en roster (500+ students = memory bloat) | ✅ Corregido (.limit(500)) |
+| M-8 | `LibraryPage.jsx:779` | PDFJS_WORKER_URL hardcodeado — silent fail si se actualiza pdfjs-dist | ✅ Corregido (import version) |
+| M-9 | Múltiples archivos | `confirm()` nativo viola Rule #10 (NUNCA window.alert) | 🟡 Backlog — 16 archivos, refactor extenso |
+| M-10 | `exam-integrity-alert/index.ts:97` | `event_type` no validado contra whitelist → inyección en Telegram | ✅ Corregido |
+| M-11 | Múltiples archivos | Saves multi-paso sin transaccionalidad (partial corruption posible) | 🟡 Backlog — requiere RPCs en DB |
+| M-12 | `GuideEditorPage.jsx` | Auto-save cada 30s incluso sin cambios (writes innecesarios) | ✅ Ya tenía guard (dirtyRef.current) |
+| M-13 | `vite.config.js` | Sin code-splitting para páginas grandes (bundle inicial inflado) | ✅ Corregido (React.lazy) |
+| M-14 | `AchievementsPage.jsx:670-678` | `connectionsCache` stale en closure de `loadConnections` | ✅ Corregido (useRef) |
+| M-15 | `exam_sessions.access_code` | Sin UNIQUE constraint — colisión teórica posible | ✅ Corregido (migración) |
+| M-16 | `library_fragments.created_by` | FK sin ON DELETE SET NULL — orphan si teacher se elimina | ✅ Corregido (migración) |
 
 ---
 

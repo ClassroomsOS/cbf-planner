@@ -501,21 +501,22 @@ export default function GuideEditorPage({ teacher }) {
     const firstDay = Object.keys(days).sort()[0]
     const isoWeek = getISOWeek(firstDay)
     if (!isoWeek) return
-    let cancelled = false
+    const controller = new AbortController()
     ;(async () => {
       const { data } = await supabase
         .from('library_fragments')
         .select('id, ai_analysis, assigned_subject, assigned_grade, image_url, page_number, doc_id')
         .eq('school_id', teacher.school_id)
         .eq('assigned_week', isoWeek)
-      if (cancelled) return
+        .abortSignal(controller.signal)
+      if (controller.signal.aborted) return
       const relevant = (data || []).filter(f =>
         (!f.assigned_subject || f.assigned_subject === plan.subject) &&
         (!f.assigned_grade   || plan.grade?.startsWith(f.assigned_grade))
       )
       setTextbookFragments(relevant)
-    })()
-    return () => { cancelled = true }
+    })().catch(() => {}) // AbortError is expected on cleanup
+    return () => { controller.abort() }
   }, [plan?.id, content !== null])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Load syllabus_topics with linked book pages for this guide's week ──

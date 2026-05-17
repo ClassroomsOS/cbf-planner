@@ -81,6 +81,7 @@ export default function StudentsPage({ teacher }) {
       .order('grade')
       .order('section')
       .order('name')
+      .limit(500)
     if (error) showToast('Error cargando el roster', 'error')
     else setStudents(data || [])
     setLoading(false)

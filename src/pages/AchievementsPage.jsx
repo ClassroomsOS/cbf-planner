@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { supabase } from '../supabase'
 import useAchievements from '../hooks/useAchievements'
 import { useToast } from '../context/ToastContext'
@@ -666,16 +666,21 @@ export default function AchievementsPage({ teacher }) {
       .then(({ data }) => setYearVerse(data?.year_verse || ''))
   }, [teacher?.id, teacher?.school_id])
 
-  // Load connections for visible goals
+  // Load connections for visible goals — use refs to avoid stale closure
+  const connectionsCacheRef = useRef(connectionsCache)
+  connectionsCacheRef.current = connectionsCache
+  const connectionsLoadingRef = useRef(connectionsLoading)
+  connectionsLoadingRef.current = connectionsLoading
+
   const loadConnections = useCallback(async (goalIds) => {
     for (const gid of goalIds) {
-      if (connectionsCache[gid] || connectionsLoading[gid]) continue
+      if (connectionsCacheRef.current[gid] || connectionsLoadingRef.current[gid]) continue
       setConnectionsLoading(prev => ({ ...prev, [gid]: true }))
       const result = await getGoalConnections(gid)
       setConnectionsCache(prev => ({ ...prev, [gid]: result }))
       setConnectionsLoading(prev => ({ ...prev, [gid]: false }))
     }
-  }, [getGoalConnections, connectionsCache, connectionsLoading])
+  }, [getGoalConnections])
 
   useEffect(() => {
     if (goals.length > 0) {

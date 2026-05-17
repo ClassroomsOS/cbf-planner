@@ -776,8 +776,10 @@ function SyllabusLinkPanel({ doc, teacher, currentPage, onClose, onSaved }) {
 // PDF VIEWER — PDF.js page-by-page (Fase 2)
 // =============================================================================
 
+// Derive worker URL from installed pdfjs-dist version to avoid silent breakage on upgrade
+import { version as PDFJS_VERSION } from 'pdfjs-dist/package.json'
 const PDFJS_WORKER_URL =
-  'https://cdn.jsdelivr.net/npm/pdfjs-dist@5.7.284/build/pdf.worker.min.mjs'
+  `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_VERSION}/build/pdf.worker.min.mjs`
 
 function PDFViewerCanvas({ url, fragmentMode = false, onFragmentCapture, pageSelectionMode = false, onPagesReady, onPageChange }) {
   const canvasRef = useRef()
@@ -2349,7 +2351,7 @@ export default function LibraryPage({ teacher }) {
       q = q.eq('visibility', 'personal').eq('school_id', teacher.school_id)
     }
 
-    const { data, error } = await q
+    const { data, error } = await q.limit(200)
     if (error) showToast('Error cargando documentos', 'error')
     setDocs(data || [])
     setLoading(false)

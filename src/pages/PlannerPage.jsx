@@ -266,7 +266,8 @@ export default function PlannerPage({ teacher }) {
 
   useEffect(() => {
     if (subject && !availableSubjects.includes(subject)) setSubject('')
-  }, [grade])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [grade, availableSubjects.length])
 
   useEffect(() => {
     async function fetchCalendar() {

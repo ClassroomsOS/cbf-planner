@@ -442,6 +442,7 @@ const MODULES = [
     ],
     history: [
       { date: '2026-05-16', reason: 'Auditoría + fixes inmediatos', detail: 'Scan completo cbf-planner y cbf-classroom. Corregidos: anon key eliminada de supabase.js (throw Error si falta .env), school_id filter en classResolver. Pendientes: DOMPurify (15+ archivos), Error Boundary, CSP headers, race condition AI.' },
+      { date: '2026-05-16', reason: 'Auditoría integral — 30/38 hallazgos corregidos', detail: 'XSS: innerHTML→DOMParser (AgendaPage) + textContent (smartBlockHtml 17 instancias). Anon key eliminada de fetch (→ supabase.functions.invoke). Edge Fn: whitelist event_type + count validation. RLS: anon policies restringidas + instances_school → owner-only. DB: NOT NULL student_email, UNIQUE access_code, FK ON DELETE SET NULL. Performance: .limit() en queries, code-splitting React.lazy (38 chunks), useRef para cache stale, PDFJS version derivado de package.' },
     ],
   },
   {

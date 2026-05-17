@@ -1,49 +1,51 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import { Routes, Route, NavLink, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import PlannerPage         from './PlannerPage'
 import MyPlansPage         from './MyPlansPage'
-import CalendarPage             from './CalendarPage'
-import AcademicCalendarPage     from './AcademicCalendarPage'
-import NotificationsPage   from './NotificationsPage'
-import AdminTeachersPage   from './AdminTeachersPage'
-import AIUsagePage         from './AIUsagePage'
 import GuideEditorPage     from './GuideEditorPage'
 import MessagesPage        from './MessagesPage'
-import SettingsPage        from './SettingsPage'
-import SuperAdminPage      from './SuperAdminPage'
-import AchievementsPage         from './AchievementsPage'
-import SyllabusPage             from './SyllabusPage'
-import NewsPage                 from './NewsPage'
-import NewsTimelinePage         from './NewsTimelinePage'
-import ReviewRoomPage           from './ReviewRoomPage'
-import ExamDashboardPage        from './ExamDashboardPage'
-import ExamCreatorPage          from './ExamCreatorPage'
-import ExamViewPage             from './ExamViewPage'
-import ExamReviewPage           from './ExamReviewPage'
-import ExamRevisionPage         from './ExamRevisionPage'
-import StudentsPage             from './StudentsPage'
-import PsicosocialPage          from './PsicosocialPage'
-import SubjectManagerPage       from './SubjectManagerPage'
-import GuideLibraryPage         from './GuideLibraryPage'
-import LibraryPage              from './LibraryPage'
-import PeriodCoverageDashboard  from './PeriodCoverageDashboard'
-import ObservationLoggerPage    from './ObservationLoggerPage'
-import PrinciplesPage      from './PrinciplesPage'
-import DirectorPage        from './DirectorPage'
-import SchedulePage        from './SchedulePage'
-import AgendaPage          from './AgendaPage'
-import CurriculumPage      from './CurriculumPage'
-import GradingHubPage      from './GradingHubPage'
-import GradingSessionPage  from './GradingSessionPage'
-import GradingDisplayPage  from './GradingDisplayPage'
-import GradingHistoryPage  from './GradingHistoryPage'
-import GradebookPage       from './GradebookPage'
-import QuickGradePage      from './QuickGradePage'
-import StudentPlayerPage   from './StudentPlayerPage'
-import StudentDetailPage   from './StudentDetailPage'
-import QADashboardPage     from './QADashboardPage'
-import DevStatusPage       from './DevStatusPage'
+
+// Lazy-loaded pages — code splitting to reduce initial bundle
+const CalendarPage             = lazy(() => import('./CalendarPage'))
+const AcademicCalendarPage     = lazy(() => import('./AcademicCalendarPage'))
+const NotificationsPage        = lazy(() => import('./NotificationsPage'))
+const AdminTeachersPage        = lazy(() => import('./AdminTeachersPage'))
+const AIUsagePage              = lazy(() => import('./AIUsagePage'))
+const SettingsPage             = lazy(() => import('./SettingsPage'))
+const SuperAdminPage           = lazy(() => import('./SuperAdminPage'))
+const AchievementsPage         = lazy(() => import('./AchievementsPage'))
+const SyllabusPage             = lazy(() => import('./SyllabusPage'))
+const NewsPage                 = lazy(() => import('./NewsPage'))
+const NewsTimelinePage         = lazy(() => import('./NewsTimelinePage'))
+const ReviewRoomPage           = lazy(() => import('./ReviewRoomPage'))
+const ExamDashboardPage        = lazy(() => import('./ExamDashboardPage'))
+const ExamCreatorPage          = lazy(() => import('./ExamCreatorPage'))
+const ExamViewPage             = lazy(() => import('./ExamViewPage'))
+const ExamReviewPage           = lazy(() => import('./ExamReviewPage'))
+const ExamRevisionPage         = lazy(() => import('./ExamRevisionPage'))
+const StudentsPage             = lazy(() => import('./StudentsPage'))
+const PsicosocialPage          = lazy(() => import('./PsicosocialPage'))
+const SubjectManagerPage       = lazy(() => import('./SubjectManagerPage'))
+const GuideLibraryPage         = lazy(() => import('./GuideLibraryPage'))
+const LibraryPage              = lazy(() => import('./LibraryPage'))
+const PeriodCoverageDashboard  = lazy(() => import('./PeriodCoverageDashboard'))
+const ObservationLoggerPage    = lazy(() => import('./ObservationLoggerPage'))
+const PrinciplesPage           = lazy(() => import('./PrinciplesPage'))
+const DirectorPage             = lazy(() => import('./DirectorPage'))
+const SchedulePage             = lazy(() => import('./SchedulePage'))
+const AgendaPage               = lazy(() => import('./AgendaPage'))
+const CurriculumPage           = lazy(() => import('./CurriculumPage'))
+const GradingHubPage           = lazy(() => import('./GradingHubPage'))
+const GradingSessionPage       = lazy(() => import('./GradingSessionPage'))
+const GradingDisplayPage       = lazy(() => import('./GradingDisplayPage'))
+const GradingHistoryPage       = lazy(() => import('./GradingHistoryPage'))
+const GradebookPage            = lazy(() => import('./GradebookPage'))
+const QuickGradePage           = lazy(() => import('./QuickGradePage'))
+const StudentPlayerPage        = lazy(() => import('./StudentPlayerPage'))
+const StudentDetailPage        = lazy(() => import('./StudentDetailPage'))
+const QADashboardPage          = lazy(() => import('./QADashboardPage'))
+const DevStatusPage            = lazy(() => import('./DevStatusPage'))
 import ProfileModal        from '../components/ProfileModal'
 import { FeaturesProvider, useFeatures } from '../context/FeaturesContext'
 import { QAProvider }    from '../qa/QAContext'
@@ -507,6 +509,7 @@ function DashboardInner({ session, teacher, setTeacher }) {
       </div>
 
       <main id="main-content" className="main">
+        <Suspense fallback={<div style={{padding:'2rem',textAlign:'center'}}>Cargando…</div>}>
         <Routes>
           <Route path="/"            element={<PlannerPage          teacher={teacher} />} />
           <Route path="/plans"       element={<MyPlansPage          teacher={teacher} />} />
@@ -570,6 +573,7 @@ function DashboardInner({ session, teacher, setTeacher }) {
             </>
           )}
         </Routes>
+        </Suspense>
       </main>
 
       {showProfile && (
