@@ -1692,7 +1692,7 @@ function UploadModal({ visibility, teacher, onClose, onUploaded }) {
                 <span>🎹 MIDI</span>
               </div>
               <div className="lib-upload-limits">
-                PDF hasta 200 MB · Video hasta 1 GB · Audio hasta 200 MB
+                PDF hasta 500 MB · Video hasta 1 GB · Audio hasta 200 MB
               </div>
             </div>
 
