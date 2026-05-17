@@ -1544,7 +1544,12 @@ function UploadModal({ visibility, teacher, onClose, onUploaded }) {
       const pathDir = visibility === 'school'
         ? `${teacher.school_id}/inst/${docId}`
         : `${teacher.school_id}/personal/${teacher.id}/${docId}`
-      const path = `${pathDir}/${uploadFile.name}`
+      // Sanitize filename: remove special chars that cause Storage 400 errors
+      const safeName = uploadFile.name
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // strip accents
+        .replace(/[^a-zA-Z0-9._-]/g, '_') // replace unsafe chars with underscore
+        .replace(/_+/g, '_') // collapse multiple underscores
+      const path = `${pathDir}/${safeName}`
 
       setProgress(30)
 
@@ -1813,7 +1818,11 @@ function EditModal({ doc, teacher, onClose, onSaved }) {
       const pathDir = doc.visibility === 'school'
         ? `${teacher.school_id}/inst/${doc.id}`
         : `${teacher.school_id}/personal/${teacher.id}/${doc.id}`
-      const path = `${pathDir}/${newFile.name}`
+      const safeName = newFile.name
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9._-]/g, '_')
+        .replace(/_+/g, '_')
+      const path = `${pathDir}/${safeName}`
 
       setProgress(30)
 
