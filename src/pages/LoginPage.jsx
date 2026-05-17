@@ -24,7 +24,15 @@ export default function LoginPage({ loginError = null }) {
 
     if (mode === 'login') {
       const { error } = await supabase.auth.signInWithPassword({ email, password })
-      if (error) setError(error.message)
+      if (error) {
+        if (error.message === 'Invalid login credentials') {
+          setError('Correo o contraseña incorrectos. Verifica tus datos e intenta de nuevo.')
+        } else if (error.message === 'Email not confirmed') {
+          setError('Tu correo aún no ha sido confirmado. Revisa tu bandeja de entrada.')
+        } else {
+          setError(error.message)
+        }
+      }
     } else {
       // Check if email domain restriction is active for this school
       const { data: schoolData } = await supabase

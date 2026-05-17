@@ -15,7 +15,7 @@ import ExamPlayerV2Page from './pages/ExamPlayerV2Page'
 export default function App() {
   const [session,    setSession]    = useState(undefined) // undefined = loading
   const [teacher,    setTeacher]    = useState(null)
-  const [loadError,  setLoadError]  = useState(false)
+  const [loadError,  setLoadError]  = useState(null) // null | 'network' | 'not_found'
   const [isRecovery, setIsRecovery] = useState(false)
   const [loginError, setLoginError] = useState(null)
 
@@ -68,7 +68,16 @@ export default function App() {
       .select('*, schools(*)')
       .eq('id', userId)
       .single()
-    if (error) { setLoadError(true); return }
+    if (error) {
+      // PGRST116 = "JSON object requested, multiple (or no) rows returned"
+      // This means the user has an auth account but no teacher profile
+      if (error.code === 'PGRST116') {
+        setLoadError('not_found')
+      } else {
+        setLoadError('network')
+      }
+      return
+    }
     setTeacher(data)
   }
 
@@ -97,21 +106,43 @@ export default function App() {
     )
   }
 
-  // Error loading teacher profile (network issue, RLS, etc.)
+  // Error loading teacher profile
   if (loadError) {
+    const isNotFound = loadError === 'not_found'
     return (
       <div className="loading-screen">
-        <div className="loading-logo">⚠️</div>
-        <div className="loading-text">No se pudo cargar tu perfil</div>
-        <p style={{ color: '#888', fontSize: 13, margin: '8px 0 20px' }}>
-          Verifica tu conexión a internet e intenta de nuevo.
-        </p>
-        <button
-          onClick={() => { setLoadError(false); loadTeacher(session?.user?.id) }}
-          style={{ padding: '10px 24px', background: '#1A3A8F', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer', fontSize: 14 }}
-        >
-          🔄 Reintentar
-        </button>
+        <div className="loading-logo">{isNotFound ? '🚫' : '⚠️'}</div>
+        <div className="loading-text">
+          {isNotFound ? 'Cuenta no autorizada' : 'No se pudo cargar tu perfil'}
+        </div>
+        {isNotFound ? (
+          <>
+            <p style={{ color: '#666', fontSize: 13, margin: '8px 0 4px', maxWidth: 340, textAlign: 'center', lineHeight: 1.6 }}>
+              Tu correo <strong>{session?.user?.email}</strong> no tiene un perfil de docente registrado en el sistema.
+            </p>
+            <p style={{ color: '#888', fontSize: 12, margin: '4px 0 20px', maxWidth: 340, textAlign: 'center' }}>
+              Si eres docente del colegio, solicita al coordinador que te registre desde el panel de administración.
+            </p>
+            <button
+              onClick={async () => { await supabase.auth.signOut(); setLoadError(null); setSession(null); setTeacher(null) }}
+              style={{ padding: '10px 24px', background: '#C0504D', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer', fontSize: 14 }}
+            >
+              ← Cerrar sesión
+            </button>
+          </>
+        ) : (
+          <>
+            <p style={{ color: '#888', fontSize: 13, margin: '8px 0 20px' }}>
+              Verifica tu conexión a internet e intenta de nuevo.
+            </p>
+            <button
+              onClick={() => { setLoadError(null); loadTeacher(session?.user?.id) }}
+              style={{ padding: '10px 24px', background: '#1A3A8F', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer', fontSize: 14 }}
+            >
+              🔄 Reintentar
+            </button>
+          </>
+        )}
       </div>
     )
   }
