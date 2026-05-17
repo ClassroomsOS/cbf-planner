@@ -5,7 +5,7 @@
 // NOTA: El Principio del Indicador se ingresa por proyecto en NewsProjectEditor
 //       (step "Fechas") → fields biblical_principle + indicator_verse_ref
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../supabase'
 import { useToast } from '../context/ToastContext'
 import { logError, logActivity } from '../utils/logger'
@@ -28,14 +28,18 @@ export default function PrinciplesPage({ teacher }) {
   const [yearVerseRef, setYearVerseRef] = useState(school.year_verse_ref || '')
   const [savingYear,   setSavingYear]   = useState(false)
 
-  const [monthly,      setMonthly]      = useState({}) // { "YYYY-MM": { month_verse, month_verse_ref, indicator_principle } }
+  const [monthly,      setMonthly]      = useState({}) // { "YYYY-MM": { month_verse, month_verse_ref, principle_name } }
   const [editing,      setEditing]      = useState(null) // "YYYY-MM"
   const [editForm,     setEditForm]     = useState({})
   const [savingMonth,  setSavingMonth]  = useState(false)
+  const [docs,         setDocs]         = useState({})   // { "YYYY-MM": [doc, ...] }
+  const [uploading,    setUploading]    = useState(false)
+  const fileRef = useRef()
 
-  // ── Load all monthly principles for this year ──
+  // ── Load all monthly principles + documents for this year ──
   useEffect(() => {
     loadMonthly()
+    loadDocs()
   }, [])
 
   async function loadMonthly() {
@@ -70,12 +74,31 @@ export default function PrinciplesPage({ teacher }) {
     else { showToast('Versículo del año guardado', 'success'); logActivity('update', 'schools', teacher.school_id, 'Guardó versículo del año') }
   }
 
+  async function loadDocs() {
+    const { data } = await supabase
+      .from('principle_documents')
+      .select('*')
+      .eq('school_id', teacher.school_id)
+      .eq('year', thisYear)
+      .order('created_at')
+    if (data) {
+      const map = {}
+      data.forEach(doc => {
+        const key = `${doc.year}-${String(doc.month).padStart(2,'0')}`
+        if (!map[key]) map[key] = []
+        map[key].push(doc)
+      })
+      setDocs(map)
+    }
+  }
+
   // ── Open month editor ──
   function openMonth(year, month) {
     const key = `${year}-${String(month).padStart(2,'0')}`
     const row = monthly[key] || {}
     setEditing(key)
     setEditForm({
+      principle_name:  row.principle_name  || '',
       month_verse:     row.month_verse     || '',
       month_verse_ref: row.month_verse_ref || '',
     })
@@ -98,6 +121,7 @@ export default function PrinciplesPage({ teacher }) {
       school_id:       teacher.school_id,
       year:            y,
       month:           m,
+      principle_name:  editForm.principle_name.trim(),
       month_verse:     editForm.month_verse.trim(),
       month_verse_ref: editForm.month_verse_ref.trim(),
       updated_by:      teacher.id,
@@ -116,6 +140,44 @@ export default function PrinciplesPage({ teacher }) {
       setMonthly(prev => ({ ...prev, [editing]: payload }))
       setEditing(null)
     }
+  }
+
+  async function handleFileUpload(e) {
+    const files = Array.from(e.target.files)
+    if (!files.length || !editing) return
+    setUploading(true)
+    const [y, m] = editing.split('-').map(Number)
+    const uploaded = []
+    for (const file of files) {
+      const path = `${teacher.school_id}/${y}/${m}/${Date.now()}_${file.name}`
+      const { error: upErr } = await supabase.storage
+        .from('principle-docs')
+        .upload(path, file, { contentType: file.type, upsert: false })
+      if (upErr) { showToast(`Error subiendo ${file.name}`, 'error'); continue }
+      const { data: docData, error: docErr } = await supabase
+        .from('principle_documents')
+        .insert({
+          school_id: teacher.school_id, year: y, month: m,
+          file_name: file.name, file_path: path,
+          file_size: file.size, mime_type: file.type,
+          uploaded_by: teacher.id,
+        })
+        .select().single()
+      if (!docErr) uploaded.push(docData)
+    }
+    if (uploaded.length) {
+      setDocs(prev => ({ ...prev, [editing]: [...(prev[editing] || []), ...uploaded] }))
+      showToast(`${uploaded.length} documento(s) subido(s)`, 'success')
+    }
+    setUploading(false)
+    fileRef.current.value = ''
+  }
+
+  async function handleDeleteDoc(key, doc) {
+    await supabase.storage.from('principle-docs').remove([doc.file_path])
+    await supabase.from('principle_documents').delete().eq('id', doc.id)
+    setDocs(prev => ({ ...prev, [key]: (prev[key] || []).filter(d => d.id !== doc.id) }))
+    showToast('Documento eliminado', 'success')
   }
 
   function monthKey(month) {
@@ -221,12 +283,20 @@ export default function PrinciplesPage({ teacher }) {
                     transition: 'all .15s',
                   }}
                 >
-                  <div style={{ fontWeight: 700, fontSize: '13px', marginBottom: '4px' }}>
+                  <div style={{ fontWeight: 700, fontSize: '13px', marginBottom: '2px' }}>
                     {name}
                     {isCurrent && <span style={{ fontSize: '10px', marginLeft: '6px', opacity: .7 }}>← actual</span>}
                   </div>
+                  {done && monthly[monthKey(month)]?.principle_name && (
+                    <div style={{ fontSize: '11px', fontStyle: 'italic', color: editing === monthKey(month) ? 'rgba(255,255,255,.8)' : '#2E5598', marginBottom: '2px' }}>
+                      {monthly[monthKey(month)].principle_name}
+                    </div>
+                  )}
                   <div style={{ fontSize: '11px', opacity: .75 }}>
                     {done ? '✅ Configurado' : '— Sin configurar'}
+                    {(docs[monthKey(month)]?.length || 0) > 0 && (
+                      <span style={{ marginLeft: 6 }}>📎 {docs[monthKey(month)].length}</span>
+                    )}
                   </div>
                 </button>
               )
@@ -244,13 +314,24 @@ export default function PrinciplesPage({ teacher }) {
               </div>
 
               <div className="ge-field">
+                <label>Nombre del principio</label>
+                <input
+                  type="text"
+                  value={editForm.principle_name}
+                  onChange={e => setEditForm(f => ({ ...f, principle_name: e.target.value }))}
+                  className="ge-input"
+                  placeholder="ej. Principio de Pureza"
+                />
+              </div>
+
+              <div className="ge-field">
                 <label>Versículo del Mes — texto</label>
                 <textarea
                   value={editForm.month_verse}
                   onChange={e => setEditForm(f => ({ ...f, month_verse: e.target.value }))}
                   rows={3}
                   className="ge-input"
-                  placeholder='"Then the Lord God provided a gourd and made it grow up over Jonah…" — Jonah 4:6'
+                  placeholder='"Y creó Dios al hombre a su imagen…" — Gén 1:27'
                   style={{ resize: 'vertical' }}
                 />
               </div>
@@ -262,17 +343,80 @@ export default function PrinciplesPage({ teacher }) {
                   value={editForm.month_verse_ref}
                   onChange={e => setEditForm(f => ({ ...f, month_verse_ref: e.target.value }))}
                   className="ge-input"
-                  placeholder="Jonah 4:6 (NIV)"
+                  placeholder="Génesis 1:27-28a (TLA)"
                 />
               </div>
 
-              <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
+              {/* ── Documents ── */}
+              <div style={{ marginTop: '16px', borderTop: '1px solid #dde6f5', paddingTop: '14px' }}>
+                <div style={{ fontWeight: 700, fontSize: '12px', color: '#555', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '.04em' }}>
+                  📎 Documentos adjuntos (Word / PDF)
+                </div>
+
+                {(docs[editing] || []).length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '10px' }}>
+                    {(docs[editing] || []).map(doc => (
+                      <div key={doc.id} style={{
+                        display: 'flex', alignItems: 'center', gap: '8px',
+                        background: '#f0f4fb', borderRadius: '8px', padding: '7px 10px',
+                      }}>
+                        <span style={{ fontSize: '16px' }}>
+                          {doc.mime_type?.includes('pdf') ? '📄' : '📝'}
+                        </span>
+                        <a
+                          href={supabase.storage.from('principle-docs').getPublicUrl(doc.file_path).data.publicUrl}
+                          target="_blank" rel="noopener noreferrer"
+                          style={{ flex: 1, fontSize: '12px', color: '#2E5598', textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                        >
+                          {doc.file_name}
+                        </a>
+                        {doc.file_size && (
+                          <span style={{ fontSize: '11px', color: '#aaa', flexShrink: 0 }}>
+                            {(doc.file_size / 1024).toFixed(0)} KB
+                          </span>
+                        )}
+                        <button
+                          onClick={() => handleDeleteDoc(editing, doc)}
+                          style={{ flexShrink: 0, width: 20, height: 20, borderRadius: '50%', border: 'none', background: '#eee', fontSize: 14, color: '#888', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                          title="Eliminar"
+                        >×</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <button
+                  onClick={() => fileRef.current.click()}
+                  disabled={uploading}
+                  style={{
+                    fontSize: '12px', padding: '7px 14px',
+                    border: '1px dashed #2E5598', borderRadius: '8px',
+                    background: 'none', color: '#2E5598', cursor: 'pointer',
+                    opacity: uploading ? .5 : 1,
+                  }}
+                >
+                  {uploading ? '⏳ Subiendo…' : '+ Subir documento'}
+                </button>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  multiple
+                  style={{ display: 'none' }}
+                  onChange={handleFileUpload}
+                />
+                <p style={{ fontSize: '11px', color: '#aaa', marginTop: '4px' }}>
+                  Acepta PDF y Word (.doc, .docx)
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', marginTop: '14px' }}>
                 <button
                   className="btn-primary"
                   onClick={saveMonth}
                   disabled={savingMonth}
                 >
-                  {savingMonth ? '⏳ Guardando…' : '💾 Guardar'}
+                  {savingMonth ? '⏳ Guardando…' : '💾 Guardar principio'}
                 </button>
                 <button
                   className="btn-secondary"
