@@ -2,7 +2,7 @@
 ## CLAUDE.md — Documento maestro
 
 > **Principio rector:** *"Nosotros diseñamos. El docente enseña."*
-> Léelo completo antes de escribir código. · Última actualización: Mayo 10, 2026
+> Léelo completo antes de escribir código. · Última actualización: Mayo 16, 2026
 
 ---
 
@@ -148,9 +148,12 @@ Al actualizar `pdfjs-dist` en `package.json`, hay que actualizar TAMBIÉN esta U
 Si `section_name === ''` → preguntas sin tabs. Si hay valores distintos → tabs automáticos. **NUNCA hardcodear `section_name: ''`** — usar `q.section_name || ''`.
 
 ### 8. RLS — nunca crear un ciclo entre tablas relacionadas
-Si la tabla A tiene una policy que consulta tabla B, y tabla B tiene una policy que consulta tabla A → **infinite recursion**. Síntoma: `ERROR: infinite recursion detected in policy for relation`.
-Caso real: `school_library.library_shared_read` → `library_shares`, y `library_shares.shares_owner_manage` → `school_library`. Fix: eliminar el subquery circular en la policy de `library_shares`. Usar solo `shared_by = auth.uid()` sin referenciar la tabla padre.
+Si la tabla A tiene una policy que consulta tabla B, y tabla B tiene una policy que consulta tabla A → **infinite recursion**. Síntoma: `ERROR: infinite recursion detected in policy for relation` (código 42P17).
+Caso real: `school_library.library_shared_read` → `library_shares`, y `library_shares.shares_doc_owner_read` → `school_library`. Fix: DROP `shares_doc_owner_read` — el dueño ya ve shares via `shares_owner_manage` (`shared_by = auth.uid()`).
 **Regla:** las policies de tablas hijas (shares, log, versions) NUNCA deben hacer SELECT a la tabla padre que las referencia.
+
+### 9. PlannerPeriodTimeline — componente separado, requiere props explícitos
+`PlannerPeriodTimeline` es una función componente fuera del scope de `PlannerPage`. Variables como `periodStartISO` y `compoundWeeks` deben pasarse como props — nunca asumir acceso a closure del padre.
 
 ### 7. exam-integrity-alert — eventos de ciclo vs. violaciones
 `CYCLE_EVENTS = ['exam_started', 'exam_resumed', 'exam_submitted']` NO actualizan `integrity_flags`; usan formato Telegram distinto. Cualquier otro `event_type` → violación → actualiza `tab_switches` + mensaje rojo.
@@ -168,7 +171,9 @@ news_projects         — indicator_id FK · actividades_evaluativas · biblical
 rubric_templates      — 5 plantillas institucionales sembradas
 achievement_goals     — UNIQUE(teacher_id, subject, grade, period, academic_year)
 achievement_indicators— dimension + skill_area · teacher_id (denorm. para RLS)
-syllabus_topics       — contenidos por semana · indicator_id FK
+syllabus_topics       — contenidos por semana · indicator_id FK · library_doc_id · library_pages[]
+syllabus_session_resources — plan_id FK · week_number · day_key · resource_type · title · url · fragment_id
+                             abc_section · duration_minutes · justification · emphasis_notes
 checkpoints           — indicator_id · target_id nullable (legacy) · plan_id
 eleot_domains/items/block_mapping — seed inmutable (7 dominios · 28 ítems)
 eleot_observations    — historial observaciones Cognia
@@ -310,6 +315,9 @@ Colores, eleot® items y modelos → `src/utils/smartBlockHtml.js` · `src/compo
 | `analyzeTextbookFragment()` | 1500 — Claude Vision: clasifica región de documento → SmartBlock sugerido |
 | `analyzeTextbookPages()` | 2000 — Claude Vision: 1-5 páginas (URLs o `{pageNum,base64}`) → `{unit_summary, key_concepts, vocabulary, grammar_points, suggested_week_plan, suggested_smartblocks}` |
 | `generateGuideStructure()` | acepta `textbookFragments` — fluyen como texto + imágenes reales (`imageBlocks`) a Claude. Máx. 5 imágenes (fragmentos primero, NEWS después) |
+| `analyzeBookPages()` | 2000 — syllabusAI.js: Vision batch (5 págs) → `[{page, content_type, complexity, subunit, is_workbook, summary, estimated_minutes}]` |
+| `distributePagesByWeek()` | 2500 — syllabusAI.js: distribuye páginas según schedule del docente + school_calendar |
+| `advisorCheckSession()` | 1200 — syllabusAI.js: valida factibilidad de tiempo por sesión; skip AI si claramente factible/sobrecargado |
 
 **Reglas de comportamiento no documentadas en ai-integration.md:**
 - `generateGuideStructure` acepta `piarData?: { [category]: string[] }` — acomodaciones sin nombres de estudiantes. `GuideEditorPage` las consulta y pasa al modal; `ConversationalGuideModal` muestra aviso naranja en paso 3.
@@ -397,6 +405,18 @@ activeAchievementGoal       // PlannerPage — fetched async
 plannerActiveNewsProject    // PlannerPage — fuente primaria de indicator_id
 ```
 
+### Estado clave — SyllabusPage + SyllabusWizard
+```javascript
+// SyllabusPage: 3 viewModes — 'list' | 'plan' | 'wizard'
+// SyllabusWizard (src/components/SyllabusWizard.jsx): 4 steps
+//   1. StepSelect — elige libro PDF de Biblioteca, rango de páginas, escaneo Vision batch
+//   2. StepDistribute — genera distribución semanal según horario docente y school_calendar
+//   3. StepResources — asigna recursos por día (video/reading/worksheet/fragment/audio/image/webpage)
+//      + AI advisor para validar factibilidad de tiempo
+//   4. StepConfirm — resumen de stats y publicación
+// syllabusAI.js: analyzeBookPages(), distributePagesByWeek(), advisorCheckSession()
+```
+
 ### Provider pattern — CRÍTICO (no romper)
 ```jsx
 export default function DashboardPage({ session, teacher, setTeacher }) {
@@ -439,4 +459,4 @@ git add . && git commit -m "feat: ..." && git push   # deploy automático ~2 min
 ---
 
 *CBF Planner · ETA Platform · Edoardo Ortiz + Claude Sonnet · Barranquilla 2026*
-*"Nosotros diseñamos. El docente enseña." · CLAUDE.md v6.0 — Mayo 1, 2026*
+*"Nosotros diseñamos. El docente enseña." · CLAUDE.md v6.2 — Mayo 16, 2026*
