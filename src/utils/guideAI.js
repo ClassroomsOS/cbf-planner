@@ -139,12 +139,12 @@ export async function suggestSectionActivity({
 
   // Limits per section — constructivist approach: guide questions, exploration, construction.
   const SECTION_LIMITS = {
-    'TOPICS': 'Brief consecutive daily index — 3 lines: what moment of the Biblical Principle (intro/deepening/application/reflection), what moment of the Unit (intro/practice/analysis/production), what moment of Vocabulary (presentation/game/in-context use/dictation). Never repeat "intro" two days in a row — always scales on the previous day. Max 50 words.',
+    'TOPICS': 'Brief consecutive daily index — 3 lines: what moment of the Biblical Principle (intro/deepening/application/reflection), what moment of the Unit (intro/practice/analysis/production), what moment of Vocabulary (presentation/game/in-context use/dictation). Class rules stated here. Never repeat "intro" two days in a row — always scales on the previous day. Max 50 words.',
     'SUBJECT TO BE WORKED': 'Inform students about the vocabulary and/or activities related to the topic. Board ritual — written and NOT erased during class: Date | Objective (student-friendly) | Biblical Principle | Topic. If milestone today: open with "⚠️ TODAY: [MILESTONE]". Max 40 words.',
-    'MOTIVATION': 'Ice-breaker activities to create engagement. 1 guiding question that activates prior knowledge (NOT yes/no — make them think, recall, express opinions) + 1 brief activation dynamic (think-pair-share, prediction, brainstorm). The question bridges what they know with what they will learn. Max 40 words.',
-    'SKILL DEVELOPMENT': '4 constructivist MOMENTS (not steps): a) ❓ Guiding question (provokes exploration), b) 🔍 Exploration (observe/read/compare — reference textbook pages), c) 🏗️ Construction (student formulates conclusion, shares with partner), d) ✍️ Product (concrete evidence). Max 80 words.',
+    'MOTIVATION': 'Ice-breaker activities to create engagement. MUST include explicit reminder of the indicator biblical verse. 1 guiding question that activates prior knowledge (NOT yes/no — make them think, recall, express opinions) + 1 brief activation dynamic (think-pair-share, prediction, brainstorm). The question bridges what they know with what they will learn. Max 40 words.',
+    'SKILL DEVELOPMENT': 'Content MUST connect with the indicator biblical verse. 4 constructivist MOMENTS (not steps): a) ❓ Guiding question (provokes exploration), b) 🔍 Exploration (observe/read/compare — reference textbook pages), c) 🏗️ Construction (student formulates conclusion, shares with partner), d) ✍️ Product (concrete evidence). Max 80 words.',
     'ASSIGNMENT': 'OPTIONAL. In-class assignment only — never homework sent home. 1 sentence with concrete deliverable. If no assignment needed, leave minimal or empty. Max 25 words.',
-    'CLOSING': 'Students do a brief recap of what they learned. Ask how they felt, if there was any difficulty. 1 meaningful biblical reflection ("How does [principle] change your view of [topic]?"). Max 40 words.',
+    'CLOSING': 'Students do a brief recap of what they learned. Ask how they felt, if there was any difficulty. MUST close with biblical reflection tied to the indicator verse — completes the thread from MOTIVATION and SKILL DEVELOPMENT. Max 40 words.',
   }
   const limit = SECTION_LIMITS[section.label] || 'Max 40 words. Direct instruction only.'
 
@@ -453,10 +453,11 @@ BIBLICAL THREAD: Present in EVERY section, not just opening/closing. It is the n
      what moment of the Vocabulary (presentation / game / in-context use / dictation).
    → CONSECUTIVENESS IS MANDATORY: what was introduced yesterday must be deepened today.
      Never repeat "intro" two days in a row. Each day scales on the previous.
+   → CLASS RULES are always stated here (first moment of the day).
    → Format: 3 brief lines. No long sentences. Just the day's index.
    → Example Day 1: "📖 Biblical Principle: Introduction — Genesis 1:27 | 📚 Unit 3: First encounter — Vocabulary | 🔤 Vocabulary: Presentation of 8 key words"
    → Example Day 2: "📖 Biblical Principle: Deepening — How does it connect to identity? | 📚 Unit 3: Grammar exploration | 🔤 Vocabulary: Practice — matching game"
-   → Do NOT include prayer or rules — those are inserted automatically.
+   → Do NOT include prayer — it is inserted automatically.
    Max 50 words.
 
 2. SUBJECT TO BE WORKED (~7 min) — key: "motivation"
@@ -468,6 +469,8 @@ BIBLICAL THREAD: Present in EVERY section, not just opening/closing. It is the n
 
 3. MOTIVATION (~10 min) — key: "activity"
    PURPOSE: Ice-breaker activities to create engagement with students. Activate prior knowledge.
+   → BIBLICAL VERSE REMINDER: Always include an explicit reminder of the indicator's biblical verse here.
+     This is NON-NEGOTIABLE. The verse permeates the entire day starting from this moment.
    MANDATORY FORMAT:
    - 1 guiding question that provokes students to express what they ALREADY know about the topic
      (not a yes/no question — one that makes them think, recall, express opinions)
@@ -476,7 +479,9 @@ BIBLICAL THREAD: Present in EVERY section, not just opening/closing. It is the n
    Max 40 words.
 
 4. SKILL DEVELOPMENT (~25 min) — key: "skill"
-   CONSTRUCTIVIST MODEL — Students are already engaged from Motivation. The student builds knowledge, the teacher facilitates:
+   CONSTRUCTIVIST MODEL — Students are already engaged from Motivation. The student builds knowledge, the teacher facilitates.
+   → BIBLICAL VERSE CONNECTION: The content/activity MUST connect with the indicator's biblical verse.
+     This is NON-NEGOTIABLE. The verse is the lens through which the skill is developed.
    📐 If grammar: student OBSERVES examples → INFERS the rule → VERIFIES with teacher → PRACTICES.
 
    MANDATORY STRUCTURE (4 moments, not "steps"):
@@ -498,7 +503,9 @@ BIBLICAL THREAD: Present in EVERY section, not just opening/closing. It is the n
 6. CLOSING (~5 min) — key: "closing"
    - Students do a brief RECAP of what they learned today (in their own words, not repeating definitions)
    - Ask: "How did you feel? Was there any difficulty?"
-   - 1 meaningful biblical reflection (not "what does the verse say?" but "How does [principle] change your view of [topic]?")
+   - BIBLICAL VERSE REFLECTION (NON-NEGOTIABLE): Close with a meaningful reflection tied to the indicator's verse.
+     Not "what does the verse say?" but "How does [principle] change your view of [topic]?"
+     This completes the biblical thread that began in MOTIVATION and continued through SKILL DEVELOPMENT.
    Max 40 words.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1100,13 +1107,18 @@ FORMAT: Plain text, no HTML. Concise but pedagogically rich.
 
 CONTENT INSTRUCTIONS PER SECTION — CONSTRUCTIVIST (NOT BEHAVIORIST):
 
+NON-NEGOTIABLE RULE: The indicator's biblical verse PERMEATES THE ENTIRE DAY.
+It is explicitly reminded in MOTIVATION, connected to content in SKILL DEVELOPMENT,
+and reflected upon in CLOSING. This is the spiritual thread of every session.
+
 TOPICS (key: subject) — max 50 words:
   → Brief CONSECUTIVE daily index. 3 lines:
     what moment of the Biblical Principle (intro/deepening/application/reflection),
     what moment of the Unit (intro/practice/analysis/production),
     what moment of the Vocabulary (presentation/game/in-context use/dictation).
+  → CLASS RULES are always stated here (first moment of the day).
   → NEVER repeat "intro" two days in a row — always scales on the previous day.
-  → Do NOT include prayer or rules (inserted automatically).
+  → Do NOT include prayer (inserted automatically).
   → Ex. Day 1: "📖 Biblical Principle: Introduction | 📚 Unit 3: First encounter + vocabulary | 🔤 Vocabulary: Presentation"
   → Ex. Day 2: "📖 Biblical Principle: Deepening | 📚 Unit 3: Grammar exploration | 🔤 Vocabulary: Practice"
 
@@ -1118,12 +1130,14 @@ SUBJECT TO BE WORKED (key: motivation) — max 40 words:
 
 MOTIVATION (key: activity) — max 40 words:
   → Ice-breaker activities to create engagement with students.
+  → ⛪ BIBLICAL VERSE REMINDER: Always include an explicit reminder of the indicator's biblical verse here.
   → 1 GUIDING QUESTION that activates prior knowledge (NOT yes/no — makes them think, recall, express opinions).
   → 1 activation dynamic (think-pair-share, prediction, quick survey, brainstorm).
   → The question BRIDGES what they already know with what they will learn today.
   → Example: "Think-pair-share: What do you already know about ecosystems? Tell your partner 2 things. — What do you WANT to know?"
 
 SKILL DEVELOPMENT (key: skill) — max 80 words, 4 constructivist MOMENTS:
+  → ⛪ BIBLICAL VERSE CONNECTION: The content/activity MUST connect with the indicator's verse.
   → a) ❓ GUIDING QUESTION — provokes exploration ("What patterns do you notice?", "Why do you think...?")
   → b) 🔍 EXPLORATION — observe, read, compare (reference textbook pages). Individual or pairs.
   → c) 🏗️ CONSTRUCTION — student formulates conclusion/hypothesis. Shares with partner. Teacher guides without giving the direct answer.
@@ -1139,7 +1153,9 @@ ASSIGNMENT (key: assignment) — max 25 words:
 CLOSING (key: closing) — max 40 words:
   → Students do a brief RECAP of what they learned today (in their own words).
   → Ask: "How did you feel? Was there any difficulty with today's topic?"
-  → 1 meaningful biblical reflection ("How does [principle] change your view of [topic]?")
+  → ⛪ BIBLICAL VERSE REFLECTION (NON-NEGOTIABLE): Close with reflection tied to the indicator's verse.
+    This completes the biblical thread from MOTIVATION → SKILL DEVELOPMENT → CLOSING.
+    Not "what does the verse say?" but "How does [principle] change your view of [topic]?"
 ${isTwoWeeks ? twoWeekBloomBlock : `
 PROGRESIÓN SEMANAL: Los días avanzan desde exploración guiada (Día 1) hasta producción autónoma (último día).
 Cada día el alumno construye sobre el descubrimiento anterior. El docente retira andamiaje progresivamente.`}`

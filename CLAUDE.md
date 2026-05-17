@@ -1,8 +1,8 @@
-# CBF PLANNER — v6.1
+# CBF PLANNER — v6.3
 ## CLAUDE.md — Documento maestro
 
 > **Principio rector:** *"Nosotros diseñamos. El docente enseña."*
-> Léelo completo antes de escribir código. · Última actualización: Mayo 16, 2026
+> Léelo completo antes de escribir código. · Última actualización: Mayo 17, 2026
 
 ---
 
@@ -284,6 +284,38 @@ submissions           — entregas de estudiantes (Capa 3 futura) · student_id 
 
 ---
 
+## 📐 CBF SESSION SECTIONS — 6 MOMENTOS (ORDEN DEFINITIVO)
+
+```
+1. TOPICS          (key: subject)    ~8 min  — Temarios, contenidos, reglas de clase
+2. SUBJECT TO BE WORKED (key: motivation) ~7 min  — Informa vocabulario/actividades del tópico
+3. MOTIVATION      (key: activity)   ~10 min — Rompehielos, engagement, activación
+4. SKILL DEVELOPMENT (key: skill)    ~25 min — Actividad principal (alumnos ya enganchados)
+5. ASSIGNMENT      (key: assignment) ~3 min  — Asignación en clase (OPTATIVA, nunca tarea a casa)
+6. CLOSING         (key: closing)    ~5 min  — Recap, cómo se sintieron, dificultades, reflexión bíblica
+```
+
+**Labels: SOLO INGLÉS** — sin versión bilingüe.
+
+**REGLAS NO NEGOCIABLES:**
+- **Versículo bíblico del indicador** permea TODO el día. Es el hilo conductor obligatorio:
+  - MOTIVATION → recordatorio explícito del versículo
+  - SKILL DEVELOPMENT → el contenido/actividad conecta con el versículo
+  - CLOSING → reflexión de cierre ligada al versículo
+- **Reglas de clase** se estipulan siempre en TOPICS (primer momento)
+- **ASSIGNMENT** es optativo — si no hay asignación, se deja vacío. NUNCA es tarea para la casa.
+- **CLOSING** es SIEMPRE el último momento — recap + sentimientos + reflexión bíblica.
+
+**Keys en DB no cambian** (`subject`, `motivation`, `activity`, `skill`, `assignment`, `closing`) — solo cambian labels y orden visual.
+
+**Archivos que definen secciones:**
+- `src/utils/constants.js` → `SECTIONS[]` (fuente de verdad)
+- `src/utils/exportDocx.js` / `exportHtml.js` / `exportLegacyDocx.js` → SECTIONS locales para export
+- `src/utils/guideAI.js` → prompt IA con instrucciones por sección
+- `src/components/editor/BlockEditor.jsx` → `MOMENTO_HINTS` + `SECTION_BLOCKS`
+
+---
+
 ## 🧩 SMART BLOCKS — 16 TIPOS
 
 `DICTATION · QUIZ · VOCAB · WORKSHOP · SPEAKING · NOTICE · READING · GRAMMAR · EXIT_TICKET · WRITING · SELF_ASSESSMENT · PEER_REVIEW · DIGITAL_RESOURCE · COLLABORATIVE_TASK · REAL_LIFE_CONNECTION · TEACHER_NOTE`
@@ -459,4 +491,4 @@ git add . && git commit -m "feat: ..." && git push   # deploy automático ~2 min
 ---
 
 *CBF Planner · ETA Platform · Edoardo Ortiz + Claude Sonnet · Barranquilla 2026*
-*"Nosotros diseñamos. El docente enseña." · CLAUDE.md v6.2 — Mayo 16, 2026*
+*"Nosotros diseñamos. El docente enseña." · CLAUDE.md v6.3 — Mayo 17, 2026*
