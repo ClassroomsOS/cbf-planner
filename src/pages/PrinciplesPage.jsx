@@ -6,6 +6,7 @@
 //       (step "Fechas") → fields biblical_principle + indicator_verse_ref
 
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { supabase } from '../supabase'
 import { useToast } from '../context/ToastContext'
 import { logError, logActivity } from '../utils/logger'
@@ -16,29 +17,157 @@ const MONTHS = [
   'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'
 ]
 
+function getPublicUrl(path) {
+  return supabase.storage.from('principle-docs').getPublicUrl(path).data.publicUrl
+}
+
+function fileIcon(mimeType = '') {
+  if (mimeType.includes('pdf')) return '📄'
+  return '📝'
+}
+
+function isPdf(mimeType = '') {
+  return mimeType.includes('pdf')
+}
+
+// ── Document viewer modal ────────────────────────────────────────────────────
+
+function DocViewerModal({ doc, onClose }) {
+  const publicUrl = getPublicUrl(doc.file_path)
+  const pdf = isPdf(doc.mime_type)
+
+  // Close on Escape
+  useEffect(() => {
+    function onKey(e) { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  return createPortal(
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 9000,
+        background: 'rgba(0,0,0,0.55)', display: 'flex',
+        alignItems: 'center', justifyContent: 'center',
+        padding: '20px',
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          background: '#fff', borderRadius: '14px', width: '100%',
+          maxWidth: '860px', maxHeight: '92vh',
+          display: 'flex', flexDirection: 'column',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
+          overflow: 'hidden',
+        }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: '10px',
+          padding: '14px 18px', borderBottom: '1px solid #e5e7eb',
+          background: '#f8faff',
+        }}>
+          <span style={{ fontSize: '20px' }}>{fileIcon(doc.mime_type)}</span>
+          <span style={{ flex: 1, fontWeight: 700, fontSize: '14px', color: '#1F3864', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {doc.file_name}
+          </span>
+          {doc.file_size && (
+            <span style={{ fontSize: '12px', color: '#aaa', flexShrink: 0 }}>
+              {(doc.file_size / 1024).toFixed(0)} KB
+            </span>
+          )}
+          <a
+            href={publicUrl}
+            download={doc.file_name}
+            style={{
+              flexShrink: 0, padding: '6px 14px', borderRadius: '8px',
+              background: '#2E5598', color: '#fff', textDecoration: 'none',
+              fontSize: '12px', fontWeight: 700,
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            ⬇ Descargar
+          </a>
+          <button
+            onClick={onClose}
+            style={{
+              flexShrink: 0, width: 32, height: 32, borderRadius: '50%',
+              border: 'none', background: '#eee', fontSize: '18px',
+              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: '#555',
+            }}
+          >×</button>
+        </div>
+
+        {/* Body */}
+        <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
+          {pdf ? (
+            <iframe
+              src={publicUrl}
+              title={doc.file_name}
+              style={{ width: '100%', height: '100%', border: 'none', minHeight: '60vh' }}
+            />
+          ) : (
+            <div style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center',
+              justifyContent: 'center', padding: '48px 24px', gap: '16px',
+              color: '#555',
+            }}>
+              <span style={{ fontSize: '52px' }}>📝</span>
+              <p style={{ fontSize: '15px', fontWeight: 600, color: '#333', textAlign: 'center' }}>
+                {doc.file_name}
+              </p>
+              <p style={{ fontSize: '13px', color: '#888', textAlign: 'center' }}>
+                Los archivos Word no pueden previsualizarse en el navegador.<br />
+                Usa el botón de descarga para abrirlo en tu computador.
+              </p>
+              <a
+                href={publicUrl}
+                download={doc.file_name}
+                style={{
+                  padding: '10px 24px', borderRadius: '10px',
+                  background: '#2E5598', color: '#fff', textDecoration: 'none',
+                  fontSize: '14px', fontWeight: 700,
+                }}
+              >
+                ⬇ Descargar archivo
+              </a>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body
+  )
+}
+
+// ── Main page ────────────────────────────────────────────────────────────────
+
 export default function PrinciplesPage({ teacher }) {
   const school      = teacher.schools || {}
   const { showToast } = useToast()
 
   const now       = new Date()
   const thisYear  = now.getFullYear()
-  const thisMonth = now.getMonth() + 1 // 1-12
+  const thisMonth = now.getMonth() + 1
 
   // ── State ──
   const [yearVerse,    setYearVerse]    = useState(school.year_verse     || '')
   const [yearVerseRef, setYearVerseRef] = useState(school.year_verse_ref || '')
   const [savingYear,   setSavingYear]   = useState(false)
 
-  const [monthly,      setMonthly]      = useState({}) // { "YYYY-MM": { month_verse, month_verse_ref, principle_name } }
-  const [editing,      setEditing]      = useState(null) // "YYYY-MM"
+  const [monthly,      setMonthly]      = useState({})
+  const [editing,      setEditing]      = useState(null)
   const [editForm,     setEditForm]     = useState({})
   const [savingMonth,  setSavingMonth]  = useState(false)
-  const [docs,          setDocs]          = useState({})   // { "YYYY-MM": [doc, ...] }
-  const [uploading,     setUploading]     = useState(false)
-  const [fileProgresses, setFileProgresses] = useState({}) // { fileName: pct }
+  const [docs,         setDocs]         = useState({})
+  const [uploading,    setUploading]    = useState(false)
+  const [fileProgresses, setFileProgresses] = useState({})
+  const [viewingDoc,   setViewingDoc]   = useState(null)
   const fileRef = useRef()
 
-  // ── Load all monthly principles + documents for this year ──
   useEffect(() => {
     loadMonthly()
     loadDocs()
@@ -59,23 +188,6 @@ export default function PrinciplesPage({ teacher }) {
     }
   }
 
-  // ── Save year verse ──
-  async function saveYearVerse() {
-    const existing = school.year_verse?.trim()
-    if (existing && !yearVerse.trim()) {
-      showToast('El versículo del año ya está configurado y no puede borrarse.', 'warning')
-      return
-    }
-    setSavingYear(true)
-    const { error } = await supabase
-      .from('schools')
-      .update({ year_verse: yearVerse.trim(), year_verse_ref: yearVerseRef.trim() })
-      .eq('id', teacher.school_id)
-    setSavingYear(false)
-    if (error) { showToast('Error al guardar el versículo del año', 'error'); logError(error, { page: 'PrinciplesPage', action: 'saveYearVerse' }) }
-    else { showToast('Versículo del año guardado', 'success'); logActivity('update', 'schools', teacher.school_id, 'Guardó versículo del año') }
-  }
-
   async function loadDocs() {
     const { data } = await supabase
       .from('principle_documents')
@@ -94,7 +206,22 @@ export default function PrinciplesPage({ teacher }) {
     }
   }
 
-  // ── Open month editor ──
+  async function saveYearVerse() {
+    const existing = school.year_verse?.trim()
+    if (existing && !yearVerse.trim()) {
+      showToast('El versículo del año ya está configurado y no puede borrarse.', 'warning')
+      return
+    }
+    setSavingYear(true)
+    const { error } = await supabase
+      .from('schools')
+      .update({ year_verse: yearVerse.trim(), year_verse_ref: yearVerseRef.trim() })
+      .eq('id', teacher.school_id)
+    setSavingYear(false)
+    if (error) { showToast('Error al guardar el versículo del año', 'error'); logError(error, { page: 'PrinciplesPage', action: 'saveYearVerse' }) }
+    else { showToast('Versículo del año guardado', 'success'); logActivity('update', 'schools', teacher.school_id, 'Guardó versículo del año') }
+  }
+
   function openMonth(year, month) {
     const key = `${year}-${String(month).padStart(2,'0')}`
     const row = monthly[key] || {}
@@ -106,13 +233,11 @@ export default function PrinciplesPage({ teacher }) {
     })
   }
 
-  // ── Save monthly principles ──
   async function saveMonth() {
     if (!editing) return
     const [y, m] = editing.split('-').map(Number)
     const existing = monthly[editing] || {}
 
-    // Protect: don't allow clearing a verse that was already set
     if (existing.month_verse?.trim() && !editForm.month_verse.trim()) {
       showToast('El versículo del mes ya configurado no puede borrarse accidentalmente.', 'warning')
       return
@@ -159,7 +284,6 @@ export default function PrinciplesPage({ teacher }) {
       const path = `${teacher.school_id}/${y}/${m}/${Date.now()}_${file.name}`
       const url = `https://vouxrqsiyoyllxgcriic.supabase.co/storage/v1/object/principle-docs/${path}`
 
-      // XHR upload with real progress events
       const result = await new Promise((resolve) => {
         const xhr = new XMLHttpRequest()
         xhr.upload.onprogress = (ev) => {
@@ -169,12 +293,8 @@ export default function PrinciplesPage({ teacher }) {
           }
         }
         xhr.onload = () => {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            resolve({ ok: true })
-          } else {
-            console.error('Upload failed:', xhr.status, xhr.responseText)
-            resolve({ ok: false, error: xhr.responseText })
-          }
+          if (xhr.status >= 200 && xhr.status < 300) resolve({ ok: true })
+          else { console.error('Upload failed:', xhr.status, xhr.responseText); resolve({ ok: false, error: xhr.responseText }) }
         }
         xhr.onerror = () => resolve({ ok: false, error: 'Error de red' })
         xhr.open('POST', url)
@@ -191,7 +311,6 @@ export default function PrinciplesPage({ teacher }) {
         continue
       }
 
-      // Record in DB
       const { data: docData, error: docErr } = await supabase
         .from('principle_documents')
         .insert({
@@ -292,54 +411,88 @@ export default function PrinciplesPage({ teacher }) {
           </button>
         </div>
 
-        {/* ── 2 & 3. Principios Mensuales ── */}
+        {/* ── 2. Principios Mensuales ── */}
         <div className="card">
           <div className="card-title" style={{ color: '#2E5598' }}>
             🗓 Versículo del Mes — {thisYear}
           </div>
           <p style={{ fontSize: '12px', color: '#888', marginBottom: '16px' }}>
-            Lo establece el Capellán cada mes. Selecciona un mes para editarlo.
+            Lo establece el Capellán cada mes. Selecciona un mes para editar su versículo y documentos.
           </p>
 
           {/* Month grid */}
           <div style={{
-            display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '10px',
+            display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '10px',
             marginBottom: '20px',
           }}>
             {MONTHS.map((name, idx) => {
-              const month   = idx + 1
+              const month     = idx + 1
+              const key       = monthKey(month)
               const isCurrent = month === thisMonth
-              const done    = hasData(month)
+              const done      = hasData(month)
+              const monthDocs = docs[key] || []
+              const isEditing = editing === key
+
               return (
-                <button
+                <div
                   key={month}
-                  onClick={() => openMonth(thisYear, month)}
                   style={{
-                    padding: '12px 10px', borderRadius: '8px', border: 'none',
-                    background: editing === monthKey(month)
-                      ? '#2E5598' : isCurrent ? '#e8eef8' : '#f5f7fa',
-                    color: editing === monthKey(month) ? '#fff' : isCurrent ? '#2E5598' : '#444',
-                    cursor: 'pointer', textAlign: 'left',
-                    boxShadow: isCurrent ? '0 0 0 2px #2E5598' : 'none',
-                    transition: 'all .15s',
+                    borderRadius: '10px', border: isEditing ? '2px solid #2E5598' : '1px solid #e5e7eb',
+                    background: isEditing ? '#eef3fb' : isCurrent ? '#f0f6ff' : '#fafafa',
+                    overflow: 'hidden',
                   }}
                 >
-                  <div style={{ fontWeight: 700, fontSize: '13px', marginBottom: '2px' }}>
-                    {name}
-                    {isCurrent && <span style={{ fontSize: '10px', marginLeft: '6px', opacity: .7 }}>← actual</span>}
-                  </div>
-                  {done && monthly[monthKey(month)]?.principle_name && (
-                    <div style={{ fontSize: '11px', fontStyle: 'italic', color: editing === monthKey(month) ? 'rgba(255,255,255,.8)' : '#2E5598', marginBottom: '2px' }}>
-                      {monthly[monthKey(month)].principle_name}
+                  {/* Month header — clickable to open editor */}
+                  <button
+                    onClick={() => openMonth(thisYear, month)}
+                    style={{
+                      width: '100%', padding: '11px 12px', border: 'none',
+                      background: 'none', cursor: 'pointer', textAlign: 'left',
+                    }}
+                  >
+                    <div style={{ fontWeight: 700, fontSize: '13px', color: isEditing ? '#2E5598' : isCurrent ? '#2E5598' : '#333', marginBottom: '2px' }}>
+                      {name}
+                      {isCurrent && <span style={{ fontSize: '10px', marginLeft: '6px', opacity: .7, color: '#2E5598' }}>← actual</span>}
+                    </div>
+                    {done && monthly[key]?.principle_name && (
+                      <div style={{ fontSize: '11px', fontStyle: 'italic', color: '#2E5598', marginBottom: '2px' }}>
+                        {monthly[key].principle_name}
+                      </div>
+                    )}
+                    <div style={{ fontSize: '11px', color: done ? '#16a34a' : '#aaa' }}>
+                      {done ? '✅ Configurado' : '— Sin configurar'}
+                    </div>
+                  </button>
+
+                  {/* Document chips — always visible */}
+                  {monthDocs.length > 0 && (
+                    <div style={{
+                      display: 'flex', flexWrap: 'wrap', gap: '4px',
+                      padding: '0 10px 10px',
+                    }}>
+                      {monthDocs.map(doc => (
+                        <button
+                          key={doc.id}
+                          onClick={() => setViewingDoc(doc)}
+                          title={doc.file_name}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: '4px',
+                            padding: '3px 8px', borderRadius: '20px',
+                            border: '1px solid #c5d5f0', background: '#fff',
+                            cursor: 'pointer', fontSize: '11px', color: '#2E5598',
+                            fontWeight: 600, maxWidth: '100%',
+                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                          }}
+                        >
+                          <span>{fileIcon(doc.mime_type)}</span>
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '120px' }}>
+                            {doc.file_name}
+                          </span>
+                        </button>
+                      ))}
                     </div>
                   )}
-                  <div style={{ fontSize: '11px', opacity: .75 }}>
-                    {done ? '✅ Configurado' : '— Sin configurar'}
-                    {(docs[monthKey(month)]?.length || 0) > 0 && (
-                      <span style={{ marginLeft: 6 }}>📎 {docs[monthKey(month)].length}</span>
-                    )}
-                  </div>
-                </button>
+                </div>
               )
             })}
           </div>
@@ -401,16 +554,19 @@ export default function PrinciplesPage({ teacher }) {
                         display: 'flex', alignItems: 'center', gap: '8px',
                         background: '#f0f4fb', borderRadius: '8px', padding: '7px 10px',
                       }}>
-                        <span style={{ fontSize: '16px' }}>
-                          {doc.mime_type?.includes('pdf') ? '📄' : '📝'}
-                        </span>
-                        <a
-                          href={supabase.storage.from('principle-docs').getPublicUrl(doc.file_path).data.publicUrl}
-                          target="_blank" rel="noopener noreferrer"
-                          style={{ flex: 1, fontSize: '12px', color: '#2E5598', textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                        <span style={{ fontSize: '16px' }}>{fileIcon(doc.mime_type)}</span>
+                        {/* Open modal instead of new tab */}
+                        <button
+                          onClick={() => setViewingDoc(doc)}
+                          style={{
+                            flex: 1, textAlign: 'left', background: 'none', border: 'none',
+                            fontSize: '12px', color: '#2E5598', cursor: 'pointer',
+                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                            fontWeight: 600,
+                          }}
                         >
                           {doc.file_name}
-                        </a>
+                        </button>
                         {doc.file_size && (
                           <span style={{ fontSize: '11px', color: '#aaa', flexShrink: 0 }}>
                             {(doc.file_size / 1024).toFixed(0)} KB
@@ -434,6 +590,7 @@ export default function PrinciplesPage({ teacher }) {
                     <ProgressBar pct={pct} color="#2E5598" />
                   </div>
                 ))}
+
                 <button
                   className={`prin-upload-btn${uploading ? ' cbf-loading' : ''}`}
                   onClick={() => fileRef.current.click()}
@@ -468,10 +625,7 @@ export default function PrinciplesPage({ teacher }) {
                 >
                   {savingMonth ? <><Spinner /> Guardando…</> : '💾 Guardar principio'}
                 </button>
-                <button
-                  className="btn-secondary"
-                  onClick={() => setEditing(null)}
-                >
+                <button className="btn-secondary" onClick={() => setEditing(null)}>
                   Cancelar
                 </button>
               </div>
@@ -480,6 +634,11 @@ export default function PrinciplesPage({ teacher }) {
         </div>
 
       </div>
+
+      {/* ── Document viewer modal ── */}
+      {viewingDoc && (
+        <DocViewerModal doc={viewingDoc} onClose={() => setViewingDoc(null)} />
+      )}
 
     </div>
   )
