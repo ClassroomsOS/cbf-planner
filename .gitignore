@@ -4,8 +4,9 @@ dist
 .env.local
 .env.production.local
 .DS_Store
-"supabase.exe"
-"ANTHROPIC_API_KEY"
-"ANTHROPIC_API_KEY"
-"ANTHROPIC_API_KEY"
-image_errors/ 
+supabase.exe
+ANTHROPIC_API_KEY
+image_errors/
+supabase/.temp/
+.claude/settings.local.json
+theoric mark/*.pdf
