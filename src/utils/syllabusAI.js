@@ -243,8 +243,274 @@ Responde SOLO con JSON válido:
 // ══════════════════════════════════════════════════════════════════════════════
 
 /**
+ * Deep analysis of textbook pages using Claude Vision.
+ * Extracts grammar points, vocabulary, exercise types, prerequisites and teaching challenges
+ * in addition to the standard page classification.
+ *
+ * This replaces analyzeBookPages in the new 5-phase wizard.
+ * The old analyzeBookPages is kept for backward compatibility (LibraryPage PDF viewer).
+ *
+ * @param {Array<{pageNum: number, base64: string}>} pages - Rendered page images (max 5)
+ * @param {{ subject: string, grade: string, bookTitle: string }} context
+ * @returns {Promise<{analysis: Array, error: string|null}>}
+ *   analysis = [{page, content_type, complexity, subunit, is_workbook, summary,
+ *                estimated_minutes, grammar_points[], vocabulary_topics[],
+ *                exercise_types[], prerequisite_knowledge, teaching_challenges}]
+ */
+export async function deepAnalyzeBookPages(pages, context = {}) {
+  if (!pages?.length) return { analysis: [], error: 'No hay páginas para analizar' }
+
+  const imageBlocks = pages
+    .filter(p => p?.base64)
+    .slice(0, 5)
+    .map(p => ({
+      type: 'image',
+      source: { type: 'base64', media_type: 'image/jpeg', data: p.base64 },
+    }))
+
+  if (!imageBlocks.length) return { analysis: [], error: 'No se pudieron procesar las imágenes' }
+
+  const pageNumbers = pages.slice(0, 5).map(p => p.pageNum)
+
+  const prompt = `You are deeply analyzing ${imageBlocks.length} pages from "${context.bookTitle || 'textbook'}" — ${context.subject || 'English'} for grade ${context.grade || '8th'}.
+
+PAGE NUMBERS (in order): ${pageNumbers.join(', ')}
+
+For EACH page, provide a THOROUGH analysis with these fields:
+- page: the page number
+- content_type: one of "grammar_new" | "grammar_practice" | "vocabulary" | "reading" | "listening" | "speaking" | "writing" | "workbook" | "review" | "test" | "warmup" | "project"
+- complexity: 1-5 (1=simple warmup/review, 2=guided practice, 3=standard new concept, 4=complex skill/dense grammar, 5=multiple new grammar structures simultaneously)
+- subunit: visible label (e.g. "3A", "3B", "Unit 3 Review", "WB p.28") — use null if not visible
+- is_workbook: true if workbook/practice book page
+- summary: ONE sentence describing what this page teaches/practices
+- estimated_minutes: realistic class time (grammar_new 40-50, grammar_practice 20-30, vocabulary 25-35, reading 30-40, listening 25-35, speaking 25-35, workbook 20-30, warmup 10-15, review 20-30)
+- grammar_points: array of specific grammar structures on this page (e.g. ["Present Perfect", "irregular past participles"]) — empty array if none
+- vocabulary_topics: array of vocabulary themes/fields (e.g. ["daily routines", "household chores"]) — empty array if none
+- exercise_types: array of exercise formats visible (e.g. ["fill-in-blank", "matching", "free writing", "gap fill", "multiple choice"]) — empty array if none
+- prerequisite_knowledge: what students must already know to do this page (one sentence, null if none)
+- teaching_challenges: main difficulty a teacher will face with this page (one sentence, null if none)
+
+RESPOND ONLY with valid JSON, no markdown, no explanation:
+{"analysis": [{"page": N, "content_type": "...", "complexity": N, "subunit": "...", "is_workbook": false, "summary": "...", "estimated_minutes": N, "grammar_points": [], "vocabulary_topics": [], "exercise_types": [], "prerequisite_knowledge": "...", "teaching_challenges": "..."}, ...]}`
+
+  try {
+    const raw = await callClaude({
+      type: 'syllabus_deep_analyze_pages',
+      system: 'You are an expert ESL/EFL curriculum analyst. You deeply classify textbook pages extracting grammar structures, vocabulary themes, and teaching insights. Respond ONLY with valid JSON.',
+      message: prompt,
+      maxTokens: 3000,
+      imageBlocks,
+    })
+
+    const text = (raw || '').trim()
+    const jsonStr = text.startsWith('{') ? text : text.match(/\{[\s\S]*\}/)?.[0] || ''
+    if (!jsonStr) return { analysis: [], error: 'La IA no devolvió JSON válido' }
+
+    const parsed = JSON.parse(jsonStr)
+    return { analysis: parsed.analysis || [], error: null }
+  } catch (err) {
+    console.error('[syllabusAI] deepAnalyzeBookPages error:', err)
+    return { analysis: [], error: err.message }
+  }
+}
+
+/**
+ * Classify subunits by difficulty based on aggregated deep page analysis.
+ * Text-only call (no Vision). Groups pages by subunit and produces a
+ * difficulty classification with estimated sessions.
+ *
+ * @param {object} params
+ * @param {Array}  params.page_analysis   - From deepAnalyzeBookPages
+ * @param {Array}  params.units_config    - [{unit_number, title, start_page, end_page, subunits:[]}]
+ * @param {string} params.subject
+ * @param {string} params.grade
+ * @returns {Promise<{classification: Array, error: string|null}>}
+ *   classification = [{subunit, unit_number, difficulty, estimated_sessions, session_type,
+ *                      grammar_points[], vocabulary_topics[], exercise_types[], ai_rationale}]
+ */
+export async function classifySubunitsAI({ page_analysis = [], units_config = [], subject = '', grade = '' }) {
+  if (!page_analysis.length) return { classification: [], error: 'No hay análisis de páginas' }
+
+  // Aggregate page data by subunit
+  const bySubunit = {}
+  page_analysis.forEach(p => {
+    const key = p.subunit || 'misc'
+    if (!bySubunit[key]) bySubunit[key] = { pages: [], unit_number: null }
+    bySubunit[key].pages.push(p)
+    // Try to infer unit_number from units_config
+    if (!bySubunit[key].unit_number && units_config.length) {
+      const unit = units_config.find(u => u.start_page <= p.page && p.page <= u.end_page)
+      if (unit) bySubunit[key].unit_number = unit.unit_number
+    }
+  })
+
+  const subunitBlock = Object.entries(bySubunit).map(([sub, data]) => {
+    const pages = data.pages
+    const avgComplexity = (pages.reduce((s, p) => s + (p.complexity || 3), 0) / pages.length).toFixed(1)
+    const totalMins = pages.reduce((s, p) => s + (p.estimated_minutes || 30), 0)
+    const grammarPoints = [...new Set(pages.flatMap(p => p.grammar_points || []))]
+    const vocabTopics = [...new Set(pages.flatMap(p => p.vocabulary_topics || []))]
+    const exerciseTypes = [...new Set(pages.flatMap(p => p.exercise_types || []))]
+    const contentTypes = [...new Set(pages.map(p => p.content_type))]
+    return `Subunit: ${sub}${data.unit_number ? ` (Unit ${data.unit_number})` : ''}
+  Pages: ${pages.map(p => p.page).join(', ')} (${pages.length} pages)
+  Avg complexity: ${avgComplexity}/5 | Total time: ${totalMins} min
+  Content types: ${contentTypes.join(', ')}
+  Grammar points: ${grammarPoints.join('; ') || 'none'}
+  Vocabulary: ${vocabTopics.join('; ') || 'none'}
+  Exercise types: ${exerciseTypes.join('; ') || 'none'}
+  Teaching challenges: ${pages.filter(p => p.teaching_challenges).map(p => p.teaching_challenges).slice(0, 2).join('; ') || 'none'}`
+  }).join('\n\n')
+
+  const unitsBlock = units_config.length
+    ? units_config.map(u => `  Unit ${u.unit_number}: "${u.title}" (pp. ${u.start_page}–${u.end_page})`).join('\n')
+    : '  (no unit structure specified)'
+
+  const prompt = `You are a curriculum difficulty analyst for ${sanitizeAIInput(subject)} (${sanitizeAIInput(grade)}).
+
+Classify each subunit by difficulty and estimate how many class sessions it needs.
+
+UNITS:
+${unitsBlock}
+
+SUBUNIT DATA (aggregated from page analysis):
+${subunitBlock}
+
+DIFFICULTY CRITERIA:
+- "easy": avg complexity ≤ 2.0, mostly vocabulary/warmup/review — needs 1 session
+- "moderate": avg complexity 2.1–3.5, new concepts with guided practice — needs 1-2 sessions
+- "dense": avg complexity > 3.5 OR multiple new grammar structures — needs 2-4 sessions
+
+RESPOND ONLY with valid JSON:
+{
+  "classification": [
+    {
+      "subunit": "3A",
+      "unit_number": 3,
+      "difficulty": "easy|moderate|dense",
+      "estimated_sessions": 1,
+      "session_type": "vocabulary|grammar_intro|grammar_practice|reading|mixed|review",
+      "grammar_points": ["..."],
+      "vocabulary_topics": ["..."],
+      "exercise_types": ["..."],
+      "ai_rationale": "One sentence explaining the classification"
+    }
+  ]
+}`
+
+  try {
+    const raw = await callClaude({
+      type: 'syllabus_classify_subunits',
+      system: 'You are an expert curriculum analyst. Respond ONLY with valid JSON, no markdown.',
+      message: prompt,
+      maxTokens: 3000,
+    })
+
+    const text = (raw || '').trim()
+    const jsonStr = text.startsWith('{') ? text : text.match(/\{[\s\S]*\}/)?.[0] || ''
+    if (!jsonStr) return { classification: [], error: 'La IA no devolvió JSON válido' }
+
+    const parsed = JSON.parse(jsonStr)
+    return { classification: parsed.classification || [], error: null }
+  } catch (err) {
+    console.error('[syllabusAI] classifySubunitsAI error:', err)
+    return { classification: [], error: err.message }
+  }
+}
+
+/**
+ * Generate teaching strategies for DENSE subunits (difficulty='dense', complexity >= 4).
+ * Provides introduction approach, scaffolding techniques, common mistakes, visual aids,
+ * and session flow for difficult content.
+ *
+ * @param {object} params
+ * @param {Array}  params.subunit_classification - From classifySubunitsAI (all subunits)
+ * @param {Array}  params.page_analysis         - From deepAnalyzeBookPages (for detail)
+ * @param {string} params.subject
+ * @param {string} params.grade
+ * @returns {Promise<{strategies: Array, error: string|null}>}
+ *   strategies = [{subunit, unit_number, content_focus, strategies:{
+ *     introduction, scaffolding[], common_mistakes[], visual_aids[], session_flow}}]
+ */
+export async function generateTeachingStrategiesAI({ subunit_classification = [], page_analysis = [], subject = '', grade = '' }) {
+  // Only generate for dense subunits
+  const denseSubunits = subunit_classification.filter(s => s.difficulty === 'dense')
+  if (!denseSubunits.length) return { strategies: [], error: null }
+
+  const denseBlock = denseSubunits.map(s => {
+    // Get detailed page data for this subunit
+    const pages = page_analysis.filter(p => p.subunit === s.subunit)
+    const challenges = [...new Set(pages.filter(p => p.teaching_challenges).map(p => p.teaching_challenges))]
+    const prereqs = [...new Set(pages.filter(p => p.prerequisite_knowledge).map(p => p.prerequisite_knowledge))]
+    return `Subunit: ${s.subunit} (Unit ${s.unit_number})
+  Focus: ${s.session_type} — ${s.estimated_sessions} sessions needed
+  Grammar points: ${(s.grammar_points || []).join(', ') || 'none'}
+  Vocabulary: ${(s.vocabulary_topics || []).join(', ') || 'none'}
+  Exercise types: ${(s.exercise_types || []).join(', ') || 'none'}
+  Prerequisite knowledge: ${prereqs.join('; ') || 'none'}
+  Known challenges: ${challenges.join('; ') || 'none'}
+  AI rationale: ${s.ai_rationale || 'dense content'}`
+  }).join('\n\n')
+
+  const prompt = `You are an expert EFL/ESL pedagogical coach for ${sanitizeAIInput(subject)} (${sanitizeAIInput(grade)}) at a Christian school in Colombia.
+
+Generate specific, practical teaching strategies for each DENSE subunit below. These strategies will be shown to the teacher before class and will inform how the AI generates lesson guides.
+
+DENSE SUBUNITS REQUIRING STRATEGIES:
+${denseBlock}
+
+For each subunit, provide:
+- introduction: How to open the lesson and present this content (2-3 sentences). Focus on discovery/inductive approach.
+- scaffolding: 3-4 specific techniques to support student understanding (arrays of actionable items)
+- common_mistakes: 2-3 typical errors students make with this content (be specific)
+- visual_aids: 2-3 concrete visual tools or diagrams the teacher should prepare
+- session_flow: Brief description of how to sequence the sessions (e.g. "Session 1: discovery + pattern. Session 2: controlled practice. Session 3: production.")
+
+Use ${['Language Arts', 'English'].includes(subject) ? 'English' : 'Spanish'} in your response.
+
+RESPOND ONLY with valid JSON:
+{
+  "strategies": [
+    {
+      "subunit": "3B",
+      "unit_number": 3,
+      "content_focus": "Present Perfect — introduction and practice",
+      "strategies": {
+        "introduction": "...",
+        "scaffolding": ["...", "...", "..."],
+        "common_mistakes": ["...", "...", "..."],
+        "visual_aids": ["...", "...", "..."],
+        "session_flow": "..."
+      }
+    }
+  ]
+}`
+
+  try {
+    const raw = await callClaude({
+      type: 'syllabus_teaching_strategies',
+      system: 'You are an expert EFL/ESL pedagogical coach. Provide practical, classroom-ready teaching strategies. Respond ONLY with valid JSON.',
+      message: prompt,
+      maxTokens: 4000,
+    })
+
+    const text = (raw || '').trim()
+    const jsonStr = text.startsWith('{') ? text : text.match(/\{[\s\S]*\}/)?.[0] || ''
+    if (!jsonStr) return { strategies: [], error: 'La IA no devolvió JSON válido' }
+
+    const parsed = JSON.parse(jsonStr)
+    return { strategies: parsed.strategies || [], error: null }
+  } catch (err) {
+    console.error('[syllabusAI] generateTeachingStrategiesAI error:', err)
+    return { strategies: [], error: err.message }
+  }
+}
+
+/**
  * Analyze a batch of textbook pages using Claude Vision.
  * Returns per-page classification: content_type, complexity, subunit, etc.
+ * KEPT for backward compatibility (LibraryPage PDF viewer, old wizard plans).
+ * New wizard uses deepAnalyzeBookPages instead.
  *
  * @param {Array<{pageNum: number, base64: string}>} pages - Rendered page images
  * @param {{ subject: string, grade: string, bookTitle: string }} context
@@ -327,6 +593,9 @@ export async function distributePagesByWeek({
   subject = '',
   grade = '',
   units_config = [],
+  subunit_classification = [],   // NEW: difficulty-aware distribution
+  teaching_strategies = [],      // NEW: strategies inform session descriptions
+  start_unit = 1,               // NEW: skip units before this one
 }) {
   if (!page_analysis.length) return { distribution: [], error: 'No hay análisis de páginas' }
   if (!working_weeks.length) return { distribution: [], error: 'No hay semanas hábiles' }
@@ -360,9 +629,31 @@ export async function distributePagesByWeek({
     return `  Semana ${w.week}: ${w.days.length} días [${daysList}]`
   }).join('\n')
 
+  // Build subunit difficulty context for smarter distribution
+  const classificationBlock = subunit_classification.length
+    ? subunit_classification.map(s =>
+        `  ${s.subunit}: ${s.difficulty} — ${s.estimated_sessions} session(s) — ${s.session_type}` +
+        (s.grammar_points?.length ? ` [Grammar: ${s.grammar_points.join(', ')}]` : '') +
+        (s.ai_rationale ? ` — ${s.ai_rationale}` : '')
+      ).join('\n')
+    : '  (no classification available — distribute by complexity)'
+
+  // Build relevant teaching strategy hints for dense subunits
+  const strategiesHint = teaching_strategies.length
+    ? teaching_strategies.map(s =>
+        `  ${s.subunit}: ${s.content_focus}\n    Session flow: ${s.strategies?.session_flow || 'N/A'}`
+      ).join('\n')
+    : '  (none)'
+
+  const startUnitNote = start_unit > 1
+    ? `START FROM: Unit ${start_unit} — skip all content before Unit ${start_unit}.`
+    : 'Start from the first page in the analysis.'
+
   const prompt = `You are an expert curriculum planner for ${sanitizeAIInput(subject)} (${sanitizeAIInput(grade)}).
 
-TASK: Distribute these textbook pages across the available teaching days, creating a realistic class-by-class plan.
+TASK: Distribute these textbook pages across the available teaching days, creating a realistic class-by-class plan. Use the subunit difficulty classification to allocate MORE sessions to dense content.
+
+${startUnitNote}
 
 ═══ TEACHER SCHEDULE (hours per day of the week) ═══
 ${dayHoursBlock}
@@ -370,6 +661,13 @@ ${dayHoursBlock}
 
 ═══ UNITS ═══
 ${unitsBlock}
+
+═══ SUBUNIT DIFFICULTY CLASSIFICATION ═══
+(Use this to allocate sessions — dense subunits need more days)
+${classificationBlock}
+
+═══ SESSION FLOW HINTS FOR DENSE CONTENT ═══
+${strategiesHint}
 
 ═══ PAGES TO DISTRIBUTE (${page_analysis.length} pages total) ═══
 ${pagesBlock}
@@ -386,9 +684,13 @@ Total: ${working_weeks.length} weeks
 3. Pages with complexity 1-2 (warmup, simple practice): can group 2-3 per hour.
 4. Workbook pages should be paired with their related main book page when possible.
 5. Keep subunit pages together — don't split a subunit across weeks if avoidable.
-6. Leave review/buffer days at the end of each unit (1 day per unit).
-7. If days have 0 class hours, SKIP them entirely.
-8. Each day entry must include: pages array, focus summary, and total_minutes used.
+6. Dense subunits (from classification above) MUST get the full estimated_sessions allocated.
+7. Leave review/buffer days at the end of each unit (1 day per unit).
+8. If days have 0 class hours, SKIP them entirely.
+9. Each day entry MUST include: pages[], focus, total_minutes, class_hours, AND:
+   - key_grammar (array of grammar points covered that session, empty if none)
+   - key_vocabulary (array of vocab topics, empty if none)
+   - suggested_approach (one sentence on how to approach this session, null if easy/moderate)
 
 RESPOND ONLY with valid JSON:
 {
@@ -396,9 +698,25 @@ RESPOND ONLY with valid JSON:
     {
       "week": 1,
       "days": {
-        "mon": {"pages": [24, 25], "focus": "Unit 3A — Present Perfect introduction", "total_minutes": 45, "class_hours": 1},
+        "mon": {
+          "pages": [24, 25],
+          "focus": "Unit 3A — Present Perfect introduction",
+          "total_minutes": 45,
+          "class_hours": 1,
+          "key_grammar": ["Present Perfect structure"],
+          "key_vocabulary": [],
+          "suggested_approach": "Discovery: show 5 example sentences, ask students to find the pattern."
+        },
         "tue": null,
-        "wed": {"pages": [26, 27, 28], "focus": "Unit 3A — Practice + Workbook", "total_minutes": 85, "class_hours": 2}
+        "wed": {
+          "pages": [26, 27],
+          "focus": "Unit 3A — Practice + Workbook",
+          "total_minutes": 85,
+          "class_hours": 2,
+          "key_grammar": ["Present Perfect vs Past Simple"],
+          "key_vocabulary": [],
+          "suggested_approach": null
+        }
       }
     }
   ]

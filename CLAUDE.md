@@ -351,8 +351,11 @@ Colores, eleot® items y modelos → `src/utils/smartBlockHtml.js` · `src/compo
 | `analyzeTextbookFragment()` | 1500 — Claude Vision: clasifica región de documento → SmartBlock sugerido |
 | `analyzeTextbookPages()` | 2000 — Claude Vision: 1-5 páginas (URLs o `{pageNum,base64}`) → `{unit_summary, key_concepts, vocabulary, grammar_points, suggested_week_plan, suggested_smartblocks}` |
 | `generateGuideStructure()` | acepta `textbookFragments` — fluyen como texto + imágenes reales (`imageBlocks`) a Claude. Máx. 5 imágenes (fragmentos primero, NEWS después) |
-| `analyzeBookPages()` | 2000 — syllabusAI.js: Vision batch (5 págs) → `[{page, content_type, complexity, subunit, is_workbook, summary, estimated_minutes}]` |
-| `distributePagesByWeek()` | 2500 — syllabusAI.js: distribuye páginas según schedule del docente + school_calendar |
+| `analyzeBookPages()` | 2000 — syllabusAI.js: Vision batch (5 págs) → `[{page, content_type, complexity, subunit, is_workbook, summary, estimated_minutes}]` — preservado para LibraryPage |
+| `deepAnalyzeBookPages()` | 3000 — syllabusAI.js: Vision enriquecido → + grammar_points[], vocabulary_topics[], exercise_types[], prerequisite_knowledge, teaching_challenges |
+| `classifySubunitsAI()` | 3000 — syllabusAI.js: clasifica subunidades por dificultad (easy/moderate/dense), estimated_sessions, ai_rationale |
+| `generateTeachingStrategiesAI()` | 4000 — syllabusAI.js: estrategias pedagógicas para subunidades 'dense' (scaffolding, errores comunes, apoyos visuales, flujo de sesiones) |
+| `distributePagesByWeek()` | 2500 — syllabusAI.js: distribuye páginas según schedule + subunit_classification + teaching_strategies + start_unit → key_grammar[], key_vocabulary[], suggested_approach por día |
 | `advisorCheckSession()` | 1200 — syllabusAI.js: valida factibilidad de tiempo por sesión; skip AI si claramente factible/sobrecargado |
 
 **Reglas de comportamiento no documentadas en ai-integration.md:**
@@ -444,13 +447,30 @@ plannerActiveNewsProject    // PlannerPage — fuente primaria de indicator_id
 ### Estado clave — SyllabusPage + SyllabusWizard
 ```javascript
 // SyllabusPage: 3 viewModes — 'list' | 'plan' | 'wizard'
-// SyllabusWizard (src/components/SyllabusWizard.jsx): 4 steps
-//   1. StepSelect — elige libro PDF de Biblioteca, rango de páginas, escaneo Vision batch
-//   2. StepDistribute — genera distribución semanal según horario docente y school_calendar
-//   3. StepResources — asigna recursos por día (video/reading/worksheet/fragment/audio/image/webpage)
-//      + AI advisor para validar factibilidad de tiempo
-//   4. StepConfirm — resumen de stats y publicación
-// syllabusAI.js: analyzeBookPages(), distributePagesByWeek(), advisorCheckSession()
+// SyllabusWizard v2 (src/components/SyllabusWizard.jsx): 5 fases
+//   1. StepSelect   — elige libro PDF, rango de páginas, escaneo deepAnalyzeBookPages,
+//                     selector "Iniciar desde la Unidad N" (start_unit)
+//   2. StepAnalyze  — display enriquecido: grammar_points[], vocabulary_topics[], exercise_types[],
+//                     prerequisite_knowledge, teaching_challenges — cards expandibles
+//   3. StepClassify — classifySubunitsAI: subunidades por dificultad (easy/moderate/dense),
+//                     sesiones editables con +/−, ai_rationale expandible, barra de sesiones
+//   4. StepStrategies — generateTeachingStrategiesAI: estrategias para subunidades 'dense',
+//                       introduction, scaffolding[], common_mistakes[], visual_aids[], session_flow
+//                       — editables inline antes de aceptar
+//   5. StepDistribute — distributePagesByWeek (con classification+strategies+start_unit),
+//                       key_grammar[], key_vocabulary[], suggested_approach por día;
+//                       sub-tabs: Distribución | Recursos | Publicar
+//
+// DB: syllabus_plan.subunit_classification jsonb, teaching_strategies jsonb, start_unit int
+//     (migración 20260518000002)
+//
+// syllabusAI.js: deepAnalyzeBookPages(), classifySubunitsAI(), generateTeachingStrategiesAI(),
+//               distributePagesByWeek() (enhanced), advisorCheckSession()
+//               analyzeBookPages() — preservado para LibraryPage PDF viewer (no usar en wizard)
+//
+// Pipeline guías: GuideEditorPage fetches syllabus_plan.teaching_strategies por subject/grade/period
+//                 → pasa a ConversationalGuideModal → generateGuideStructure recibe teachingStrategies
+//                 → bloque '🎓 TEACHING STRATEGIES' en prompt con instrucciones MOTIVATION+SKILL
 ```
 
 ### Provider pattern — CRÍTICO (no romper)

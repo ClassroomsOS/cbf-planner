@@ -397,7 +397,7 @@ Dame un análisis pedagógico completo. En la sección 🙏 evalúa específicam
 // ── Punto 3: Generar estructura completa desde objetivo ───────────────────────
 export async function generateGuideStructure({
   grade, subject, objective, unit, activeDays, period, planId, achievementGoal, activeNewsProject, principles, piarData,
-  textbookFragments, syllabusTopics, syllabusPageData,
+  textbookFragments, syllabusTopics, syllabusPageData, teachingStrategies,
   _focusHints, checkpointData
 }) {
   const isEnglishSubject = MODELO_B_SUBJECTS.includes(subject)
@@ -1032,6 +1032,31 @@ Las actividades de cada día deben estar ancladas a contenido REAL del libro vis
     return lines.join('\n')
   })() : ''
 
+  // Build teaching strategies block (from Syllabus deep analysis — dense subunits only)
+  const teachingStrategiesBlock = (teachingStrategies?.length) ? (() => {
+    const lines = ['\n🎓 TEACHING STRATEGIES FOR THIS WEEK (approved by teacher):']
+    teachingStrategies.forEach(s => {
+      lines.push(`\n  Subunit ${sanitizeAIInput(s.subunit || '')} — ${sanitizeAIInput(s.content_focus || 'dense content')}:`)
+      if (s.strategies?.introduction)
+        lines.push(`    Introduction: ${sanitizeAIInput(s.strategies.introduction).slice(0, 300)}`)
+      if (s.strategies?.scaffolding?.length)
+        lines.push(`    Scaffolding: ${s.strategies.scaffolding.map(x => sanitizeAIInput(x)).join(' | ')}`)
+      if (s.strategies?.common_mistakes?.length)
+        lines.push(`    Common mistakes to anticipate: ${s.strategies.common_mistakes.map(x => sanitizeAIInput(x)).join(', ')}`)
+      if (s.strategies?.visual_aids?.length)
+        lines.push(`    Visual aids: ${s.strategies.visual_aids.map(x => sanitizeAIInput(x)).join(', ')}`)
+      if (s.strategies?.session_flow)
+        lines.push(`    Session flow: ${sanitizeAIInput(s.strategies.session_flow).slice(0, 300)}`)
+    })
+    lines.push('')
+    lines.push('  → MOTIVATION must include a RECALLING activity that bridges previous session content to current content.')
+    lines.push('    The activation question must reference what students already learned and connect it to today\'s new content.')
+    lines.push('  → SKILL DEVELOPMENT must apply the scaffolding techniques listed above.')
+    lines.push('    Reference specific textbook pages. Anticipate the listed common mistakes — design activities that address them directly.')
+    lines.push('    Follow the session flow when provided.')
+    return lines.join('\n')
+  })() : ''
+
   // Build focus hints block (eleot domains, skill emphasis, preferred blocks)
   const focusBlock = (_focusHints?.length) ? (() => {
     const lines = [
@@ -1099,6 +1124,7 @@ ${milestonesBlock}
 ${checkpointBlock}
 ${syllabusBlock}
 ${syllabusPageBlock}
+${teachingStrategiesBlock}
 ${focusBlock}
 ${piarBlock}
 

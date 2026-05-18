@@ -1,7 +1,7 @@
 # Roadmap y Estado del Proyecto
 
 > Extraído de `CLAUDE.md` + auditoría `docs/auditoria/2026-04-04-auditoria-sistema.md`
-> Última actualización: 2026-05-16
+> Última actualización: 2026-05-17
 
 ---
 
@@ -31,6 +31,7 @@
 | **PIAR en IA** | ✅ Completo | Acomodaciones inyectadas en `generateGuideStructure` sin PII · aviso en ConversationalGuideModal |
 | **Privacidad Telegram** | ✅ Completo | Código anónimo (last-6 instance_id) en alertas y ciclo · columna Código en ExamLiveMonitor |
 | Pipeline imágenes IA | ✅ Completo | Syllabus Wizard: Vision batch 5 págs → analyzeBookPages + distributePagesByWeek + advisorCheckSession · syllabus_session_resources tabla |
+| **Syllabus Inteligente v2** | ✅ Completo | Wizard 5 fases · deepAnalyzeBookPages · classifySubunitsAI · generateTeachingStrategiesAI · start_unit · DB cols nuevas · pipeline teaching_strategies → guías |
 | Refactoring (Fase 3) | ⬜ Pendiente | Archivos grandes, CSS modular, TeacherContext |
 | **Módulo de Evaluación — Backend** | ✅ Completo | 10 tablas, triggers, cola AI, corrección Claude, escala colombiana. Probado E2E. |
 | **Módulo de Evaluación — Frontend** | ✅ Completo | ~~Pantalla creación~~ ✅ · ~~N versiones anti-copia~~ ✅ · ~~Print CBF-G AC-01~~ ✅ · ~~ExamPlayerV2 email-auth~~ ✅ · ~~Antitrampa 5 capas~~ ✅ · ~~Generar instancias por roster~~ ✅ · ~~Preview+edición preguntas por versión~~ ✅ · ~~Dashboard resultados~~ ✅ · ~~Monitor en vivo~~ ✅ · ~~Revisión humana~~ ✅ |

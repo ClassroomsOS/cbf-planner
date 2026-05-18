@@ -178,6 +178,7 @@ export default function GuideEditorPage({ teacher }) {
   const [relinkLoading, setRelinkLoading] = useState(false)
   const [relinkOptions, setRelinkOptions] = useState(null) // null | [] — list of available indicators
   const [linkedSyllabusTopics,    setLinkedSyllabusTopics]    = useState([])
+  const [syllabusTeachingStrategies, setSyllabusTeachingStrategies] = useState([])
   const [linkedNewsProjects, setLinkedNewsProjects] = useState([])
   const [monthPrinciples, setMonthPrinciples] = useState(null)
   const [prevCheckpoint, setPrevCheckpoint] = useState(null) // { achievement, notes, indicatorText, weekNumber }
@@ -617,6 +618,21 @@ export default function GuideEditorPage({ teacher }) {
       .order('created_at')
       .then(({ data }) => setLinkedSyllabusTopics(data || []))
   }, [plan?.subject, plan?.grade, plan?.period, plan?.week_number, teacher.id])
+
+  // ── Load teaching_strategies from syllabus_plan for this guide's week ──
+  useEffect(() => {
+    if (!plan?.subject || !plan?.grade || !plan?.period) return
+    supabase.from('syllabus_plan')
+      .select('teaching_strategies')
+      .eq('teacher_id', teacher.id)
+      .eq('subject', plan.subject)
+      .eq('grade', plan.grade)
+      .eq('period', plan.period)
+      .maybeSingle()
+      .then(({ data }) => {
+        setSyllabusTeachingStrategies(data?.teaching_strategies || [])
+      })
+  }, [plan?.id, plan?.subject, plan?.grade, plan?.period, teacher.id])
 
   // ── Load NEWS projects: direct pointer + indicator_id ──
   useEffect(() => {
@@ -1959,6 +1975,7 @@ export default function GuideEditorPage({ teacher }) {
           piarData={piarData}
           textbookFragments={textbookFragments}
           syllabusTopics={linkedSyllabusTopics}
+          teachingStrategies={syllabusTeachingStrategies}
           checkpointData={prevCheckpoint}
           onApply={handleApplyGenerated}
           onClose={closeGenerator}
