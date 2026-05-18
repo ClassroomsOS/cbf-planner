@@ -352,6 +352,7 @@ Colores, eleot® items y modelos → `src/utils/smartBlockHtml.js` · `src/compo
 | `analyzeTextbookPages()` | 2000 — Claude Vision: 1-5 páginas (URLs o `{pageNum,base64}`) → `{unit_summary, key_concepts, vocabulary, grammar_points, suggested_week_plan, suggested_smartblocks}` |
 | `generateGuideStructure()` | acepta `textbookFragments` — fluyen como texto + imágenes reales (`imageBlocks`) a Claude. Máx. 5 imágenes (fragmentos primero, NEWS después) |
 | `analyzeBookPages()` | 2000 — syllabusAI.js: Vision batch (5 págs) → `[{page, content_type, complexity, subunit, is_workbook, summary, estimated_minutes}]` — preservado para LibraryPage |
+| `scanPageMapping()` | 800 — syllabusAI.js: Vision ligero — escanea cada hoja del PDF para detectar números de página impresos → `[{pdfPage, bookPages[]}]` — construye mapa real bookPage→{pdfPage, side} |
 | `deepAnalyzeBookPages()` | 3000 — syllabusAI.js: Vision enriquecido → + grammar_points[], vocabulary_topics[], exercise_types[], prerequisite_knowledge, teaching_challenges |
 | `classifySubunitsAI()` | 3000 — syllabusAI.js: clasifica subunidades por dificultad (easy/moderate/dense), estimated_sessions, ai_rationale |
 | `generateTeachingStrategiesAI()` | 4000 — syllabusAI.js: estrategias pedagógicas para subunidades 'dense' (scaffolding, errores comunes, apoyos visuales, flujo de sesiones) |
@@ -448,8 +449,10 @@ plannerActiveNewsProject    // PlannerPage — fuente primaria de indicator_id
 ```javascript
 // SyllabusPage: 3 viewModes — 'list' | 'plan' | 'wizard'
 // SyllabusWizard v2 (src/components/SyllabusWizard.jsx): 5 fases
-//   1. StepSelect   — elige libro PDF, rango de páginas, escaneo deepAnalyzeBookPages,
-//                     selector "Iniciar desde la Unidad N" (start_unit)
+//   1. StepSelect   — elige libro PDF, rango de páginas, escaneo 2 fases:
+//                     Fase 1: scanPageMapping() mapea TODAS las hojas del PDF → bookPage→{pdfPage, side}
+//                     Fase 2: deepAnalyzeBookPages() con crop real (spread: left/right half)
+//                     Selector "Iniciar desde la Unidad N" (start_unit)
 //   2. StepAnalyze  — display enriquecido: grammar_points[], vocabulary_topics[], exercise_types[],
 //                     prerequisite_knowledge, teaching_challenges — cards expandibles
 //   3. StepClassify — classifySubunitsAI: subunidades por dificultad (easy/moderate/dense),
@@ -464,8 +467,8 @@ plannerActiveNewsProject    // PlannerPage — fuente primaria de indicator_id
 // DB: syllabus_plan.subunit_classification jsonb, teaching_strategies jsonb, start_unit int
 //     (migración 20260518000002)
 //
-// syllabusAI.js: deepAnalyzeBookPages(), classifySubunitsAI(), generateTeachingStrategiesAI(),
-//               distributePagesByWeek() (enhanced), advisorCheckSession()
+// syllabusAI.js: scanPageMapping(), deepAnalyzeBookPages(), classifySubunitsAI(),
+//               generateTeachingStrategiesAI(), distributePagesByWeek() (enhanced), advisorCheckSession()
 //               analyzeBookPages() — preservado para LibraryPage PDF viewer (no usar en wizard)
 //
 // Pipeline guías: GuideEditorPage fetches syllabus_plan.teaching_strategies por subject/grade/period
