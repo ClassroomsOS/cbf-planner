@@ -317,6 +317,13 @@ RESPOND ONLY with valid JSON, no markdown:
         units[i].end_page = units[i + 1].start_page - 1
       }
     }
+    // Last unit: estimate end_page from average unit size if still missing
+    const lastUnit = units[units.length - 1]
+    if (lastUnit && !lastUnit.end_page) {
+      const sizes = units.filter(u => u.end_page && u.start_page).map(u => u.end_page - u.start_page + 1)
+      const avgSize = sizes.length ? Math.round(sizes.reduce((a, b) => a + b, 0) / sizes.length) : 10
+      lastUnit.end_page = lastUnit.start_page + avgSize - 1
+    }
 
     return { units, error: null }
   } catch (err) {

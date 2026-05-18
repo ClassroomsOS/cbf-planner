@@ -360,7 +360,8 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
       setTocUnits(units)
       // Auto-fill page range from TOC
       const firstPage = Math.min(...units.map(u => u.start_page).filter(Boolean))
-      const lastPage = Math.max(...units.map(u => u.end_page).filter(Boolean))
+      const endPages  = units.map(u => u.end_page).filter(Boolean)
+      const lastPage  = endPages.length ? Math.max(...endPages) : 0
       if (firstPage > 0) setPageStart(firstPage)
       if (lastPage > 0) setPageEnd(lastPage)
       // Auto-select all detected units (user can deselect)
@@ -384,8 +385,11 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
     if (tocUnits.length && selectedUnits.size) {
       const selectedTOC = tocUnits.filter(u => selectedUnits.has(u.unit_number))
       if (selectedTOC.length) {
-        effectiveStart = Math.min(...selectedTOC.map(u => u.start_page).filter(Boolean))
-        effectiveEnd   = Math.max(...selectedTOC.map(u => u.end_page).filter(Boolean))
+        const startPages = selectedTOC.map(u => u.start_page).filter(Boolean)
+        const endPages   = selectedTOC.map(u => u.end_page).filter(Boolean)
+        if (startPages.length) effectiveStart = Math.min(...startPages)
+        // Fallback to pageEnd if last unit has no end_page
+        effectiveEnd = endPages.length ? Math.max(...endPages) : pageEnd
       }
     }
 
@@ -451,7 +455,7 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
           }
         }
 
-        setScanProgress({ current: Math.min(batchEnd - pageStart + 1, totalPages), total: totalPages })
+        setScanProgress({ current: Math.min(batchEnd - effectiveStart + 1, totalPages), total: totalPages })
       }
 
       setPageAnalysis(allAnalysis)
