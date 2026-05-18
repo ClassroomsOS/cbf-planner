@@ -1,11 +1,15 @@
 /**
  * SyllabusWizard.jsx — v2 (5-phase intelligent wizard)
  *
- * Phase 1 SELECT    — Book + page range + deep scan + start unit selection
+ * Phase 1 SELECT    — Book + TOC scan + unit selection for period + deep page scan
  * Phase 2 ANALYZE   — Rich page-analysis display (grammar/vocab chips, expandable)
  * Phase 3 CLASSIFY  — AI subunit classification by difficulty (editable session counts)
  * Phase 4 STRATEGIES— Teaching strategies for dense subunits (editable inline)
  * Phase 5 DISTRIBUTE— Weekly distribution + inline resources + publish
+ *
+ * KEY PRINCIPLE: Only the units selected for the period (startUnit→endUnit) flow
+ * through the entire pipeline. Pages outside that range are never scanned, classified,
+ * or distributed. The TOC scan detects all units; the user picks which ones to study.
  */
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../supabase'
@@ -262,10 +266,22 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
 
   async function handleScanPages() {
     if (!selectedDoc?.file_url) { showToast('Selecciona un libro primero', 'error'); return }
-    if (pageEnd <= pageStart)   { showToast('El rango de páginas es inválido', 'error'); return }
+
+    // When TOC exists, narrow page range to selected units only
+    let effectiveStart = pageStart
+    let effectiveEnd   = pageEnd
+    if (tocUnits.length && startUnit && endUnit) {
+      const selectedTOC = tocUnits.filter(u => u.unit_number >= startUnit && u.unit_number <= endUnit)
+      if (selectedTOC.length) {
+        effectiveStart = Math.min(...selectedTOC.map(u => u.start_page).filter(Boolean))
+        effectiveEnd   = Math.max(...selectedTOC.map(u => u.end_page).filter(Boolean))
+      }
+    }
+
+    if (effectiveEnd <= effectiveStart) { showToast('El rango de páginas es inválido', 'error'); return }
 
     setScanning(true)
-    const totalPages = pageEnd - pageStart + 1
+    const totalPages = effectiveEnd - effectiveStart + 1
     setScanProgress({ current: 0, total: totalPages })
     const allAnalysis = []
     const BATCH_SIZE = 5
@@ -279,8 +295,8 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
       // Accumulated context passed between batches for continuity
       let previousBatch = null  // { lastPage, lastUnit, lastSubunit }
 
-      for (let batchStart = pageStart; batchStart <= pageEnd; batchStart += BATCH_SIZE) {
-        const batchEnd  = Math.min(batchStart + BATCH_SIZE - 1, pageEnd)
+      for (let batchStart = effectiveStart; batchStart <= effectiveEnd; batchStart += BATCH_SIZE) {
+        const batchEnd  = Math.min(batchStart + BATCH_SIZE - 1, effectiveEnd)
         const batchPages = []
 
         for (let pageNum = batchStart; pageNum <= batchEnd; pageNum++) {
@@ -301,9 +317,11 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
           // Build known unit boundaries from what we've detected so far
           const knownUnits = allAnalysis.length ? detectUnitsFromAnalysis(allAnalysis) : []
 
+          // Only pass the selected units to AI — it shouldn't see units outside the period
+          const selectedTocUnits = tocUnits.filter(u => u.unit_number >= startUnit && u.unit_number <= endUnit)
           const { analysis, error } = await deepAnalyzeBookPages(batchPages, {
             subject, grade, bookTitle: selectedDoc.title,
-            tocUnits,       // authoritative TOC data (if scanned)
+            tocUnits: selectedTocUnits,
             previousBatch,
             knownUnits,
           })
@@ -355,8 +373,9 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
     // TOC is the authoritative source — no guessing needed.
     if (tocUnits.length) {
       const unitsMap = {}
-      // Initialize from TOC (preserves title and skills even if no pages scanned yet)
-      for (const tu of tocUnits) {
+      // Only include units in the selected period range
+      const selectedTOC = tocUnits.filter(u => u.unit_number >= startUnit && u.unit_number <= endUnit)
+      for (const tu of selectedTOC) {
         unitsMap[tu.unit_number] = {
           unit_number: tu.unit_number,
           title: tu.title || `Unit ${tu.unit_number}`,
@@ -369,10 +388,9 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
 
       // Assign each scanned page to its TOC unit by page range
       for (const page of sorted) {
-        // Find the unit whose range contains this page
-        const tocUnit = tocUnits.find((u, i) => {
+        const tocUnit = selectedTOC.find((u, i) => {
           const start = u.start_page
-          const end = u.end_page || (tocUnits[i + 1]?.start_page ? tocUnits[i + 1].start_page - 1 : Infinity)
+          const end = u.end_page || (selectedTOC[i + 1]?.start_page ? selectedTOC[i + 1].start_page - 1 : Infinity)
           return page.page >= start && page.page <= end
         })
         if (!tocUnit) continue
@@ -455,13 +473,23 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
   // ══════════════════════════════════════════════════════════════════════════
   // PHASE 3: CLASSIFY SUBUNITS
   // ══════════════════════════════════════════════════════════════════════════
+  // Helper: filter page analysis and units to the selected period range
+  function getSelectedPageAnalysis() {
+    return pageAnalysis.filter(p => p.unit_number >= startUnit && p.unit_number <= endUnit)
+  }
+  function getSelectedUnitsConfig() {
+    return unitsConfig.filter(u => u.unit_number >= startUnit && u.unit_number <= endUnit)
+  }
+
   async function handleClassify() {
-    if (!pageAnalysis.length) { showToast('Primero escanea las páginas', 'error'); return }
+    const selectedPages = getSelectedPageAnalysis()
+    const selectedUnits = getSelectedUnitsConfig()
+    if (!selectedPages.length) { showToast('No hay páginas en las unidades seleccionadas', 'error'); return }
     setClassifying(true)
     try {
       const { classification, error } = await classifySubunitsAI({
-        page_analysis: pageAnalysis,
-        units_config: unitsConfig,
+        page_analysis: selectedPages,
+        units_config: selectedUnits,
         subject,
         grade,
       })
@@ -490,7 +518,7 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
     try {
       const { strategies, error } = await generateTeachingStrategiesAI({
         subunit_classification: subunitClassification,
-        page_analysis: pageAnalysis,
+        page_analysis: getSelectedPageAnalysis(),
         subject,
         grade,
       })
@@ -530,13 +558,13 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
       if (!remainingWeeks.length) { showToast('No quedan semanas hábiles a partir de hoy', 'error'); setDistributing(false); return }
 
       const { distribution: dist, error } = await distributePagesByWeek({
-        page_analysis: pageAnalysis,
+        page_analysis: getSelectedPageAnalysis(),
         working_weeks: remainingWeeks,
         schedule,
         minutes_per_period: 50,
         subject,
         grade,
-        units_config: unitsConfig,
+        units_config: getSelectedUnitsConfig(),
         subunit_classification: subunitClassification,
         teaching_strategies: teachingStrategies,
         start_unit: startUnit,
@@ -658,7 +686,7 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
           <StepClassify
             subunitClassification={subunitClassification}
             classifying={classifying}
-            pageAnalysis={pageAnalysis}
+            pageAnalysis={getSelectedPageAnalysis()}
             workingWeeks={workingWeeks}
             schedule={schedule}
             onClassify={handleClassify}
@@ -685,12 +713,12 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
 
         {step === 'distribute' && (
           <StepDistribute
-            pageAnalysis={pageAnalysis}
+            pageAnalysis={getSelectedPageAnalysis()}
             distribution={distribution}
             workingWeeks={workingWeeks}
             schedule={schedule}
             distributing={distributing}
-            unitsConfig={unitsConfig}
+            unitsConfig={getSelectedUnitsConfig()}
             subunitClassification={subunitClassification}
             teachingStrategies={teachingStrategies}
             resources={resources}
@@ -765,45 +793,112 @@ function StepSelect({
         {tocUnits.length > 0 && (
           <div style={{ marginTop: 12 }}>
             <div style={{ fontWeight: 600, fontSize: 12, color: '#059669', marginBottom: 6 }}>
-              ✅ {tocUnits.length} unidades detectadas:
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {tocUnits.map(u => (
-                <div key={u.unit_number} style={{
-                  padding: '6px 10px', borderRadius: 8, background: '#ecfdf5',
-                  border: '1px solid #a7f3d0', fontSize: 12, lineHeight: 1.3,
-                }}>
-                  <strong>Unit {u.unit_number}</strong> — pp. {u.start_page}–{u.end_page || '?'}
-                  <div style={{ color: '#6b7280', fontSize: 10 }}>{u.title}</div>
-                </div>
-              ))}
+              ✅ {tocUnits.length} unidades detectadas en el libro
             </div>
           </div>
         )}
       </div>
 
-      {/* ── STEP B: Scan Content Pages ──────────────────────────────── */}
+      {/* ── STEP B: Select units for this period ───────────────────── */}
+      {tocUnits.length > 0 && (
+        <div style={{ background: '#fefce8', border: '1px solid #fde68a', borderRadius: 12, padding: 16, marginBottom: 16 }}>
+          <div style={{ fontWeight: 700, color: '#92400e', marginBottom: 8, fontSize: 14 }}>
+            Paso 2: Seleccionar Unidades del Período
+          </div>
+          <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 10px' }}>
+            Solo las unidades seleccionadas se escanearán, analizarán, clasificarán y distribuirán.
+          </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+            <div>
+              <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4, fontWeight: 600 }}>Desde</div>
+              <select
+                value={startUnit}
+                onChange={e => {
+                  const val = +e.target.value
+                  setStartUnit(val)
+                  if (endUnit && val > endUnit) setEndUnit(val)
+                }}
+                style={{ padding: '8px 12px', borderRadius: 8, border: '2px solid #2563eb', background: '#eff6ff', fontWeight: 700, fontSize: 14, color: '#1d4ed8', cursor: 'pointer' }}
+              >
+                {tocUnits.map(u => (
+                  <option key={u.unit_number} value={u.unit_number}>Unit {u.unit_number}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{ fontSize: 18, color: '#9ca3af', paddingTop: 18 }}>→</div>
+            <div>
+              <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4, fontWeight: 600 }}>Hasta</div>
+              <select
+                value={endUnit || tocUnits[tocUnits.length - 1]?.unit_number || ''}
+                onChange={e => setEndUnit(+e.target.value)}
+                style={{ padding: '8px 12px', borderRadius: 8, border: '2px solid #16a34a', background: '#f0fdf4', fontWeight: 700, fontSize: 14, color: '#15803d', cursor: 'pointer' }}
+              >
+                {tocUnits.filter(u => u.unit_number >= startUnit).map(u => (
+                  <option key={u.unit_number} value={u.unit_number}>Unit {u.unit_number}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {tocUnits.map(u => {
+              const effectiveEnd = endUnit || tocUnits[tocUnits.length - 1]?.unit_number
+              const isInRange = u.unit_number >= startUnit && u.unit_number <= effectiveEnd
+              return (
+                <div key={u.unit_number} style={{
+                  padding: '6px 10px', borderRadius: 8, fontSize: 12, lineHeight: 1.3,
+                  background: isInRange ? '#eff6ff' : '#f9fafb',
+                  border: `1.5px solid ${isInRange ? '#2563eb' : '#e5e7eb'}`,
+                  color: isInRange ? '#1d4ed8' : '#9ca3af',
+                  opacity: isInRange ? 1 : 0.5,
+                }}>
+                  <strong>{isInRange ? '▶ ' : ''}Unit {u.unit_number}</strong> — pp. {u.start_page}–{u.end_page || '?'}
+                  <div style={{ color: isInRange ? '#6b7280' : '#d1d5db', fontSize: 10 }}>{u.title}</div>
+                </div>
+              )
+            })}
+          </div>
+          {(() => {
+            const selected = tocUnits.filter(u => u.unit_number >= startUnit && u.unit_number <= (endUnit || tocUnits[tocUnits.length - 1]?.unit_number))
+            const pStart = Math.min(...selected.map(u => u.start_page).filter(Boolean))
+            const pEnd   = Math.max(...selected.map(u => u.end_page).filter(Boolean))
+            return (
+              <div style={{ marginTop: 10, fontSize: 13, color: '#6b7280' }}>
+                Escanear <strong>Unit {startUnit} → Unit {endUnit || tocUnits[tocUnits.length - 1]?.unit_number}</strong> — páginas {pStart}–{pEnd} ({pEnd - pStart + 1} páginas)
+              </div>
+            )
+          })()}
+        </div>
+      )}
+
+      {/* ── STEP C: Scan Content Pages ──────────────────────────────── */}
       <div style={{ background: tocUnits.length ? '#fff' : '#fef3c7', border: `1px solid ${tocUnits.length ? '#e5e7eb' : '#fcd34d'}`, borderRadius: 12, padding: 16, marginBottom: 16 }}>
         <div style={{ fontWeight: 700, color: '#374151', marginBottom: 8, fontSize: 14 }}>
-          Paso 2: Escanear Páginas de Contenido
+          {tocUnits.length ? 'Paso 3' : 'Paso 2'}: Escanear Páginas de Contenido
         </div>
         {!tocUnits.length && (
           <p style={{ fontSize: 12, color: '#92400e', margin: '0 0 10px', fontWeight: 500 }}>
             Recomendado: escanea primero el índice (Paso 1) para que las unidades se asignen correctamente.
           </p>
         )}
-        <div className="sw-range-row">
-          <div className="sw-field-group">
-            <label className="sw-label">Desde página</label>
-            <input type="number" className="sw-input" min={1} value={pageStart} onChange={e => setPageStart(+e.target.value)} />
+        {!tocUnits.length && (
+          <div className="sw-range-row">
+            <div className="sw-field-group">
+              <label className="sw-label">Desde página</label>
+              <input type="number" className="sw-input" min={1} value={pageStart} onChange={e => setPageStart(+e.target.value)} />
+            </div>
+            <div className="sw-range-arrow">→</div>
+            <div className="sw-field-group">
+              <label className="sw-label">Hasta página</label>
+              <input type="number" className="sw-input" min={pageStart + 1} value={pageEnd} onChange={e => setPageEnd(+e.target.value)} />
+            </div>
+            <div className="sw-range-total">{pageEnd - pageStart + 1} páginas</div>
           </div>
-          <div className="sw-range-arrow">→</div>
-          <div className="sw-field-group">
-            <label className="sw-label">Hasta página</label>
-            <input type="number" className="sw-input" min={pageStart + 1} value={pageEnd} onChange={e => setPageEnd(+e.target.value)} />
-          </div>
-          <div className="sw-range-total">{pageEnd - pageStart + 1} páginas</div>
-        </div>
+        )}
+        {tocUnits.length > 0 && (
+          <p style={{ fontSize: 12, color: '#059669', margin: '0 0 10px' }}>
+            Se escanearán solo las páginas de las unidades seleccionadas ({startUnit}–{endUnit || tocUnits[tocUnits.length - 1]?.unit_number}).
+          </p>
+        )}
 
         <button className="sw-btn sw-btn-primary" onClick={onScan} disabled={scanning || !selectedDocId}>
           {scanning
@@ -820,81 +915,10 @@ function StepSelect({
 
       {pageAnalysis.length > 0 && (
         <div className="sw-analysis-section">
-          <h4 className="sw-section-title">✅ {pageAnalysis.length} páginas analizadas</h4>
-
-          {/* Unit range selector: Desde/Hasta */}
-          {unitsConfig.length > 0 && (
-            <div style={{ marginBottom: 20 }}>
-              <div style={{ fontWeight: 600, marginBottom: 10, color: '#374151' }}>
-                ¿Qué unidades programar este período?
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-                <div>
-                  <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4, fontWeight: 600 }}>Desde</div>
-                  <select
-                    value={startUnit}
-                    onChange={e => {
-                      const val = +e.target.value
-                      setStartUnit(val)
-                      if (endUnit && val > endUnit) setEndUnit(val)
-                    }}
-                    style={{ padding: '8px 12px', borderRadius: 8, border: '2px solid #2563eb', background: '#eff6ff', fontWeight: 700, fontSize: 14, color: '#1d4ed8', cursor: 'pointer' }}
-                  >
-                    {unitsConfig.map(u => (
-                      <option key={u.unit_number} value={u.unit_number}>Unit {u.unit_number}</option>
-                    ))}
-                  </select>
-                </div>
-                <div style={{ fontSize: 18, color: '#9ca3af', paddingTop: 18 }}>→</div>
-                <div>
-                  <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4, fontWeight: 600 }}>Hasta</div>
-                  <select
-                    value={endUnit || unitsConfig[unitsConfig.length - 1]?.unit_number || ''}
-                    onChange={e => setEndUnit(+e.target.value)}
-                    style={{ padding: '8px 12px', borderRadius: 8, border: '2px solid #16a34a', background: '#f0fdf4', fontWeight: 700, fontSize: 14, color: '#15803d', cursor: 'pointer' }}
-                  >
-                    {unitsConfig.filter(u => u.unit_number >= startUnit).map(u => (
-                      <option key={u.unit_number} value={u.unit_number}>Unit {u.unit_number}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Visual unit cards */}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                {unitsConfig.map(u => {
-                  const effectiveEnd = endUnit || unitsConfig[unitsConfig.length - 1]?.unit_number
-                  const isBefore  = u.unit_number < startUnit
-                  const isAfter   = u.unit_number > effectiveEnd
-                  const isInRange = u.unit_number >= startUnit && u.unit_number <= effectiveEnd
-                  return (
-                    <div
-                      key={u.unit_number}
-                      style={{
-                        padding: '8px 14px', borderRadius: 8, border: '1.5px solid',
-                        borderColor: isInRange ? '#2563eb' : '#e5e7eb',
-                        background:  isInRange ? '#eff6ff' : '#f9fafb',
-                        color:       isInRange ? '#1d4ed8' : '#9ca3af',
-                        opacity: isBefore || isAfter ? 0.5 : 1,
-                        fontSize: 13,
-                      }}
-                    >
-                      <span style={{ fontWeight: 700 }}>
-                        {isBefore ? '✓ ' : ''}{isInRange ? '▶ ' : ''}Unit {u.unit_number}
-                      </span>
-                      <span style={{ fontSize: 11, marginLeft: 6 }}>
-                        pp. {u.start_page}–{u.end_page}
-                        {isBefore ? ' · Ya cubierta' : ''}
-                      </span>
-                    </div>
-                  )
-                })}
-              </div>
-              <div style={{ marginTop: 10, fontSize: 13, color: '#6b7280' }}>
-                Programar <strong>Unit {startUnit} → Unit {endUnit || unitsConfig[unitsConfig.length - 1]?.unit_number}</strong> en las semanas restantes del período.
-              </div>
-            </div>
-          )}
+          <h4 className="sw-section-title">
+            ✅ {pageAnalysis.length} páginas analizadas
+            {unitsConfig.length > 0 && ` — Unit ${unitsConfig[0]?.unit_number}–${unitsConfig[unitsConfig.length - 1]?.unit_number}`}
+          </h4>
 
           {/* Page grid preview */}
           <div className="sw-page-grid">
