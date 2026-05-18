@@ -379,24 +379,7 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
   async function handleScanPages() {
     if (!selectedDoc?.file_url) { showToast('Selecciona un libro primero', 'error'); return }
 
-    // TOC already knows each unit's pages — just use them directly
-    let effectiveStart = pageStart
-    let effectiveEnd   = pageEnd
-    if (tocUnits.length && selectedUnits.size) {
-      const selectedTOC = tocUnits
-        .filter(u => selectedUnits.has(u.unit_number))
-        .sort((a, b) => a.start_page - b.start_page)
-      if (selectedTOC.length) {
-        effectiveStart = selectedTOC[0].start_page
-        effectiveEnd   = selectedTOC[selectedTOC.length - 1].end_page || pageEnd
-      }
-    }
-
-    if (effectiveEnd <= effectiveStart) { showToast('El rango de páginas es inválido', 'error'); return }
-
     setScanning(true)
-    const totalPages = effectiveEnd - effectiveStart + 1
-    setScanProgress({ current: 0, total: totalPages })
     const allAnalysis = []
     const BATCH_SIZE = 5
 
@@ -405,6 +388,25 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
       pdfjsLib.GlobalWorkerOptions.workerSrc =
         `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`
       const pdf = await pdfjsLib.getDocument(selectedDoc.file_url).promise
+
+      // Page range: first selected unit's start_page → last selected unit's end_page
+      // We have pdf.numPages now, so no guessing needed for the last unit.
+      let effectiveStart = pageStart
+      let effectiveEnd   = pageEnd
+      if (tocUnits.length && selectedUnits.size) {
+        const selectedTOC = tocUnits
+          .filter(u => selectedUnits.has(u.unit_number))
+          .sort((a, b) => a.start_page - b.start_page)
+        if (selectedTOC.length) {
+          effectiveStart = selectedTOC[0].start_page
+          effectiveEnd   = selectedTOC[selectedTOC.length - 1].end_page || pdf.numPages
+        }
+      }
+
+      if (effectiveEnd <= effectiveStart) { showToast('El rango de páginas es inválido', 'error'); setScanning(false); return }
+
+      const totalPages = effectiveEnd - effectiveStart + 1
+      setScanProgress({ current: 0, total: totalPages })
 
       // Accumulated context passed between batches for continuity
       let previousBatch = null  // { lastPage, lastUnit, lastSubunit }
