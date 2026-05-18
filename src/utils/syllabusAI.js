@@ -593,12 +593,23 @@ export async function distributePagesByWeek({
   subject = '',
   grade = '',
   units_config = [],
-  subunit_classification = [],   // NEW: difficulty-aware distribution
-  teaching_strategies = [],      // NEW: strategies inform session descriptions
-  start_unit = 1,               // NEW: skip units before this one
+  subunit_classification = [],   // difficulty-aware distribution
+  teaching_strategies = [],      // strategies inform session descriptions
+  start_unit = 1,               // skip units before this one
+  end_unit = null,              // stop at this unit (inclusive); null = no limit
 }) {
   if (!page_analysis.length) return { distribution: [], error: 'No hay análisis de páginas' }
   if (!working_weeks.length) return { distribution: [], error: 'No hay semanas hábiles' }
+
+  // Filter pages to only include the unit range [start_unit, end_unit]
+  const startUnitData = units_config.find(u => u.unit_number === start_unit)
+  const endUnitData   = end_unit ? units_config.find(u => u.unit_number === end_unit) : null
+  const filteredPages = page_analysis.filter(p => {
+    if (startUnitData && p.page < startUnitData.start_page) return false
+    if (endUnitData   && p.page > endUnitData.end_page)     return false
+    return true
+  })
+  if (!filteredPages.length) return { distribution: [], error: 'No hay páginas en el rango de unidades seleccionado' }
 
   // Build schedule context: how many hours per day of the week
   const dayHoursBlock = DAY_KEYS.map(dk => {
@@ -608,8 +619,8 @@ export async function distributePagesByWeek({
     return `  ${DAY_LABELS[dk]}: ${hours} hora(s) = ${mins} minutos disponibles`
   }).join('\n')
 
-  // Build pages context with complexity
-  const pagesBlock = page_analysis.map(p =>
+  // Build pages context with complexity (filtered to unit range)
+  const pagesBlock = filteredPages.map(p =>
     `  p.${p.page} [${p.content_type}] complexity:${p.complexity} ~${p.estimated_minutes}min — ${p.summary || ''}`
   ).join('\n')
 
@@ -645,15 +656,15 @@ export async function distributePagesByWeek({
       ).join('\n')
     : '  (none)'
 
-  const startUnitNote = start_unit > 1
-    ? `START FROM: Unit ${start_unit} — skip all content before Unit ${start_unit}.`
+  const unitRangeNote = start_unit > 1 || end_unit
+    ? `UNIT RANGE: Distribute ONLY Units ${start_unit}${end_unit ? ` through ${end_unit}` : '+'} — all pages provided are within this range.`
     : 'Start from the first page in the analysis.'
 
   const prompt = `You are an expert curriculum planner for ${sanitizeAIInput(subject)} (${sanitizeAIInput(grade)}).
 
 TASK: Distribute these textbook pages across the available teaching days, creating a realistic class-by-class plan. Use the subunit difficulty classification to allocate MORE sessions to dense content.
 
-${startUnitNote}
+${unitRangeNote}
 
 ═══ TEACHER SCHEDULE (hours per day of the week) ═══
 ${dayHoursBlock}
@@ -669,7 +680,7 @@ ${classificationBlock}
 ═══ SESSION FLOW HINTS FOR DENSE CONTENT ═══
 ${strategiesHint}
 
-═══ PAGES TO DISTRIBUTE (${page_analysis.length} pages total) ═══
+═══ PAGES TO DISTRIBUTE (${filteredPages.length} pages, Units ${start_unit}${end_unit ? '–' + end_unit : '+'}) ═══
 ${pagesBlock}
 
 ═══ AVAILABLE WEEKS ═══

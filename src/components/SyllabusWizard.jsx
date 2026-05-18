@@ -14,6 +14,7 @@ import {
   deepAnalyzeBookPages, classifySubunitsAI, generateTeachingStrategiesAI,
   distributePagesByWeek, computeWorkingWeeks, advisorCheckSession,
 } from '../utils/syllabusAI'
+import { ACADEMIC_PERIODS } from '../utils/constants'
 import useSyllabusPlan from '../hooks/useSyllabusPlan'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -89,6 +90,7 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
   const [pageAnalysis, setPageAnalysis] = useState([])   // enriched pages from deepAnalyzeBookPages
   const [unitsConfig, setUnitsConfig] = useState([])     // [{unit_number, title, start_page, end_page, subunits}]
   const [startUnit, setStartUnit] = useState(1)          // unit from which to start the period
+  const [endUnit, setEndUnit] = useState(null)            // last unit to cover (inclusive); null = last detected
 
   // ── Phase 3 state ─────────────────────────────────────────────────────────
   const [subunitClassification, setSubunitClassification] = useState([])
@@ -118,6 +120,7 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
     if (plan.page_end)                      setPageEnd(plan.page_end)
     if (plan.library_doc_id)                setSelectedDocId(plan.library_doc_id)
     if (plan.start_unit)                    setStartUnit(plan.start_unit)
+    if (plan.end_unit)                      setEndUnit(plan.end_unit)
     if (plan.subunit_classification?.length) setSubunitClassification(plan.subunit_classification)
     if (plan.teaching_strategies?.length)   setTeachingStrategies(plan.teaching_strategies)
   }, [plan])
@@ -152,16 +155,23 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
       .select('start_date, end_date')
       .eq('school_id', teacher.school_id)
       .eq('period', parseInt(period))
-      .single()
+      .maybeSingle()
       .then(async ({ data: pc }) => {
-        if (!pc?.start_date || !pc?.end_date) return
+        // Fallback to hardcoded ACADEMIC_PERIODS if table/row doesn't exist
+        const fallback = ACADEMIC_PERIODS.find(p => parseInt(p.value) === parseInt(period))
+        const resolved = pc?.start_date && pc?.end_date
+          ? pc
+          : fallback ? { start_date: fallback.start, end_date: fallback.end } : null
+        if (!resolved) return
+
         const { data: cal } = await supabase.from('school_calendar')
           .select('date')
           .eq('school_id', teacher.school_id)
-          .eq('period', parseInt(period))
-          .eq('no_class', true)
+          .eq('is_school_day', false)
+          .gte('date', resolved.start_date)
+          .lte('date', resolved.end_date)
         const noClassDates = (cal || []).map(c => c.date)
-        setWorkingWeeks(computeWorkingWeeks(pc.start_date, pc.end_date, noClassDates))
+        setWorkingWeeks(computeWorkingWeeks(resolved.start_date, resolved.end_date, noClassDates))
       })
   }, [teacher.school_id, period])
 
@@ -229,8 +239,9 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
       setPageAnalysis(allAnalysis)
       const units = detectUnitsFromAnalysis(allAnalysis)
       setUnitsConfig(units)
-      // Default start_unit to first detected unit
+      // Default start_unit to first detected unit, end_unit to last detected
       if (units.length && startUnit === 1) setStartUnit(units[0].unit_number)
+      if (units.length && !endUnit) setEndUnit(units[units.length - 1].unit_number)
 
       await savePlan({
         library_doc_id: selectedDocId,
@@ -249,25 +260,27 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
   }
 
   function detectUnitsFromAnalysis(analysis) {
-    const units = []
-    let currentUnit = null
+    const unitsMap = {}  // keyed by unit_number for proper aggregation
     for (const page of analysis) {
       const subunit   = page.subunit || ''
       const unitMatch = subunit.match(/(\d+)/)
-      const unitNum   = unitMatch ? parseInt(unitMatch[1]) : (currentUnit?.unit_number || 1)
-      if (!currentUnit || currentUnit.unit_number !== unitNum) {
-        if (currentUnit) units.push(currentUnit)
-        currentUnit = { unit_number: unitNum, title: `Unit ${unitNum}`, start_page: page.page, end_page: page.page, subunits: [] }
+      const unitNum   = unitMatch ? parseInt(unitMatch[1]) : null
+      if (!unitNum) continue  // skip pages without a detectable unit number
+
+      if (!unitsMap[unitNum]) {
+        unitsMap[unitNum] = { unit_number: unitNum, title: `Unit ${unitNum}`, start_page: page.page, end_page: page.page, subunits: [] }
       }
-      currentUnit.end_page = page.page
-      if (subunit && !currentUnit.subunits.find(s => s.label === subunit)) {
-        currentUnit.subunits.push({ label: subunit, pages: [page.page] })
+      const unit = unitsMap[unitNum]
+      if (page.page < unit.start_page) unit.start_page = page.page
+      if (page.page > unit.end_page)   unit.end_page = page.page
+      if (subunit && !unit.subunits.find(s => s.label === subunit)) {
+        unit.subunits.push({ label: subunit, pages: [page.page] })
       } else if (subunit) {
-        currentUnit.subunits.find(s => s.label === subunit)?.pages.push(page.page)
+        unit.subunits.find(s => s.label === subunit)?.pages.push(page.page)
       }
     }
-    if (currentUnit) units.push(currentUnit)
-    return units
+    // Return sorted numerically by unit_number
+    return Object.values(unitsMap).sort((a, b) => a.unit_number - b.unit_number)
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -335,11 +348,21 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
   async function handleDistribute() {
     if (!pageAnalysis.length) { showToast('Primero escanea las páginas', 'error'); return }
     if (!workingWeeks.length) { showToast('No hay semanas hábiles configuradas', 'error'); return }
+    const hasClassDays = DAY_KEYS.some(dk => (schedule[dk] || []).length > 0)
+    if (!hasClassDays) { showToast('No se encontró el horario de clase. Verifica tus asignaciones.', 'error'); return }
     setDistributing(true)
     try {
+      // Filter working weeks: only include weeks from today forward
+      const todayISO = new Date().toISOString().split('T')[0]
+      const remainingWeeks = workingWeeks
+        .filter(w => w.days.some(d => d >= todayISO))
+        .map((w, i) => ({ ...w, week: i + 1 }))  // renumber from 1
+
+      if (!remainingWeeks.length) { showToast('No quedan semanas hábiles a partir de hoy', 'error'); setDistributing(false); return }
+
       const { distribution: dist, error } = await distributePagesByWeek({
         page_analysis: pageAnalysis,
-        working_weeks: workingWeeks,
+        working_weeks: remainingWeeks,
         schedule,
         minutes_per_period: 50,
         subject,
@@ -348,6 +371,7 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
         subunit_classification: subunitClassification,
         teaching_strategies: teachingStrategies,
         start_unit: startUnit,
+        end_unit: endUnit,
       })
       if (error) { showToast(error, 'error'); return }
       setDistribution(dist)
@@ -362,7 +386,7 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
 
   async function handlePublish() {
     if (!distribution.length) { showToast('No hay distribución para publicar', 'error'); return }
-    await savePlan({ status: 'active', page_distribution: distribution, start_unit: startUnit })
+    await savePlan({ status: 'active', page_distribution: distribution, start_unit: startUnit, end_unit: endUnit })
     showToast('✅ Syllabus publicado — se usará en la generación de guías', 'success')
   }
 
@@ -438,9 +462,10 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
             pageAnalysis={pageAnalysis}
             unitsConfig={unitsConfig}
             startUnit={startUnit} setStartUnit={setStartUnit}
+            endUnit={endUnit} setEndUnit={setEndUnit}
             onScan={handleScanPages}
             onNext={async () => {
-              await savePlan({ start_unit: startUnit })
+              await savePlan({ start_unit: startUnit, end_unit: endUnit })
               setStep('analyze')
             }}
           />
@@ -451,6 +476,7 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
             pageAnalysis={pageAnalysis}
             unitsConfig={unitsConfig}
             startUnit={startUnit}
+            endUnit={endUnit}
             onNext={() => setStep('classify')}
             onBack={() => setStep('select')}
           />
@@ -520,7 +546,8 @@ function StepSelect({
   libraryDocs, selectedDocId, setSelectedDocId,
   pageStart, setPageStart, pageEnd, setPageEnd,
   scanning, scanProgress, pageAnalysis, unitsConfig,
-  startUnit, setStartUnit, onScan, onNext,
+  startUnit, setStartUnit, endUnit, setEndUnit,
+  onScan, onNext,
 }) {
   return (
     <div className="sw-step-content">
@@ -564,42 +591,76 @@ function StepSelect({
         <div className="sw-analysis-section">
           <h4 className="sw-section-title">✅ {pageAnalysis.length} páginas analizadas</h4>
 
-          {/* Unit cards — teacher picks start unit */}
+          {/* Unit range selector: Desde/Hasta */}
           {unitsConfig.length > 0 && (
             <div style={{ marginBottom: 20 }}>
               <div style={{ fontWeight: 600, marginBottom: 10, color: '#374151' }}>
-                ¿Desde qué unidad inicia este período?
+                ¿Qué unidades programar este período?
               </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+                <div>
+                  <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4, fontWeight: 600 }}>Desde</div>
+                  <select
+                    value={startUnit}
+                    onChange={e => {
+                      const val = +e.target.value
+                      setStartUnit(val)
+                      if (endUnit && val > endUnit) setEndUnit(val)
+                    }}
+                    style={{ padding: '8px 12px', borderRadius: 8, border: '2px solid #2563eb', background: '#eff6ff', fontWeight: 700, fontSize: 14, color: '#1d4ed8', cursor: 'pointer' }}
+                  >
+                    {unitsConfig.map(u => (
+                      <option key={u.unit_number} value={u.unit_number}>Unit {u.unit_number}</option>
+                    ))}
+                  </select>
+                </div>
+                <div style={{ fontSize: 18, color: '#9ca3af', paddingTop: 18 }}>→</div>
+                <div>
+                  <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4, fontWeight: 600 }}>Hasta</div>
+                  <select
+                    value={endUnit || unitsConfig[unitsConfig.length - 1]?.unit_number || ''}
+                    onChange={e => setEndUnit(+e.target.value)}
+                    style={{ padding: '8px 12px', borderRadius: 8, border: '2px solid #16a34a', background: '#f0fdf4', fontWeight: 700, fontSize: 14, color: '#15803d', cursor: 'pointer' }}
+                  >
+                    {unitsConfig.filter(u => u.unit_number >= startUnit).map(u => (
+                      <option key={u.unit_number} value={u.unit_number}>Unit {u.unit_number}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Visual unit cards */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 {unitsConfig.map(u => {
-                  const isStart   = u.unit_number === startUnit
+                  const effectiveEnd = endUnit || unitsConfig[unitsConfig.length - 1]?.unit_number
                   const isBefore  = u.unit_number < startUnit
+                  const isAfter   = u.unit_number > effectiveEnd
+                  const isInRange = u.unit_number >= startUnit && u.unit_number <= effectiveEnd
                   return (
-                    <button
+                    <div
                       key={u.unit_number}
-                      onClick={() => setStartUnit(u.unit_number)}
                       style={{
-                        padding: '10px 16px', borderRadius: 10, border: '2px solid',
-                        borderColor: isStart ? '#2563eb' : isBefore ? '#d1d5db' : '#d1d5db',
-                        background:  isStart ? '#eff6ff' : isBefore ? '#f9fafb' : '#fff',
-                        color:       isStart ? '#1d4ed8' : isBefore ? '#9ca3af' : '#374151',
-                        cursor: 'pointer', transition: 'all 0.15s', textAlign: 'left',
-                        opacity: isBefore ? 0.6 : 1,
+                        padding: '8px 14px', borderRadius: 8, border: '1.5px solid',
+                        borderColor: isInRange ? '#2563eb' : '#e5e7eb',
+                        background:  isInRange ? '#eff6ff' : '#f9fafb',
+                        color:       isInRange ? '#1d4ed8' : '#9ca3af',
+                        opacity: isBefore || isAfter ? 0.5 : 1,
+                        fontSize: 13,
                       }}
                     >
-                      <div style={{ fontWeight: 600, fontSize: 14 }}>
-                        {isStart ? '▶ ' : isBefore ? '✓ ' : ''}Unit {u.unit_number}
-                      </div>
-                      <div style={{ fontSize: 11, color: 'inherit' }}>
+                      <span style={{ fontWeight: 700 }}>
+                        {isBefore ? '✓ ' : ''}{isInRange ? '▶ ' : ''}Unit {u.unit_number}
+                      </span>
+                      <span style={{ fontSize: 11, marginLeft: 6 }}>
                         pp. {u.start_page}–{u.end_page}
                         {isBefore ? ' · Ya cubierta' : ''}
-                      </div>
-                    </button>
+                      </span>
+                    </div>
                   )
                 })}
               </div>
               <div style={{ marginTop: 10, fontSize: 13, color: '#6b7280' }}>
-                Iniciando desde <strong>Unit {startUnit}</strong> — el análisis y la distribución comenzarán desde aquí.
+                Programar <strong>Unit {startUnit} → Unit {endUnit || unitsConfig[unitsConfig.length - 1]?.unit_number}</strong> en las semanas restantes del período.
               </div>
             </div>
           )}
@@ -635,14 +696,17 @@ function StepSelect({
 // ══════════════════════════════════════════════════════════════════════════════
 // PHASE 2: RICH ANALYSIS DISPLAY
 // ══════════════════════════════════════════════════════════════════════════════
-function StepAnalyze({ pageAnalysis, unitsConfig, startUnit, onNext, onBack }) {
+function StepAnalyze({ pageAnalysis, unitsConfig, startUnit, endUnit, onNext, onBack }) {
   const [expandedPage, setExpandedPage] = useState(null)
 
-  // Filter pages from startUnit onward
+  // Filter pages to selected unit range [startUnit, endUnit]
   const startUnitData = unitsConfig.find(u => u.unit_number === startUnit)
-  const filteredPages = startUnitData
-    ? pageAnalysis.filter(p => p.page >= startUnitData.start_page)
-    : pageAnalysis
+  const endUnitData   = endUnit ? unitsConfig.find(u => u.unit_number === endUnit) : null
+  const filteredPages = pageAnalysis.filter(p => {
+    if (startUnitData && p.page < startUnitData.start_page) return false
+    if (endUnitData   && p.page > endUnitData.end_page)     return false
+    return true
+  })
 
   return (
     <div className="sw-step-content">
@@ -651,7 +715,7 @@ function StepAnalyze({ pageAnalysis, unitsConfig, startUnit, onNext, onBack }) {
         <h3 className="sw-step-title">🔬 Análisis Profundo</h3>
       </div>
       <p className="sw-step-desc">
-        Revisión detallada de {filteredPages.length} páginas desde Unit {startUnit}.
+        Revisión detallada de {filteredPages.length} páginas — Units {startUnit}{endUnit ? `–${endUnit}` : '+'}.
         Toca una tarjeta para ver el detalle completo.
       </p>
 
