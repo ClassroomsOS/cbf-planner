@@ -178,6 +178,10 @@ checkpoints           — indicator_id · target_id nullable (legacy) · plan_id
 eleot_domains/items/block_mapping — seed inmutable (7 dominios · 28 ítems)
 eleot_observations    — historial observaciones Cognia
 school_monthly_principles — year_verse · month_verse · indicator_principle por mes
+principle_documents       — school_id FK · year int · month int · file_name · file_path · file_size · mime_type
+                            uploaded_by FK · principle_id uuid(nullable, legacy FK → school_principles)
+                            Storage bucket: class-library · RLS: principle_docs_write usa school_id (docente del mismo colegio)
+                            Migración 20260518000001: añade school_id/year/month, hace principle_id nullable, reescribe RLS
 weekly_agendas        — grade · section · week_start · content JSONB · status
 schedule_slots        — franjas horario institucional por nivel
 school_calendar       — is_school_day · affects_planning
