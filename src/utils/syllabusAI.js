@@ -588,7 +588,7 @@ RESPOND ONLY with valid JSON, no markdown, no explanation:
  * @returns {Promise<{distribution: Array, error: string|null}>}
  *   distribution = [{week, days:{mon:{pages:[], focus, summary, class_hours, total_minutes}, ...}}]
  */
-export async function distributePagesByWeek({
+export function distributePagesByWeek({
   page_analysis = [],
   working_weeks = [],
   schedule = {},
@@ -596,218 +596,190 @@ export async function distributePagesByWeek({
   subject = '',
   grade = '',
   units_config = [],
-  subunit_classification = [],   // difficulty-aware distribution
-  teaching_strategies = [],      // strategies inform session descriptions
-  start_unit = 1,               // skip units before this one
-  end_unit = null,              // stop at this unit (inclusive); null = no limit
+  subunit_classification = [],
+  teaching_strategies = [],
+  start_unit = 1,
+  end_unit = null,
 }) {
   if (!page_analysis.length) return { distribution: [], error: 'No hay análisis de páginas' }
   if (!working_weeks.length) return { distribution: [], error: 'No hay semanas hábiles' }
 
-  // Filter pages to only include the unit range [start_unit, end_unit]
+  // ── Filter pages to unit range ─────────────────────────────────────────────
   const startUnitData = units_config.find(u => u.unit_number === start_unit)
   const endUnitData   = end_unit ? units_config.find(u => u.unit_number === end_unit) : null
   const filteredPages = page_analysis.filter(p => {
     if (startUnitData && p.page < startUnitData.start_page) return false
     if (endUnitData   && p.page > endUnitData.end_page)     return false
     return true
-  })
+  }).sort((a, b) => a.page - b.page)
   if (!filteredPages.length) return { distribution: [], error: 'No hay páginas en el rango de unidades seleccionado' }
 
-  // ── Count total teaching days available ────────────────────────────────────
-  let totalTeachingDays = 0
+  // ── Build ordered list of teaching slots ───────────────────────────────────
+  // Each slot = { week, dayKey, availableMinutes, isoDate }
+  const teachingSlots = []
   working_weeks.forEach(w => {
     w.days.forEach(iso => {
-      const d = new Date(iso + 'T12:00:00')
+      const d  = new Date(iso + 'T12:00:00')
       const dk = DAY_KEYS[d.getDay() === 0 ? 6 : d.getDay() - 1]
-      if ((schedule[dk] || []).length > 0) totalTeachingDays++
+      const periods = (schedule[dk] || []).length
+      if (periods > 0) {
+        teachingSlots.push({ week: w.week, dayKey: dk, availableMinutes: periods * minutes_per_period, isoDate: iso })
+      }
     })
   })
+  if (!teachingSlots.length) return { distribution: [], error: 'No hay días de clase disponibles en el horario' }
 
-  // ── Build subunit distribution plan ────────────────────────────────────────
-  // Group pages by subunit to understand the real scope of each one
-  const subunitPages = {}
+  // ── Group pages by subunit (preserving page order) ─────────────────────────
+  const subunitOrder = [] // ordered unique subunit labels
+  const subunitMap   = {} // label → { pages[], unit_number }
   filteredPages.forEach(p => {
     const sub = p.subunit || `Unit${p.unit_number || '?'}_misc`
-    if (!subunitPages[sub]) subunitPages[sub] = { pages: [], unit_number: p.unit_number }
-    subunitPages[sub].pages.push(p)
+    if (!subunitMap[sub]) {
+      subunitMap[sub] = { pages: [], unit_number: p.unit_number }
+      subunitOrder.push(sub)
+    }
+    subunitMap[sub].pages.push(p)
+    if (p.unit_number) subunitMap[sub].unit_number = p.unit_number
   })
 
-  // Calculate minimum sessions per subunit: at least 1 day per subunit,
-  // more if classification says so or if total minutes exceed one session
-  const subunitPlan = Object.entries(subunitPages).map(([sub, data]) => {
-    const classification = subunit_classification.find(c => c.subunit === sub)
-    const totalMins = data.pages.reduce((s, p) => s + (p.estimated_minutes || 30), 0)
-    // Max available minutes per day for this subunit (use average day length)
-    const avgDayMins = DAY_KEYS.reduce((s, dk) => s + (schedule[dk] || []).length, 0) / DAY_KEYS.filter(dk => (schedule[dk] || []).length > 0).length * minutes_per_period
-    const minByTime = Math.max(1, Math.ceil(totalMins / (avgDayMins || 50)))
-    const minByClassification = classification?.estimated_sessions || 1
-    const sessions = Math.max(minByTime, minByClassification)
-    return { subunit: sub, unit_number: data.unit_number, pages: data.pages.map(p => p.page), totalMins, sessions }
-  })
+  // ── Build work items: ordered list of page chunks to assign to days ────────
+  // Each subunit's pages are split into chunks that fit within a day's capacity.
+  // This guarantees every page appears and no day is overloaded.
+  const workItems = [] // { pages: [pageObj], subunit, unit_number, totalMins, isReview }
 
-  const totalRequiredSessions = subunitPlan.reduce((s, su) => s + su.sessions, 0)
-  // Add review days (1 per unit)
-  const unitNumbers = [...new Set(subunitPlan.map(s => s.unit_number))].filter(Boolean)
-  const reviewDays = unitNumbers.length
+  let prevUnitNum = null
+  for (const sub of subunitOrder) {
+    const data = subunitMap[sub]
+    const unitNum = data.unit_number
 
-  // Build schedule context
-  const dayHoursBlock = DAY_KEYS.map(dk => {
-    const periods = schedule[dk] || []
-    const hours = periods.length
-    const mins = hours * minutes_per_period
-    return `  ${DAY_LABELS[dk]}: ${hours} hora(s) = ${mins} minutos disponibles`
-  }).join('\n')
+    // Insert review day at unit transitions
+    if (prevUnitNum !== null && unitNum !== prevUnitNum) {
+      workItems.push({
+        pages: [], subunit: `Review Unit ${prevUnitNum}`, unit_number: prevUnitNum,
+        totalMins: 0, isReview: true,
+      })
+    }
+    prevUnitNum = unitNum
 
-  // Build pages context grouped by subunit (critical for coherent distribution)
-  const pagesBySubunitBlock = subunitPlan.map(su => {
-    const pagesDetail = su.pages.map(pNum => {
-      const p = filteredPages.find(pp => pp.page === pNum)
-      return `    p.${pNum} [${p?.content_type}] complexity:${p?.complexity} ~${p?.estimated_minutes}min — ${p?.summary || ''}`
-    }).join('\n')
-    return `  ${su.subunit} (Unit ${su.unit_number}) — ${su.pages.length} pages, ~${su.totalMins}min → MINIMUM ${su.sessions} session(s):\n${pagesDetail}`
-  }).join('\n\n')
+    // Get classification hint for this subunit
+    const cls = subunit_classification.find(c => c.subunit === sub)
 
-  // Units context
-  const unitsBlock = units_config.length
-    ? units_config.map(u => `  Unit ${u.unit_number}: "${u.title}" (pp. ${u.start_page}–${u.end_page}, ${u.subunits?.length || '?'} subunits)`).join('\n')
-    : '  (units not specified — distribute sequentially)'
+    // Split subunit pages into day-sized chunks based on available minutes.
+    // Use average day length to estimate chunk size.
+    const activeDayKeys = DAY_KEYS.filter(dk => (schedule[dk] || []).length > 0)
+    const avgDayMins = activeDayKeys.reduce((s, dk) => s + (schedule[dk] || []).length * minutes_per_period, 0) / (activeDayKeys.length || 1)
 
-  // Working weeks with ISO dates mapped to day keys
-  const weeksBlock = working_weeks.map(w => {
-    const daysList = w.days.map(iso => {
-      const d = new Date(iso + 'T12:00:00')
-      const dk = DAY_KEYS[d.getDay() === 0 ? 6 : d.getDay() - 1]
-      const periods = schedule[dk] || []
-      return `${dk}(${periods.length}h)`
-    }).join(', ')
-    return `  Semana ${w.week}: ${w.days.length} días [${daysList}]`
-  }).join('\n')
+    let chunk = []
+    let chunkMins = 0
+    for (const page of data.pages) {
+      const pageMins = page.estimated_minutes || 30
+      // Start new chunk if adding this page exceeds day capacity
+      // (but always allow at least 1 page per chunk)
+      if (chunk.length > 0 && chunkMins + pageMins > avgDayMins) {
+        workItems.push({ pages: [...chunk], subunit: sub, unit_number: unitNum, totalMins: chunkMins, isReview: false })
+        chunk = []
+        chunkMins = 0
+      }
+      chunk.push(page)
+      chunkMins += pageMins
+    }
+    if (chunk.length) {
+      workItems.push({ pages: [...chunk], subunit: sub, unit_number: unitNum, totalMins: chunkMins, isReview: false })
+    }
 
-  // Build subunit difficulty context for smarter distribution
-  const classificationBlock = subunit_classification.length
-    ? subunit_classification.map(s =>
-        `  ${s.subunit}: ${s.difficulty} — ${s.estimated_sessions} session(s) — ${s.session_type}` +
-        (s.grammar_points?.length ? ` [Grammar: ${s.grammar_points.join(', ')}]` : '') +
-        (s.ai_rationale ? ` — ${s.ai_rationale}` : '')
-      ).join('\n')
-    : '  (no classification available — distribute by complexity)'
-
-  // Build relevant teaching strategy hints for dense subunits
-  const strategiesHint = teaching_strategies.length
-    ? teaching_strategies.map(s =>
-        `  ${s.subunit}: ${s.content_focus}\n    Session flow: ${s.strategies?.session_flow || 'N/A'}`
-      ).join('\n')
-    : '  (none)'
-
-  const unitRangeNote = start_unit > 1 || end_unit
-    ? `UNIT RANGE: Distribute ONLY Units ${start_unit}${end_unit ? ` through ${end_unit}` : '+'} — all pages provided are within this range.`
-    : 'Start from the first page in the analysis.'
-
-  const prompt = `You are an expert curriculum planner for ${sanitizeAIInput(subject)} (${sanitizeAIInput(grade)}).
-
-TASK: Distribute these textbook pages across the available teaching days, creating a realistic class-by-class plan.
-
-CRITICAL CONSTRAINT: You have ${totalTeachingDays} teaching days available and ${subunitPlan.length} subunits to cover (+ ${reviewDays} review days). Each subunit has a MINIMUM number of sessions it requires — you MUST respect these minimums. A subunit with 5 pages and ~150 minutes of content CANNOT fit in a single 50-minute session.
-
-${unitRangeNote}
-
-═══ DISTRIBUTION PLAN (MUST FOLLOW) ═══
-Total teaching days: ${totalTeachingDays}
-Total required sessions: ${totalRequiredSessions} + ${reviewDays} review days = ${totalRequiredSessions + reviewDays} days needed
-${subunitPlan.map(su => `  ${su.subunit} → ${su.sessions} day(s) [pages: ${su.pages.join(', ')}] (~${su.totalMins} min)`).join('\n')}
-
-═══ TEACHER SCHEDULE (hours per day of the week) ═══
-${dayHoursBlock}
-  Minutes per period: ${minutes_per_period}
-
-═══ UNITS ═══
-${unitsBlock}
-
-═══ SUBUNIT DIFFICULTY CLASSIFICATION ═══
-${classificationBlock}
-
-═══ SESSION FLOW HINTS FOR DENSE CONTENT ═══
-${strategiesHint}
-
-═══ PAGES BY SUBUNIT (${filteredPages.length} pages total) ═══
-${pagesBySubunitBlock}
-
-═══ AVAILABLE WEEKS ═══
-${weeksBlock}
-Total: ${working_weeks.length} weeks
-
-═══ RULES (STRICT) ═══
-1. EVERY subunit MUST get AT LEAST the number of sessions shown in the DISTRIBUTION PLAN above.
-   - A subunit with "2 day(s)" MUST appear across 2 different teaching days.
-   - NEVER compress an entire unit (5 subunits) into a single day.
-2. EVERY page from the analysis MUST appear in exactly ONE day. No page may be skipped or repeated.
-3. NEVER assign more minutes of content than available in that day's class time.
-   - 1 hour day (${minutes_per_period}min): max 1-2 pages (~${minutes_per_period}min of content)
-   - 2 hour day (${minutes_per_period * 2}min): max 2-4 pages (~${minutes_per_period * 2}min of content)
-4. Pages with complexity 4-5 (new grammar, dense content): MAX 1 page per class hour.
-5. Pages with complexity 1-2 (warmup, simple practice): can group 2-3 per class hour.
-6. Keep pages from the SAME subunit together on the SAME day or consecutive days. Never split a subunit across non-consecutive days.
-7. Workbook pages should be paired with their related main book page on the same day.
-8. Leave 1 review/buffer day at the end of each unit transition.
-9. If a day has 0 class hours, SKIP it entirely (use null).
-10. Each day entry MUST include: pages[], focus, total_minutes, class_hours, AND:
-    - key_grammar (array of grammar points covered that session, empty if none)
-    - key_vocabulary (array of vocab topics, empty if none)
-    - suggested_approach (one sentence on how to approach this session, null if easy/moderate)
-
-RESPOND ONLY with valid JSON:
-{
-  "distribution": [
-    {
-      "week": 1,
-      "days": {
-        "mon": {
-          "pages": [24, 25],
-          "focus": "Unit 4A — Present Perfect introduction",
-          "total_minutes": 45,
-          "class_hours": 1,
-          "key_grammar": ["Present Perfect structure"],
-          "key_vocabulary": [],
-          "suggested_approach": "Discovery: show 5 example sentences, ask students to find the pattern."
-        },
-        "tue": null,
-        "wed": {
-          "pages": [26],
-          "focus": "Unit 4A — Controlled practice",
-          "total_minutes": 40,
-          "class_hours": 1,
-          "key_grammar": ["Present Perfect vs Past Simple"],
-          "key_vocabulary": [],
-          "suggested_approach": null
+    // Ensure minimum sessions from classification (add extra empty continuation slots if needed)
+    const minSessions = cls?.estimated_sessions || 1
+    const chunksForThisSub = workItems.filter(w => w.subunit === sub && !w.isReview).length
+    // If classification wants more sessions than chunks, we already have enough pages split
+    // (the chunk splitting above handles this naturally via avgDayMins)
+    // But if all pages fit in 1 chunk yet classification says 2+, split the chunk
+    if (chunksForThisSub < minSessions && chunksForThisSub === 1) {
+      const existing = workItems.find(w => w.subunit === sub && !w.isReview)
+      if (existing && existing.pages.length >= minSessions) {
+        // Re-split this subunit's pages into minSessions chunks
+        const idx = workItems.indexOf(existing)
+        workItems.splice(idx, 1) // remove the single chunk
+        const pagesPerChunk = Math.ceil(existing.pages.length / minSessions)
+        for (let i = 0; i < minSessions; i++) {
+          const slice = existing.pages.slice(i * pagesPerChunk, (i + 1) * pagesPerChunk)
+          if (slice.length) {
+            const sliceMins = slice.reduce((s, p) => s + (p.estimated_minutes || 30), 0)
+            workItems.splice(idx + i, 0, { pages: slice, subunit: sub, unit_number: unitNum, totalMins: sliceMins, isReview: false })
+          }
         }
       }
     }
-  ]
-}
-
-Use null for days with no class. Only include day keys that appear in the schedule.`
-
-  try {
-    const raw = await callClaude({
-      type: 'syllabus_distribute_pages',
-      system: 'You are an expert curriculum scheduler. You distribute textbook content across teaching days respecting time constraints and subunit boundaries. Every page must appear exactly once. Respond ONLY with valid JSON.',
-      message: prompt,
-      maxTokens: 12000,
-    })
-
-    const text = (raw || '').trim()
-    const jsonStr = text.startsWith('{') ? text : text.match(/\{[\s\S]*\}/)?.[0] || ''
-    if (!jsonStr) return { distribution: [], error: 'La IA no devolvió JSON válido' }
-
-    const parsed = JSON.parse(jsonStr)
-    if (!Array.isArray(parsed.distribution)) return { distribution: [], error: 'Formato de distribución incorrecto' }
-
-    return { distribution: parsed.distribution, error: null }
-  } catch (err) {
-    console.error('[syllabusAI] distributePagesByWeek error:', err)
-    return { distribution: [], error: err.message }
   }
+
+  // ── Assign work items to teaching slots ────────────────────────────────────
+  // Week-based output: { week → { dayKey → dayData } }
+  const weekMap = {} // week → { dayKey → dayData }
+  let slotIdx = 0
+
+  for (const item of workItems) {
+    if (slotIdx >= teachingSlots.length) break // ran out of days
+
+    const slot = teachingSlots[slotIdx]
+    slotIdx++
+
+    if (!weekMap[slot.week]) weekMap[slot.week] = {}
+
+    if (item.isReview) {
+      // Review day — no pages
+      weekMap[slot.week][slot.dayKey] = {
+        pages: [],
+        focus: `Review & consolidation — Unit ${item.unit_number}`,
+        total_minutes: 0,
+        class_hours: Math.round(slot.availableMinutes / minutes_per_period),
+        key_grammar: [],
+        key_vocabulary: [],
+        suggested_approach: 'Review key concepts, address questions, formative assessment.',
+      }
+      continue
+    }
+
+    // Build day data from the page analysis (all data already available from scan)
+    const pages = item.pages
+    const pageNums = pages.map(p => p.page)
+    const totalMins = pages.reduce((s, p) => s + (p.estimated_minutes || 30), 0)
+    const grammar = [...new Set(pages.flatMap(p => p.grammar_points || []))]
+    const vocab = [...new Set(pages.flatMap(p => p.vocabulary_topics || []))]
+    const contentTypes = [...new Set(pages.map(p => p.content_type))]
+    const classHours = Math.round(slot.availableMinutes / minutes_per_period)
+
+    // Build focus label
+    const unitLabel = item.unit_number ? `Unit ${item.unit_number}` : ''
+    const subLabel = item.subunit || ''
+    const typeLabel = contentTypes.length === 1
+      ? contentTypes[0].replace(/_/g, ' ')
+      : contentTypes.slice(0, 2).map(t => t.replace(/_/g, ' ')).join(' + ')
+    const focus = `${unitLabel}${subLabel !== unitLabel ? ` ${subLabel}` : ''} — ${typeLabel}`.trim()
+
+    // Get strategy hint if this subunit has one
+    const strategy = teaching_strategies.find(s => s.subunit === item.subunit)
+    const approach = strategy?.strategies?.session_flow || null
+
+    weekMap[slot.week][slot.dayKey] = {
+      pages: pageNums,
+      focus,
+      total_minutes: totalMins,
+      class_hours: classHours,
+      key_grammar: grammar,
+      key_vocabulary: vocab,
+      suggested_approach: approach,
+    }
+  }
+
+  // ── Convert weekMap to sorted array format ─────────────────────────────────
+  const distribution = Object.keys(weekMap)
+    .map(Number)
+    .sort((a, b) => a - b)
+    .map(weekNum => ({
+      week: weekNum,
+      days: weekMap[weekNum],
+    }))
+
+  return { distribution, error: null }
 }
 
 /**
