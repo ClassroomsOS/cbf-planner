@@ -331,6 +331,70 @@ RESPOND ONLY with valid JSON, no markdown:
 }
 
 /**
+ * Scan PDF pages to detect which BOOK page numbers appear on each sheet.
+ * Builds a real mapping instead of relying on mathematical formulas.
+ * Works for both single-page PDFs and spread (2 book pages per PDF sheet).
+ *
+ * @param {Array<{pdfPage: number, base64: string}>} pages - Rendered PDF pages (max 5 per call)
+ * @returns {Promise<{mapping: Array<{pdfPage: number, bookPages: number[]}>, error: string|null}>}
+ */
+export async function scanPageMapping(pages) {
+  if (!pages?.length) return { mapping: [], error: 'No hay páginas para mapear' }
+
+  const imageBlocks = pages
+    .filter(p => p?.base64)
+    .slice(0, 5)
+    .map(p => ({
+      type: 'image',
+      source: { type: 'base64', media_type: 'image/jpeg', data: p.base64 },
+    }))
+
+  if (!imageBlocks.length) return { mapping: [], error: 'No se pudieron procesar las imágenes' }
+
+  const pdfPageNums = pages.map(p => p.pdfPage)
+
+  const prompt = `You are scanning ${imageBlocks.length} pages from a PDF to detect PRINTED PAGE NUMBERS.
+
+PDF SHEET NUMBERS (in order): ${pdfPageNums.join(', ')}
+
+For EACH image, identify the printed page numbers visible on the sheet.
+- Page numbers are usually printed at the TOP or BOTTOM corners of the page
+- A spread (two-page scan) will show TWO page numbers — one on the left side, one on the right side
+- A normal PDF page will show ONE page number
+- Cover pages, table of contents, or blank pages may show NO page numbers
+- Look carefully: page numbers can be small text in the header or footer area
+- Do NOT confuse chapter/unit numbers with page numbers — page numbers are sequential (1, 2, 3... or 22, 23, 24...)
+
+RESPOND ONLY with valid JSON, no markdown:
+{"mapping": [{"pdf_page": ${pdfPageNums[0]}, "book_pages": [42, 43]}, {"pdf_page": ${pdfPageNums[1] || pdfPageNums[0] + 1}, "book_pages": [44, 45]}]}`
+
+  try {
+    const raw = await callClaude({
+      type: 'syllabus_page_mapping',
+      system: 'You are an expert at reading printed page numbers from scanned book pages. Respond ONLY with valid JSON. Be precise — report exactly the page numbers you see printed on each sheet.',
+      message: prompt,
+      maxTokens: 800,
+      imageBlocks,
+    })
+
+    const text = (raw || '').trim()
+    const jsonStr = text.startsWith('{') ? text : text.match(/\{[\s\S]*\}/)?.[0] || ''
+    if (!jsonStr) return { mapping: [], error: 'La IA no devolvió JSON válido' }
+
+    const parsed = JSON.parse(jsonStr)
+    const mapping = (parsed.mapping || []).map(m => ({
+      pdfPage: m.pdf_page,
+      bookPages: (m.book_pages || []).filter(n => typeof n === 'number' && n > 0).sort((a, b) => a - b),
+    }))
+
+    return { mapping, error: null }
+  } catch (err) {
+    console.error('[syllabusAI] scanPageMapping error:', err)
+    return { mapping: [], error: err.message }
+  }
+}
+
+/**
  * Deep analysis of textbook pages using Claude Vision.
  * Extracts grammar points, vocabulary, exercise types, prerequisites and teaching challenges
  * in addition to the standard page classification.
