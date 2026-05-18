@@ -270,22 +270,69 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
   }
 
   function detectUnitsFromAnalysis(analysis) {
-    const unitsMap = {}  // keyed by unit_number for proper aggregation
-    let lastKnownUnit = null
+    // Sort pages by page number to ensure monotonic processing
+    const sorted = [...analysis].sort((a, b) => a.page - b.page)
 
-    for (const page of analysis) {
-      // Primary: use explicit unit_number from AI (integer field)
-      // Fallback: try to extract from subunit label (e.g. "4A" → 4)
-      // Last resort: inherit from previous page
-      let unitNum = page.unit_number || null
-      if (!unitNum && page.subunit) {
-        const match = page.subunit.match(/^(\d+)/)  // only match number at START of label
+    // ── PASS 1: Collect anchor points (pages with explicit unit_number) ──────
+    // An anchor is a page where the AI or subunit label gave us a unit_number.
+    // We DON'T inherit from previous pages yet — that caused cascading errors.
+    const anchors = [] // { page, unitNum, source }
+    for (const p of sorted) {
+      let unitNum = p.unit_number || null
+      let source = 'ai'
+      if (!unitNum && p.subunit) {
+        const match = p.subunit.match(/^(\d+)/)
         unitNum = match ? parseInt(match[1]) : null
+        source = 'subunit'
       }
-      if (!unitNum) unitNum = lastKnownUnit
-      if (!unitNum) continue  // truly undetectable — skip
+      if (unitNum) anchors.push({ page: p.page, unitNum, source })
+    }
 
-      lastKnownUnit = unitNum
+    // ── PASS 2: Validate anchors — unit numbers must be non-decreasing ───────
+    // If a page has a lower unit than the established trend, or jumps too far
+    // ahead (>1 unit in <3 pages), it's likely a misread — discard it.
+    const validAnchors = []
+    for (let i = 0; i < anchors.length; i++) {
+      const a = anchors[i]
+      const prev = validAnchors.length ? validAnchors[validAnchors.length - 1] : null
+
+      if (!prev) { validAnchors.push(a); continue }
+
+      // Reject if unit goes backwards
+      if (a.unitNum < prev.unitNum) continue
+
+      // Reject if unit jumps more than 1 ahead within very few pages (likely misread)
+      if (a.unitNum > prev.unitNum + 1) {
+        const pageGap = a.page - prev.page
+        // Allow the jump only if there's a reasonable page gap (>= 5 pages per unit skipped)
+        const unitJump = a.unitNum - prev.unitNum
+        if (pageGap < unitJump * 5) continue // too fast — skip this anchor
+      }
+
+      validAnchors.push(a)
+    }
+
+    // ── PASS 3: Assign unit to every page via interpolation from anchors ─────
+    // For pages between anchors, use the previous anchor's unit.
+    // For pages before the first anchor, use the first anchor's unit.
+    const pageUnitMap = {} // page → unitNum
+    for (let i = 0; i < sorted.length; i++) {
+      const p = sorted[i]
+      // Find the last anchor at or before this page
+      let assigned = null
+      for (let j = validAnchors.length - 1; j >= 0; j--) {
+        if (validAnchors[j].page <= p.page) { assigned = validAnchors[j].unitNum; break }
+      }
+      // If before all anchors, use first anchor
+      if (assigned === null && validAnchors.length) assigned = validAnchors[0].unitNum
+      if (assigned !== null) pageUnitMap[p.page] = assigned
+    }
+
+    // ── PASS 4: Build unit config from validated assignments ─────────────────
+    const unitsMap = {}
+    for (const page of sorted) {
+      const unitNum = pageUnitMap[page.page]
+      if (!unitNum) continue
 
       if (!unitsMap[unitNum]) {
         unitsMap[unitNum] = { unit_number: unitNum, title: `Unit ${unitNum}`, start_page: page.page, end_page: page.page, subunits: [] }
@@ -301,7 +348,7 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
         unit.subunits.find(s => s.label === subunit)?.pages.push(page.page)
       }
     }
-    // Return sorted numerically by unit_number
+
     return Object.values(unitsMap).sort((a, b) => a.unit_number - b.unit_number)
   }
 
