@@ -352,7 +352,7 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
       if (!renderedPages.length) { showToast('No se pudieron renderizar las páginas del índice', 'error'); return }
 
       const { units, error } = await analyzeTOCPages(renderedPages, {
-        subject, grade, bookTitle: selectedDoc.title,
+        subject, grade, bookTitle: selectedDoc.title, totalPages: pdf.numPages,
       })
       if (error) { showToast(`Error TOC: ${error}`, 'error'); return }
       if (!units.length) { showToast('No se detectaron unidades en el índice', 'error'); return }
