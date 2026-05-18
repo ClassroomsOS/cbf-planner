@@ -400,11 +400,14 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
           effectiveStart = selectedTOC[0].start_page
           effectiveEnd   = selectedTOC[selectedTOC.length - 1].end_page || pdf.numPages
         }
-        // DEBUG — remove after confirming fix
-        console.table(tocUnits.map(u => ({ unit: u.unit_number, title: u.title, start: u.start_page, end: u.end_page, selected: selectedUnits.has(u.unit_number) })))
-        console.log('[SyllabusWizard] selectedUnits:', [...selectedUnits], 'effectiveStart:', effectiveStart, 'effectiveEnd:', effectiveEnd, 'pdf.numPages:', pdf.numPages, 'pageStart:', pageStart, 'pageEnd:', pageEnd)
       }
 
+      // Book page numbers may exceed actual PDF page count (incomplete PDF or offset numbering)
+      if (effectiveEnd > pdf.numPages) {
+        showToast(`⚠️ El libro va hasta la página ${effectiveEnd} pero el PDF solo tiene ${pdf.numPages} páginas. Se escanearán las disponibles.`, 'warning')
+        effectiveEnd = pdf.numPages
+      }
+      if (effectiveStart > pdf.numPages) { showToast('Las páginas seleccionadas no existen en este PDF', 'error'); setScanning(false); return }
       if (effectiveEnd <= effectiveStart) { showToast('El rango de páginas es inválido', 'error'); setScanning(false); return }
 
       const totalPages = effectiveEnd - effectiveStart + 1
