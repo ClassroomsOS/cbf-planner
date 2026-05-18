@@ -615,7 +615,6 @@ export function distributePagesByWeek({
   if (!filteredPages.length) return { distribution: [], error: 'No hay páginas en el rango de unidades seleccionado' }
 
   // ── Build ordered list of teaching slots ───────────────────────────────────
-  // Each slot = { week, dayKey, availableMinutes, isoDate }
   const teachingSlots = []
   working_weeks.forEach(w => {
     w.days.forEach(iso => {
@@ -630,8 +629,8 @@ export function distributePagesByWeek({
   if (!teachingSlots.length) return { distribution: [], error: 'No hay días de clase disponibles en el horario' }
 
   // ── Group pages by subunit (preserving page order) ─────────────────────────
-  const subunitOrder = [] // ordered unique subunit labels
-  const subunitMap   = {} // label → { pages[], unit_number }
+  const subunitOrder = []
+  const subunitMap   = {}
   filteredPages.forEach(p => {
     const sub = p.subunit || `Unit${p.unit_number || '?'}_misc`
     if (!subunitMap[sub]) {
@@ -642,12 +641,24 @@ export function distributePagesByWeek({
     if (p.unit_number) subunitMap[sub].unit_number = p.unit_number
   })
 
-  // ── Build work items: ordered list of page chunks to assign to days ────────
-  // Each subunit's pages are split into chunks that fit within a day's capacity.
-  // This guarantees every page appears and no day is overloaded.
-  const workItems = [] // { pages: [pageObj], subunit, unit_number, totalMins, isReview }
+  // ── Compute difficulty-aware capacity per page ─────────────────────────────
+  // Complexity 4-5 (dense): 1 page per class hour max
+  // Complexity 3   (moderate): ~1.5 pages per class hour
+  // Complexity 1-2 (easy): 2-3 pages per class hour
+  // Returns "effective minutes" a page consumes from a day's capacity,
+  // inflating dense pages so they occupy more of the day's budget.
+  function effectiveMinutes(page) {
+    const base = page.estimated_minutes || 30
+    const complexity = page.complexity || 3
+    if (complexity >= 4) return Math.max(base, minutes_per_period)  // dense page = at least 1 full period
+    if (complexity >= 3) return base * 1.1                          // moderate = slight buffer
+    return base * 0.85                                              // easy = pack tighter
+  }
 
+  // ── Build work items with difficulty-aware chunking ────────────────────────
+  const workItems = []
   let prevUnitNum = null
+
   for (const sub of subunitOrder) {
     const data = subunitMap[sub]
     const unitNum = data.unit_number
@@ -656,108 +667,164 @@ export function distributePagesByWeek({
     if (prevUnitNum !== null && unitNum !== prevUnitNum) {
       workItems.push({
         pages: [], subunit: `Review Unit ${prevUnitNum}`, unit_number: prevUnitNum,
-        totalMins: 0, isReview: true,
+        totalMins: 0, avgComplexity: 0, difficulty: 'review', isReview: true,
       })
     }
     prevUnitNum = unitNum
 
-    // Get classification hint for this subunit
     const cls = subunit_classification.find(c => c.subunit === sub)
+    const difficulty = cls?.difficulty || 'moderate'
+    const minSessions = cls?.estimated_sessions || 1
 
-    // Split subunit pages into day-sized chunks based on available minutes.
-    // Use average day length to estimate chunk size.
+    // Determine the chunk capacity: smallest day's budget (conservative)
+    // so chunks always fit even on short days.
+    // For dense subunits, use even smaller chunks to spread content out.
     const activeDayKeys = DAY_KEYS.filter(dk => (schedule[dk] || []).length > 0)
-    const avgDayMins = activeDayKeys.reduce((s, dk) => s + (schedule[dk] || []).length * minutes_per_period, 0) / (activeDayKeys.length || 1)
+    const dayMinsArr = activeDayKeys.map(dk => (schedule[dk] || []).length * minutes_per_period)
+    const smallestDay = Math.min(...dayMinsArr)
+    const avgDayMins  = dayMinsArr.reduce((a, b) => a + b, 0) / (dayMinsArr.length || 1)
+    // Dense: target smallest day capacity. Easy: target average day capacity.
+    const targetCapacity = difficulty === 'dense' ? smallestDay
+                         : difficulty === 'easy'  ? avgDayMins * 1.1
+                         : avgDayMins
 
+    // Split pages into chunks using effective minutes (complexity-aware)
+    const subChunks = []
     let chunk = []
-    let chunkMins = 0
+    let chunkEffective = 0
     for (const page of data.pages) {
-      const pageMins = page.estimated_minutes || 30
-      // Start new chunk if adding this page exceeds day capacity
-      // (but always allow at least 1 page per chunk)
-      if (chunk.length > 0 && chunkMins + pageMins > avgDayMins) {
-        workItems.push({ pages: [...chunk], subunit: sub, unit_number: unitNum, totalMins: chunkMins, isReview: false })
+      const eff = effectiveMinutes(page)
+      if (chunk.length > 0 && chunkEffective + eff > targetCapacity) {
+        subChunks.push(chunk)
         chunk = []
-        chunkMins = 0
+        chunkEffective = 0
       }
       chunk.push(page)
-      chunkMins += pageMins
+      chunkEffective += eff
     }
-    if (chunk.length) {
-      workItems.push({ pages: [...chunk], subunit: sub, unit_number: unitNum, totalMins: chunkMins, isReview: false })
+    if (chunk.length) subChunks.push(chunk)
+
+    // Enforce minimum sessions from classification
+    // If we got fewer chunks than required, re-split evenly
+    if (subChunks.length < minSessions && data.pages.length >= minSessions) {
+      subChunks.length = 0
+      const pagesPerChunk = Math.ceil(data.pages.length / minSessions)
+      for (let i = 0; i < minSessions; i++) {
+        const slice = data.pages.slice(i * pagesPerChunk, (i + 1) * pagesPerChunk)
+        if (slice.length) subChunks.push(slice)
+      }
     }
 
-    // Ensure minimum sessions from classification (add extra empty continuation slots if needed)
-    const minSessions = cls?.estimated_sessions || 1
-    const chunksForThisSub = workItems.filter(w => w.subunit === sub && !w.isReview).length
-    // If classification wants more sessions than chunks, we already have enough pages split
-    // (the chunk splitting above handles this naturally via avgDayMins)
-    // But if all pages fit in 1 chunk yet classification says 2+, split the chunk
-    if (chunksForThisSub < minSessions && chunksForThisSub === 1) {
-      const existing = workItems.find(w => w.subunit === sub && !w.isReview)
-      if (existing && existing.pages.length >= minSessions) {
-        // Re-split this subunit's pages into minSessions chunks
-        const idx = workItems.indexOf(existing)
-        workItems.splice(idx, 1) // remove the single chunk
-        const pagesPerChunk = Math.ceil(existing.pages.length / minSessions)
-        for (let i = 0; i < minSessions; i++) {
-          const slice = existing.pages.slice(i * pagesPerChunk, (i + 1) * pagesPerChunk)
-          if (slice.length) {
-            const sliceMins = slice.reduce((s, p) => s + (p.estimated_minutes || 30), 0)
-            workItems.splice(idx + i, 0, { pages: slice, subunit: sub, unit_number: unitNum, totalMins: sliceMins, isReview: false })
-          }
-        }
-      }
+    // Convert chunks to work items
+    const avgComplexity = data.pages.reduce((s, p) => s + (p.complexity || 3), 0) / (data.pages.length || 1)
+    for (let ci = 0; ci < subChunks.length; ci++) {
+      const ch = subChunks[ci]
+      const totalMins = ch.reduce((s, p) => s + (p.estimated_minutes || 30), 0)
+      workItems.push({
+        pages: ch, subunit: sub, unit_number: unitNum,
+        totalMins, avgComplexity, difficulty,
+        isReview: false, chunkIndex: ci, totalChunks: subChunks.length,
+      })
     }
   }
 
-  // ── Assign work items to teaching slots ────────────────────────────────────
-  // Week-based output: { week → { dayKey → dayData } }
-  const weekMap = {} // week → { dayKey → dayData }
+  // ── Smart slot assignment: match difficulty to day capacity ─────────────────
+  // Sort slots into "long" (2+ hours) and "short" (1 hour) buckets per week,
+  // then assign dense chunks to long days and easy chunks to short days.
+  const weekMap = {}
   let slotIdx = 0
 
+  // Pre-tag each work item as needing a "long" or "short" day
   for (const item of workItems) {
-    if (slotIdx >= teachingSlots.length) break // ran out of days
+    if (item.isReview) { item.prefersLong = false; continue }
+    // Dense content benefits from longer days; easy content fits on short days
+    item.prefersLong = item.difficulty === 'dense' || item.totalMins > minutes_per_period
+  }
 
-    const slot = teachingSlots[slotIdx]
+  // Simple sequential assignment with swaps:
+  // When a dense item lands on a short day and there's a long day nearby with an easy item,
+  // swap them. This is a greedy optimization pass.
+  const assignments = [] // { item, slotIdx }
+
+  // First pass: sequential assignment
+  slotIdx = 0
+  for (const item of workItems) {
+    if (slotIdx >= teachingSlots.length) break
+    assignments.push({ item, slotIdx })
     slotIdx++
+  }
 
+  // Second pass: swap dense↔easy when day sizes mismatch
+  for (let i = 0; i < assignments.length; i++) {
+    const a = assignments[i]
+    if (!a.item.prefersLong) continue
+    const slotA = teachingSlots[a.slotIdx]
+    if (slotA.availableMinutes >= minutes_per_period * 2) continue // already on a long day
+
+    // Dense item on a short day — look for a nearby easy item on a long day to swap
+    for (let j = Math.max(0, i - 3); j < Math.min(assignments.length, i + 4); j++) {
+      if (j === i) continue
+      const b = assignments[j]
+      if (b.item.isReview || b.item.prefersLong) continue
+      const slotB = teachingSlots[b.slotIdx]
+      if (slotB.availableMinutes < minutes_per_period * 2) continue
+      // Swap: dense item goes to long day, easy item goes to short day
+      const tmpSlot = a.slotIdx
+      a.slotIdx = b.slotIdx
+      b.slotIdx = tmpSlot
+      break
+    }
+  }
+
+  // ── Build distribution output ──────────────────────────────────────────────
+  for (const { item, slotIdx: si } of assignments) {
+    const slot = teachingSlots[si]
     if (!weekMap[slot.week]) weekMap[slot.week] = {}
+    const classHours = Math.round(slot.availableMinutes / minutes_per_period)
 
     if (item.isReview) {
-      // Review day — no pages
       weekMap[slot.week][slot.dayKey] = {
         pages: [],
         focus: `Review & consolidation — Unit ${item.unit_number}`,
         total_minutes: 0,
-        class_hours: Math.round(slot.availableMinutes / minutes_per_period),
+        class_hours: classHours,
         key_grammar: [],
         key_vocabulary: [],
+        difficulty: 'review',
         suggested_approach: 'Review key concepts, address questions, formative assessment.',
       }
       continue
     }
 
-    // Build day data from the page analysis (all data already available from scan)
     const pages = item.pages
     const pageNums = pages.map(p => p.page)
     const totalMins = pages.reduce((s, p) => s + (p.estimated_minutes || 30), 0)
     const grammar = [...new Set(pages.flatMap(p => p.grammar_points || []))]
     const vocab = [...new Set(pages.flatMap(p => p.vocabulary_topics || []))]
     const contentTypes = [...new Set(pages.map(p => p.content_type))]
-    const classHours = Math.round(slot.availableMinutes / minutes_per_period)
 
-    // Build focus label
+    // Build focus label with chunk progress (e.g., "Unit 4 4A — grammar new (1/2)")
     const unitLabel = item.unit_number ? `Unit ${item.unit_number}` : ''
     const subLabel = item.subunit || ''
     const typeLabel = contentTypes.length === 1
       ? contentTypes[0].replace(/_/g, ' ')
       : contentTypes.slice(0, 2).map(t => t.replace(/_/g, ' ')).join(' + ')
-    const focus = `${unitLabel}${subLabel !== unitLabel ? ` ${subLabel}` : ''} — ${typeLabel}`.trim()
+    const chunkLabel = item.totalChunks > 1 ? ` (${item.chunkIndex + 1}/${item.totalChunks})` : ''
+    const focus = `${unitLabel}${subLabel !== unitLabel ? ` ${subLabel}` : ''} — ${typeLabel}${chunkLabel}`.trim()
 
-    // Get strategy hint if this subunit has one
+    // Get strategy hint
     const strategy = teaching_strategies.find(s => s.subunit === item.subunit)
-    const approach = strategy?.strategies?.session_flow || null
+    let approach = null
+    if (strategy?.strategies) {
+      const sf = strategy.strategies
+      if (item.totalChunks > 1) {
+        // Multi-session subunit: use session_flow or scaffolding hints per chunk
+        if (item.chunkIndex === 0 && sf.introduction) approach = sf.introduction
+        else if (sf.session_flow) approach = sf.session_flow
+      } else {
+        approach = sf.session_flow || sf.introduction || null
+      }
+    }
 
     weekMap[slot.week][slot.dayKey] = {
       pages: pageNums,
@@ -766,6 +833,8 @@ export function distributePagesByWeek({
       class_hours: classHours,
       key_grammar: grammar,
       key_vocabulary: vocab,
+      difficulty: item.difficulty,
+      avg_complexity: Math.round(item.avgComplexity * 10) / 10,
       suggested_approach: approach,
     }
   }

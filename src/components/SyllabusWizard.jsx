@@ -28,6 +28,12 @@ const STEPS = [
 
 const COMPLEXITY_LABELS = ['', '⚡ Muy fácil', '📗 Fácil', '📘 Normal', '📕 Compleja', '🔥 Muy densa']
 const COMPLEXITY_COLORS = ['', '#22c55e', '#84cc16', '#eab308', '#f97316', '#ef4444']
+const DIFFICULTY_STYLES = {
+  easy:     { bg: '#dcfce7', border: '#22c55e', label: 'Fácil',    icon: '🟢' },
+  moderate: { bg: '#fef9c3', border: '#eab308', label: 'Moderada', icon: '🟡' },
+  dense:    { bg: '#fee2e2', border: '#ef4444', label: 'Densa',    icon: '🔴' },
+  review:   { bg: '#ede9fe', border: '#8b5cf6', label: 'Repaso',   icon: '🔄' },
+}
 
 const CONTENT_TYPE_COLORS = {
   grammar_new: '#7c3aed', grammar_practice: '#a78bfa', vocabulary: '#0891b2',
@@ -1343,20 +1349,19 @@ function StepDistribute({
                       if (!dayData)         return <div key={dk} className="sw-day-cell sw-day-empty"><span className="sw-day-label">{DAY_LABELS[dk]}</span></div>
 
                       const pages        = dayData.pages || []
-                      const avgComplexity = pages.length
-                        ? pages.reduce((sum, pNum) => sum + (pageAnalysis.find(p => p.page === pNum)?.complexity || 3), 0) / pages.length
-                        : 0
                       const dayResources  = getResourcesForDay(weekData.week, dk)
                       const strategyHint  = dayData.suggested_approach
+                      const diff = DIFFICULTY_STYLES[dayData.difficulty] || DIFFICULTY_STYLES.moderate
 
                       return (
                         <div
                           key={dk}
                           className="sw-day-cell sw-day-filled"
-                          style={{ borderLeftColor: COMPLEXITY_COLORS[Math.round(avgComplexity)] }}
+                          style={{ borderLeftColor: diff.border, background: diff.bg }}
                         >
                           <div className="sw-day-header">
                             <span className="sw-day-label">{DAY_LABELS[dk]}</span>
+                            <span style={{ fontSize: 10 }}>{diff.icon} {diff.label}</span>
                             <span className="sw-day-hours">{hoursPerDay[dk]}h</span>
                           </div>
                           <div className="sw-day-pages">
