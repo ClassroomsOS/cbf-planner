@@ -379,17 +379,16 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
   async function handleScanPages() {
     if (!selectedDoc?.file_url) { showToast('Selecciona un libro primero', 'error'); return }
 
-    // When TOC exists, narrow page range to selected units only
+    // TOC already knows each unit's pages — just use them directly
     let effectiveStart = pageStart
     let effectiveEnd   = pageEnd
     if (tocUnits.length && selectedUnits.size) {
-      const selectedTOC = tocUnits.filter(u => selectedUnits.has(u.unit_number))
+      const selectedTOC = tocUnits
+        .filter(u => selectedUnits.has(u.unit_number))
+        .sort((a, b) => a.start_page - b.start_page)
       if (selectedTOC.length) {
-        const startPages = selectedTOC.map(u => u.start_page).filter(Boolean)
-        const endPages   = selectedTOC.map(u => u.end_page).filter(Boolean)
-        if (startPages.length) effectiveStart = Math.min(...startPages)
-        // Fallback to pageEnd if last unit has no end_page
-        effectiveEnd = endPages.length ? Math.max(...endPages) : pageEnd
+        effectiveStart = selectedTOC[0].start_page
+        effectiveEnd   = selectedTOC[selectedTOC.length - 1].end_page || pageEnd
       }
     }
 
