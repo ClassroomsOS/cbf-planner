@@ -558,13 +558,24 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
         }
       }
 
-      // Assign each scanned page to its TOC unit by page range
+      // Assign each scanned page to its TOC unit
+      // For spread PDFs, page.page is a PDF sheet number (e.g. 18-45), NOT a book page.
+      // So we use the AI-detected unit_number first, then fall back to TOC page ranges.
+      const isSpreadPDF = pdfThumbnails.length > 0
       for (const page of sorted) {
-        const tocUnit = selectedTOC.find((u, i) => {
-          const start = u.start_page
-          const end = u.end_page || (selectedTOC[i + 1]?.start_page ? selectedTOC[i + 1].start_page - 1 : Infinity)
-          return page.page >= start && page.page <= end
-        })
+        let tocUnit = null
+        if (isSpreadPDF && page.unit_number) {
+          // In spread mode, trust the AI's unit detection (page ranges don't match sheet numbers)
+          tocUnit = selectedTOC.find(u => u.unit_number === page.unit_number)
+        }
+        if (!tocUnit) {
+          // Normal PDF or AI didn't detect unit: match by book page range
+          tocUnit = selectedTOC.find((u, i) => {
+            const start = u.start_page
+            const end = u.end_page || (selectedTOC[i + 1]?.start_page ? selectedTOC[i + 1].start_page - 1 : Infinity)
+            return page.page >= start && page.page <= end
+          })
+        }
         if (!tocUnit) continue
         const unitNum = tocUnit.unit_number
         const unit = unitsMap[unitNum]
