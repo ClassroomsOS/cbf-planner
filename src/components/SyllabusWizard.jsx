@@ -390,7 +390,6 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
       const pdf = await pdfjsLib.getDocument(selectedDoc.file_url).promise
 
       // Page range: first selected unit's start_page → last selected unit's end_page
-      // We have pdf.numPages now, so no guessing needed for the last unit.
       let effectiveStart = pageStart
       let effectiveEnd   = pageEnd
       if (tocUnits.length && selectedUnits.size) {
@@ -401,6 +400,9 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
           effectiveStart = selectedTOC[0].start_page
           effectiveEnd   = selectedTOC[selectedTOC.length - 1].end_page || pdf.numPages
         }
+        // DEBUG — remove after confirming fix
+        console.table(tocUnits.map(u => ({ unit: u.unit_number, title: u.title, start: u.start_page, end: u.end_page, selected: selectedUnits.has(u.unit_number) })))
+        console.log('[SyllabusWizard] selectedUnits:', [...selectedUnits], 'effectiveStart:', effectiveStart, 'effectiveEnd:', effectiveEnd, 'pdf.numPages:', pdf.numPages, 'pageStart:', pageStart, 'pageEnd:', pageEnd)
       }
 
       if (effectiveEnd <= effectiveStart) { showToast('El rango de páginas es inválido', 'error'); setScanning(false); return }
