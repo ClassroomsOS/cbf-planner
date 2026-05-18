@@ -1,4 +1,4 @@
-# CBF PLANNER — v6.3
+# CBF PLANNER — v6.4
 ## CLAUDE.md — Documento maestro
 
 > **Principio rector:** *"Nosotros diseñamos. El docente enseña."*
@@ -515,4 +515,4 @@ git add . && git commit -m "feat: ..." && git push   # deploy automático ~2 min
 ---
 
 *CBF Planner · ETA Platform · Edoardo Ortiz + Claude Sonnet · Barranquilla 2026*
-*"Nosotros diseñamos. El docente enseña." · CLAUDE.md v6.3 — Mayo 17, 2026*
+*"Nosotros diseñamos. El docente enseña." · CLAUDE.md v6.4 — Mayo 17, 2026*
