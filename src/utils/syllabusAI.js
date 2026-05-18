@@ -402,7 +402,9 @@ RESPOND ONLY with valid JSON, no markdown:
  * This replaces analyzeBookPages in the new 5-phase wizard.
  * The old analyzeBookPages is kept for backward compatibility (LibraryPage PDF viewer).
  *
- * @param {Array<{pageNum: number, base64: string}>} pages - Rendered page images (max 5)
+ * @param {Array<{pageNum: number, base64: string, bookPages?: number[]}>} pages - Rendered page images (max 5)
+ *   For spread PDFs, each entry may include bookPages: [leftPage, rightPage] so the AI
+ *   knows which book pages appear on the sheet. Falls back to pageNum if bookPages absent.
  * @param {{ subject: string, grade: string, bookTitle: string }} context
  * @returns {Promise<{analysis: Array, error: string|null}>}
  *   analysis = [{page, content_type, complexity, subunit, is_workbook, summary,
@@ -422,7 +424,8 @@ export async function deepAnalyzeBookPages(pages, context = {}) {
 
   if (!imageBlocks.length) return { analysis: [], error: 'No se pudieron procesar las imágenes' }
 
-  const pageNumbers = pages.slice(0, 5).map(p => p.pageNum)
+  // For spreads: each image may contain 2 book pages → flatten all book pages
+  const pageNumbers = pages.slice(0, 5).flatMap(p => p.bookPages || [p.pageNum])
 
   // If TOC data is available, build authoritative unit map context
   // This is the PRIMARY source for unit_number — the AI just needs to focus on content analysis

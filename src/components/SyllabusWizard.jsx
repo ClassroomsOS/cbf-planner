@@ -425,23 +425,25 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
         setScanProgress({ current: Math.min(batchEnd, pdf.numPages), total: pdf.numPages })
       }
 
-      // ── Build lookup: bookPage → { pdfPage, side } ─────────────────────
-      const pageMap = new Map()  // bookPage → { pdfPage, side: 'left'|'right'|'full' }
+      // ── Build lookups from mapping ──────────────────────────────────────
+      // bookPageToPdf: bookPage → pdfSheet number
+      // pdfSheetPages: pdfSheet → [bookPage, bookPage] (sorted)
+      const bookPageToPdf = new Map()
+      const pdfSheetPages = new Map()  // pdfSheet → bookPages[]
       let hasSpread = false
 
       for (const entry of fullMapping) {
-        if (entry.bookPages.length === 2) {
-          hasSpread = true
-          pageMap.set(entry.bookPages[0], { pdfPage: entry.pdfPage, side: 'left' })
-          pageMap.set(entry.bookPages[1], { pdfPage: entry.pdfPage, side: 'right' })
-        } else if (entry.bookPages.length === 1) {
-          pageMap.set(entry.bookPages[0], { pdfPage: entry.pdfPage, side: 'full' })
+        if (entry.bookPages.length >= 2) hasSpread = true
+        for (const bp of entry.bookPages) {
+          bookPageToPdf.set(bp, entry.pdfPage)
         }
-        // bookPages.length === 0 → cover/TOC/blank, skip
+        if (entry.bookPages.length > 0) {
+          pdfSheetPages.set(entry.pdfPage, entry.bookPages)
+        }
       }
 
       if (hasSpread) {
-        showToast(`📖 PDF doble página detectado — ${pdf.numPages} hojas, ${pageMap.size} pág. del libro mapeadas`, 'info')
+        showToast(`📖 PDF doble página detectado — ${pdf.numPages} hojas, ${bookPageToPdf.size} pág. del libro mapeadas`, 'info')
       }
 
       // ── Determine effective book page range from selected units ─────────
@@ -457,90 +459,71 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
         }
       }
 
-      // Validate that requested book pages exist in the mapping (or fall back for non-spread)
-      if (pageMap.size > 0) {
-        // Use the mapping — clamp to mapped range
-        const mappedPages = [...pageMap.keys()].sort((a, b) => a - b)
-        const minMapped = mappedPages[0]
-        const maxMapped = mappedPages[mappedPages.length - 1]
-        if (effectiveStart < minMapped) effectiveStart = minMapped
-        if (effectiveEnd > maxMapped) effectiveEnd = maxMapped
+      // ── Find PDF sheet range to scan ───────────────────────────────────
+      let startSheet, endSheet
+
+      if (bookPageToPdf.size > 0) {
+        // Look up which PDF sheet contains the first and last book page
+        startSheet = bookPageToPdf.get(effectiveStart)
+        endSheet   = bookPageToPdf.get(effectiveEnd)
+
+        // If exact pages not in map, find nearest mapped page
+        if (!startSheet) {
+          for (let bp = effectiveStart; bp <= effectiveEnd; bp++) {
+            if (bookPageToPdf.has(bp)) { startSheet = bookPageToPdf.get(bp); break }
+          }
+        }
+        if (!endSheet) {
+          for (let bp = effectiveEnd; bp >= effectiveStart; bp--) {
+            if (bookPageToPdf.has(bp)) { endSheet = bookPageToPdf.get(bp); break }
+          }
+        }
+
+        if (!startSheet || !endSheet) {
+          showToast(`No se encontraron las páginas ${effectiveStart}–${effectiveEnd} en el mapeo del PDF`, 'error')
+          setScanning(false); setScanPhase(''); return
+        }
       } else {
-        // No mapping detected (AI couldn't read page numbers) — fall back to direct 1:1
+        // No mapping — fallback 1:1 (non-spread PDF)
+        startSheet = effectiveStart
+        endSheet   = Math.min(effectiveEnd, pdf.numPages)
         if (effectiveEnd > pdf.numPages) {
           showToast(`⚠️ El libro va hasta la pág. ${effectiveEnd} pero el PDF tiene ${pdf.numPages}. Se escanean las disponibles.`, 'warning')
-          effectiveEnd = pdf.numPages
         }
       }
 
-      if (effectiveEnd <= effectiveStart) { showToast('Rango de páginas inválido', 'error'); setScanning(false); setScanPhase(''); return }
+      if (endSheet < startSheet) { showToast('Rango de hojas inválido', 'error'); setScanning(false); setScanPhase(''); return }
 
-      // ── PHASE 2: DEEP ANALYSIS ──────────────────────────────────────────
+      // ── PHASE 2: DEEP ANALYSIS — iterate over PDF SHEETS ───────────────
       setScanPhase('analyzing')
-      const totalPages = effectiveEnd - effectiveStart + 1
-      setScanProgress({ current: 0, total: totalPages })
+      const totalSheets = endSheet - startSheet + 1
+      setScanProgress({ current: 0, total: totalSheets })
 
-      const pdfPageCache = {}  // cache rendered PDF sheets for spread cropping
       let previousBatch = null
 
-      for (let batchStart = effectiveStart; batchStart <= effectiveEnd; batchStart += BATCH_SIZE) {
-        const batchEnd  = Math.min(batchStart + BATCH_SIZE - 1, effectiveEnd)
+      for (let batchStart = startSheet; batchStart <= endSheet; batchStart += BATCH_SIZE) {
+        const batchEnd  = Math.min(batchStart + BATCH_SIZE - 1, endSheet)
         const batchPages = []
 
-        for (let bookPage = batchStart; bookPage <= batchEnd; bookPage++) {
+        for (let sheetIdx = batchStart; sheetIdx <= batchEnd; sheetIdx++) {
           try {
-            const mapEntry = pageMap.get(bookPage)
+            if (sheetIdx < 1 || sheetIdx > pdf.numPages) continue
+            const page   = await pdf.getPage(sheetIdx)
+            const vp     = page.getViewport({ scale: 1.0 })
+            const canvas = document.createElement('canvas')
+            const scale  = Math.min(1600 / vp.width, 1200 / vp.height, 2.0)
+            canvas.width  = vp.width * scale
+            canvas.height = vp.height * scale
+            await page.render({ canvasContext: canvas.getContext('2d'), viewport: page.getViewport({ scale }) }).promise
 
-            if (mapEntry) {
-              // ── Mapped page: use real pdfPage + side ──
-              const pdfIdx = mapEntry.pdfPage
-              if (pdfIdx < 1 || pdfIdx > pdf.numPages) continue
-
-              if (mapEntry.side === 'left' || mapEntry.side === 'right') {
-                // Spread — render full sheet, crop half
-                if (!pdfPageCache[pdfIdx]) {
-                  const page = await pdf.getPage(pdfIdx)
-                  const vp   = page.getViewport({ scale: 1.0 })
-                  const canvas = document.createElement('canvas')
-                  const scale  = Math.min(1800 / vp.width, 1200 / vp.height, 2.0)
-                  canvas.width  = vp.width * scale
-                  canvas.height = vp.height * scale
-                  await page.render({ canvasContext: canvas.getContext('2d'), viewport: page.getViewport({ scale }) }).promise
-                  pdfPageCache[pdfIdx] = canvas
-                }
-                const full  = pdfPageCache[pdfIdx]
-                const halfW = Math.floor(full.width / 2)
-                const half  = document.createElement('canvas')
-                half.width = halfW; half.height = full.height
-                const hctx = half.getContext('2d')
-                const sx   = mapEntry.side === 'right' ? halfW : 0
-                hctx.drawImage(full, sx, 0, halfW, full.height, 0, 0, halfW, full.height)
-                batchPages.push({ pageNum: bookPage, base64: half.toDataURL('image/jpeg', 0.85).split(',')[1] })
-              } else {
-                // Full page — render directly
-                const page = await pdf.getPage(pdfIdx)
-                const vp   = page.getViewport({ scale: 1.0 })
-                const canvas = document.createElement('canvas')
-                const scale  = Math.min(1200 / vp.width, 1200 / vp.height, 1.5)
-                canvas.width  = vp.width * scale
-                canvas.height = vp.height * scale
-                await page.render({ canvasContext: canvas.getContext('2d'), viewport: page.getViewport({ scale }) }).promise
-                batchPages.push({ pageNum: bookPage, base64: canvas.toDataURL('image/jpeg', 0.8).split(',')[1] })
-              }
-            } else {
-              // ── No mapping for this book page: try direct 1:1 (non-spread PDF) ──
-              if (bookPage >= 1 && bookPage <= pdf.numPages) {
-                const page = await pdf.getPage(bookPage)
-                const vp   = page.getViewport({ scale: 1.0 })
-                const canvas = document.createElement('canvas')
-                const scale  = Math.min(1200 / vp.width, 1200 / vp.height, 1.5)
-                canvas.width  = vp.width * scale
-                canvas.height = vp.height * scale
-                await page.render({ canvasContext: canvas.getContext('2d'), viewport: page.getViewport({ scale }) }).promise
-                batchPages.push({ pageNum: bookPage, base64: canvas.toDataURL('image/jpeg', 0.8).split(',')[1] })
-              }
-            }
-          } catch (e) { console.warn(`Failed to render book page ${bookPage}:`, e) }
+            // Attach book pages from the mapping so the AI knows which pages this sheet contains
+            const bookPages = pdfSheetPages.get(sheetIdx) || [sheetIdx]
+            batchPages.push({
+              pageNum: bookPages[0],
+              bookPages,
+              base64: canvas.toDataURL('image/jpeg', 0.85).split(',')[1],
+            })
+          } catch (e) { console.warn(`Failed to render PDF sheet ${sheetIdx}:`, e) }
         }
 
         if (batchPages.length) {
@@ -564,7 +547,7 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
           }
         }
 
-        setScanProgress({ current: Math.min(batchEnd - effectiveStart + 1, totalPages), total: totalPages })
+        setScanProgress({ current: Math.min(batchEnd - startSheet + 1, totalSheets), total: totalSheets })
       }
 
       setPageAnalysis(allAnalysis)
@@ -582,7 +565,7 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
         units_config: units,
       })
 
-      showToast(`✅ ${allAnalysis.length} páginas analizadas${hasSpread ? ' (PDF doble página)' : ''}`, 'success')
+      showToast(`✅ ${allAnalysis.length} páginas analizadas — ${totalSheets} hojas del PDF${hasSpread ? ' (doble página)' : ''}`, 'success')
     } catch (err) {
       showToast(`Error al escanear: ${err.message}`, 'error')
     } finally {
