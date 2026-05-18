@@ -261,11 +261,21 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
 
   function detectUnitsFromAnalysis(analysis) {
     const unitsMap = {}  // keyed by unit_number for proper aggregation
+    let lastKnownUnit = null
+
     for (const page of analysis) {
-      const subunit   = page.subunit || ''
-      const unitMatch = subunit.match(/(\d+)/)
-      const unitNum   = unitMatch ? parseInt(unitMatch[1]) : null
-      if (!unitNum) continue  // skip pages without a detectable unit number
+      // Primary: use explicit unit_number from AI (integer field)
+      // Fallback: try to extract from subunit label (e.g. "4A" → 4)
+      // Last resort: inherit from previous page
+      let unitNum = page.unit_number || null
+      if (!unitNum && page.subunit) {
+        const match = page.subunit.match(/^(\d+)/)  // only match number at START of label
+        unitNum = match ? parseInt(match[1]) : null
+      }
+      if (!unitNum) unitNum = lastKnownUnit
+      if (!unitNum) continue  // truly undetectable — skip
+
+      lastKnownUnit = unitNum
 
       if (!unitsMap[unitNum]) {
         unitsMap[unitNum] = { unit_number: unitNum, title: `Unit ${unitNum}`, start_page: page.page, end_page: page.page, subunits: [] }
@@ -273,6 +283,8 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
       const unit = unitsMap[unitNum]
       if (page.page < unit.start_page) unit.start_page = page.page
       if (page.page > unit.end_page)   unit.end_page = page.page
+
+      const subunit = page.subunit || ''
       if (subunit && !unit.subunits.find(s => s.label === subunit)) {
         unit.subunits.push({ label: subunit, pages: [page.page] })
       } else if (subunit) {

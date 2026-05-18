@@ -278,9 +278,10 @@ PAGE NUMBERS (in order): ${pageNumbers.join(', ')}
 
 For EACH page, provide a THOROUGH analysis with these fields:
 - page: the page number
+- unit_number: the UNIT this page belongs to as an INTEGER (e.g. if the page is part of Unit 4, return 4). Determine this from headers, footers, or running titles visible on the page. If truly impossible to determine, use the same unit_number as the previous page.
 - content_type: one of "grammar_new" | "grammar_practice" | "vocabulary" | "reading" | "listening" | "speaking" | "writing" | "workbook" | "review" | "test" | "warmup" | "project"
 - complexity: 1-5 (1=simple warmup/review, 2=guided practice, 3=standard new concept, 4=complex skill/dense grammar, 5=multiple new grammar structures simultaneously)
-- subunit: visible label (e.g. "3A", "3B", "Unit 3 Review", "WB p.28") — use null if not visible
+- subunit: the sub-section label WITHIN the unit (e.g. "4A", "4B", "4C", "Review 4", "Get Started 4"). Use the format "NumberLetter" when visible. Use null if no sub-section is identifiable.
 - is_workbook: true if workbook/practice book page
 - summary: ONE sentence describing what this page teaches/practices
 - estimated_minutes: realistic class time (grammar_new 40-50, grammar_practice 20-30, vocabulary 25-35, reading 30-40, listening 25-35, speaking 25-35, workbook 20-30, warmup 10-15, review 20-30)
@@ -290,8 +291,10 @@ For EACH page, provide a THOROUGH analysis with these fields:
 - prerequisite_knowledge: what students must already know to do this page (one sentence, null if none)
 - teaching_challenges: main difficulty a teacher will face with this page (one sentence, null if none)
 
+IMPORTANT: unit_number must ALWAYS be an integer representing the textbook unit (3, 4, 5, 6, 7, 8...). Do NOT confuse page numbers with unit numbers. A page 28 that belongs to Unit 4 should have unit_number: 4.
+
 RESPOND ONLY with valid JSON, no markdown, no explanation:
-{"analysis": [{"page": N, "content_type": "...", "complexity": N, "subunit": "...", "is_workbook": false, "summary": "...", "estimated_minutes": N, "grammar_points": [], "vocabulary_topics": [], "exercise_types": [], "prerequisite_knowledge": "...", "teaching_challenges": "..."}, ...]}`
+{"analysis": [{"page": N, "unit_number": N, "content_type": "...", "complexity": N, "subunit": "...", "is_workbook": false, "summary": "...", "estimated_minutes": N, "grammar_points": [], "vocabulary_topics": [], "exercise_types": [], "prerequisite_knowledge": "...", "teaching_challenges": "..."}, ...]}`
 
   try {
     const raw = await callClaude({
