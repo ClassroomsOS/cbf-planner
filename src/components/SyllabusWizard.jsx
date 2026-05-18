@@ -395,7 +395,7 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
         setPdfThumbnails([])
       }
 
-      await savePlan({ toc_units: units })
+      await savePlan({ units: units })
       showToast(`✅ ${units.length} unidades detectadas en el índice`, 'success')
     } catch (err) {
       showToast(`Error: ${err.message}`, 'error')
@@ -467,6 +467,7 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
 
       for (let batchStart = startSheet; batchStart <= endSheet; batchStart += BATCH_SIZE) {
         const batchEnd  = Math.min(batchStart + BATCH_SIZE - 1, endSheet)
+        console.log(`📄 Batch: sheets ${batchStart}–${batchEnd} (of ${startSheet}–${endSheet})`)
         const batchPages = []
 
         for (let sheetIdx = batchStart; sheetIdx <= batchEnd; sheetIdx++) {
@@ -493,7 +494,11 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
             subject, grade, bookTitle: selectedDoc.title,
             tocUnits: selectedTocUnits, previousBatch, knownUnits,
           })
-          if (error) console.warn('Batch analysis error:', error)
+          if (error) {
+            console.warn('Batch analysis error:', error)
+            showToast(`⚠️ Error en hojas ${batchStart}–${batchEnd}: ${error}`, 'warning')
+          }
+          console.log(`📄 Batch ${batchStart}–${batchEnd}: ${analysis?.length || 0} results, error=${error || 'none'}`)
           if (analysis?.length) {
             allAnalysis.push(...analysis)
             const last = analysis[analysis.length - 1]
@@ -760,7 +765,7 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
 
   async function handlePublish() {
     if (!distribution.length) { showToast('No hay distribución para publicar', 'error'); return }
-    await savePlan({ status: 'active', page_distribution: distribution, start_unit: startUnit, end_unit: endUnit, selected_units: [...selectedUnits] })
+    await savePlan({ status: 'active', page_distribution: distribution, start_unit: startUnit, end_unit: endUnit })
     showToast('✅ Syllabus publicado — se usará en la generación de guías', 'success')
   }
 
@@ -844,7 +849,7 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
             selectedUnits={selectedUnits} setSelectedUnits={setSelectedUnits}
             onScan={handleScanPages}
             onNext={async () => {
-              await savePlan({ start_unit: startUnit, end_unit: endUnit, selected_units: [...selectedUnits] })
+              await savePlan({ start_unit: startUnit, end_unit: endUnit })
               setStep('analyze')
             }}
           />
