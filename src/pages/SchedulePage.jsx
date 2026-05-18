@@ -25,7 +25,8 @@ function subjectColor(subject, colorMap) {
 }
 
 export default function SchedulePage({ teacher }) {
-  const [view,          setView]          = useState('grade')    // 'grade' | 'teacher'
+  const isTeacherOnly = teacher.role === 'teacher'
+  const [view,          setView]          = useState(isTeacherOnly ? 'teacher' : 'grade')
   const [assignments,   setAssignments]   = useState([])
   const [teachers,      setTeachers]      = useState([])
   const [slots,         setSlots]         = useState([])
@@ -34,8 +35,8 @@ export default function SchedulePage({ teacher }) {
   // Grade view selectors
   const [selGrade,    setSelGrade]    = useState('')
   const [selSection,  setSelSection]  = useState('')
-  // Teacher view selector
-  const [selTeacher,  setSelTeacher]  = useState('')
+  // Teacher view selector — auto-select own ID for teachers
+  const [selTeacher,  setSelTeacher]  = useState(isTeacherOnly ? teacher.id : '')
 
   useEffect(() => { fetchAll() }, [])
 
@@ -149,29 +150,33 @@ export default function SchedulePage({ teacher }) {
       <div className="card">
         <div className="card-title">
           <div className="badge">🗓</div>
-          Horario Institucional
-          <span style={{ marginLeft: 'auto', fontSize: '10px', color: '#9BBB59', fontWeight: 700 }}>
-            {schoolConflicts.length > 0
-              ? <span style={{ color: '#C0504D' }}>⚠️ {schoolConflicts.length} conflicto{schoolConflicts.length !== 1 ? 's' : ''} de salón</span>
-              : '✅ Sin conflictos de salón'}
-          </span>
+          {isTeacherOnly ? 'Mi Horario' : 'Horario Institucional'}
+          {!isTeacherOnly && (
+            <span style={{ marginLeft: 'auto', fontSize: '10px', color: '#9BBB59', fontWeight: 700 }}>
+              {schoolConflicts.length > 0
+                ? <span style={{ color: '#C0504D' }}>⚠️ {schoolConflicts.length} conflicto{schoolConflicts.length !== 1 ? 's' : ''} de salón</span>
+                : '✅ Sin conflictos de salón'}
+            </span>
+          )}
         </div>
 
-        {/* ── View tabs ── */}
-        <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
-          <button
-            className={view === 'grade' ? 'btn-primary' : 'btn-secondary'}
-            onClick={() => setView('grade')}
-            style={{ fontSize: '12px' }}>
-            🏫 Por Grado / Sección
-          </button>
-          <button
-            className={view === 'teacher' ? 'btn-primary' : 'btn-secondary'}
-            onClick={() => setView('teacher')}
-            style={{ fontSize: '12px' }}>
-            👩‍🏫 Por Docente
-          </button>
-        </div>
+        {/* ── View tabs (hidden for regular teachers) ── */}
+        {!isTeacherOnly && (
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+            <button
+              className={view === 'grade' ? 'btn-primary' : 'btn-secondary'}
+              onClick={() => setView('grade')}
+              style={{ fontSize: '12px' }}>
+              🏫 Por Grado / Sección
+            </button>
+            <button
+              className={view === 'teacher' ? 'btn-primary' : 'btn-secondary'}
+              onClick={() => setView('teacher')}
+              style={{ fontSize: '12px' }}>
+              👩‍🏫 Por Docente
+            </button>
+          </div>
+        )}
 
         {/* ── Selectors ── */}
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '16px' }}>
@@ -199,13 +204,19 @@ export default function SchedulePage({ teacher }) {
             </>
           ) : (
             <>
-              <select value={selTeacher} onChange={e => setSelTeacher(e.target.value)}
-                style={{ minWidth: '200px' }}>
-                <option value="">— Seleccionar docente —</option>
-                {teachers.map(t => (
-                  <option key={t.id} value={t.id}>{t.full_name}</option>
-                ))}
-              </select>
+              {isTeacherOnly ? (
+                <span style={{ fontSize: '13px', fontWeight: 600, color: '#2E5598', alignSelf: 'center' }}>
+                  Mi Horario Semanal
+                </span>
+              ) : (
+                <select value={selTeacher} onChange={e => setSelTeacher(e.target.value)}
+                  style={{ minWidth: '200px' }}>
+                  <option value="">— Seleccionar docente —</option>
+                  {teachers.map(t => (
+                    <option key={t.id} value={t.id}>{t.full_name}</option>
+                  ))}
+                </select>
+              )}
             </>
           )}
         </div>
@@ -225,8 +236,8 @@ export default function SchedulePage({ teacher }) {
           </div>
         )}
 
-        {/* ── School conflicts panel ── */}
-        {schoolConflicts.length > 0 && (
+        {/* ── School conflicts panel (admin only) ── */}
+        {!isTeacherOnly && schoolConflicts.length > 0 && (
           <div style={{
             marginTop: '20px', background: '#fdf0f0',
             border: '2px solid #C0504D', borderRadius: '10px', padding: '14px',

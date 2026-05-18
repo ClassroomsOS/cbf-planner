@@ -342,7 +342,7 @@ function DashboardInner({ session, teacher, setTeacher }) {
           {hasCalendar && !isAdmin && (
             <Route path="/calendar" element={<CalendarPage teacher={teacher} />} />
           )}
-          {hasScheduleView && !isAdmin && (
+          {!isAdmin && (
             <Route path="/schedule" element={<SchedulePage teacher={teacher} />} />
           )}
           {hasAgendas && !isAdmin && (
@@ -497,9 +497,7 @@ function SidebarNav({
               {pendingReview > 0 && <span className="sb-notif-badge">{pendingReview}</span>}
             </NavLink>
           )}
-          {hasScheduleView && (
-            <L to="/schedule" dot="#4BACC6">🗓 Horario Institucional</L>
-          )}
+          <L to="/schedule" dot="#4BACC6">{hasScheduleView ? '🗓 Horario Institucional' : '🗓 Mi Horario'}</L>
           {hasAgendas && (
             <NavLink to="/agenda" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
               <span className="dot" style={{ background: '#9BBB59' }} />

@@ -138,13 +138,17 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
   // ── Load teacher schedule ─────────────────────────────────────────────────
   useEffect(() => {
     if (!subject || !grade) return
-    const baseGrade = grade.split(' ')[0]
-    supabase.from('teacher_assignments')
+    // grade is combined "8.° Blue" — split into base "8.°" + section "Blue"
+    const parts = grade.split(' ')
+    const baseGrade = parts[0]
+    const section = parts.slice(1).join(' ')
+    let q = supabase.from('teacher_assignments')
       .select('schedule')
       .eq('teacher_id', teacher.id)
       .eq('subject', subject)
       .eq('grade', baseGrade)
-      .single()
+    if (section) q = q.eq('section', section)
+    q.single()
       .then(({ data }) => { if (data?.schedule) setSchedule(data.schedule) })
   }, [teacher.id, subject, grade])
 
