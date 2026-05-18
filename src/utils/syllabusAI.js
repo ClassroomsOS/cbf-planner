@@ -272,26 +272,48 @@ export async function deepAnalyzeBookPages(pages, context = {}) {
 
   const pageNumbers = pages.slice(0, 5).map(p => p.pageNum)
 
+  // Build continuity context from previous batches
+  const prevContext = context.previousBatch
+    ? `\nCONTINUITY FROM PREVIOUS PAGES: The page immediately before this batch (page ${context.previousBatch.lastPage}) was part of Unit ${context.previousBatch.lastUnit}${context.previousBatch.lastSubunit ? `, subunit ${context.previousBatch.lastSubunit}` : ''}. Units in this textbook progress sequentially (3→4→5→6→7→8). The unit number should either STAY THE SAME or go UP BY ONE — it should NEVER jump by more than 1 unit within 5 pages.`
+    : ''
+
+  // Build known units context if available
+  const knownUnitsCtx = context.knownUnits?.length
+    ? `\nKNOWN UNIT BOUNDARIES DETECTED SO FAR:\n${context.knownUnits.map(u => `  Unit ${u.unit_number}: starts at page ${u.start_page}`).join('\n')}\nUse these as reference — new units start roughly every 10-12 pages in this textbook.`
+    : ''
+
   const prompt = `You are deeply analyzing ${imageBlocks.length} pages from "${context.bookTitle || 'textbook'}" — ${context.subject || 'English'} for grade ${context.grade || '8th'}.
 
 PAGE NUMBERS (in order): ${pageNumbers.join(', ')}
+${prevContext}${knownUnitsCtx}
 
-For EACH page, provide a THOROUGH analysis with these fields:
-- page: the page number
-- unit_number: the UNIT this page belongs to as an INTEGER (e.g. if the page is part of Unit 4, return 4). Determine this from headers, footers, or running titles visible on the page. If truly impossible to determine, use the same unit_number as the previous page.
+HOW TO FIND THE UNIT NUMBER:
+1. Look at the TOP of the page — most textbooks show the unit number in headers, running titles, or colored banners (e.g. "UNIT 4", "4A", "4 Grammar")
+2. Look at subunit labels like "4A", "4B", "5A" — the NUMBER part is the unit
+3. Look at page footers which often show "Unit X" or just the unit number
+4. If this is a title page for a new unit, it will have a large number and title
+5. Unit numbers are SMALL numbers (3, 4, 5, 6, 7, 8) — NOT the page number which is a LARGER number (22, 32, 42, 54, 64, 74...)
+6. If you cannot find the unit number visually, use the SAME unit as the previous page — units span ~10 pages each
+
+For EACH page, provide:
+- page: the page number (from the list above)
+- unit_number: INTEGER — the textbook UNIT (3, 4, 5, 6, 7, 8...) NOT the page number
 - content_type: one of "grammar_new" | "grammar_practice" | "vocabulary" | "reading" | "listening" | "speaking" | "writing" | "workbook" | "review" | "test" | "warmup" | "project"
 - complexity: 1-5 (1=simple warmup/review, 2=guided practice, 3=standard new concept, 4=complex skill/dense grammar, 5=multiple new grammar structures simultaneously)
 - subunit: the sub-section label WITHIN the unit (e.g. "4A", "4B", "4C", "Review 4", "Get Started 4"). Use the format "NumberLetter" when visible. Use null if no sub-section is identifiable.
 - is_workbook: true if workbook/practice book page
 - summary: ONE sentence describing what this page teaches/practices
 - estimated_minutes: realistic class time (grammar_new 40-50, grammar_practice 20-30, vocabulary 25-35, reading 30-40, listening 25-35, speaking 25-35, workbook 20-30, warmup 10-15, review 20-30)
-- grammar_points: array of specific grammar structures on this page (e.g. ["Present Perfect", "irregular past participles"]) — empty array if none
+- grammar_points: array of specific grammar structures (e.g. ["Present Perfect", "irregular past participles"]) — empty array if none
 - vocabulary_topics: array of vocabulary themes/fields (e.g. ["daily routines", "household chores"]) — empty array if none
 - exercise_types: array of exercise formats visible (e.g. ["fill-in-blank", "matching", "free writing", "gap fill", "multiple choice"]) — empty array if none
-- prerequisite_knowledge: what students must already know to do this page (one sentence, null if none)
-- teaching_challenges: main difficulty a teacher will face with this page (one sentence, null if none)
+- prerequisite_knowledge: what students must already know (one sentence, null if none)
+- teaching_challenges: main difficulty for the teacher (one sentence, null if none)
 
-IMPORTANT: unit_number must ALWAYS be an integer representing the textbook unit (3, 4, 5, 6, 7, 8...). Do NOT confuse page numbers with unit numbers. A page 28 that belongs to Unit 4 should have unit_number: 4.
+CRITICAL RULES FOR unit_number:
+- unit_number is a SMALL integer (typically 1-12). Page numbers are LARGER (20-90+). NEVER use the page number as the unit number.
+- Units progress sequentially: 3, 4, 5, 6, 7, 8. A unit CANNOT jump from 5 to 8 without passing through 6 and 7.
+- Each unit spans roughly 10-12 pages. If page 32 is Unit 4, then page 35 is almost certainly still Unit 4 or possibly Unit 5 — NEVER Unit 7 or 8.
 
 RESPOND ONLY with valid JSON, no markdown, no explanation:
 {"analysis": [{"page": N, "unit_number": N, "content_type": "...", "complexity": N, "subunit": "...", "is_workbook": false, "summary": "...", "estimated_minutes": N, "grammar_points": [], "vocabulary_topics": [], "exercise_types": [], "prerequisite_knowledge": "...", "teaching_challenges": "..."}, ...]}`

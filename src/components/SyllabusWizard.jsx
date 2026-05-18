@@ -217,6 +217,9 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
         `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`
       const pdf = await pdfjsLib.getDocument(selectedDoc.file_url).promise
 
+      // Accumulated context passed between batches for continuity
+      let previousBatch = null  // { lastPage, lastUnit, lastSubunit }
+
       for (let batchStart = pageStart; batchStart <= pageEnd; batchStart += BATCH_SIZE) {
         const batchEnd  = Math.min(batchStart + BATCH_SIZE - 1, pageEnd)
         const batchPages = []
@@ -236,11 +239,27 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
         }
 
         if (batchPages.length) {
+          // Build known unit boundaries from what we've detected so far
+          const knownUnits = allAnalysis.length ? detectUnitsFromAnalysis(allAnalysis) : []
+
           const { analysis, error } = await deepAnalyzeBookPages(batchPages, {
             subject, grade, bookTitle: selectedDoc.title,
+            previousBatch,
+            knownUnits,
           })
           if (error) console.warn('Batch analysis error:', error)
-          if (analysis?.length) allAnalysis.push(...analysis)
+          if (analysis?.length) {
+            allAnalysis.push(...analysis)
+            // Update context for next batch: use last page's detected info
+            const last = analysis[analysis.length - 1]
+            if (last) {
+              previousBatch = {
+                lastPage: last.page,
+                lastUnit: last.unit_number || previousBatch?.lastUnit,
+                lastSubunit: last.subunit || null,
+              }
+            }
+          }
         }
 
         setScanProgress({ current: Math.min(batchEnd - pageStart + 1, totalPages), total: totalPages })
