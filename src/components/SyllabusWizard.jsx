@@ -11,7 +11,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../supabase'
 import { useToast } from '../context/ToastContext'
 import {
-  deepAnalyzeBookPages, classifySubunitsAI, generateTeachingStrategiesAI,
+  analyzeTOCPages, deepAnalyzeBookPages, classifySubunitsAI, generateTeachingStrategiesAI,
   distributePagesByWeek, computeWorkingWeeks, advisorCheckSession,
 } from '../utils/syllabusAI'
 import { ACADEMIC_PERIODS } from '../utils/constants'
@@ -89,6 +89,9 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
   // ── Phase 1 state ─────────────────────────────────────────────────────────
   const [libraryDocs, setLibraryDocs] = useState([])
   const [selectedDocId, setSelectedDocId] = useState('')
+  const [tocPages, setTocPages] = useState('')            // comma-separated page numbers for TOC (e.g. "4,5,6,7")
+  const [tocUnits, setTocUnits] = useState([])            // [{unit_number, title, start_page, end_page, skills}]
+  const [scanningTOC, setScanningTOC] = useState(false)
   const [pageStart, setPageStart] = useState(1)
   const [pageEnd, setPageEnd] = useState(20)
   const [scanning, setScanning] = useState(false)
@@ -121,6 +124,7 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
     if (!plan) return
     if (plan.page_analysis?.length)         setPageAnalysis(plan.page_analysis)
     if (plan.units_config?.length)          setUnitsConfig(plan.units_config)
+    if (plan.toc_units?.length)             setTocUnits(plan.toc_units)
     if (plan.page_distribution?.length)     setDistribution(plan.page_distribution)
     if (plan.page_start)                    setPageStart(plan.page_start)
     if (plan.page_end)                      setPageEnd(plan.page_end)
@@ -201,6 +205,61 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
   // ══════════════════════════════════════════════════════════════════════════
   const selectedDoc = useMemo(() => libraryDocs.find(d => d.id === selectedDocId), [libraryDocs, selectedDocId])
 
+  // ── TOC scan ─────────────────────────────────────────────────────────────
+  async function handleScanTOC() {
+    if (!selectedDoc?.file_url) { showToast('Selecciona un libro primero', 'error'); return }
+    const tocNums = tocPages.split(',').map(s => parseInt(s.trim())).filter(n => n > 0)
+    if (!tocNums.length) { showToast('Ingresa los números de página del índice (ej: 4,5,6,7)', 'error'); return }
+
+    setScanningTOC(true)
+    try {
+      const pdfjsLib = await import('pdfjs-dist')
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`
+      const pdf = await pdfjsLib.getDocument(selectedDoc.file_url).promise
+
+      const renderedPages = []
+      for (const pageNum of tocNums) {
+        try {
+          const page = await pdf.getPage(pageNum)
+          const viewport = page.getViewport({ scale: 1.0 })
+          const canvas = document.createElement('canvas')
+          const ctx = canvas.getContext('2d')
+          const scale = Math.min(1400 / viewport.width, 1400 / viewport.height, 1.8)
+          canvas.width = viewport.width * scale
+          canvas.height = viewport.height * scale
+          await page.render({ canvasContext: ctx, viewport: page.getViewport({ scale }) }).promise
+          renderedPages.push({ pageNum, base64: canvas.toDataURL('image/jpeg', 0.85).split(',')[1] })
+        } catch (e) { console.warn(`Failed to render TOC page ${pageNum}:`, e) }
+      }
+
+      if (!renderedPages.length) { showToast('No se pudieron renderizar las páginas del índice', 'error'); return }
+
+      const { units, error } = await analyzeTOCPages(renderedPages, {
+        subject, grade, bookTitle: selectedDoc.title,
+      })
+      if (error) { showToast(`Error TOC: ${error}`, 'error'); return }
+      if (!units.length) { showToast('No se detectaron unidades en el índice', 'error'); return }
+
+      setTocUnits(units)
+      // Auto-fill page range from TOC
+      const firstPage = Math.min(...units.map(u => u.start_page).filter(Boolean))
+      const lastPage = Math.max(...units.map(u => u.end_page).filter(Boolean))
+      if (firstPage > 0) setPageStart(firstPage)
+      if (lastPage > 0) setPageEnd(lastPage)
+      // Auto-set unit range
+      setStartUnit(units[0].unit_number)
+      setEndUnit(units[units.length - 1].unit_number)
+
+      await savePlan({ toc_units: units })
+      showToast(`✅ ${units.length} unidades detectadas en el índice`, 'success')
+    } catch (err) {
+      showToast(`Error: ${err.message}`, 'error')
+    } finally {
+      setScanningTOC(false)
+    }
+  }
+
   async function handleScanPages() {
     if (!selectedDoc?.file_url) { showToast('Selecciona un libro primero', 'error'); return }
     if (pageEnd <= pageStart)   { showToast('El rango de páginas es inválido', 'error'); return }
@@ -244,6 +303,7 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
 
           const { analysis, error } = await deepAnalyzeBookPages(batchPages, {
             subject, grade, bookTitle: selectedDoc.title,
+            tocUnits,       // authoritative TOC data (if scanned)
             previousBatch,
             knownUnits,
           })
@@ -289,77 +349,98 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
   }
 
   function detectUnitsFromAnalysis(analysis) {
-    // Sort pages by page number to ensure monotonic processing
     const sorted = [...analysis].sort((a, b) => a.page - b.page)
 
-    // ── PASS 1: Collect anchor points (pages with explicit unit_number) ──────
-    // An anchor is a page where the AI or subunit label gave us a unit_number.
-    // We DON'T inherit from previous pages yet — that caused cascading errors.
-    const anchors = [] // { page, unitNum, source }
+    // ── PRIMARY: If TOC data exists, use it for deterministic unit assignment ─
+    // TOC is the authoritative source — no guessing needed.
+    if (tocUnits.length) {
+      const unitsMap = {}
+      // Initialize from TOC (preserves title and skills even if no pages scanned yet)
+      for (const tu of tocUnits) {
+        unitsMap[tu.unit_number] = {
+          unit_number: tu.unit_number,
+          title: tu.title || `Unit ${tu.unit_number}`,
+          start_page: tu.start_page,
+          end_page: tu.end_page || tu.start_page,
+          skills: tu.skills || {},
+          subunits: [],
+        }
+      }
+
+      // Assign each scanned page to its TOC unit by page range
+      for (const page of sorted) {
+        // Find the unit whose range contains this page
+        const tocUnit = tocUnits.find((u, i) => {
+          const start = u.start_page
+          const end = u.end_page || (tocUnits[i + 1]?.start_page ? tocUnits[i + 1].start_page - 1 : Infinity)
+          return page.page >= start && page.page <= end
+        })
+        if (!tocUnit) continue
+        const unitNum = tocUnit.unit_number
+        const unit = unitsMap[unitNum]
+
+        // Override the AI's unit_number with the TOC's (authoritative)
+        page.unit_number = unitNum
+
+        // Aggregate subunits
+        const subunit = page.subunit || ''
+        if (subunit && !unit.subunits.find(s => s.label === subunit)) {
+          unit.subunits.push({ label: subunit, pages: [page.page] })
+        } else if (subunit) {
+          unit.subunits.find(s => s.label === subunit)?.pages.push(page.page)
+        }
+      }
+
+      return Object.values(unitsMap).sort((a, b) => a.unit_number - b.unit_number)
+    }
+
+    // ── FALLBACK: No TOC — use anchor-based detection with monotonic validation
+    const anchors = []
     for (const p of sorted) {
       let unitNum = p.unit_number || null
-      let source = 'ai'
       if (!unitNum && p.subunit) {
         const match = p.subunit.match(/^(\d+)/)
         unitNum = match ? parseInt(match[1]) : null
-        source = 'subunit'
       }
-      if (unitNum) anchors.push({ page: p.page, unitNum, source })
+      if (unitNum) anchors.push({ page: p.page, unitNum })
     }
 
-    // ── PASS 2: Validate anchors — unit numbers must be non-decreasing ───────
-    // If a page has a lower unit than the established trend, or jumps too far
-    // ahead (>1 unit in <3 pages), it's likely a misread — discard it.
+    // Validate monotonicity
     const validAnchors = []
-    for (let i = 0; i < anchors.length; i++) {
-      const a = anchors[i]
+    for (const a of anchors) {
       const prev = validAnchors.length ? validAnchors[validAnchors.length - 1] : null
-
       if (!prev) { validAnchors.push(a); continue }
-
-      // Reject if unit goes backwards
       if (a.unitNum < prev.unitNum) continue
-
-      // Reject if unit jumps more than 1 ahead within very few pages (likely misread)
       if (a.unitNum > prev.unitNum + 1) {
         const pageGap = a.page - prev.page
-        // Allow the jump only if there's a reasonable page gap (>= 5 pages per unit skipped)
         const unitJump = a.unitNum - prev.unitNum
-        if (pageGap < unitJump * 5) continue // too fast — skip this anchor
+        if (pageGap < unitJump * 5) continue
       }
-
       validAnchors.push(a)
     }
 
-    // ── PASS 3: Assign unit to every page via interpolation from anchors ─────
-    // For pages between anchors, use the previous anchor's unit.
-    // For pages before the first anchor, use the first anchor's unit.
-    const pageUnitMap = {} // page → unitNum
-    for (let i = 0; i < sorted.length; i++) {
-      const p = sorted[i]
-      // Find the last anchor at or before this page
+    // Interpolate
+    const pageUnitMap = {}
+    for (const p of sorted) {
       let assigned = null
       for (let j = validAnchors.length - 1; j >= 0; j--) {
         if (validAnchors[j].page <= p.page) { assigned = validAnchors[j].unitNum; break }
       }
-      // If before all anchors, use first anchor
       if (assigned === null && validAnchors.length) assigned = validAnchors[0].unitNum
       if (assigned !== null) pageUnitMap[p.page] = assigned
     }
 
-    // ── PASS 4: Build unit config from validated assignments ─────────────────
+    // Build unit config
     const unitsMap = {}
     for (const page of sorted) {
       const unitNum = pageUnitMap[page.page]
       if (!unitNum) continue
-
       if (!unitsMap[unitNum]) {
         unitsMap[unitNum] = { unit_number: unitNum, title: `Unit ${unitNum}`, start_page: page.page, end_page: page.page, subunits: [] }
       }
       const unit = unitsMap[unitNum]
       if (page.page < unit.start_page) unit.start_page = page.page
       if (page.page > unit.end_page)   unit.end_page = page.page
-
       const subunit = page.subunit || ''
       if (subunit && !unit.subunits.find(s => s.label === subunit)) {
         unit.subunits.push({ label: subunit, pages: [page.page] })
@@ -544,6 +625,9 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
           <StepSelect
             libraryDocs={libraryDocs}
             selectedDocId={selectedDocId} setSelectedDocId={setSelectedDocId}
+            tocPages={tocPages} setTocPages={setTocPages}
+            tocUnits={tocUnits} scanningTOC={scanningTOC}
+            onScanTOC={handleScanTOC}
             pageStart={pageStart} setPageStart={setPageStart}
             pageEnd={pageEnd} setPageEnd={setPageEnd}
             scanning={scanning} scanProgress={scanProgress}
@@ -632,6 +716,7 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
 // ══════════════════════════════════════════════════════════════════════════════
 function StepSelect({
   libraryDocs, selectedDocId, setSelectedDocId,
+  tocPages, setTocPages, tocUnits, scanningTOC, onScanTOC,
   pageStart, setPageStart, pageEnd, setPageEnd,
   scanning, scanProgress, pageAnalysis, unitsConfig,
   startUnit, setStartUnit, endUnit, setEndUnit,
@@ -640,7 +725,7 @@ function StepSelect({
   return (
     <div className="sw-step-content">
       <h3 className="sw-step-title">📖 Libro y Unidad inicial</h3>
-      <p className="sw-step-desc">Selecciona el libro PDF, define el rango de páginas y escanea con IA para detectar las unidades del período.</p>
+      <p className="sw-step-desc">Selecciona el libro PDF, escanea primero el índice para detectar las unidades, luego escanea las páginas de contenido.</p>
 
       <div className="sw-field-group">
         <label className="sw-label">Libro (PDF de la Biblioteca)</label>
@@ -650,24 +735,82 @@ function StepSelect({
         </select>
       </div>
 
-      <div className="sw-range-row">
-        <div className="sw-field-group">
-          <label className="sw-label">Desde página</label>
-          <input type="number" className="sw-input" min={1} value={pageStart} onChange={e => setPageStart(+e.target.value)} />
+      {/* ── STEP A: Scan Table of Contents ──────────────────────────── */}
+      <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 12, padding: 16, marginBottom: 16 }}>
+        <div style={{ fontWeight: 700, color: '#0369a1', marginBottom: 8, fontSize: 14 }}>
+          Paso 1: Escanear Tabla de Contenidos
         </div>
-        <div className="sw-range-arrow">→</div>
-        <div className="sw-field-group">
-          <label className="sw-label">Hasta página</label>
-          <input type="number" className="sw-input" min={pageStart + 1} value={pageEnd} onChange={e => setPageEnd(+e.target.value)} />
+        <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 10px' }}>
+          Ingresa las páginas del índice del libro (ej: las páginas iv, v, vi, vii del PDF).
+          El sistema leerá la estructura de unidades, páginas y habilidades.
+        </p>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
+          <div className="sw-field-group" style={{ flex: 1, marginBottom: 0 }}>
+            <label className="sw-label">Páginas del índice (números del PDF)</label>
+            <input
+              type="text" className="sw-input" placeholder="Ej: 4, 5, 6, 7"
+              value={tocPages} onChange={e => setTocPages(e.target.value)}
+            />
+          </div>
+          <button
+            className="sw-btn sw-btn-primary"
+            style={{ whiteSpace: 'nowrap' }}
+            onClick={onScanTOC}
+            disabled={scanningTOC || !selectedDocId || !tocPages.trim()}
+          >
+            {scanningTOC ? 'Leyendo índice...' : '📋 Leer Índice'}
+          </button>
         </div>
-        <div className="sw-range-total">{pageEnd - pageStart + 1} páginas</div>
+
+        {tocUnits.length > 0 && (
+          <div style={{ marginTop: 12 }}>
+            <div style={{ fontWeight: 600, fontSize: 12, color: '#059669', marginBottom: 6 }}>
+              ✅ {tocUnits.length} unidades detectadas:
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {tocUnits.map(u => (
+                <div key={u.unit_number} style={{
+                  padding: '6px 10px', borderRadius: 8, background: '#ecfdf5',
+                  border: '1px solid #a7f3d0', fontSize: 12, lineHeight: 1.3,
+                }}>
+                  <strong>Unit {u.unit_number}</strong> — pp. {u.start_page}–{u.end_page || '?'}
+                  <div style={{ color: '#6b7280', fontSize: 10 }}>{u.title}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
-      <button className="sw-btn sw-btn-primary" onClick={onScan} disabled={scanning || !selectedDocId}>
-        {scanning
-          ? `🔍 Escaneando... ${scanProgress.current}/${scanProgress.total}`
-          : '🔍 Escanear páginas con IA'}
-      </button>
+      {/* ── STEP B: Scan Content Pages ──────────────────────────────── */}
+      <div style={{ background: tocUnits.length ? '#fff' : '#fef3c7', border: `1px solid ${tocUnits.length ? '#e5e7eb' : '#fcd34d'}`, borderRadius: 12, padding: 16, marginBottom: 16 }}>
+        <div style={{ fontWeight: 700, color: '#374151', marginBottom: 8, fontSize: 14 }}>
+          Paso 2: Escanear Páginas de Contenido
+        </div>
+        {!tocUnits.length && (
+          <p style={{ fontSize: 12, color: '#92400e', margin: '0 0 10px', fontWeight: 500 }}>
+            Recomendado: escanea primero el índice (Paso 1) para que las unidades se asignen correctamente.
+          </p>
+        )}
+        <div className="sw-range-row">
+          <div className="sw-field-group">
+            <label className="sw-label">Desde página</label>
+            <input type="number" className="sw-input" min={1} value={pageStart} onChange={e => setPageStart(+e.target.value)} />
+          </div>
+          <div className="sw-range-arrow">→</div>
+          <div className="sw-field-group">
+            <label className="sw-label">Hasta página</label>
+            <input type="number" className="sw-input" min={pageStart + 1} value={pageEnd} onChange={e => setPageEnd(+e.target.value)} />
+          </div>
+          <div className="sw-range-total">{pageEnd - pageStart + 1} páginas</div>
+        </div>
+
+        <button className="sw-btn sw-btn-primary" onClick={onScan} disabled={scanning || !selectedDocId}>
+          {scanning
+            ? `🔍 Escaneando... ${scanProgress.current}/${scanProgress.total}`
+            : '🔍 Escanear páginas con IA'}
+        </button>
+      </div>
 
       {scanning && (
         <div className="sw-progress-bar">

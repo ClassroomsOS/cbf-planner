@@ -243,6 +243,89 @@ Responde SOLO con JSON válido:
 // ══════════════════════════════════════════════════════════════════════════════
 
 /**
+ * Scan the Table of Contents (TOC) pages to extract the authoritative
+ * unit→page mapping, skills, and content structure.
+ * This MUST run before deepAnalyzeBookPages so we have the real unit boundaries.
+ *
+ * @param {Array<{pageNum: number, base64: string}>} tocPages - TOC page images (typically 2-4 pages)
+ * @param {{ subject: string, grade: string, bookTitle: string }} context
+ * @returns {Promise<{units: Array, error: string|null}>}
+ *   units = [{unit_number, title, start_page, end_page, skills: {grammar:[], vocabulary:[], reading:[], listening:[], speaking:[], writing:[]}}]
+ */
+export async function analyzeTOCPages(tocPages, context = {}) {
+  if (!tocPages?.length) return { units: [], error: 'No hay páginas de tabla de contenidos' }
+
+  const imageBlocks = tocPages
+    .filter(p => p?.base64)
+    .slice(0, 5)
+    .map(p => ({
+      type: 'image',
+      source: { type: 'base64', media_type: 'image/jpeg', data: p.base64 },
+    }))
+
+  if (!imageBlocks.length) return { units: [], error: 'No se pudieron procesar las imágenes del TOC' }
+
+  const prompt = `You are analyzing the TABLE OF CONTENTS (TOC) of "${context.bookTitle || 'textbook'}" — ${context.subject || 'English'} for grade ${context.grade || '8th'}.
+
+These ${imageBlocks.length} images show the book's table of contents / scope and sequence. This is typically organized as a table with columns for Unit, Grammar, Vocabulary, Reading, Listening, Speaking, Writing, etc.
+
+TASK: Extract the COMPLETE unit structure with their PAGE NUMBERS and content/skills.
+
+For EACH unit visible in the TOC, extract:
+- unit_number: the unit number as an INTEGER (e.g. 3, 4, 5, 6, 7, 8)
+- title: the unit title/name as shown in the TOC
+- start_page: the FIRST page number of this unit (look for the page number in the TOC row)
+- end_page: the LAST page of this unit (= start_page of next unit minus 1, or estimate from the pattern)
+- skills: object with arrays of content topics per skill area:
+  - grammar: array of grammar topics listed for this unit (e.g. ["Present Perfect", "since/for"])
+  - vocabulary: array of vocabulary topics (e.g. ["Daily routines", "Household items"])
+  - reading: array of reading topics/texts (e.g. ["Article: Climate change"])
+  - listening: array of listening activities
+  - speaking: array of speaking activities
+  - writing: array of writing tasks
+  - pronunciation: array if present
+  - review: array if review/check sections are listed
+
+READ THE PAGE NUMBERS CAREFULLY:
+- Page numbers in the TOC are typically in their own column or aligned to the right
+- Unit page numbers are usually 2-digit numbers (22, 32, 42, 54, 64, 74...)
+- Do NOT confuse unit numbers (small: 3, 4, 5...) with page numbers (larger: 22, 32, 42...)
+- If a row shows "Unit 4" and page "32", then unit_number=4 and start_page=32
+
+RESPOND ONLY with valid JSON, no markdown:
+{"units": [{"unit_number": 3, "title": "...", "start_page": 22, "end_page": 31, "skills": {"grammar": ["..."], "vocabulary": ["..."], "reading": ["..."], "listening": ["..."], "speaking": ["..."], "writing": ["..."]}}]}`
+
+  try {
+    const raw = await callClaude({
+      type: 'syllabus_analyze_toc',
+      system: 'You are an expert at reading textbook tables of contents. You extract unit structures with exact page numbers and skill topics. Respond ONLY with valid JSON.',
+      message: prompt,
+      maxTokens: 4000,
+      imageBlocks,
+    })
+
+    const text = (raw || '').trim()
+    const jsonStr = text.startsWith('{') ? text : text.match(/\{[\s\S]*\}/)?.[0] || ''
+    if (!jsonStr) return { units: [], error: 'La IA no devolvió JSON válido' }
+
+    const parsed = JSON.parse(jsonStr)
+    const units = (parsed.units || []).sort((a, b) => a.unit_number - b.unit_number)
+
+    // Auto-calculate end_page from next unit's start_page if not provided
+    for (let i = 0; i < units.length; i++) {
+      if (!units[i].end_page && units[i + 1]?.start_page) {
+        units[i].end_page = units[i + 1].start_page - 1
+      }
+    }
+
+    return { units, error: null }
+  } catch (err) {
+    console.error('[syllabusAI] analyzeTOCPages error:', err)
+    return { units: [], error: err.message }
+  }
+}
+
+/**
  * Deep analysis of textbook pages using Claude Vision.
  * Extracts grammar points, vocabulary, exercise types, prerequisites and teaching challenges
  * in addition to the standard page classification.
@@ -272,32 +355,38 @@ export async function deepAnalyzeBookPages(pages, context = {}) {
 
   const pageNumbers = pages.slice(0, 5).map(p => p.pageNum)
 
-  // Build continuity context from previous batches
-  const prevContext = context.previousBatch
-    ? `\nCONTINUITY FROM PREVIOUS PAGES: The page immediately before this batch (page ${context.previousBatch.lastPage}) was part of Unit ${context.previousBatch.lastUnit}${context.previousBatch.lastSubunit ? `, subunit ${context.previousBatch.lastSubunit}` : ''}. Units in this textbook progress sequentially (3→4→5→6→7→8). The unit number should either STAY THE SAME or go UP BY ONE — it should NEVER jump by more than 1 unit within 5 pages.`
+  // If TOC data is available, build authoritative unit map context
+  // This is the PRIMARY source for unit_number — the AI just needs to focus on content analysis
+  const tocUnits = context.tocUnits || []
+  const hasTOC = tocUnits.length > 0
+
+  const tocBlock = hasTOC
+    ? `\nAUTHORITATIVE UNIT→PAGE MAP (from Table of Contents — use this, do NOT guess):\n${tocUnits.map(u =>
+        `  Unit ${u.unit_number} "${u.title}": pages ${u.start_page}–${u.end_page || '?'}`
+      ).join('\n')}\nFor each page, look up which unit range it falls in and use THAT unit_number. This map is the definitive source.`
     : ''
 
-  // Build known units context if available
-  const knownUnitsCtx = context.knownUnits?.length
-    ? `\nKNOWN UNIT BOUNDARIES DETECTED SO FAR:\n${context.knownUnits.map(u => `  Unit ${u.unit_number}: starts at page ${u.start_page}`).join('\n')}\nUse these as reference — new units start roughly every 10-12 pages in this textbook.`
+  // Fallback context when no TOC is available
+  const prevContext = !hasTOC && context.previousBatch
+    ? `\nCONTINUITY: Previous page (p.${context.previousBatch.lastPage}) was Unit ${context.previousBatch.lastUnit}${context.previousBatch.lastSubunit ? `, subunit ${context.previousBatch.lastSubunit}` : ''}. Units progress sequentially and NEVER skip.`
     : ''
+
+  const knownUnitsCtx = !hasTOC && context.knownUnits?.length
+    ? `\nKNOWN BOUNDARIES:\n${context.knownUnits.map(u => `  Unit ${u.unit_number}: starts at page ${u.start_page}`).join('\n')}`
+    : ''
+
+  const unitInstructions = hasTOC
+    ? `- unit_number: look up the page in the UNIT→PAGE MAP above and return the matching unit number as an INTEGER. Do NOT guess — use the map.`
+    : `- unit_number: the textbook UNIT as an INTEGER (3, 4, 5...). Look for it in headers, footers, running titles. Unit numbers are SMALL (3-8), page numbers are LARGE (22-83). NEVER confuse them.`
 
   const prompt = `You are deeply analyzing ${imageBlocks.length} pages from "${context.bookTitle || 'textbook'}" — ${context.subject || 'English'} for grade ${context.grade || '8th'}.
 
 PAGE NUMBERS (in order): ${pageNumbers.join(', ')}
-${prevContext}${knownUnitsCtx}
-
-HOW TO FIND THE UNIT NUMBER:
-1. Look at the TOP of the page — most textbooks show the unit number in headers, running titles, or colored banners (e.g. "UNIT 4", "4A", "4 Grammar")
-2. Look at subunit labels like "4A", "4B", "5A" — the NUMBER part is the unit
-3. Look at page footers which often show "Unit X" or just the unit number
-4. If this is a title page for a new unit, it will have a large number and title
-5. Unit numbers are SMALL numbers (3, 4, 5, 6, 7, 8) — NOT the page number which is a LARGER number (22, 32, 42, 54, 64, 74...)
-6. If you cannot find the unit number visually, use the SAME unit as the previous page — units span ~10 pages each
+${tocBlock}${prevContext}${knownUnitsCtx}
 
 For EACH page, provide:
 - page: the page number (from the list above)
-- unit_number: INTEGER — the textbook UNIT (3, 4, 5, 6, 7, 8...) NOT the page number
+${unitInstructions}
 - content_type: one of "grammar_new" | "grammar_practice" | "vocabulary" | "reading" | "listening" | "speaking" | "writing" | "workbook" | "review" | "test" | "warmup" | "project"
 - complexity: 1-5 (1=simple warmup/review, 2=guided practice, 3=standard new concept, 4=complex skill/dense grammar, 5=multiple new grammar structures simultaneously)
 - subunit: the sub-section label WITHIN the unit (e.g. "4A", "4B", "4C", "Review 4", "Get Started 4"). Use the format "NumberLetter" when visible. Use null if no sub-section is identifiable.
@@ -309,11 +398,6 @@ For EACH page, provide:
 - exercise_types: array of exercise formats visible (e.g. ["fill-in-blank", "matching", "free writing", "gap fill", "multiple choice"]) — empty array if none
 - prerequisite_knowledge: what students must already know (one sentence, null if none)
 - teaching_challenges: main difficulty for the teacher (one sentence, null if none)
-
-CRITICAL RULES FOR unit_number:
-- unit_number is a SMALL integer (typically 1-12). Page numbers are LARGER (20-90+). NEVER use the page number as the unit number.
-- Units progress sequentially: 3, 4, 5, 6, 7, 8. A unit CANNOT jump from 5 to 8 without passing through 6 and 7.
-- Each unit spans roughly 10-12 pages. If page 32 is Unit 4, then page 35 is almost certainly still Unit 4 or possibly Unit 5 — NEVER Unit 7 or 8.
 
 RESPOND ONLY with valid JSON, no markdown, no explanation:
 {"analysis": [{"page": N, "unit_number": N, "content_type": "...", "complexity": N, "subunit": "...", "is_workbook": false, "summary": "...", "estimated_minutes": N, "grammar_points": [], "vocabulary_topics": [], "exercise_types": [], "prerequisite_knowledge": "...", "teaching_challenges": "..."}, ...]}`
