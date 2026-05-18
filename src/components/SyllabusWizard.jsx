@@ -81,6 +81,100 @@ const ABC_SECTIONS = [
 const DAY_KEYS   = ['mon', 'tue', 'wed', 'thu', 'fri']
 const DAY_LABELS = { mon: 'Lun', tue: 'Mar', wed: 'Mié', thu: 'Jue', fri: 'Vie' }
 const DAY_FULL   = { mon: 'Lunes', tue: 'Martes', wed: 'Miércoles', thu: 'Jueves', fri: 'Viernes' }
+const MONTH_NAMES = ['', 'ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+
+function formatShortDate(iso) {
+  if (!iso) return ''
+  const [, m, d] = iso.split('-')
+  return `${parseInt(d)} ${MONTH_NAMES[parseInt(m)]}`
+}
+
+// ── Calendar helpers (mirrored from AcademicCalendarPage) ─────────────────
+function weekMonday(date) {
+  const d = new Date(date)
+  const day = d.getDay()
+  d.setDate(d.getDate() - (day === 0 ? 6 : day - 1))
+  return d
+}
+
+function toISO(d) { return d.toISOString().slice(0, 10) }
+
+/**
+ * Build planning weeks from period dates, respecting holidays and compound weeks.
+ * Returns [{weekNum, start, end, displayStart, displayEnd, holidays:[], isLast, isCompound, days:[iso]}]
+ */
+function calculatePlanningWeeks(startIso, endIso, calEvents = [], compoundWeeks = []) {
+  if (!startIso || !endIso) return []
+  const start = new Date(startIso + 'T12:00:00')
+  const end   = new Date(endIso   + 'T12:00:00')
+  const noClassDates = new Set(calEvents.filter(e => e.no_class || !e.is_school_day).map(e => e.date))
+  const eventsByDate = {}
+  calEvents.forEach(e => { eventsByDate[e.date] = e })
+
+  const cursor = weekMonday(start)
+  const rawWeeks = []
+  let calWeekNum = 1
+
+  while (cursor <= end) {
+    const monday = new Date(cursor)
+    const friday = new Date(cursor); friday.setDate(friday.getDate() + 4)
+    const weekStart = monday < start ? start : monday
+    const weekEnd   = friday > end   ? end   : friday
+
+    const days = []
+    const holidays = []
+    for (let d = new Date(monday); d <= friday; d.setDate(d.getDate() + 1)) {
+      const iso = toISO(d)
+      if (d >= start && d <= end) {
+        if (noClassDates.has(iso)) {
+          holidays.push({ date: iso, name: eventsByDate[iso]?.name || 'Sin clase' })
+        } else {
+          days.push(iso)
+        }
+      }
+    }
+
+    rawWeeks.push({
+      calWeekNum, start: toISO(monday), end: toISO(friday),
+      displayStart: toISO(weekStart), displayEnd: toISO(weekEnd),
+      holidays, days,
+      allHoliday: days.length === 0 && holidays.length > 0,
+    })
+    calWeekNum++
+    cursor.setDate(cursor.getDate() + 7)
+  }
+
+  // Merge compound weeks
+  const weeks = []
+  let planningNum = 1
+  const processed = new Set()
+
+  for (const rw of rawWeeks) {
+    if (processed.has(rw.calWeekNum)) continue
+    const group = compoundWeeks.find(g => g.includes(rw.calWeekNum))
+    if (group) {
+      const groupWeeks = rawWeeks.filter(w => group.includes(w.calWeekNum))
+      groupWeeks.forEach(w => processed.add(w.calWeekNum))
+      weeks.push({
+        weekNum: planningNum, isCompound: true,
+        start: groupWeeks[0].start, end: groupWeeks[groupWeeks.length - 1].end,
+        displayStart: groupWeeks[0].displayStart, displayEnd: groupWeeks[groupWeeks.length - 1].displayEnd,
+        holidays: groupWeeks.flatMap(w => w.holidays),
+        days: groupWeeks.flatMap(w => w.days),
+        allHoliday: groupWeeks.every(w => w.allHoliday),
+      })
+    } else {
+      processed.add(rw.calWeekNum)
+      weeks.push({ ...rw, weekNum: planningNum, isCompound: false })
+    }
+    planningNum++
+  }
+
+  // Mark last week as finals
+  if (weeks.length) weeks[weeks.length - 1].isLast = true
+
+  return weeks
+}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // MAIN COMPONENT
@@ -102,8 +196,7 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
   const [scanProgress, setScanProgress] = useState({ current: 0, total: 0 })
   const [pageAnalysis, setPageAnalysis] = useState([])   // enriched pages from deepAnalyzeBookPages
   const [unitsConfig, setUnitsConfig] = useState([])     // [{unit_number, title, start_page, end_page, subunits}]
-  const [startUnit, setStartUnit] = useState(1)          // unit from which to start the period
-  const [endUnit, setEndUnit] = useState(null)            // last unit to cover (inclusive); null = last detected
+  const [selectedUnits, setSelectedUnits] = useState(new Set()) // unit_numbers selected for the period
 
   // ── Phase 3 state ─────────────────────────────────────────────────────────
   const [subunitClassification, setSubunitClassification] = useState([])
@@ -115,13 +208,19 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
 
   // ── Phase 5 state ─────────────────────────────────────────────────────────
   const [schedule, setSchedule] = useState({})
-  const [workingWeeks, setWorkingWeeks] = useState([])
+  const [workingWeeks, setWorkingWeeks] = useState([])   // enriched weeks from calculateWeeks
+  const [calendarEvents, setCalendarEvents] = useState([]) // school_calendar rows for the period
+  const [periodConfig, setPeriodConfig] = useState(null)  // academic_period_config row
   const [distribution, setDistribution] = useState([])
   const [distributing, setDistributing] = useState(false)
   const [resources, setResources] = useState([])
   const [advisorFeedback, setAdvisorFeedback] = useState(null)
   const [selectedDay, setSelectedDay] = useState(null)
   const [addingResource, setAddingResource] = useState(false)
+
+  // Derived: start_unit / end_unit from selectedUnits (for DB compat + distributor)
+  const startUnit = selectedUnits.size ? Math.min(...selectedUnits) : 1
+  const endUnit   = selectedUnits.size ? Math.max(...selectedUnits) : null
 
   // ── Restore saved plan ────────────────────────────────────────────────────
   useEffect(() => {
@@ -133,8 +232,13 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
     if (plan.page_start)                    setPageStart(plan.page_start)
     if (plan.page_end)                      setPageEnd(plan.page_end)
     if (plan.library_doc_id)                setSelectedDocId(plan.library_doc_id)
-    if (plan.start_unit)                    setStartUnit(plan.start_unit)
-    if (plan.end_unit)                      setEndUnit(plan.end_unit)
+    if (plan.selected_units?.length)        setSelectedUnits(new Set(plan.selected_units))
+    else if (plan.start_unit && plan.end_unit) {
+      // Legacy compat: rebuild selectedUnits from start/end range
+      const s = new Set()
+      for (let u = plan.start_unit; u <= plan.end_unit; u++) s.add(u)
+      setSelectedUnits(s)
+    }
     if (plan.subunit_classification?.length) setSubunitClassification(plan.subunit_classification)
     if (plan.teaching_strategies?.length)   setTeachingStrategies(plan.teaching_strategies)
   }, [plan])
@@ -166,30 +270,38 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
       .then(({ data }) => { if (data?.schedule) setSchedule(data.schedule) })
   }, [teacher.id, subject, grade])
 
-  // ── Load working weeks ────────────────────────────────────────────────────
+  // ── Load working weeks from institutional calendar ─────────────────────
   useEffect(() => {
     if (!teacher.school_id || !period) return
     supabase.from('academic_period_config')
-      .select('start_date, end_date')
+      .select('start_date, end_date, compound_weeks')
       .eq('school_id', teacher.school_id)
       .eq('period', parseInt(period))
       .maybeSingle()
       .then(async ({ data: pc }) => {
-        // Fallback to hardcoded ACADEMIC_PERIODS if table/row doesn't exist
         const fallback = ACADEMIC_PERIODS.find(p => parseInt(p.value) === parseInt(period))
         const resolved = pc?.start_date && pc?.end_date
           ? pc
-          : fallback ? { start_date: fallback.start, end_date: fallback.end } : null
+          : fallback ? { start_date: fallback.start, end_date: fallback.end, compound_weeks: [] } : null
         if (!resolved) return
 
+        setPeriodConfig(resolved)
+
+        // Fetch ALL calendar events for the period (holidays, events, vacations)
         const { data: cal } = await supabase.from('school_calendar')
-          .select('date')
+          .select('date, name, no_class, is_school_day, affects_planning, event_type')
           .eq('school_id', teacher.school_id)
-          .eq('is_school_day', false)
           .gte('date', resolved.start_date)
           .lte('date', resolved.end_date)
-        const noClassDates = (cal || []).map(c => c.date)
-        setWorkingWeeks(computeWorkingWeeks(resolved.start_date, resolved.end_date, noClassDates))
+          .order('date')
+        const events = cal || []
+        setCalendarEvents(events)
+
+        const weeks = calculatePlanningWeeks(
+          resolved.start_date, resolved.end_date,
+          events, resolved.compound_weeks || []
+        )
+        setWorkingWeeks(weeks)
       })
   }, [teacher.school_id, period])
 
@@ -251,9 +363,8 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
       const lastPage = Math.max(...units.map(u => u.end_page).filter(Boolean))
       if (firstPage > 0) setPageStart(firstPage)
       if (lastPage > 0) setPageEnd(lastPage)
-      // Auto-set unit range
-      setStartUnit(units[0].unit_number)
-      setEndUnit(units[units.length - 1].unit_number)
+      // Auto-select all detected units (user can deselect)
+      setSelectedUnits(new Set(units.map(u => u.unit_number)))
 
       await savePlan({ toc_units: units })
       showToast(`✅ ${units.length} unidades detectadas en el índice`, 'success')
@@ -270,8 +381,8 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
     // When TOC exists, narrow page range to selected units only
     let effectiveStart = pageStart
     let effectiveEnd   = pageEnd
-    if (tocUnits.length && startUnit && endUnit) {
-      const selectedTOC = tocUnits.filter(u => u.unit_number >= startUnit && u.unit_number <= endUnit)
+    if (tocUnits.length && selectedUnits.size) {
+      const selectedTOC = tocUnits.filter(u => selectedUnits.has(u.unit_number))
       if (selectedTOC.length) {
         effectiveStart = Math.min(...selectedTOC.map(u => u.start_page).filter(Boolean))
         effectiveEnd   = Math.max(...selectedTOC.map(u => u.end_page).filter(Boolean))
@@ -318,7 +429,7 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
           const knownUnits = allAnalysis.length ? detectUnitsFromAnalysis(allAnalysis) : []
 
           // Only pass the selected units to AI — it shouldn't see units outside the period
-          const selectedTocUnits = tocUnits.filter(u => u.unit_number >= startUnit && u.unit_number <= endUnit)
+          const selectedTocUnits = tocUnits.filter(u => selectedUnits.has(u.unit_number))
           const { analysis, error } = await deepAnalyzeBookPages(batchPages, {
             subject, grade, bookTitle: selectedDoc.title,
             tocUnits: selectedTocUnits,
@@ -346,9 +457,10 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
       setPageAnalysis(allAnalysis)
       const units = detectUnitsFromAnalysis(allAnalysis)
       setUnitsConfig(units)
-      // Default start_unit to first detected unit, end_unit to last detected
-      if (units.length && startUnit === 1) setStartUnit(units[0].unit_number)
-      if (units.length && !endUnit) setEndUnit(units[units.length - 1].unit_number)
+      // If no units selected yet, auto-select all detected units
+      if (!selectedUnits.size && units.length) {
+        setSelectedUnits(new Set(units.map(u => u.unit_number)))
+      }
 
       await savePlan({
         library_doc_id: selectedDocId,
@@ -373,8 +485,8 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
     // TOC is the authoritative source — no guessing needed.
     if (tocUnits.length) {
       const unitsMap = {}
-      // Only include units in the selected period range
-      const selectedTOC = tocUnits.filter(u => u.unit_number >= startUnit && u.unit_number <= endUnit)
+      // Only include units selected for the period
+      const selectedTOC = tocUnits.filter(u => selectedUnits.has(u.unit_number))
       for (const tu of selectedTOC) {
         unitsMap[tu.unit_number] = {
           unit_number: tu.unit_number,
@@ -473,23 +585,25 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
   // ══════════════════════════════════════════════════════════════════════════
   // PHASE 3: CLASSIFY SUBUNITS
   // ══════════════════════════════════════════════════════════════════════════
-  // Helper: filter page analysis and units to the selected period range
+  // Helper: filter page analysis and units to the selected units
   function getSelectedPageAnalysis() {
-    return pageAnalysis.filter(p => p.unit_number >= startUnit && p.unit_number <= endUnit)
+    if (!selectedUnits.size) return pageAnalysis
+    return pageAnalysis.filter(p => selectedUnits.has(p.unit_number))
   }
   function getSelectedUnitsConfig() {
-    return unitsConfig.filter(u => u.unit_number >= startUnit && u.unit_number <= endUnit)
+    if (!selectedUnits.size) return unitsConfig
+    return unitsConfig.filter(u => selectedUnits.has(u.unit_number))
   }
 
   async function handleClassify() {
     const selectedPages = getSelectedPageAnalysis()
-    const selectedUnits = getSelectedUnitsConfig()
+    const filteredUnits = getSelectedUnitsConfig()
     if (!selectedPages.length) { showToast('No hay páginas en las unidades seleccionadas', 'error'); return }
     setClassifying(true)
     try {
       const { classification, error } = await classifySubunitsAI({
         page_analysis: selectedPages,
-        units_config: selectedUnits,
+        units_config: filteredUnits,
         subject,
         grade,
       })
@@ -549,11 +663,19 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
     if (!hasClassDays) { showToast('No se encontró el horario de clase. Verifica tus asignaciones.', 'error'); return }
     setDistributing(true)
     try {
-      // Filter working weeks: only include weeks from today forward
+      // Filter weeks: from today forward, exclude vacation weeks (all holidays),
+      // exclude last 2 weeks (finals + review)
       const todayISO = new Date().toISOString().split('T')[0]
-      const remainingWeeks = workingWeeks
-        .filter(w => w.days.some(d => d >= todayISO))
-        .map((w, i) => ({ ...w, week: i + 1 }))  // renumber from 1
+      const teachableWeeks = workingWeeks
+        .filter(w => !w.allHoliday)                        // skip vacation weeks
+        .filter(w => !w.isLast)                            // skip finals week
+      // Remove the review week (penultimate)
+      const withoutReview = teachableWeeks.length > 1
+        ? teachableWeeks.slice(0, -1)
+        : teachableWeeks
+      const remainingWeeks = withoutReview
+        .filter(w => w.days.some(d => d >= todayISO))      // only future weeks
+        .map((w, i) => ({ ...w, week: i + 1 }))           // renumber from 1
 
       if (!remainingWeeks.length) { showToast('No quedan semanas hábiles a partir de hoy', 'error'); setDistributing(false); return }
 
@@ -583,7 +705,7 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
 
   async function handlePublish() {
     if (!distribution.length) { showToast('No hay distribución para publicar', 'error'); return }
-    await savePlan({ status: 'active', page_distribution: distribution, start_unit: startUnit, end_unit: endUnit })
+    await savePlan({ status: 'active', page_distribution: distribution, start_unit: startUnit, end_unit: endUnit, selected_units: [...selectedUnits] })
     showToast('✅ Syllabus publicado — se usará en la generación de guías', 'success')
   }
 
@@ -661,11 +783,10 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
             scanning={scanning} scanProgress={scanProgress}
             pageAnalysis={pageAnalysis}
             unitsConfig={unitsConfig}
-            startUnit={startUnit} setStartUnit={setStartUnit}
-            endUnit={endUnit} setEndUnit={setEndUnit}
+            selectedUnits={selectedUnits} setSelectedUnits={setSelectedUnits}
             onScan={handleScanPages}
             onNext={async () => {
-              await savePlan({ start_unit: startUnit, end_unit: endUnit })
+              await savePlan({ start_unit: startUnit, end_unit: endUnit, selected_units: [...selectedUnits] })
               setStep('analyze')
             }}
           />
@@ -673,10 +794,9 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
 
         {step === 'analyze' && (
           <StepAnalyze
-            pageAnalysis={pageAnalysis}
-            unitsConfig={unitsConfig}
-            startUnit={startUnit}
-            endUnit={endUnit}
+            pageAnalysis={getSelectedPageAnalysis()}
+            unitsConfig={getSelectedUnitsConfig()}
+            selectedUnits={selectedUnits}
             onNext={() => setStep('classify')}
             onBack={() => setStep('select')}
           />
@@ -716,6 +836,7 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
             pageAnalysis={getSelectedPageAnalysis()}
             distribution={distribution}
             workingWeeks={workingWeeks}
+            calendarEvents={calendarEvents}
             schedule={schedule}
             distributing={distributing}
             unitsConfig={getSelectedUnitsConfig()}
@@ -747,13 +868,31 @@ function StepSelect({
   tocPages, setTocPages, tocUnits, scanningTOC, onScanTOC,
   pageStart, setPageStart, pageEnd, setPageEnd,
   scanning, scanProgress, pageAnalysis, unitsConfig,
-  startUnit, setStartUnit, endUnit, setEndUnit,
+  selectedUnits, setSelectedUnits,
   onScan, onNext,
 }) {
+  function toggleUnit(unitNum) {
+    setSelectedUnits(prev => {
+      const next = new Set(prev)
+      if (next.has(unitNum)) next.delete(unitNum)
+      else next.add(unitNum)
+      return next
+    })
+  }
+
+  const selectedTOC = tocUnits.filter(u => selectedUnits.has(u.unit_number))
+  const selectedPageCount = selectedTOC.length
+    ? (() => {
+        const pStart = Math.min(...selectedTOC.map(u => u.start_page).filter(Boolean))
+        const pEnd   = Math.max(...selectedTOC.map(u => u.end_page).filter(Boolean))
+        return { pStart, pEnd, count: pEnd - pStart + 1 }
+      })()
+    : null
+
   return (
     <div className="sw-step-content">
-      <h3 className="sw-step-title">📖 Libro y Unidad inicial</h3>
-      <p className="sw-step-desc">Selecciona el libro PDF, escanea primero el índice para detectar las unidades, luego escanea las páginas de contenido.</p>
+      <h3 className="sw-step-title">📖 Libro y Unidades del Período</h3>
+      <p className="sw-step-desc">Selecciona el libro, escanea el índice, elige las unidades a trabajar y escanea sus páginas.</p>
 
       <div className="sw-field-group">
         <label className="sw-label">Libro (PDF de la Biblioteca)</label>
@@ -770,7 +909,6 @@ function StepSelect({
         </div>
         <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 10px' }}>
           Ingresa las páginas del índice del libro (ej: las páginas iv, v, vi, vii del PDF).
-          El sistema leerá la estructura de unidades, páginas y habilidades.
         </p>
         <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
           <div className="sw-field-group" style={{ flex: 1, marginBottom: 0 }}>
@@ -789,84 +927,55 @@ function StepSelect({
             {scanningTOC ? 'Leyendo índice...' : '📋 Leer Índice'}
           </button>
         </div>
-
-        {tocUnits.length > 0 && (
-          <div style={{ marginTop: 12 }}>
-            <div style={{ fontWeight: 600, fontSize: 12, color: '#059669', marginBottom: 6 }}>
-              ✅ {tocUnits.length} unidades detectadas en el libro
-            </div>
-          </div>
-        )}
       </div>
 
-      {/* ── STEP B: Select units for this period ───────────────────── */}
+      {/* ── STEP B: Select units — tap to toggle ──────────────────── */}
       {tocUnits.length > 0 && (
         <div style={{ background: '#fefce8', border: '1px solid #fde68a', borderRadius: 12, padding: 16, marginBottom: 16 }}>
           <div style={{ fontWeight: 700, color: '#92400e', marginBottom: 8, fontSize: 14 }}>
-            Paso 2: Seleccionar Unidades del Período
+            Paso 2: Toca las unidades que trabajarás este período
           </div>
-          <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 10px' }}>
-            Solo las unidades seleccionadas se escanearán, analizarán, clasificarán y distribuirán.
+          <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 12px' }}>
+            Solo las unidades seleccionadas se escanearán, analizarán y distribuirán.
           </p>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-            <div>
-              <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4, fontWeight: 600 }}>Desde</div>
-              <select
-                value={startUnit}
-                onChange={e => {
-                  const val = +e.target.value
-                  setStartUnit(val)
-                  if (endUnit && val > endUnit) setEndUnit(val)
-                }}
-                style={{ padding: '8px 12px', borderRadius: 8, border: '2px solid #2563eb', background: '#eff6ff', fontWeight: 700, fontSize: 14, color: '#1d4ed8', cursor: 'pointer' }}
-              >
-                {tocUnits.map(u => (
-                  <option key={u.unit_number} value={u.unit_number}>Unit {u.unit_number}</option>
-                ))}
-              </select>
-            </div>
-            <div style={{ fontSize: 18, color: '#9ca3af', paddingTop: 18 }}>→</div>
-            <div>
-              <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4, fontWeight: 600 }}>Hasta</div>
-              <select
-                value={endUnit || tocUnits[tocUnits.length - 1]?.unit_number || ''}
-                onChange={e => setEndUnit(+e.target.value)}
-                style={{ padding: '8px 12px', borderRadius: 8, border: '2px solid #16a34a', background: '#f0fdf4', fontWeight: 700, fontSize: 14, color: '#15803d', cursor: 'pointer' }}
-              >
-                {tocUnits.filter(u => u.unit_number >= startUnit).map(u => (
-                  <option key={u.unit_number} value={u.unit_number}>Unit {u.unit_number}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {tocUnits.map(u => {
-              const effectiveEnd = endUnit || tocUnits[tocUnits.length - 1]?.unit_number
-              const isInRange = u.unit_number >= startUnit && u.unit_number <= effectiveEnd
+              const isSelected = selectedUnits.has(u.unit_number)
               return (
-                <div key={u.unit_number} style={{
-                  padding: '6px 10px', borderRadius: 8, fontSize: 12, lineHeight: 1.3,
-                  background: isInRange ? '#eff6ff' : '#f9fafb',
-                  border: `1.5px solid ${isInRange ? '#2563eb' : '#e5e7eb'}`,
-                  color: isInRange ? '#1d4ed8' : '#9ca3af',
-                  opacity: isInRange ? 1 : 0.5,
-                }}>
-                  <strong>{isInRange ? '▶ ' : ''}Unit {u.unit_number}</strong> — pp. {u.start_page}–{u.end_page || '?'}
-                  <div style={{ color: isInRange ? '#6b7280' : '#d1d5db', fontSize: 10 }}>{u.title}</div>
-                </div>
+                <button
+                  key={u.unit_number}
+                  type="button"
+                  onClick={() => toggleUnit(u.unit_number)}
+                  style={{
+                    padding: '10px 14px', borderRadius: 10, fontSize: 13, lineHeight: 1.3,
+                    background: isSelected ? '#eff6ff' : '#f9fafb',
+                    border: `2px solid ${isSelected ? '#2563eb' : '#e5e7eb'}`,
+                    color: isSelected ? '#1d4ed8' : '#9ca3af',
+                    cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s',
+                    boxShadow: isSelected ? '0 2px 8px rgba(37,99,235,0.15)' : 'none',
+                  }}
+                >
+                  <div style={{ fontWeight: 700 }}>
+                    {isSelected ? '✓ ' : ''}Unit {u.unit_number}
+                  </div>
+                  <div style={{ fontSize: 11, color: isSelected ? '#6b7280' : '#d1d5db', marginTop: 2 }}>
+                    pp. {u.start_page}–{u.end_page || '?'}
+                  </div>
+                  <div style={{ fontSize: 10, color: isSelected ? '#6b7280' : '#d1d5db' }}>{u.title}</div>
+                </button>
               )
             })}
           </div>
-          {(() => {
-            const selected = tocUnits.filter(u => u.unit_number >= startUnit && u.unit_number <= (endUnit || tocUnits[tocUnits.length - 1]?.unit_number))
-            const pStart = Math.min(...selected.map(u => u.start_page).filter(Boolean))
-            const pEnd   = Math.max(...selected.map(u => u.end_page).filter(Boolean))
-            return (
-              <div style={{ marginTop: 10, fontSize: 13, color: '#6b7280' }}>
-                Escanear <strong>Unit {startUnit} → Unit {endUnit || tocUnits[tocUnits.length - 1]?.unit_number}</strong> — páginas {pStart}–{pEnd} ({pEnd - pStart + 1} páginas)
-              </div>
-            )
-          })()}
+          {selectedUnits.size > 0 && selectedPageCount && (
+            <div style={{ marginTop: 12, fontSize: 13, color: '#6b7280' }}>
+              <strong>{selectedUnits.size}</strong> unidades seleccionadas — páginas {selectedPageCount.pStart}–{selectedPageCount.pEnd} ({selectedPageCount.count} páginas)
+            </div>
+          )}
+          {selectedUnits.size === 0 && (
+            <div style={{ marginTop: 10, fontSize: 12, color: '#dc2626', fontWeight: 500 }}>
+              Selecciona al menos una unidad para continuar.
+            </div>
+          )}
         </div>
       )}
 
@@ -894,13 +1003,13 @@ function StepSelect({
             <div className="sw-range-total">{pageEnd - pageStart + 1} páginas</div>
           </div>
         )}
-        {tocUnits.length > 0 && (
+        {selectedUnits.size > 0 && selectedPageCount && (
           <p style={{ fontSize: 12, color: '#059669', margin: '0 0 10px' }}>
-            Se escanearán solo las páginas de las unidades seleccionadas ({startUnit}–{endUnit || tocUnits[tocUnits.length - 1]?.unit_number}).
+            Se escanearán las páginas {selectedPageCount.pStart}–{selectedPageCount.pEnd} de {selectedUnits.size} unidades seleccionadas.
           </p>
         )}
 
-        <button className="sw-btn sw-btn-primary" onClick={onScan} disabled={scanning || !selectedDocId}>
+        <button className="sw-btn sw-btn-primary" onClick={onScan} disabled={scanning || !selectedDocId || (tocUnits.length > 0 && selectedUnits.size === 0)}>
           {scanning
             ? `🔍 Escaneando... ${scanProgress.current}/${scanProgress.total}`
             : '🔍 Escanear páginas con IA'}
@@ -951,17 +1060,16 @@ function StepSelect({
 // ══════════════════════════════════════════════════════════════════════════════
 // PHASE 2: RICH ANALYSIS DISPLAY
 // ══════════════════════════════════════════════════════════════════════════════
-function StepAnalyze({ pageAnalysis, unitsConfig, startUnit, endUnit, onNext, onBack }) {
+function StepAnalyze({ pageAnalysis, unitsConfig, selectedUnits, onNext, onBack }) {
   const [expandedPage, setExpandedPage] = useState(null)
 
-  // Filter pages to selected unit range [startUnit, endUnit]
-  const startUnitData = unitsConfig.find(u => u.unit_number === startUnit)
-  const endUnitData   = endUnit ? unitsConfig.find(u => u.unit_number === endUnit) : null
-  const filteredPages = pageAnalysis.filter(p => {
-    if (startUnitData && p.page < startUnitData.start_page) return false
-    if (endUnitData   && p.page > endUnitData.end_page)     return false
-    return true
-  })
+  // Data is already pre-filtered by parent (getSelectedPageAnalysis)
+  const filteredPages = pageAnalysis
+
+  const unitNums = [...(selectedUnits || [])].sort((a, b) => a - b)
+  const unitLabel = unitNums.length <= 3
+    ? unitNums.join(', ')
+    : `${unitNums[0]}–${unitNums[unitNums.length - 1]}`
 
   return (
     <div className="sw-step-content">
@@ -970,7 +1078,7 @@ function StepAnalyze({ pageAnalysis, unitsConfig, startUnit, endUnit, onNext, on
         <h3 className="sw-step-title">🔬 Análisis Profundo</h3>
       </div>
       <p className="sw-step-desc">
-        Revisión detallada de {filteredPages.length} páginas — Units {startUnit}{endUnit ? `–${endUnit}` : '+'}.
+        Revisión detallada de {filteredPages.length} páginas — Units {unitLabel}.
         Toca una tarjeta para ver el detalle completo.
       </p>
 
@@ -1508,7 +1616,7 @@ function StepStrategies({
 // PHASE 5: DISTRIBUTION + RESOURCES + PUBLISH
 // ══════════════════════════════════════════════════════════════════════════════
 function StepDistribute({
-  pageAnalysis, distribution, workingWeeks, schedule, distributing,
+  pageAnalysis, distribution, workingWeeks, calendarEvents, schedule, distributing,
   unitsConfig, subunitClassification, teachingStrategies,
   resources, selectedDay, setSelectedDay, addingResource, setAddingResource,
   advisorFeedback, onDistribute, onAddResource, onRemoveResource,
@@ -1556,6 +1664,32 @@ function StepDistribute({
       {/* DISTRIBUTION TIMELINE */}
       {distSubStep === 'plan' && (
         <div>
+          {/* Calendar summary */}
+          {(() => {
+            const teachableWeeks = workingWeeks.filter(w => !w.allHoliday && !w.isLast)
+            const reviewWeek = teachableWeeks.length > 1 ? 1 : 0
+            const availableWeeks = teachableWeeks.length - reviewWeek
+            const totalHolidays = workingWeeks.reduce((s, w) => s + (w.holidays?.length || 0), 0)
+            const vacationWeeks = workingWeeks.filter(w => w.allHoliday).length
+            const finalsWeek = workingWeeks.find(w => w.isLast)
+            return (
+              <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 10, padding: '12px 16px', marginBottom: 16 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, fontSize: 13, color: '#1e40af' }}>
+                  <span><strong>{availableWeeks}</strong> semanas para contenido</span>
+                  <span>{totalHolidays} festivos</span>
+                  {vacationWeeks > 0 && <span style={{ color: '#dc2626' }}>{vacationWeeks} sem. vacaciones</span>}
+                  {reviewWeek > 0 && <span>1 sem. repaso</span>}
+                  {finalsWeek && <span>1 sem. evaluaciones finales</span>}
+                </div>
+                {vacationWeeks === 0 && workingWeeks.length > 8 && (
+                  <div style={{ fontSize: 12, color: '#d97706', marginTop: 6 }}>
+                    ⚠️ El período tiene {workingWeeks.length} semanas sin vacaciones registradas. Verifica que las vacaciones estén configuradas en el Calendario Académico.
+                  </div>
+                )}
+              </div>
+            )
+          })()}
+
           <div className="sw-schedule-info">
             <span className="sw-schedule-label">Tu horario:</span>
             {DAY_KEYS.map(dk => (
@@ -1563,92 +1697,131 @@ function StepDistribute({
                 {DAY_LABELS[dk]}: {hoursPerDay[dk]}h
               </span>
             ))}
-            <span className="sw-schedule-weeks">{workingWeeks.length} semanas hábiles</span>
+            <span className="sw-schedule-weeks">{workingWeeks.filter(w => !w.allHoliday).length} semanas hábiles</span>
           </div>
 
           <button className="sw-btn sw-btn-primary" onClick={onDistribute} disabled={distributing}>
             {distributing ? <><span className="cbf-spin-inline" />Generando distribución...</> : '🤖 Distribuir con IA'}
           </button>
 
+          {/* Vacation / all-holiday weeks from the calendar (visual context) */}
+          {workingWeeks.filter(w => w.allHoliday).length > 0 && (
+            <div style={{ background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: '#92400e' }}>
+              Semanas sin clase: {workingWeeks.filter(w => w.allHoliday).map(w => {
+                const s = w.displayStart || w.start
+                const e = w.displayEnd || w.end
+                return `${formatShortDate(s)} – ${formatShortDate(e)}`
+              }).join(' · ')}
+            </div>
+          )}
+
           {distribution.length > 0 && (
             <div className="sw-timeline">
-              {distribution.map(weekData => (
-                <div key={weekData.week} className="sw-week-row">
-                  <div className="sw-week-label">Sem. {weekData.week}</div>
-                  <div className="sw-week-days">
-                    {DAY_KEYS.map(dk => {
-                      const dayData = weekData.days?.[dk]
-                      if (!hoursPerDay[dk]) return <div key={dk} className="sw-day-cell sw-day-off" />
-                      if (!dayData)         return <div key={dk} className="sw-day-cell sw-day-empty"><span className="sw-day-label">{DAY_LABELS[dk]}</span></div>
+              {distribution.map(weekData => {
+                // Build date range label from the day slots' isoDate
+                const dayDates = DAY_KEYS
+                  .map(dk => weekData.days?.[dk]?.isoDate)
+                  .filter(Boolean)
+                const dateLabel = dayDates.length
+                  ? `${formatShortDate(dayDates[0])} – ${formatShortDate(dayDates[dayDates.length - 1])}`
+                  : weekData.dateRange || ''
+                const weekHolidays = weekData.holidays || []
 
-                      const pages        = dayData.pages || []
-                      const dayResources  = getResourcesForDay(weekData.week, dk)
-                      const strategyHint  = dayData.suggested_approach
-                      const diff = DIFFICULTY_STYLES[dayData.difficulty] || DIFFICULTY_STYLES.moderate
-
-                      return (
-                        <div
-                          key={dk}
-                          className="sw-day-cell sw-day-filled"
-                          style={{ borderLeftColor: diff.border, background: diff.bg }}
-                        >
-                          <div className="sw-day-header">
-                            <span className="sw-day-label">{DAY_LABELS[dk]}</span>
-                            <span style={{ fontSize: 10 }}>{diff.icon} {diff.label}</span>
-                            <span className="sw-day-hours">{hoursPerDay[dk]}h</span>
-                          </div>
-                          <div className="sw-day-pages">
-                            {pages.map(pNum => {
-                              const pa = pageAnalysis.find(p => p.page === pNum)
-                              return (
-                                <span key={pNum} className="sw-page-chip" style={{ background: CONTENT_TYPE_COLORS[pa?.content_type] || '#888' }}>
-                                  p.{pNum}
-                                </span>
-                              )
-                            })}
-                          </div>
-
-                          {/* Key grammar/vocab from distribution */}
-                          {dayData.key_grammar?.length > 0 && (
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 4 }}>
-                              {dayData.key_grammar.map((g, i) => (
-                                <span key={i} style={{ fontSize: 10, padding: '1px 5px', borderRadius: 20, background: '#ede9fe', color: '#7c3aed' }}>{g}</span>
-                              ))}
-                            </div>
-                          )}
-
-                          {dayData.key_vocabulary?.length > 0 && (
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 2 }}>
-                              {dayData.key_vocabulary.map((v, i) => (
-                                <span key={i} style={{ fontSize: 10, padding: '1px 5px', borderRadius: 20, background: '#e0f2fe', color: '#0369a1' }}>{v}</span>
-                              ))}
-                            </div>
-                          )}
-
-                          {strategyHint && (
-                            <div style={{ fontSize: 10, color: '#be123c', marginTop: 4, fontStyle: 'italic' }}>
-                              🧠 {strategyHint}
-                            </div>
-                          )}
-
-                          <div className="sw-day-focus">{dayData.focus}</div>
-                          <div className="sw-day-minutes">{dayData.total_minutes} min</div>
-
-                          {dayResources.length > 0 && (
-                            <div style={{ marginTop: 4 }}>
-                              {dayResources.map(r => (
-                                <div key={r.id} style={{ fontSize: 10, color: '#6b7280' }}>
-                                  {RESOURCE_TYPES.find(t => t.value === r.resource_type)?.icon} {r.title}
-                                </div>
-                              ))}
-                            </div>
-                          )}
+                return (
+                  <div key={weekData.week} className="sw-week-row">
+                    <div className="sw-week-label" style={{ minWidth: 100 }}>
+                      <div>Sem. {weekData.week}</div>
+                      {dateLabel && <div style={{ fontSize: 10, color: '#6b7280', fontWeight: 400 }}>{dateLabel}</div>}
+                      {weekHolidays.length > 0 && (
+                        <div style={{ fontSize: 9, color: '#dc2626', marginTop: 2 }}>
+                          {weekHolidays.map((h, i) => <div key={i}>🚫 {h.name || formatShortDate(h.date)}</div>)}
                         </div>
-                      )
-                    })}
+                      )}
+                    </div>
+                    <div className="sw-week-days">
+                      {DAY_KEYS.map(dk => {
+                        const dayData = weekData.days?.[dk]
+                        if (!hoursPerDay[dk]) return <div key={dk} className="sw-day-cell sw-day-off" />
+                        if (!dayData) return <div key={dk} className="sw-day-cell sw-day-empty"><span className="sw-day-label">{DAY_LABELS[dk]}</span></div>
+
+                        const pages        = dayData.pages || []
+                        const dayResources  = getResourcesForDay(weekData.week, dk)
+                        const strategyHint  = dayData.suggested_approach
+                        const diff = DIFFICULTY_STYLES[dayData.difficulty] || DIFFICULTY_STYLES.moderate
+                        const dateNum = dayData.isoDate ? new Date(dayData.isoDate + 'T12:00:00').getDate() : ''
+
+                        return (
+                          <div
+                            key={dk}
+                            className="sw-day-cell sw-day-filled"
+                            style={{ borderLeftColor: diff.border, background: diff.bg }}
+                          >
+                            <div className="sw-day-header">
+                              <span className="sw-day-label">{DAY_LABELS[dk]}{dateNum ? ` ${dateNum}` : ''}</span>
+                              <span style={{ fontSize: 10 }}>{diff.icon} {diff.label}</span>
+                              <span className="sw-day-hours">{hoursPerDay[dk]}h</span>
+                            </div>
+                            <div className="sw-day-pages">
+                              {pages.map(pNum => {
+                                const pa = pageAnalysis.find(p => p.page === pNum)
+                                return (
+                                  <span key={pNum} className="sw-page-chip" style={{ background: CONTENT_TYPE_COLORS[pa?.content_type] || '#888' }}>
+                                    p.{pNum}
+                                  </span>
+                                )
+                              })}
+                            </div>
+
+                            {/* Key grammar/vocab from distribution */}
+                            {dayData.key_grammar?.length > 0 && (
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 4 }}>
+                                {dayData.key_grammar.map((g, i) => (
+                                  <span key={i} style={{ fontSize: 10, padding: '1px 5px', borderRadius: 20, background: '#ede9fe', color: '#7c3aed' }}>{g}</span>
+                                ))}
+                              </div>
+                            )}
+
+                            {dayData.key_vocabulary?.length > 0 && (
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 2 }}>
+                                {dayData.key_vocabulary.map((v, i) => (
+                                  <span key={i} style={{ fontSize: 10, padding: '1px 5px', borderRadius: 20, background: '#e0f2fe', color: '#0369a1' }}>{v}</span>
+                                ))}
+                              </div>
+                            )}
+
+                            {strategyHint && (
+                              <div style={{ fontSize: 10, color: '#be123c', marginTop: 4, fontStyle: 'italic' }}>
+                                🧠 {strategyHint}
+                              </div>
+                            )}
+
+                            <div className="sw-day-focus">{dayData.focus}</div>
+                            <div className="sw-day-minutes">{dayData.total_minutes} min</div>
+
+                            {dayResources.length > 0 && (
+                              <div style={{ marginTop: 4 }}>
+                                {dayResources.map(r => (
+                                  <div key={r.id} style={{ fontSize: 10, color: '#6b7280' }}>
+                                    {RESOURCE_TYPES.find(t => t.value === r.resource_type)?.icon} {r.title}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
                   </div>
+                )
+              })}
+
+              {/* Deadline indicator */}
+              {workingWeeks.find(w => w.isLast) && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, marginTop: 8, fontSize: 12, color: '#991b1b' }}>
+                  <span>🏁</span>
+                  <span><strong>Evaluaciones finales</strong> — semana del {formatShortDate(workingWeeks.find(w => w.isLast).displayStart || workingWeeks.find(w => w.isLast).start)}</span>
                 </div>
-              ))}
+              )}
 
               <button
                 className="sw-btn sw-btn-outline"

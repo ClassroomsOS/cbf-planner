@@ -898,6 +898,7 @@ export function distributePagesByWeek({
         key_vocabulary: [],
         difficulty: 'review',
         suggested_approach: 'Review key concepts, address questions, formative assessment.',
+        isoDate: slot.isoDate,
       }
       continue
     }
@@ -942,8 +943,23 @@ export function distributePagesByWeek({
       difficulty: item.difficulty,
       avg_complexity: Math.round(item.avgComplexity * 10) / 10,
       suggested_approach: approach,
+      isoDate: slot.isoDate,
     }
   }
+
+  // ── Build week metadata lookup for enriched output ──────────────────────────
+  const weekMeta = {}
+  working_weeks.forEach(w => {
+    weekMeta[w.week] = {
+      dateRange: w.displayStart && w.displayEnd
+        ? `${w.displayStart.slice(8)}/${w.displayStart.slice(5,7)} – ${w.displayEnd.slice(8)}/${w.displayEnd.slice(5,7)}`
+        : w.days?.length ? `${w.days[0]} – ${w.days[w.days.length - 1]}` : '',
+      holidays: w.holidays || [],
+      isCompound: w.isCompound || false,
+      start: w.start || w.displayStart || '',
+      end: w.end || w.displayEnd || '',
+    }
+  })
 
   // ── Convert weekMap to sorted array format ─────────────────────────────────
   const distribution = Object.keys(weekMap)
@@ -952,6 +968,7 @@ export function distributePagesByWeek({
     .map(weekNum => ({
       week: weekNum,
       days: weekMap[weekNum],
+      ...(weekMeta[weekNum] || {}),
     }))
 
   return { distribution, error: null }
