@@ -15,7 +15,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../supabase'
 import { useToast } from '../context/ToastContext'
 import {
-  analyzeTOCPages, scanPageMapping, deepAnalyzeBookPages, classifySubunitsAI,
+  analyzeTOCPages, deepAnalyzeBookPages, classifySubunitsAI,
   generateTeachingStrategiesAI, distributePagesByWeek, computeWorkingWeeks, advisorCheckSession,
 } from '../utils/syllabusAI'
 import { ACADEMIC_PERIODS } from '../utils/constants'
@@ -192,8 +192,11 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
   const [scanningTOC, setScanningTOC] = useState(false)
   const [pageStart, setPageStart] = useState(1)
   const [pageEnd, setPageEnd] = useState(20)
+  const [pdfThumbnails, setPdfThumbnails] = useState([])  // [{pdfPage, dataUrl}] — small thumbnails for sheet picker
+  const [pdfNumPages, setPdfNumPages] = useState(0)
+  const [sheetStart, setSheetStart] = useState('')       // PDF sheet number where selected units start
+  const [sheetEnd, setSheetEnd] = useState('')           // PDF sheet number where selected units end
   const [scanning, setScanning] = useState(false)
-  const [scanPhase, setScanPhase] = useState('')  // 'mapping' | 'analyzing'
   const [scanProgress, setScanProgress] = useState({ current: 0, total: 0 })
   const [pageAnalysis, setPageAnalysis] = useState([])   // enriched pages from deepAnalyzeBookPages
   const [unitsConfig, setUnitsConfig] = useState([])     // [{unit_number, title, start_page, end_page, subunits}]
@@ -368,6 +371,30 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
       // Auto-select all detected units (user can deselect)
       setSelectedUnits(new Set(units.map(u => u.unit_number)))
 
+      // ── Spread detection: if book pages > PDF pages, render thumbnail strip ──
+      const maxBookPage = Math.max(...units.map(u => u.end_page || u.start_page).filter(Boolean))
+      setPdfNumPages(pdf.numPages)
+      if (maxBookPage > pdf.numPages * 1.3) {
+        showToast(`📖 PDF doble página detectado (${pdf.numPages} hojas ≈ ${maxBookPage} pág. del libro). Selecciona las hojas del PDF.`, 'info')
+        // Render small thumbnails of all PDF pages for the user to identify sheets
+        const thumbs = []
+        for (let i = 1; i <= pdf.numPages; i++) {
+          try {
+            const pg = await pdf.getPage(i)
+            const vp = pg.getViewport({ scale: 1.0 })
+            const canvas = document.createElement('canvas')
+            const scale = Math.min(200 / vp.width, 150 / vp.height, 0.5)
+            canvas.width  = vp.width * scale
+            canvas.height = vp.height * scale
+            await pg.render({ canvasContext: canvas.getContext('2d'), viewport: pg.getViewport({ scale }) }).promise
+            thumbs.push({ pdfPage: i, dataUrl: canvas.toDataURL('image/jpeg', 0.5) })
+          } catch (e) { /* skip */ }
+        }
+        setPdfThumbnails(thumbs)
+      } else {
+        setPdfThumbnails([])
+      }
+
       await savePlan({ toc_units: units })
       showToast(`✅ ${units.length} unidades detectadas en el índice`, 'success')
     } catch (err) {
@@ -380,9 +407,46 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
   async function handleScanPages() {
     if (!selectedDoc?.file_url) { showToast('Selecciona un libro primero', 'error'); return }
 
+    const isSpread = pdfThumbnails.length > 0
+    const BATCH_SIZE = 5
+
+    // ── Determine sheet range ──────────────────────────────────────────
+    let startSheet, endSheet, effectiveStart, effectiveEnd
+
+    if (isSpread) {
+      // Spread PDF — user provides the PDF sheet numbers directly
+      startSheet = parseInt(sheetStart)
+      endSheet   = parseInt(sheetEnd)
+      if (!startSheet || !endSheet || startSheet < 1 || endSheet < startSheet || endSheet > pdfNumPages) {
+        showToast('Ingresa la hoja inicial y final del PDF donde están las unidades seleccionadas', 'error'); return
+      }
+      // Book page range from selected units (for metadata)
+      if (tocUnits.length && selectedUnits.size) {
+        const selectedTOC = tocUnits.filter(u => selectedUnits.has(u.unit_number)).sort((a, b) => a.start_page - b.start_page)
+        effectiveStart = selectedTOC[0]?.start_page || pageStart
+        effectiveEnd   = selectedTOC[selectedTOC.length - 1]?.end_page || pageEnd
+      } else {
+        effectiveStart = pageStart; effectiveEnd = pageEnd
+      }
+    } else {
+      // Normal PDF — iterate by book page = PDF page
+      effectiveStart = pageStart
+      effectiveEnd   = pageEnd
+      if (tocUnits.length && selectedUnits.size) {
+        const selectedTOC = tocUnits.filter(u => selectedUnits.has(u.unit_number)).sort((a, b) => a.start_page - b.start_page)
+        if (selectedTOC.length) {
+          effectiveStart = selectedTOC[0].start_page
+          effectiveEnd   = selectedTOC[selectedTOC.length - 1].end_page || effectiveEnd
+        }
+      }
+      startSheet = effectiveStart
+      endSheet   = effectiveEnd
+    }
+
+    if (endSheet < startSheet) { showToast('Rango de hojas inválido', 'error'); return }
+
     setScanning(true)
     const allAnalysis = []
-    const BATCH_SIZE = 5
 
     try {
       const pdfjsLib = await import('pdfjs-dist')
@@ -390,112 +454,12 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
         `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`
       const pdf = await pdfjsLib.getDocument(selectedDoc.file_url).promise
 
-      // ── PHASE 1: MAP ALL PDF PAGES ──────────────────────────────────────
-      // Render every PDF page and ask AI what book page numbers appear on each sheet.
-      // This builds a real mapping instead of guessing with math.
-      setScanPhase('mapping')
-      setScanProgress({ current: 0, total: pdf.numPages })
-
-      const fullMapping = []  // [{pdfPage, bookPages: [N, M]}]
-
-      for (let batchStart = 1; batchStart <= pdf.numPages; batchStart += BATCH_SIZE) {
-        const batchEnd = Math.min(batchStart + BATCH_SIZE - 1, pdf.numPages)
-        const renderedBatch = []
-
-        for (let pdfIdx = batchStart; pdfIdx <= batchEnd; pdfIdx++) {
-          try {
-            const page = await pdf.getPage(pdfIdx)
-            const vp   = page.getViewport({ scale: 1.0 })
-            const canvas = document.createElement('canvas')
-            // Lower res for mapping — AI only needs to read page numbers
-            const scale  = Math.min(1200 / vp.width, 1000 / vp.height, 1.5)
-            canvas.width  = vp.width * scale
-            canvas.height = vp.height * scale
-            await page.render({ canvasContext: canvas.getContext('2d'), viewport: page.getViewport({ scale }) }).promise
-            renderedBatch.push({ pdfPage: pdfIdx, base64: canvas.toDataURL('image/jpeg', 0.7).split(',')[1] })
-          } catch (e) { console.warn(`Failed to render PDF page ${pdfIdx} for mapping:`, e) }
-        }
-
-        if (renderedBatch.length) {
-          const { mapping, error } = await scanPageMapping(renderedBatch)
-          if (error) console.warn('Page mapping batch error:', error)
-          if (mapping?.length) fullMapping.push(...mapping)
-        }
-
-        setScanProgress({ current: Math.min(batchEnd, pdf.numPages), total: pdf.numPages })
+      // Clamp to actual PDF page count
+      if (endSheet > pdf.numPages) {
+        showToast(`⚠️ El PDF tiene ${pdf.numPages} hojas. Se ajusta el rango.`, 'warning')
+        endSheet = pdf.numPages
       }
 
-      // ── Build lookups from mapping ──────────────────────────────────────
-      // bookPageToPdf: bookPage → pdfSheet number
-      // pdfSheetPages: pdfSheet → [bookPage, bookPage] (sorted)
-      const bookPageToPdf = new Map()
-      const pdfSheetPages = new Map()  // pdfSheet → bookPages[]
-      let hasSpread = false
-
-      for (const entry of fullMapping) {
-        if (entry.bookPages.length >= 2) hasSpread = true
-        for (const bp of entry.bookPages) {
-          bookPageToPdf.set(bp, entry.pdfPage)
-        }
-        if (entry.bookPages.length > 0) {
-          pdfSheetPages.set(entry.pdfPage, entry.bookPages)
-        }
-      }
-
-      if (hasSpread) {
-        showToast(`📖 PDF doble página detectado — ${pdf.numPages} hojas, ${bookPageToPdf.size} pág. del libro mapeadas`, 'info')
-      }
-
-      // ── Determine effective book page range from selected units ─────────
-      let effectiveStart = pageStart
-      let effectiveEnd   = pageEnd
-      if (tocUnits.length && selectedUnits.size) {
-        const selectedTOC = tocUnits
-          .filter(u => selectedUnits.has(u.unit_number))
-          .sort((a, b) => a.start_page - b.start_page)
-        if (selectedTOC.length) {
-          effectiveStart = selectedTOC[0].start_page
-          effectiveEnd   = selectedTOC[selectedTOC.length - 1].end_page || effectiveEnd
-        }
-      }
-
-      // ── Find PDF sheet range to scan ───────────────────────────────────
-      let startSheet, endSheet
-
-      if (bookPageToPdf.size > 0) {
-        // Look up which PDF sheet contains the first and last book page
-        startSheet = bookPageToPdf.get(effectiveStart)
-        endSheet   = bookPageToPdf.get(effectiveEnd)
-
-        // If exact pages not in map, find nearest mapped page
-        if (!startSheet) {
-          for (let bp = effectiveStart; bp <= effectiveEnd; bp++) {
-            if (bookPageToPdf.has(bp)) { startSheet = bookPageToPdf.get(bp); break }
-          }
-        }
-        if (!endSheet) {
-          for (let bp = effectiveEnd; bp >= effectiveStart; bp--) {
-            if (bookPageToPdf.has(bp)) { endSheet = bookPageToPdf.get(bp); break }
-          }
-        }
-
-        if (!startSheet || !endSheet) {
-          showToast(`No se encontraron las páginas ${effectiveStart}–${effectiveEnd} en el mapeo del PDF`, 'error')
-          setScanning(false); setScanPhase(''); return
-        }
-      } else {
-        // No mapping — fallback 1:1 (non-spread PDF)
-        startSheet = effectiveStart
-        endSheet   = Math.min(effectiveEnd, pdf.numPages)
-        if (effectiveEnd > pdf.numPages) {
-          showToast(`⚠️ El libro va hasta la pág. ${effectiveEnd} pero el PDF tiene ${pdf.numPages}. Se escanean las disponibles.`, 'warning')
-        }
-      }
-
-      if (endSheet < startSheet) { showToast('Rango de hojas inválido', 'error'); setScanning(false); setScanPhase(''); return }
-
-      // ── PHASE 2: DEEP ANALYSIS — iterate over PDF SHEETS ───────────────
-      setScanPhase('analyzing')
       const totalSheets = endSheet - startSheet + 1
       setScanProgress({ current: 0, total: totalSheets })
 
@@ -507,7 +471,6 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
 
         for (let sheetIdx = batchStart; sheetIdx <= batchEnd; sheetIdx++) {
           try {
-            if (sheetIdx < 1 || sheetIdx > pdf.numPages) continue
             const page   = await pdf.getPage(sheetIdx)
             const vp     = page.getViewport({ scale: 1.0 })
             const canvas = document.createElement('canvas')
@@ -516,11 +479,8 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
             canvas.height = vp.height * scale
             await page.render({ canvasContext: canvas.getContext('2d'), viewport: page.getViewport({ scale }) }).promise
 
-            // Attach book pages from the mapping so the AI knows which pages this sheet contains
-            const bookPages = pdfSheetPages.get(sheetIdx) || [sheetIdx]
             batchPages.push({
-              pageNum: bookPages[0],
-              bookPages,
+              pageNum: sheetIdx,
               base64: canvas.toDataURL('image/jpeg', 0.85).split(',')[1],
             })
           } catch (e) { console.warn(`Failed to render PDF sheet ${sheetIdx}:`, e) }
@@ -565,12 +525,11 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
         units_config: units,
       })
 
-      showToast(`✅ ${allAnalysis.length} páginas analizadas — ${totalSheets} hojas del PDF${hasSpread ? ' (doble página)' : ''}`, 'success')
+      showToast(`✅ ${allAnalysis.length} páginas analizadas — ${totalSheets} hojas del PDF${isSpread ? ' (doble página)' : ''}`, 'success')
     } catch (err) {
       showToast(`Error al escanear: ${err.message}`, 'error')
     } finally {
       setScanning(false)
-      setScanPhase('')
     }
   }
 
@@ -876,7 +835,10 @@ export default function SyllabusWizard({ teacher, subject, grade, period }) {
             onScanTOC={handleScanTOC}
             pageStart={pageStart} setPageStart={setPageStart}
             pageEnd={pageEnd} setPageEnd={setPageEnd}
-            scanning={scanning} scanPhase={scanPhase} scanProgress={scanProgress}
+            pdfThumbnails={pdfThumbnails} pdfNumPages={pdfNumPages}
+            sheetStart={sheetStart} setSheetStart={setSheetStart}
+            sheetEnd={sheetEnd} setSheetEnd={setSheetEnd}
+            scanning={scanning} scanProgress={scanProgress}
             pageAnalysis={pageAnalysis}
             unitsConfig={unitsConfig}
             selectedUnits={selectedUnits} setSelectedUnits={setSelectedUnits}
@@ -963,7 +925,8 @@ function StepSelect({
   libraryDocs, selectedDocId, setSelectedDocId,
   tocPages, setTocPages, tocUnits, scanningTOC, onScanTOC,
   pageStart, setPageStart, pageEnd, setPageEnd,
-  scanning, scanPhase, scanProgress, pageAnalysis, unitsConfig,
+  pdfThumbnails, pdfNumPages, sheetStart, setSheetStart, sheetEnd, setSheetEnd,
+  scanning, scanProgress, pageAnalysis, unitsConfig,
   selectedUnits, setSelectedUnits,
   onScan, onNext,
 }) {
@@ -1075,17 +1038,84 @@ function StepSelect({
         </div>
       )}
 
-      {/* ── STEP C: Scan Content Pages ──────────────────────────────── */}
+      {/* ── STEP C: PDF Sheet Picker (spread) or Page Range (normal) ── */}
+      {pdfThumbnails.length > 0 && (
+        <div style={{ background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 12, padding: 16, marginBottom: 16 }}>
+          <div style={{ fontWeight: 700, color: '#92400e', marginBottom: 8, fontSize: 14 }}>
+            Paso 3: Identificar hojas del PDF
+          </div>
+          <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 10px' }}>
+            Este PDF tiene páginas dobles ({pdfNumPages} hojas). Busca en las miniaturas la hoja donde <strong>inicia</strong> y donde <strong>termina</strong> el contenido de las unidades seleccionadas.
+          </p>
+
+          {/* Thumbnail strip */}
+          <div style={{
+            display: 'flex', gap: 6, overflowX: 'auto', padding: '8px 0 12px',
+            scrollSnapType: 'x mandatory',
+          }}>
+            {pdfThumbnails.map(t => {
+              const isStart = parseInt(sheetStart) === t.pdfPage
+              const isEnd   = parseInt(sheetEnd) === t.pdfPage
+              const inRange = sheetStart && sheetEnd && t.pdfPage >= parseInt(sheetStart) && t.pdfPage <= parseInt(sheetEnd)
+              return (
+                <div key={t.pdfPage} style={{
+                  flexShrink: 0, scrollSnapAlign: 'start', textAlign: 'center',
+                  border: isStart || isEnd ? '3px solid #2563eb' : inRange ? '2px solid #93c5fd' : '1px solid #e5e7eb',
+                  borderRadius: 6, padding: 2, background: inRange ? '#eff6ff' : '#fff',
+                  cursor: 'pointer', position: 'relative',
+                }} onClick={() => {
+                  // First click sets start, second sets end
+                  if (!sheetStart || (sheetStart && sheetEnd)) {
+                    setSheetStart(String(t.pdfPage)); setSheetEnd('')
+                  } else {
+                    if (t.pdfPage >= parseInt(sheetStart)) setSheetEnd(String(t.pdfPage))
+                    else { setSheetEnd(sheetStart); setSheetStart(String(t.pdfPage)) }
+                  }
+                }}>
+                  <img src={t.dataUrl} alt={`Hoja ${t.pdfPage}`} style={{ height: 100, display: 'block', borderRadius: 4 }} />
+                  <div style={{ fontSize: 10, fontWeight: 600, color: isStart || isEnd ? '#2563eb' : '#6b7280', marginTop: 2 }}>
+                    {t.pdfPage}
+                    {isStart && ' ← inicio'}
+                    {isEnd && ' ← fin'}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Manual input row */}
+          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', marginTop: 8 }}>
+            <div className="sw-field-group" style={{ flex: 1, marginBottom: 0 }}>
+              <label className="sw-label">Hoja inicial del PDF</label>
+              <input type="number" className="sw-input" min={1} max={pdfNumPages}
+                value={sheetStart} onChange={e => setSheetStart(e.target.value)} placeholder="Ej: 18" />
+            </div>
+            <div style={{ fontWeight: 700, color: '#6b7280', paddingBottom: 8 }}>→</div>
+            <div className="sw-field-group" style={{ flex: 1, marginBottom: 0 }}>
+              <label className="sw-label">Hoja final del PDF</label>
+              <input type="number" className="sw-input" min={sheetStart || 1} max={pdfNumPages}
+                value={sheetEnd} onChange={e => setSheetEnd(e.target.value)} placeholder="Ej: 43" />
+            </div>
+            {sheetStart && sheetEnd && (
+              <div style={{ fontSize: 12, color: '#059669', fontWeight: 600, paddingBottom: 8, whiteSpace: 'nowrap' }}>
+                {parseInt(sheetEnd) - parseInt(sheetStart) + 1} hojas
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── STEP C (normal PDF): Page range ───────────────────────────── */}
       <div style={{ background: tocUnits.length ? '#fff' : '#fef3c7', border: `1px solid ${tocUnits.length ? '#e5e7eb' : '#fcd34d'}`, borderRadius: 12, padding: 16, marginBottom: 16 }}>
         <div style={{ fontWeight: 700, color: '#374151', marginBottom: 8, fontSize: 14 }}>
-          {tocUnits.length ? 'Paso 3' : 'Paso 2'}: Escanear Páginas de Contenido
+          {pdfThumbnails.length ? 'Paso 4' : tocUnits.length ? 'Paso 3' : 'Paso 2'}: Escanear Páginas de Contenido
         </div>
-        {!tocUnits.length && (
+        {!tocUnits.length && !pdfThumbnails.length && (
           <p style={{ fontSize: 12, color: '#92400e', margin: '0 0 10px', fontWeight: 500 }}>
             Recomendado: escanea primero el índice (Paso 1) para que las unidades se asignen correctamente.
           </p>
         )}
-        {!tocUnits.length && (
+        {!tocUnits.length && !pdfThumbnails.length && (
           <div className="sw-range-row">
             <div className="sw-field-group">
               <label className="sw-label">Desde página</label>
@@ -1101,30 +1131,26 @@ function StepSelect({
         )}
         {selectedUnits.size > 0 && selectedPageCount && (
           <p style={{ fontSize: 12, color: '#059669', margin: '0 0 10px' }}>
-            Se escanearán las páginas {selectedPageCount.pStart}–{selectedPageCount.pEnd} de {selectedUnits.size} unidades seleccionadas.
+            Páginas del libro {selectedPageCount.pStart}–{selectedPageCount.pEnd} de {selectedUnits.size} unidades seleccionadas.
+            {pdfThumbnails.length > 0 && sheetStart && sheetEnd && ` → Hojas ${sheetStart}–${sheetEnd} del PDF (${parseInt(sheetEnd) - parseInt(sheetStart) + 1} hojas).`}
           </p>
         )}
 
-        <button className="sw-btn sw-btn-primary" onClick={onScan} disabled={scanning || !selectedDocId || (tocUnits.length > 0 && selectedUnits.size === 0)}>
+        <button className="sw-btn sw-btn-primary" onClick={onScan} disabled={
+          scanning || !selectedDocId
+          || (tocUnits.length > 0 && selectedUnits.size === 0)
+          || (pdfThumbnails.length > 0 && (!sheetStart || !sheetEnd))
+        }>
           {scanning
-            ? scanPhase === 'mapping'
-              ? `📄 Mapeando PDF... ${scanProgress.current}/${scanProgress.total}`
-              : `🔍 Analizando... ${scanProgress.current}/${scanProgress.total}`
+            ? `🔍 Analizando... ${scanProgress.current}/${scanProgress.total} hojas`
             : '🔍 Escanear páginas con IA'}
         </button>
       </div>
 
       {scanning && (
-        <>
-          <div style={{ fontSize: 11, color: '#6b7280', textAlign: 'center', marginBottom: 4 }}>
-            {scanPhase === 'mapping'
-              ? 'Fase 1/2 — Detectando números de página en cada hoja del PDF...'
-              : 'Fase 2/2 — Analizando contenido de las páginas seleccionadas...'}
-          </div>
-          <div className="sw-progress-bar">
-            <div className="sw-progress-fill" style={{ width: `${(scanProgress.current / scanProgress.total) * 100}%` }} />
-          </div>
-        </>
+        <div className="sw-progress-bar">
+          <div className="sw-progress-fill" style={{ width: `${(scanProgress.current / scanProgress.total) * 100}%` }} />
+        </div>
       )}
 
       {pageAnalysis.length > 0 && (
