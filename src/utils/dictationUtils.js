@@ -205,3 +205,45 @@ export const QUESTION_POINTS = {
   listen_identify: 1,  // identificar en oración (MC)
   fill_blank: 1,       // fill the blank (MC)
 }
+
+// ── Manual entry scaffold ────────────────────────────────────────────────────
+
+/**
+ * Creates empty section scaffolds for manual dictation entry.
+ * Returns the same structure as AI-generated sections, but with empty items.
+ */
+export function buildManualSectionsScaffold(difficulty) {
+  const cfg = DIFFICULTY_CONFIG[difficulty] || DIFFICULTY_CONFIG.Intermedio
+  const makeItems = (count, type) => Array.from({ length: count }, (_, i) => {
+    const base = { max_score: QUESTION_POINTS[type] || 1 }
+    if (type === 'listen_type') {
+      return { ...base, audio_text: '', correct_answer: '' }
+    }
+    if (type === 'listen_identify') {
+      return { ...base, audio_text: '', options: ['', '', ''], correct_answer: '' }
+    }
+    // fill_blank
+    return { ...base, sentence: '', options: ['', '', ''], correct_answer: '' }
+  })
+
+  return [
+    {
+      type: 'listen_type',
+      title: 'Section 1: Listen and Type',
+      instructions: 'Listen carefully and write down the correct words.',
+      items: makeItems(cfg.listenType, 'listen_type'),
+    },
+    {
+      type: 'listen_identify',
+      title: 'Section 2: Listen and Identify',
+      instructions: 'Listen to the sentence and choose the correct word you hear.',
+      items: makeItems(cfg.listenIdentify, 'listen_identify'),
+    },
+    {
+      type: 'fill_blank',
+      title: 'Section 3: Fill the Blank',
+      instructions: 'Read the sentence and choose the correct word to fill the blank.',
+      items: makeItems(cfg.fillBlank, 'fill_blank'),
+    },
+  ]
+}

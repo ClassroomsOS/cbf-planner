@@ -1,0 +1,272 @@
+// ── exportDictationHtml.js ────────────────────────────────────────────────────
+// Generates a printable HTML dictation document with the CBF institutional header.
+// Pattern: identical to exportExamHtml.js — same header, same print flow.
+//
+// Usage:
+//   await printDictationHtml({ blueprint, school, teacherName })
+// ─────────────────────────────────────────────────────────────────────────────
+
+function esc(str) {
+  if (str == null) return ''
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
+async function fetchBase64(url) {
+  if (!url || url.startsWith('data:')) return url
+  try {
+    const res = await fetch(url)
+    if (!res.ok) return url
+    const blob = await res.blob()
+    return new Promise((resolve) => {
+      const reader = new FileReader()
+      reader.onloadend = () => resolve(reader.result)
+      reader.onerror  = () => resolve(url)
+      reader.readAsDataURL(blob)
+    })
+  } catch {
+    return url
+  }
+}
+
+// ── Section renderers ────────────────────────────────────────────────────────
+
+const SECTION_COLORS = {
+  listen_type:     '#4BACC6',
+  listen_identify: '#8064A2',
+  fill_blank:      '#F79646',
+}
+
+function renderListenTypeSection(sec, startNum) {
+  let html = ''
+  sec.items.forEach((item, i) => {
+    html += `
+    <div style="break-inside:avoid;margin-bottom:14px;padding:8px 12px;border:1px solid #e5e7eb;border-radius:6px;border-left:3px solid ${SECTION_COLORS.listen_type}">
+      <div style="font-weight:600;font-size:12px;color:#374151;margin-bottom:6px">${startNum + i}.</div>
+      <div style="border-bottom:1px solid #bbb;height:22px;margin-bottom:4px"></div>
+    </div>`
+  })
+  return html
+}
+
+function renderListenIdentifySection(sec, startNum) {
+  let html = ''
+  sec.items.forEach((item, i) => {
+    html += `
+    <div style="break-inside:avoid;margin-bottom:14px;padding:8px 12px;border:1px solid #e5e7eb;border-radius:6px;border-left:3px solid ${SECTION_COLORS.listen_identify}">
+      <div style="font-weight:600;font-size:12px;color:#374151;margin-bottom:8px">${startNum + i}.</div>
+      <div style="display:flex;gap:24px;flex-wrap:wrap">
+        ${(item.options || []).map(opt => `
+          <div style="display:flex;align-items:center;gap:6px">
+            <span style="width:14px;height:14px;border:1.5px solid #555;border-radius:50%;display:inline-flex;flex-shrink:0"></span>
+            <span style="font-size:12px">${esc(opt)}</span>
+          </div>`).join('')}
+      </div>
+    </div>`
+  })
+  return html
+}
+
+function renderFillBlankSection(sec, startNum) {
+  let html = ''
+  sec.items.forEach((item, i) => {
+    html += `
+    <div style="break-inside:avoid;margin-bottom:14px;padding:8px 12px;border:1px solid #e5e7eb;border-radius:6px;border-left:3px solid ${SECTION_COLORS.fill_blank}">
+      <div style="font-size:13px;color:#374151;margin-bottom:8px">
+        <strong>${startNum + i}.</strong> ${esc(item.sentence || '')}
+      </div>
+      <div style="display:flex;gap:24px;flex-wrap:wrap">
+        ${(item.options || []).map(opt => `
+          <div style="display:flex;align-items:center;gap:6px">
+            <span style="width:14px;height:14px;border:1.5px solid #555;border-radius:50%;display:inline-flex;flex-shrink:0"></span>
+            <span style="font-size:12px">${esc(opt)}</span>
+          </div>`).join('')}
+      </div>
+    </div>`
+  })
+  return html
+}
+
+// ── Answer key renderers ─────────────────────────────────────────────────────
+
+function renderAnswerKey(sections) {
+  let html = ''
+  let num = 1
+  sections.forEach(sec => {
+    const color = SECTION_COLORS[sec.type] || '#666'
+    html += `<h3 style="color:${color};font-size:14px;margin:16px 0 8px;border-bottom:2px solid ${color};padding-bottom:4px">${esc(sec.title)}</h3>`
+    sec.items.forEach(item => {
+      const parts = [`<strong>${num}.</strong> ${esc(item.correct_answer)}`]
+      if (item.audio_text) parts.push(`<span style="color:#888;font-size:11px;margin-left:8px">🔊 "${esc(item.audio_text)}"</span>`)
+      if (item.sentence) parts.push(`<span style="color:#888;font-size:11px;margin-left:8px">${esc(item.sentence)}</span>`)
+      html += `<div style="margin-bottom:4px;font-size:12px">${parts.join('')}</div>`
+      num++
+    })
+  })
+  return html
+}
+
+// ── Main builder ─────────────────────────────────────────────────────────────
+
+export function buildDictationHtml({ blueprint, logoBase64, school, teacherName }) {
+  const s = school || {}
+  const bp = blueprint || {}
+  const logoSrc = logoBase64 || s.logo_url || ''
+  const version = s.doc_version || s.plan_version || '02 — 2022'
+  const dane = s.dane || '308001800455'
+  const resol = s.resolution || '09685 DE 2019'
+  const sections = bp.sections || []
+
+  const totalItems = sections.reduce((sum, sec) => sum + (sec.items?.length || 0), 0)
+
+  // ── Institutional header (CBF-G AC-01) ──
+  const institutionalHeader = `
+<table style="width:100%;border-collapse:collapse;border:1px solid #000;font-family:Arial,sans-serif">
+  <colgroup>
+    <col style="width:15.3%">
+    <col style="width:61%">
+    <col style="width:23.7%">
+  </colgroup>
+  <tbody>
+    <tr>
+      <td rowspan="3" style="border:1px solid #000;padding:6px;text-align:center;vertical-align:middle">
+        ${logoSrc
+          ? `<img src="${logoSrc}" style="max-height:70px;max-width:90px;width:auto;height:auto;object-fit:contain">`
+          : '<div style="color:#aaa;font-size:10px">LOGO</div>'}
+      </td>
+      <td style="border:1px solid #000;padding:6px 10px;text-align:center;vertical-align:middle;background:#DBE5F1">
+        <div style="font-weight:700;font-size:15px">${esc(s.name || 'COLEGIO BOSTON FLEXIBLE')}</div>
+        <div style="font-size:10px;margin-top:3px">DANE: ${esc(dane)} - RESOLUCIÓN ${esc(resol)}</div>
+      </td>
+      <td style="border:1px solid #000;padding:6px;text-align:center;vertical-align:middle">
+        <div style="font-weight:700;font-size:10px">CÓD: CBF - G AC - 01</div>
+      </td>
+    </tr>
+    <tr>
+      <td rowspan="2" style="border:1px solid #000;padding:6px 10px;text-align:center;vertical-align:middle">
+        <div style="font-weight:700;font-size:10px"><u>PROCESO</u>: GESTIÓN ACADÉMICA Y CURRICULAR</div>
+        <div style="font-weight:700;font-size:10px;margin-top:3px">LISTENING ASSESSMENT</div>
+      </td>
+      <td style="border:1px solid #000;padding:5px 6px;text-align:center;vertical-align:middle">
+        <div style="font-size:10px"><strong>Versión</strong> ${esc(version)}</div>
+      </td>
+    </tr>
+    <tr>
+      <td style="border:1px solid #000;padding:5px 6px;text-align:center;vertical-align:middle">
+        <div style="font-size:10px">Página <span class="cbf-page-num"></span></div>
+      </td>
+    </tr>
+  </tbody>
+</table>`
+
+  // ── Info row ──
+  const infoRow = `
+<table style="width:100%;border:1px solid #000;border-top:none;border-collapse:collapse;font-family:Arial,sans-serif;background:#DBE5F1">
+  <tr>
+    <td style="padding:4px 10px;font-size:11px;border:1px solid #000"><strong>Grado:</strong> ${esc(bp.grade)}</td>
+    <td style="padding:4px 10px;font-size:11px;border:1px solid #000"><strong>Asignatura:</strong> ${esc(bp.subject)}</td>
+    <td style="padding:4px 10px;font-size:11px;border:1px solid #000"><strong>Dificultad:</strong> ${esc(bp.difficulty)}</td>
+    <td style="padding:4px 10px;font-size:11px;border:1px solid #000"><strong>Docente:</strong> ${esc(teacherName)}</td>
+  </tr>
+  <tr>
+    <td colspan="4" style="padding:4px 10px;font-size:11px;border:1px solid #000">
+      <strong>Nombre:</strong> _______________________________________________
+      &nbsp;&nbsp;&nbsp;
+      <strong>Fecha:</strong> ________________
+    </td>
+  </tr>
+  ${bp.unit_reference ? `<tr>
+    <td colspan="4" style="padding:4px 10px;font-size:11px;border:1px solid #000">
+      <strong>Unidad:</strong> ${esc(bp.unit_reference)} &nbsp;&nbsp;&nbsp;
+      <strong>Total preguntas:</strong> ${totalItems}
+    </td>
+  </tr>` : ''}
+</table>`
+
+  // ── Sections ──
+  let questionsHtml = ''
+  let num = 1
+  sections.forEach(sec => {
+    const color = SECTION_COLORS[sec.type] || '#666'
+    questionsHtml += `
+    <div style="margin-top:20px">
+      <div style="background:${color};color:white;padding:8px 14px;border-radius:6px 6px 0 0;font-weight:700;font-size:13px">
+        ${esc(sec.title)}
+      </div>
+      <div style="padding:4px 0;font-size:11px;color:#666;margin-bottom:8px;font-style:italic">
+        ${esc(sec.instructions || '')}
+      </div>`
+
+    if (sec.type === 'listen_type') {
+      questionsHtml += renderListenTypeSection(sec, num)
+    } else if (sec.type === 'listen_identify') {
+      questionsHtml += renderListenIdentifySection(sec, num)
+    } else {
+      questionsHtml += renderFillBlankSection(sec, num)
+    }
+
+    num += sec.items.length
+    questionsHtml += '</div>'
+  })
+
+  // ── Answer key (separate page) ──
+  const answerKeyHtml = `
+  <div style="break-before:page;page-break-before:always;padding-top:20px">
+    ${institutionalHeader}
+    <div style="margin-top:16px">
+      <h2 style="text-align:center;color:#1F3864;font-size:16px;margin:12px 0 6px">ANSWER KEY — ${esc(bp.title || 'Dictation')}</h2>
+      <p style="text-align:center;font-size:11px;color:#888;margin:0 0 16px">
+        ${esc(bp.grade)} · ${esc(bp.subject)} · ${esc(bp.difficulty)} · ${totalItems} preguntas
+      </p>
+      ${renderAnswerKey(sections)}
+    </div>
+  </div>`
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Dictation — ${esc(bp.title || '')}</title>
+<style>
+  @page { margin: 15mm 12mm; size: letter; }
+  body { font-family: Arial, sans-serif; margin: 0; padding: 20px; color: #1F3864; }
+  @media print {
+    .no-print { display: none !important; }
+    body { padding: 0; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Print button -->
+<div class="no-print" style="position:fixed;bottom:24px;right:24px;z-index:9999">
+  <button onclick="window.print()" style="
+    background:linear-gradient(135deg,#DC2626,#B91C1C);color:white;
+    border:none;border-radius:50%;width:56px;height:56px;font-size:22px;
+    cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,0.3)
+  ">🖨️</button>
+</div>
+
+${institutionalHeader}
+${infoRow}
+${questionsHtml}
+${answerKeyHtml}
+
+</body>
+</html>`
+}
+
+// ── Print helper ─────────────────────────────────────────────────────────────
+
+export async function printDictationHtml({ blueprint, school, teacherName }) {
+  const logoBase64 = school?.logo_url ? await fetchBase64(school.logo_url) : ''
+  const html = buildDictationHtml({ blueprint, logoBase64, school, teacherName })
+  const win = window.open('', '_blank')
+  if (!win) return
+  win.document.write(html)
+  win.document.close()
+  win.onload = () => setTimeout(() => win.print(), 400)
+}
