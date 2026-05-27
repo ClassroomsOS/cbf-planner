@@ -48,7 +48,7 @@
 | **Biblioteca CBF — Fase 3c** | ✅ Completo | Fragmentos en PlannerPage: callout azul con chips de tipo/SmartBlock → pasan a `AIGeneratorModal` → `generateGuideStructure` los recibe como contexto al generar desde el Planner |
 | **Biblioteca CBF — Fase 4** | ✅ Completo | Imágenes de fragmentos fluyen como `imageBlocks` a `generateGuideStructure` (máx. 5, fragmentos prioritarios) · `analyzeTextbookPages()` acepta URLs o capturas base64 · UI "📖 Páginas" en PDF viewer: selección multi-página → renderizado offscreen → análisis Claude Vision → `PagesAnalysisPanel` con plan semanal + SmartBlock sugeridos |
 | **Biblioteca CBF — Fase 5** | ✅ Completo | Integración Syllabus: `syllabus_topics.library_doc_id + library_pages[]` (migración prod) · `SyllabusLinkPanel` en PDF viewer: asignar páginas actuales a un `syllabus_topic` · `SyllabusPage` TopicFormModal con selector PDF + páginas; TopicDetailCard chip doc/páginas · `GuideEditorPage` callout verde "Páginas del libro vinculadas al syllabus (semana N)" |
-| **Módulo Dictation** | ✅ ~90% completo | 5 tablas + 2 Edge Fns (dictation-tts, dictation-corrector) · DictationPage wizard 3 pasos · DictationPlayerPage antitrampa 5 capas · dictationAI.js + dictationUtils.js · Azure TTS 10 voces · corrección Levenshtein + Telegram · códigos por roster · monitor Realtime · Pendiente: email resultados, Azure key en secrets |
+| **Módulo Dictation** | ✅ ~95% completo | 6 tablas (+ dictation_vocab_sets) + 2 Edge Fns · DictationPage extraído a 6 componentes (CreateTab, ListTab, MonitorTab, ConfigTab, ManualEntryForm, VocabSetPicker, VocabLibraryTab, AudioExportPanel) · Modo manual + modo IA · Biblioteca vocabulario por período · Export PDF (LISTENING ASSESSMENT, header CBF-G AC-01) · Export audio ZIP · Archivo dictados con filtros/reuse/archive · DictationPlayerPage antitrampa 5 capas · Azure TTS 10 voces · corrección Levenshtein + Telegram · Pendiente: email resultados, Azure key en secrets |
 | **Instrumento Docente** | 🔶 En desarrollo | Guión de sesión generado por IA para el docente (complemento de la Guía CBF-G AC-01) · IMS · estado del grupo · 3 opciones por fase · PREACHER CLOSE · prototipo en `theoric mark/teacher-instrument.jsx` |
 
 ---
@@ -283,7 +283,24 @@ Cuando el docente sube fotos de textbook en NewsProjectEditor:
 
 ---
 
-## Completado — sesión 2026-05-26 (Módulo Dictation)
+## Completado — sesión 2026-05-27 (Dictation — 5 mejoras + extracción)
+
+- [x] Extracción de componentes: DictationPage.jsx de 895 líneas → ~50 líneas (shell de tabs) + 6 componentes en `src/components/dictation/`
+- [x] CreateTab.jsx: wizard extraído con toggle `entryMode: 'ai' | 'manual'`, integración VocabSetPicker + AudioExportPanel + botón PDF
+- [x] ManualEntryForm.jsx: entrada manual de oraciones por sección (listen_type, listen_identify, fill_blank) con datalist de vocabulario
+- [x] VocabSetPicker.jsx: selector dropdown de vocabularios guardados + "Guardar lista" en Step 1
+- [x] VocabLibraryTab.jsx: CRUD completo de sets de vocabulario (nombre, palabras, grado, materia, período) — 5° tab en DictationPage
+- [x] AudioExportPanel.jsx: descarga individual MP3 + ZIP completo con JSZip organizado por sección
+- [x] ListTab.jsx: reescritura como biblioteca de dictados — filtros (grado/materia/búsqueda), detalle expandible con secciones+respuestas, sesiones vinculadas, reusar sesión (re-query roster), archivar/restaurar, PDF export
+- [x] exportDictationHtml.js: buildDictationHtml + printDictationHtml — header institucional CBF-G AC-01 "LISTENING ASSESSMENT", answer key en página separada
+- [x] dictationUtils.js: buildManualSectionsScaffold(difficulty) — scaffold vacío según DIFFICULTY_CONFIG
+- [x] Migración SQL: dictation_vocab_sets (id, school_id, teacher_id, name, vocabulary[], grade, subject, period) + RLS owner/school_read
+- [x] package.json: jszip ^3.10.1 como dependencia explícita
+- [x] Fix voice preview: stopPreview(), cancel on voice change, optgroups 10 voces (8 EN + 2 ES)
+- [x] index.css: ~80 líneas adicionales .dict-* para nuevos componentes
+- [x] DevStatusPage.jsx: actualizado progress 90→95, works[] y history[]
+
+## Completado — sesión 2026-05-26 (Módulo Dictation — base)
 
 - [x] Migración SQL: 5 tablas (dictation_blueprints, dictation_sessions, dictation_instances, dictation_responses, dictation_results) + RLS + RPC `get_dictation_instance_safe` + trigger + Storage bucket
 - [x] dictationUtils.js: DIFFICULTY_CONFIG, VOICE_OPTIONS (10 voces), levenshtein(), scoreTypedWord(), scoreDictation(), generateDictationCode(), QUESTION_POINTS

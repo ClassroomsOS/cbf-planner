@@ -2,7 +2,7 @@
 ## CLAUDE.md — Documento maestro
 
 > **Principio rector:** *"Nosotros diseñamos. El docente enseña."*
-> Léelo completo antes de escribir código. · Última actualización: Mayo 17, 2026
+> Léelo completo antes de escribir código. · Última actualización: Mayo 27, 2026
 
 ---
 
@@ -264,6 +264,9 @@ dictation_results     — instance_id UNIQUE · total_score · max_score · colo
                         RPC: get_dictation_instance_safe(p_access_code) — strips correct_answer from questions
                         Storage bucket: dictation-audio (público read)
                         Trigger: set_dictation_instance_status — auto-update on response insert
+dictation_vocab_sets  — name · vocabulary TEXT[] · grade · subject · period(1-4)
+                        teacher_id FK · school_id FK · created_at · updated_at
+                        RLS: vocab_sets_owner (ALL) · vocab_sets_school_read (SELECT)
 
 — MÓDULO PSICOSOCIAL —
 student_psychosocial_profiles — status · support_level · flags TEXT[]
@@ -383,6 +386,8 @@ Colores, eleot® items y modelos → `src/utils/smartBlockHtml.js` · `src/compo
 - `dictation-tts` Edge Fn: Azure Cognitive Services SSML → MP3. Input: `{ texts[], voice_id, speed, blueprint_id, school_id, section }`. Output: `{ audio_urls[] }`. Env: `AZURE_TTS_KEY`, `AZURE_TTS_REGION`.
 - `dictation-corrector` Edge Fn: scoring determinístico (no IA). Levenshtein para typed words (exact=100%, lev≤1=50%), exact match para MC. Upsert `dictation_results` + Telegram al docente con nota colombiana + código anónimo (last-6 instance_id).
 - `DictationPlayerPage` reusa `exam-integrity-alert` Edge Fn para anti-cheat Telegram con `event_type: 'dictation_violation'`.
+- `buildManualSectionsScaffold(difficulty)` en `dictationUtils.js`: scaffold vacío según DIFFICULTY_CONFIG para modo manual. Retorna 3 secciones con items vacíos listos para llenar.
+- `exportDictationHtml.js`: `buildDictationHtml({ blueprint, logoBase64, school, teacherName })` + `printDictationHtml()`. Header CBF-G AC-01 "LISTENING ASSESSMENT". Answer key en página separada. Colores: listen_type=#4BACC6, listen_identify=#8064A2, fill_blank=#F79646.
 
 ---
 
@@ -454,6 +459,21 @@ violationAlert  // { title, message, isFullscreen } | null — banner rojo bloqu
 sections        // [{ name, indices[] }] — de q.section_name; hasMultipleSections
 // Telegram: código last-6 de instance_id, nunca PII
 sendTelegramNotification(eventType, extra) // sin throttle, para ciclo
+```
+
+### Estado clave — DictationPage (shell + componentes)
+```javascript
+// DictationPage.jsx: shell ~50 líneas con 5 tabs → componentes en src/components/dictation/
+// CreateTab.jsx: wizard 3 pasos con entryMode ('ai' | 'manual')
+//   - manualSections state para modo manual (ManualEntryForm.jsx)
+//   - VocabSetPicker integrado en Step 1
+//   - AudioExportPanel integrado en Step 2
+//   - handleGenerateAudio(sourceOverride) — acepta override para evitar async setState race
+// ListTab.jsx: biblioteca de dictados — filtros, detalle expandible, reusar sesión, archivar
+// VocabLibraryTab.jsx: CRUD de dictation_vocab_sets (5° tab "📚 Vocabulario")
+// MonitorTab.jsx: monitor Realtime extraído
+// ConfigTab.jsx: configuración Telegram extraída
+// exportDictationHtml.js: buildDictationHtml + printDictationHtml (header LISTENING ASSESSMENT)
 ```
 
 ### Estado clave — DictationPlayerPage
@@ -552,4 +572,4 @@ git add . && git commit -m "feat: ..." && git push   # deploy automático ~2 min
 ---
 
 *CBF Planner · ETA Platform · Edoardo Ortiz + Claude Sonnet · Barranquilla 2026*
-*"Nosotros diseñamos. El docente enseña." · CLAUDE.md v6.5 — Mayo 26, 2026*
+*"Nosotros diseñamos. El docente enseña." · CLAUDE.md v6.5 — Mayo 27, 2026*
