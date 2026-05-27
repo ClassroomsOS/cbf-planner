@@ -1,12 +1,9 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../supabase'
 
-export default function VocabSetPicker({ teacher, vocabulary, onLoadSet, showToast }) {
+export default function VocabSetPicker({ teacher, onLoadSet, showToast }) {
   const [sets, setSets] = useState([])
   const [selectedSetId, setSelectedSetId] = useState('')
-  const [saveName, setSaveName] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [showSave, setShowSave] = useState(false)
 
   useEffect(() => {
     if (!teacher) return
@@ -21,49 +18,25 @@ export default function VocabSetPicker({ teacher, vocabulary, onLoadSet, showToa
   function handleLoad() {
     const set = sets.find(s => s.id === selectedSetId)
     if (!set) return
-    onLoadSet(set.vocabulary)
-    showToast(`Vocabulario "${set.name}" cargado (${set.vocabulary.length} palabras)`, 'success')
+    onLoadSet(set.vocabulary, set.name)
+    showToast(`Vocabulario "${set.name}" cargado`, 'success')
   }
 
-  async function handleSave() {
-    if (!saveName.trim()) {
-      showToast('Ingresa un nombre para el set', 'warning')
-      return
-    }
-    if (vocabulary.length === 0) {
-      showToast('No hay palabras para guardar', 'warning')
-      return
-    }
-    setSaving(true)
-    const { data, error } = await supabase
-      .from('dictation_vocab_sets')
-      .insert({
-        school_id: teacher.school_id,
-        teacher_id: teacher.id,
-        name: saveName.trim(),
-        vocabulary,
-      })
-      .select('id, name, vocabulary, grade, subject, period')
-      .single()
-    setSaving(false)
-    if (error) {
-      showToast('Error al guardar vocabulario', 'error')
-    } else {
-      setSets(prev => [data, ...prev])
-      setSaveName('')
-      setShowSave(false)
-      showToast(`Vocabulario "${data.name}" guardado`, 'success')
-    }
+  /** Count real words (expanding any comma-joined entries) */
+  function realWordCount(vocab) {
+    return vocab.flatMap(w =>
+      /[,;]/.test(w) ? w.split(/[,;]+/).map(s => s.trim()).filter(Boolean) : [w]
+    ).length
   }
 
   return (
     <div className="dict-vocab-picker">
       <div className="dict-vocab-picker-row">
         <select value={selectedSetId} onChange={e => setSelectedSetId(e.target.value)}>
-          <option value="">— Cargar vocabulario guardado —</option>
+          <option value="">— Seleccionar vocabulario —</option>
           {sets.map(s => (
             <option key={s.id} value={s.id}>
-              {s.name} ({s.vocabulary.length} palabras)
+              {s.name} ({realWordCount(s.vocabulary)} palabras)
             </option>
           ))}
         </select>
@@ -74,28 +47,12 @@ export default function VocabSetPicker({ teacher, vocabulary, onLoadSet, showToa
         >
           📂 Cargar
         </button>
-        <button
-          onClick={() => setShowSave(!showSave)}
-          className="dict-btn-sm secondary"
-          disabled={vocabulary.length === 0}
-        >
-          💾 Guardar lista
-        </button>
       </div>
 
-      {showSave && (
-        <div className="dict-vocab-picker-save">
-          <input
-            value={saveName}
-            onChange={e => setSaveName(e.target.value)}
-            placeholder="Nombre del set (ej: Unit 4 — Jobs)"
-            onKeyDown={e => e.key === 'Enter' && handleSave()}
-          />
-          <button onClick={handleSave} disabled={saving} className="dict-btn-sm">
-            {saving ? 'Guardando...' : '✓ Guardar'}
-          </button>
-          <button onClick={() => setShowSave(false)} className="dict-btn-sm secondary">Cancelar</button>
-        </div>
+      {sets.length === 0 && (
+        <p style={{ color: '#888', fontSize: 12, marginTop: 6 }}>
+          No tienes vocabularios guardados. Crea uno en la pestaña <strong>Biblioteca</strong>.
+        </p>
       )}
     </div>
   )

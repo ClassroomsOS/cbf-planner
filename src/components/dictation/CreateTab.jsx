@@ -23,10 +23,10 @@ export default function CreateTab({ teacher, showToast }) {
   const [selectedSubject, setSelectedSubject] = useState('')
   const [unitReference, setUnitReference] = useState('')
   const [difficulty, setDifficulty] = useState('Intermedio')
-  const [vocabInput, setVocabInput] = useState('')
   const [vocabulary, setVocabulary] = useState([])
   const [voiceId, setVoiceId] = useState('en-US-JennyNeural')
   const [speed, setSpeed] = useState(0.9)
+  const [loadedSetName, setLoadedSetName] = useState('')
 
   // Entry mode
   const [entryMode, setEntryMode] = useState('ai') // 'ai' | 'manual'
@@ -54,38 +54,11 @@ export default function CreateTab({ teacher, showToast }) {
   const gradeOptions = [...new Set(assignments.map(a => `${a.grade} ${a.section}`))]
   const subjectOptions = [...new Set(assignments.map(a => a.subject))]
 
-  // ── Add vocabulary word(s) — auto-splits if commas/semicolons/newlines detected ──
-  function addWord() {
-    const raw = vocabInput.trim()
-    if (!raw) return
-    if (/[,;\n]/.test(raw)) {
-      pasteWords()
-      return
-    }
-    if (vocabulary.includes(raw)) {
-      showToast('Esa palabra ya está en la lista', 'warning')
-      return
-    }
-    setVocabulary(prev => [...prev, raw])
-    setVocabInput('')
-  }
-
-  function pasteWords() {
-    const words = vocabInput
-      .split(/[,\n;]+/)
-      .map(w => w.trim())
-      .filter(w => w && !vocabulary.includes(w))
-    if (words.length === 0) {
-      showToast('No se encontraron palabras nuevas', 'warning')
-      return
-    }
-    setVocabulary(prev => [...prev, ...words])
-    setVocabInput('')
-    showToast(`${words.length} palabras agregadas`, 'success')
-  }
-
-  function removeWord(w) {
-    setVocabulary(prev => prev.filter(x => x !== w))
+  /** Normalize vocabulary: split any comma-separated entries into individual words */
+  function normalizeVocab(words) {
+    return words.flatMap(w =>
+      /[,;]/.test(w) ? w.split(/[,;]+/).map(s => s.trim()).filter(Boolean) : [w]
+    )
   }
 
   // ── Preview voice (Azure TTS) ──
@@ -399,7 +372,7 @@ export default function CreateTab({ teacher, showToast }) {
       setGenerated(null)
       setAudioUrls({})
       setVocabulary([])
-      setVocabInput('')
+      setLoadedSetName('')
       setTitle('')
     } catch (err) {
       logError(err, { page: 'DictationPage', action: 'publishDictation' })
@@ -453,27 +426,16 @@ export default function CreateTab({ teacher, showToast }) {
             </div>
           </div>
 
-          {/* Vocabulary input — FIRST so words are ready before any action */}
-          <h3>Vocabulario ({vocabulary.length} palabras)</h3>
-          <div className="dict-vocab-row">
-            <input
-              value={vocabInput}
-              onChange={e => setVocabInput(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && addWord()}
-              placeholder="Escribe una palabra o pega varias separadas por coma"
-            />
-            <button onClick={addWord} className="dict-btn-sm">+ Agregar</button>
-            <button onClick={pasteWords} className="dict-btn-sm secondary">📋 Pegar lista</button>
-          </div>
+          {/* Vocabulary — load from library only */}
+          <h3>Vocabulario {vocabulary.length > 0 && <span style={{ fontWeight: 400 }}>({vocabulary.length} palabras{loadedSetName ? ` — ${loadedSetName}` : ''})</span>}</h3>
 
           <VocabSetPicker
             teacher={teacher}
-            vocabulary={vocabulary}
-            onLoadSet={(words) => setVocabulary(prev => {
-              const expanded = words.flatMap(w => /[,;]/.test(w) ? w.split(/[,;]+/).map(s => s.trim()).filter(Boolean) : [w])
-              const merged = [...new Set([...prev, ...expanded])]
-              return merged
-            })}
+            onLoadSet={(words, setName) => {
+              const expanded = normalizeVocab(words)
+              setVocabulary([...new Set(expanded)])
+              setLoadedSetName(setName || '')
+            }}
             showToast={showToast}
           />
 
@@ -482,10 +444,22 @@ export default function CreateTab({ teacher, showToast }) {
               {vocabulary.map(w => (
                 <span key={w} className="dict-chip">
                   {w}
-                  <button onClick={() => removeWord(w)} className="dict-chip-x">×</button>
                 </span>
               ))}
+              <button
+                onClick={() => { setVocabulary([]); setLoadedSetName('') }}
+                className="dict-btn-sm secondary"
+                style={{ marginLeft: 8 }}
+              >
+                Limpiar
+              </button>
             </div>
+          )}
+
+          {vocabulary.length === 0 && (
+            <p style={{ color: '#888', fontSize: 13, marginTop: 8 }}>
+              Carga un vocabulario desde la <strong>Biblioteca de Vocabulario</strong> para continuar.
+            </p>
           )}
 
           {/* Difficulty selector */}
