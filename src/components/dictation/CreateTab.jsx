@@ -99,17 +99,31 @@ export default function CreateTab({ teacher, showToast }) {
     }
     window.speechSynthesis.cancel()
     const opt = VOICE_OPTIONS.find(v => v.id === voiceId)
+    // Extract BCP-47 locale from Azure voice id (e.g. "en-US-JennyNeural" → "en-US")
+    const locale = voiceId.split('-').slice(0, 2).join('-')
     const sampleText = opt?.lang === 'es'
       ? (vocabulary[0] || 'Hola, esta es una prueba de voz.')
       : (vocabulary[0] || 'Hello, this is a voice test.')
     const utt = new SpeechSynthesisUtterance(sampleText)
-    utt.lang = opt?.lang === 'es' ? 'es-CO' : 'en-US'
+    utt.lang = locale
     utt.rate = speed
 
+    // Try to match browser voice by locale + gender for a closer preview
     const voices = window.speechSynthesis.getVoices()
     if (voices.length && opt) {
-      const match = voices.find(v => v.lang.startsWith(opt.lang === 'es' ? 'es' : 'en'))
-      if (match) utt.voice = match
+      // Best: exact locale + gender match (e.g. en-GB female)
+      const genderHint = opt.gender === 'female' ? /female/i : /male/i
+      const exactLocale = voices.filter(v => v.lang.replace('_', '-').startsWith(locale))
+      const genderMatch = exactLocale.find(v => genderHint.test(v.name))
+      if (genderMatch) {
+        utt.voice = genderMatch
+      } else if (exactLocale.length > 0) {
+        utt.voice = exactLocale[0]
+      } else {
+        // Fallback: any voice in the same language
+        const langMatch = voices.find(v => v.lang.startsWith(opt.lang))
+        if (langMatch) utt.voice = langMatch
+      }
     }
 
     utt.onstart = () => setPreviewing(true)
