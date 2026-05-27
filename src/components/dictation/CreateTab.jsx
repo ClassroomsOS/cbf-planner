@@ -470,7 +470,8 @@ export default function CreateTab({ teacher, showToast }) {
             teacher={teacher}
             vocabulary={vocabulary}
             onLoadSet={(words) => setVocabulary(prev => {
-              const merged = [...new Set([...prev, ...words])]
+              const expanded = words.flatMap(w => /[,;]/.test(w) ? w.split(/[,;]+/).map(s => s.trim()).filter(Boolean) : [w])
+              const merged = [...new Set([...prev, ...expanded])]
               return merged
             })}
             showToast={showToast}
