@@ -124,7 +124,8 @@ export default function CreateTab({ teacher, showToast }) {
       if (data.error) throw new Error(data.error)
       const url = data.audio_urls?.[0]
       if (!url) throw new Error('No audio URL returned')
-      const audio = new Audio(url)
+      // Cache-bust: same Storage path gets overwritten per voice, browser caches the old one
+      const audio = new Audio(url + '?t=' + Date.now())
       setPreviewAudio(audio)
       audio.onended = () => setPreviewing(false)
       audio.onerror = () => { setPreviewing(false); showToast('Error al reproducir preview', 'error') }
@@ -198,7 +199,6 @@ export default function CreateTab({ teacher, showToast }) {
 
   // ── Step 1 → Step 2: Generate ──
   async function handleGenerate() {
-    console.log('handleGenerate called', { vocabLen: vocabulary.length, selectedGrade, entryMode })
     if (vocabulary.length < 3) {
       showToast('Agrega al menos 3 palabras de vocabulario', 'warning')
       return
@@ -449,41 +449,7 @@ export default function CreateTab({ teacher, showToast }) {
             </div>
           </div>
 
-          {/* Difficulty selector */}
-          <h3>Dificultad</h3>
-          <div className="dict-difficulty-cards">
-            {Object.values(DIFFICULTY_CONFIG).map(d => (
-              <button
-                key={d.key}
-                className={`dict-diff-card ${difficulty === d.key ? 'selected' : ''}`}
-                onClick={() => setDifficulty(d.key)}
-              >
-                <span className="dict-diff-icon">{d.icon}</span>
-                <strong>{d.label}</strong>
-                <span className="dict-diff-desc">{d.description}</span>
-                <span className="dict-diff-count">{d.total} preguntas</span>
-              </button>
-            ))}
-          </div>
-
-          {/* Entry mode toggle */}
-          <h3>Modo de entrada</h3>
-          <div className="dict-mode-toggle">
-            <button
-              className={`dict-mode-btn ${entryMode === 'ai' ? 'active' : ''}`}
-              onClick={() => setEntryMode('ai')}
-            >
-              🤖 IA genera todo
-            </button>
-            <button
-              className={`dict-mode-btn ${entryMode === 'manual' ? 'active' : ''}`}
-              onClick={() => setEntryMode('manual')}
-            >
-              ✍️ Yo escribo las oraciones
-            </button>
-          </div>
-
-          {/* Vocabulary input */}
+          {/* Vocabulary input — FIRST so words are ready before any action */}
           <h3>Vocabulario ({vocabulary.length} palabras)</h3>
           <div className="dict-vocab-row">
             <input
@@ -517,6 +483,23 @@ export default function CreateTab({ teacher, showToast }) {
             </div>
           )}
 
+          {/* Difficulty selector */}
+          <h3>Dificultad</h3>
+          <div className="dict-difficulty-cards">
+            {Object.values(DIFFICULTY_CONFIG).map(d => (
+              <button
+                key={d.key}
+                className={`dict-diff-card ${difficulty === d.key ? 'selected' : ''}`}
+                onClick={() => setDifficulty(d.key)}
+              >
+                <span className="dict-diff-icon">{d.icon}</span>
+                <strong>{d.label}</strong>
+                <span className="dict-diff-desc">{d.description}</span>
+                <span className="dict-diff-count">{d.total} preguntas</span>
+              </button>
+            ))}
+          </div>
+
           {/* Voice selector */}
           <h3>Voz del dictado</h3>
           <div className="dict-voice-row">
@@ -545,6 +528,24 @@ export default function CreateTab({ teacher, showToast }) {
             }
           </div>
 
+          {/* Entry mode toggle */}
+          <h3>Modo de entrada</h3>
+          <div className="dict-mode-toggle">
+            <button
+              className={`dict-mode-btn ${entryMode === 'ai' ? 'active' : ''}`}
+              onClick={() => setEntryMode('ai')}
+            >
+              🤖 IA genera todo
+            </button>
+            <button
+              className={`dict-mode-btn ${entryMode === 'manual' ? 'active' : ''}`}
+              onClick={() => setEntryMode('manual')}
+            >
+              ✍️ Yo escribo las oraciones
+            </button>
+          </div>
+
+          {/* Action button — at the very end after all config */}
           <div className="dict-actions">
             {entryMode === 'ai' ? (
               <button
@@ -552,7 +553,7 @@ export default function CreateTab({ teacher, showToast }) {
                 disabled={generating || vocabulary.length < 3}
                 className="dict-btn primary"
               >
-                {generating ? '🤖 Generando...' : '🤖 Generar con IA'}
+                {generating ? '🤖 Generando...' : `🤖 Generar con IA (${vocabulary.length} palabras)`}
               </button>
             ) : (
               <button
@@ -562,6 +563,9 @@ export default function CreateTab({ teacher, showToast }) {
               >
                 ✍️ Continuar a edición manual
               </button>
+            )}
+            {vocabulary.length < 3 && entryMode === 'ai' && (
+              <p style={{ color: '#C0504D', fontSize: 12, marginTop: 6 }}>Necesitas al menos 3 palabras en el vocabulario para generar</p>
             )}
           </div>
         </div>
