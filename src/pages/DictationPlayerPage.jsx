@@ -5,7 +5,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../supabase'
 import { colombianGrade as calcColombianGrade, gradeLevel, gradeColor } from '../utils/examUtils'
-import { scoreDictation } from '../utils/dictationUtils'
+import { scoreDictation, SECTION_META } from '../utils/dictationUtils'
 import { logError } from '../utils/logger'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -622,17 +622,31 @@ ${result.section_scores ? Object.entries(result.section_scores).map(([type, s]) 
     )
   }
 
+  // ── Detect which question types are present ──
+  const presentTypes = [...new Set(questions.map(q => q.question_type))]
+  const hasAudioSections = presentTypes.some(t => t === 'listen_type' || t === 'listen_identify')
+
   // ── INSTRUCTIONS PHASE ──
   if (phase === 'instructions') {
+    const INSTR_MAP = {
+      listen_type:     'Escucharás palabras. Escríbelas en MAYÚSCULAS.',
+      listen_identify: 'Escucharás oraciones. Identifica qué palabra de vocabulario se usó.',
+      matching:        'Conecta cada palabra con su definición correcta.',
+      fill_blank:      'Completa las oraciones eligiendo la palabra correcta.',
+      writing:         'Escribe un párrafo corto usando las palabras de vocabulario indicadas.',
+    }
+
     return (
       <div className="dict-player-instructions">
-        <h1>🎧 {blueprint?.title || 'Dictation'}</h1>
+        <h1>{hasAudioSections ? '🎧' : '📝'} {blueprint?.title || 'Assessment'}</h1>
         <div className="dict-instr-card">
           <h2>Instrucciones</h2>
           <ul>
-            <li><strong>Section 1:</strong> Escucharás palabras. Escríbelas en MAYÚSCULAS.</li>
-            <li><strong>Section 2:</strong> Escucharás oraciones. Identifica qué palabra de vocabulario se usó.</li>
-            <li><strong>Section 3:</strong> Completa las oraciones eligiendo la palabra correcta.</li>
+            {presentTypes.map(t => (
+              <li key={t}>
+                <strong>{SECTION_META[t]?.icon} {SECTION_META[t]?.label}:</strong> {INSTR_MAP[t] || ''}
+              </li>
+            ))}
           </ul>
           <p><strong>Duración:</strong> {session?.duration_minutes || 30} minutos</p>
           <p><strong>Preguntas:</strong> {questions.length}</p>
@@ -645,7 +659,7 @@ ${result.section_scores ? Object.entries(result.section_scores).map(([type, s]) 
         </div>
 
         <button onClick={handleStart} className="dict-start-btn">
-          ▶ Comenzar Dictation
+          ▶ Comenzar {hasAudioSections ? 'Dictation' : 'Assessment'}
         </button>
       </div>
     )
@@ -683,13 +697,15 @@ ${result.section_scores ? Object.entries(result.section_scores).map(([type, s]) 
         <div className="dict-section-tabs">
           {sections.map((sec, i) => {
             const answered = sec.items.filter(it => answers[it.globalIndex]).length
+            const meta = SECTION_META[sec.type] || {}
             return (
               <button
                 key={i}
                 className={`dict-sec-tab ${activeSection === i ? 'active' : ''}`}
+                style={{ '--tab-color': meta.color || '#888' }}
                 onClick={() => setActiveSection(i)}
               >
-                {sec.title} ({answered}/{sec.items.length})
+                {meta.icon} {meta.label || sec.title} ({answered}/{sec.items.length})
               </button>
             )
           })}
@@ -699,25 +715,26 @@ ${result.section_scores ? Object.entries(result.section_scores).map(([type, s]) 
         <div className="dict-questions">
           {currentSection && currentSection.items.map((q) => {
             const idx = q.globalIndex
+            const qType = q.question_type
 
             return (
               <div key={idx} className="dict-question">
                 <div className="dict-q-num">{idx + 1})</div>
 
                 {/* Audio for listen_type and listen_identify */}
-                {(q.question_type === 'listen_type' || q.question_type === 'listen_identify') && (
+                {(qType === 'listen_type' || qType === 'listen_identify') && (
                   <div className="dict-q-audio">
-                    {blueprint?.audio_urls?.[q.question_type]?.[
+                    {blueprint?.audio_urls?.[qType]?.[
                       currentSection.items.indexOf(q)
                     ] ? (
                       <>
                         <audio
                           controls
-                          src={blueprint.audio_urls[q.question_type][currentSection.items.indexOf(q)]}
+                          src={blueprint.audio_urls[qType][currentSection.items.indexOf(q)]}
                           className="dict-audio-player"
                         />
                         <button
-                          onClick={() => handleReplay(idx, blueprint.audio_urls[q.question_type][currentSection.items.indexOf(q)])}
+                          onClick={() => handleReplay(idx, blueprint.audio_urls[qType][currentSection.items.indexOf(q)])}
                           disabled={getReplayCount(idx) >= MAX_REPLAYS}
                           className="dict-replay-btn"
                         >
@@ -730,13 +747,38 @@ ${result.section_scores ? Object.entries(result.section_scores).map(([type, s]) 
                   </div>
                 )}
 
+                {/* Word for matching */}
+                {qType === 'matching' && q.word && (
+                  <div className="dict-q-matching-word">
+                    <span className="dict-matching-label">Word:</span>
+                    <span className="dict-matching-word">{q.word}</span>
+                  </div>
+                )}
+
                 {/* Sentence for fill_blank */}
                 {q.sentence && (
                   <p className="dict-q-sentence">{q.sentence}</p>
                 )}
 
-                {/* Input: typed word OR multiple choice */}
-                {q.question_type === 'listen_type' ? (
+                {/* Prompt for writing */}
+                {qType === 'writing' && q.prompt && (
+                  <div className="dict-q-writing-prompt">
+                    <p className="dict-writing-prompt-text">{q.prompt}</p>
+                    {q.required_words && q.required_words.length > 0 && (
+                      <div className="dict-writing-req-words">
+                        <span>Required words:</span>
+                        {q.required_words.map((w, wi) => (
+                          <span key={wi} className={`dict-writing-word-chip ${(answers[idx] || '').toLowerCase().includes(w.toLowerCase()) ? 'used' : ''}`}>
+                            {w}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Input based on question type */}
+                {qType === 'listen_type' ? (
                   <input
                     value={answers[idx] || ''}
                     onChange={e => updateAnswer(idx, e.target.value.toUpperCase())}
@@ -745,6 +787,24 @@ ${result.section_scores ? Object.entries(result.section_scores).map(([type, s]) 
                     autoComplete="off"
                     spellCheck={false}
                   />
+                ) : qType === 'writing' ? (
+                  <div className="dict-q-writing-area">
+                    <textarea
+                      value={answers[idx] || ''}
+                      onChange={e => updateAnswer(idx, e.target.value)}
+                      placeholder="Write your paragraph here..."
+                      className="dict-q-textarea"
+                      rows={5}
+                    />
+                    <div className="dict-q-word-count">
+                      {(answers[idx] || '').trim().split(/\s+/).filter(Boolean).length} words
+                      {q.required_words && (() => {
+                        const text = (answers[idx] || '').toLowerCase()
+                        const used = q.required_words.filter(w => text.includes(w.toLowerCase())).length
+                        return ` · ${used}/${q.required_words.length} vocabulary words used`
+                      })()}
+                    </div>
+                  </div>
                 ) : (
                   <div className="dict-q-options">
                     {q.options?.map((opt, oi) => (
@@ -755,7 +815,7 @@ ${result.section_scores ? Object.entries(result.section_scores).map(([type, s]) 
                           checked={answers[idx] === opt}
                           onChange={() => updateAnswer(idx, opt)}
                         />
-                        <span>{oi + 1}. {opt}</span>
+                        <span>{String.fromCharCode(65 + oi)}. {opt}</span>
                       </label>
                     ))}
                   </div>
@@ -804,13 +864,16 @@ ${result.section_scores ? Object.entries(result.section_scores).map(([type, s]) 
 
           {result?.section_scores && (
             <div className="dict-result-sections">
-              {Object.entries(result.section_scores).map(([type, s]) => (
-                <div key={type} className="dict-result-section">
-                  <strong>{type}</strong>
-                  <span>{s.correct}/{s.total} correct</span>
-                  <span>{s.score}/{s.max} pts</span>
-                </div>
-              ))}
+              {Object.entries(result.section_scores).map(([type, s]) => {
+                const meta = SECTION_META[type] || {}
+                return (
+                  <div key={type} className="dict-result-section" style={{ borderLeftColor: meta.color || '#888' }}>
+                    <strong>{meta.icon} {meta.label || type}</strong>
+                    <span>{s.correct}/{s.total} correct</span>
+                    <span>{s.score}/{s.max} pts</span>
+                  </div>
+                )
+              })}
             </div>
           )}
 

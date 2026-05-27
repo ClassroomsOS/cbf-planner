@@ -1,12 +1,79 @@
-// dictationUtils.js — Utilidades puras del módulo de dictation
-// Scoring, Levenshtein distance, voice options, difficulty config.
+// dictationUtils.js — Utilidades puras del módulo de dictation & vocabulary assessment
+// Scoring, Levenshtein distance, voice options, difficulty config, assessment modes.
 
 import { colombianGrade, gradeLevel, gradeColor } from './examUtils'
 
 // Re-export para uso directo desde dictationUtils
 export { colombianGrade, gradeLevel, gradeColor }
 
-// ── Configuración de dificultad ──────────────────────────────────────────────
+// ── Assessment Modes ────────────────────────────────────────────────────────
+// Tres modos de evaluación que combinan dictation (audio TTS) con
+// vocabulary quiz (Linguaskill/PET text-based).
+
+export const ASSESSMENT_MODES = {
+  dictation: {
+    key: 'dictation',
+    label: 'Dictation',
+    icon: '🎧',
+    description: 'Listening assessment con audio TTS',
+    color: '#4BACC6',
+    types: ['listen_type', 'listen_identify', 'fill_blank'],
+    requiresAudio: true,
+  },
+  vocab_quiz: {
+    key: 'vocab_quiz',
+    label: 'Vocabulary Quiz',
+    icon: '📝',
+    description: 'Linguaskill-style: matching + fill + writing',
+    color: '#9BBB59',
+    types: ['matching', 'fill_blank', 'writing'],
+    requiresAudio: false,
+  },
+  combined: {
+    key: 'combined',
+    label: 'Combined',
+    icon: '🎧📝',
+    description: 'Full assessment: listening + vocabulary + writing',
+    color: '#8064A2',
+    types: ['listen_type', 'listen_identify', 'matching', 'fill_blank', 'writing'],
+    requiresAudio: true,
+  },
+}
+
+// ── Item counts per mode + difficulty ────────────────────────────────────────
+
+export const ITEM_COUNTS = {
+  dictation: {
+    Basico:     { listen_type: 8,  listen_identify: 5, fill_blank: 5 },
+    Intermedio: { listen_type: 10, listen_identify: 7, fill_blank: 7 },
+    Avanzado:   { listen_type: 12, listen_identify: 8, fill_blank: 8 },
+  },
+  vocab_quiz: {
+    Basico:     { matching: 6,  fill_blank: 5, writing: 1 },
+    Intermedio: { matching: 8,  fill_blank: 7, writing: 1 },
+    Avanzado:   { matching: 10, fill_blank: 8, writing: 1 },
+  },
+  combined: {
+    Basico:     { listen_type: 6, listen_identify: 4, matching: 5, fill_blank: 4, writing: 1 },
+    Intermedio: { listen_type: 7, listen_identify: 5, matching: 6, fill_blank: 5, writing: 1 },
+    Avanzado:   { listen_type: 8, listen_identify: 6, matching: 7, fill_blank: 6, writing: 1 },
+  },
+}
+
+/**
+ * Returns item counts for a given mode + difficulty combination.
+ * @param {string} difficulty — 'Basico' | 'Intermedio' | 'Avanzado'
+ * @param {string} assessmentMode — 'dictation' | 'vocab_quiz' | 'combined'
+ * @returns {{ [type]: number, total: number }}
+ */
+export function getQuestionCounts(difficulty, assessmentMode) {
+  const modeCounts = ITEM_COUNTS[assessmentMode] || ITEM_COUNTS.dictation
+  const counts = { ...(modeCounts[difficulty] || modeCounts.Intermedio) }
+  counts.total = Object.values(counts).reduce((a, b) => a + b, 0)
+  return counts
+}
+
+// ── Configuración de dificultad (legacy-compatible) ─────────────────────────
 
 export const DIFFICULTY_CONFIG = {
   Basico: {
@@ -17,6 +84,8 @@ export const DIFFICULTY_CONFIG = {
     listenType: 8,
     listenIdentify: 5,
     fillBlank: 5,
+    matching: 6,
+    writing: 1,
     get total() { return this.listenType + this.listenIdentify + this.fillBlank },
   },
   Intermedio: {
@@ -27,6 +96,8 @@ export const DIFFICULTY_CONFIG = {
     listenType: 10,
     listenIdentify: 7,
     fillBlank: 7,
+    matching: 8,
+    writing: 1,
     get total() { return this.listenType + this.listenIdentify + this.fillBlank },
   },
   Avanzado: {
@@ -37,6 +108,8 @@ export const DIFFICULTY_CONFIG = {
     listenType: 12,
     listenIdentify: 8,
     fillBlank: 8,
+    matching: 10,
+    writing: 1,
     get total() { return this.listenType + this.listenIdentify + this.fillBlank },
   },
 }
@@ -57,6 +130,16 @@ export const VOICE_OPTIONS = [
   { id: 'es-CO-SalomeNeural',   label: 'Salome (Colombia)',       lang: 'es', accent: 'CO',      gender: 'female' },
   { id: 'es-CO-GonzaloNeural',  label: 'Gonzalo (Colombia)',      lang: 'es', accent: 'CO',      gender: 'male' },
 ]
+
+// ── Section labels & colors ─────────────────────────────────────────────────
+
+export const SECTION_META = {
+  listen_type:     { label: 'Listen & Type',     icon: '🎧', color: '#4BACC6' },
+  listen_identify: { label: 'Listen & Identify', icon: '🔊', color: '#4BACC6' },
+  matching:        { label: 'Matching',           icon: '🔗', color: '#9BBB59' },
+  fill_blank:      { label: 'Fill the Blank',     icon: '📝', color: '#F79646' },
+  writing:         { label: 'Writing',            icon: '✍️', color: '#8064A2' },
+}
 
 // ── Levenshtein distance ─────────────────────────────────────────────────────
 
@@ -95,11 +178,6 @@ export function levenshtein(a, b) {
  * - Exact match (case-insensitive): 100% del puntaje
  * - Levenshtein ≤ 1: 50% del puntaje
  * - Levenshtein > 1: 0%
- *
- * @param {string} answer   — lo que escribió el estudiante
- * @param {string} correct  — la respuesta correcta
- * @param {number} maxScore — puntaje máximo de la pregunta
- * @returns {{ score: number, isCorrect: boolean, isPartial: boolean }}
  */
 export function scoreTypedWord(answer, correct, maxScore = 1) {
   if (!answer || !answer.trim()) return { score: 0, isCorrect: false, isPartial: false }
@@ -115,21 +193,38 @@ export function scoreTypedWord(answer, correct, maxScore = 1) {
   return { score: 0, isCorrect: false, isPartial: false }
 }
 
+// ── Scoring de writing composition ──────────────────────────────────────────
+
+/**
+ * Evalúa una respuesta de tipo "writing".
+ * Auto-score: cuenta cuántas palabras requeridas aparecen en la respuesta.
+ * Score = (wordsFound / totalRequired) * maxScore, rounded.
+ */
+export function scoreWriting(answer, requiredWords, maxScore = 5) {
+  if (!answer || !answer.trim()) return { score: 0, isCorrect: false, isPartial: false, wordsFound: 0 }
+
+  const text = answer.trim().toLowerCase()
+  const found = (requiredWords || []).filter(w => text.includes(w.toLowerCase()))
+  const ratio = requiredWords.length > 0 ? found.length / requiredWords.length : 0
+  const score = Math.round(ratio * maxScore * 10) / 10
+
+  return {
+    score,
+    isCorrect: ratio >= 0.8,
+    isPartial: ratio > 0 && ratio < 0.8,
+    wordsFound: found.length,
+    wordsTotal: requiredWords.length,
+  }
+}
+
 // ── Scoring completo del dictation ───────────────────────────────────────────
 
 /**
- * Calcula el puntaje total de un dictation.
- *
- * @param {Array} questions — generated_questions con correct_answer
- * @param {Object} answers  — { [questionIndex]: answerValue }
- * @returns {{ total, max, perSection, colombianGrade, gradeLevel }}
+ * Calcula el puntaje total de un dictation/vocabulary assessment.
+ * Soporta los 5 tipos: listen_type, listen_identify, matching, fill_blank, writing.
  */
 export function scoreDictation(questions, answers) {
-  const perSection = {
-    listen_type: { score: 0, max: 0, correct: 0, total: 0 },
-    listen_identify: { score: 0, max: 0, correct: 0, total: 0 },
-    fill_blank: { score: 0, max: 0, correct: 0, total: 0 },
-  }
+  const perSection = {}
 
   const results = questions.map((q, i) => {
     const answer = answers[i] || ''
@@ -140,6 +235,7 @@ export function scoreDictation(questions, answers) {
     perSection[type].max += maxPts
     perSection[type].total += 1
 
+    // listen_type: Levenshtein fuzzy matching
     if (type === 'listen_type') {
       const result = scoreTypedWord(answer, q.correct_answer, maxPts)
       perSection[type].score += result.score
@@ -147,7 +243,16 @@ export function scoreDictation(questions, answers) {
       return { ...result, questionIndex: i, type }
     }
 
-    // MC questions: exact match (case-insensitive)
+    // writing: count required vocabulary words used
+    if (type === 'writing') {
+      const reqWords = q.required_words || (q.correct_answer ? q.correct_answer.split(',').map(w => w.trim()) : [])
+      const result = scoreWriting(answer, reqWords, maxPts)
+      perSection[type].score += result.score
+      if (result.isCorrect) perSection[type].correct += 1
+      return { ...result, questionIndex: i, type }
+    }
+
+    // MC questions (listen_identify, matching, fill_blank): exact match
     const isCorrect = answer.trim().toLowerCase() === q.correct_answer.trim().toLowerCase()
     const score = isCorrect ? maxPts : 0
     perSection[type].score += score
@@ -172,25 +277,12 @@ export function scoreDictation(questions, answers) {
 
 // ── Generador de códigos de acceso ───────────────────────────────────────────
 
-/**
- * Genera un código de acceso único para un estudiante.
- * Formato: DICT-{random4}-{studentCode}
- * Ejemplo: DICT-A3B2-9B001
- *
- * @param {string} prefix      — prefijo de la sesión (4 chars random)
- * @param {string} studentCode — código del estudiante del roster
- * @returns {string}
- */
 export function generateDictationCode(prefix, studentCode) {
   return `DICT-${prefix}-${studentCode}`
 }
 
-/**
- * Genera un prefijo aleatorio de 4 caracteres alfanuméricos (mayúsculas).
- * @returns {string}
- */
 export function randomPrefix() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789' // sin 0/O/1/I para evitar confusión
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
   let result = ''
   for (let i = 0; i < 4; i++) {
     result += chars[Math.floor(Math.random() * chars.length)]
@@ -203,18 +295,21 @@ export function randomPrefix() {
 export const QUESTION_POINTS = {
   listen_type: 2,      // escribir la palabra correcta vale más
   listen_identify: 1,  // identificar en oración (MC)
+  matching: 1,         // conectar palabra con definición (MC)
   fill_blank: 1,       // fill the blank (MC)
+  writing: 5,          // composición escrita (auto-score por vocab usage)
 }
 
 // ── Manual entry scaffold ────────────────────────────────────────────────────
 
 /**
- * Creates empty section scaffolds for manual dictation entry.
- * Returns the same structure as AI-generated sections, but with empty items.
+ * Creates empty section scaffolds for manual entry.
+ * assessmentMode controls which sections are included.
  */
-export function buildManualSectionsScaffold(difficulty) {
-  const cfg = DIFFICULTY_CONFIG[difficulty] || DIFFICULTY_CONFIG.Intermedio
-  const makeItems = (count, type) => Array.from({ length: count }, (_, i) => {
+export function buildManualSectionsScaffold(difficulty, assessmentMode = 'dictation') {
+  const counts = getQuestionCounts(difficulty, assessmentMode)
+
+  const makeItems = (count, type) => Array.from({ length: count }, () => {
     const base = { max_score: QUESTION_POINTS[type] || 1 }
     if (type === 'listen_type') {
       return { ...base, audio_text: '', correct_answer: '' }
@@ -222,28 +317,49 @@ export function buildManualSectionsScaffold(difficulty) {
     if (type === 'listen_identify') {
       return { ...base, audio_text: '', options: ['', '', ''], correct_answer: '' }
     }
+    if (type === 'matching') {
+      return { ...base, word: '', options: ['', '', '', ''], correct_answer: '' }
+    }
+    if (type === 'writing') {
+      return { ...base, prompt: '', required_words: [], correct_answer: '' }
+    }
     // fill_blank
     return { ...base, sentence: '', options: ['', '', ''], correct_answer: '' }
   })
 
-  return [
-    {
+  const SECTION_DEFS = {
+    listen_type: {
       type: 'listen_type',
-      title: 'Section 1: Listen and Type',
-      instructions: 'Listen carefully and write down the correct words.',
-      items: makeItems(cfg.listenType, 'listen_type'),
+      title: 'Section: Listen and Type',
+      instructions: 'Listen carefully and write down the correct words. USE CAPITAL LETTERS.',
     },
-    {
+    listen_identify: {
       type: 'listen_identify',
-      title: 'Section 2: Listen and Identify',
+      title: 'Section: Listen and Identify',
       instructions: 'Listen to the sentence and choose the correct word you hear.',
-      items: makeItems(cfg.listenIdentify, 'listen_identify'),
     },
-    {
+    matching: {
+      type: 'matching',
+      title: 'Part A: Matching',
+      instructions: 'Match each word with its correct definition.',
+    },
+    fill_blank: {
       type: 'fill_blank',
-      title: 'Section 3: Fill the Blank',
+      title: 'Section: Fill the Blank',
       instructions: 'Read the sentence and choose the correct word to fill the blank.',
-      items: makeItems(cfg.fillBlank, 'fill_blank'),
     },
-  ]
+    writing: {
+      type: 'writing',
+      title: 'Part C: Writing Composition',
+      instructions: 'Write a short paragraph using the required vocabulary words.',
+    },
+  }
+
+  const mode = ASSESSMENT_MODES[assessmentMode] || ASSESSMENT_MODES.dictation
+  return mode.types
+    .filter(t => (counts[t] || 0) > 0)
+    .map(t => ({
+      ...SECTION_DEFS[t],
+      items: makeItems(counts[t], t),
+    }))
 }

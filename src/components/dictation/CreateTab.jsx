@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../supabase'
 import { generateDictation } from '../../utils/AIAssistant'
 import {
-  DIFFICULTY_CONFIG, VOICE_OPTIONS, QUESTION_POINTS,
-  randomPrefix, generateDictationCode, buildManualSectionsScaffold,
+  DIFFICULTY_CONFIG, VOICE_OPTIONS, QUESTION_POINTS, ASSESSMENT_MODES,
+  getQuestionCounts, randomPrefix, generateDictationCode, buildManualSectionsScaffold,
+  SECTION_META,
 } from '../../utils/dictationUtils'
 import { logError, logActivity } from '../../utils/logger'
 import { printDictationHtml } from '../../utils/exportDictationHtml'
@@ -27,6 +28,7 @@ export default function CreateTab({ teacher, showToast }) {
   const [voiceId, setVoiceId] = useState('en-US-JennyNeural')
   const [speed, setSpeed] = useState(0.9)
   const [loadedSetName, setLoadedSetName] = useState('')
+  const [assessmentMode, setAssessmentMode] = useState('dictation')
 
   // Entry mode
   const [entryMode, setEntryMode] = useState('ai') // 'ai' | 'manual'
@@ -50,16 +52,17 @@ export default function CreateTab({ teacher, showToast }) {
       .then(({ data }) => setAssignments(data || []))
   }, [teacher])
 
-  // Derive unique grade+section and subjects
   const gradeOptions = [...new Set(assignments.map(a => `${a.grade} ${a.section}`))]
   const subjectOptions = [...new Set(assignments.map(a => a.subject))]
 
-  /** Normalize vocabulary: split any comma-separated entries into individual words */
   function normalizeVocab(words) {
     return words.flatMap(w =>
       /[,;]/.test(w) ? w.split(/[,;]+/).map(s => s.trim()).filter(Boolean) : [w]
     )
   }
+
+  const modeConfig = ASSESSMENT_MODES[assessmentMode] || ASSESSMENT_MODES.dictation
+  const questionCounts = getQuestionCounts(difficulty, assessmentMode)
 
   // ── Preview voice (Azure TTS) ──
   const [previewing, setPreviewing] = useState(false)
@@ -101,7 +104,6 @@ export default function CreateTab({ teacher, showToast }) {
       if (data.error) throw new Error(data.error)
       const url = data.audio_urls?.[0]
       if (!url) throw new Error('No audio URL returned')
-      // Cache-bust: same Storage path gets overwritten per voice, browser caches the old one
       const audio = new Audio(url + '?t=' + Date.now())
       setPreviewAudio(audio)
       audio.onended = () => setPreviewing(false)
@@ -123,32 +125,34 @@ export default function CreateTab({ teacher, showToast }) {
       showToast('Selecciona un grado', 'warning')
       return
     }
-    const scaffold = buildManualSectionsScaffold(difficulty)
+    const scaffold = buildManualSectionsScaffold(difficulty, assessmentMode)
     setManualSections(scaffold)
-    setTitle(`Dictation: ${unitReference || selectedSubject || 'Manual'}`)
+    setTitle(`${modeConfig.label}: ${unitReference || selectedSubject || 'Manual'}`)
     setStep(2)
   }
 
   // Convert manual sections to the same format as AI-generated
   function finalizeManualEntry() {
     if (!manualSections) return null
-    // Validate: at least some items filled
     const allItems = manualSections.flatMap(s => s.items)
     const filled = allItems.filter(it =>
       (it.correct_answer && it.correct_answer.trim()) ||
-      (it.sentence && it.sentence.trim())
+      (it.sentence && it.sentence.trim()) ||
+      (it.word && it.word.trim()) ||
+      (it.prompt && it.prompt.trim())
     )
     if (filled.length === 0) {
       showToast('Completa al menos un item antes de continuar', 'warning')
       return null
     }
 
-    // Filter out empty items and build generatedQuestions
     const cleanSections = manualSections.map(sec => ({
       ...sec,
       items: sec.items.filter(it =>
         (it.correct_answer && it.correct_answer.trim()) ||
-        (it.sentence && it.sentence.trim())
+        (it.sentence && it.sentence.trim()) ||
+        (it.word && it.word.trim()) ||
+        (it.prompt && it.prompt.trim())
       ),
     }))
 
@@ -158,8 +162,11 @@ export default function CreateTab({ teacher, showToast }) {
         index: idx++,
         question_type: sec.type,
         section_title: sec.title,
-        audio_text: item.audio_text || '',
-        sentence: item.sentence || '',
+        audio_text: item.audio_text || null,
+        sentence: item.sentence || null,
+        word: item.word || null,
+        prompt: item.prompt || null,
+        required_words: item.required_words || null,
         options: item.options || null,
         correct_answer: item.correct_answer || '',
         max_score: item.max_score,
@@ -167,8 +174,8 @@ export default function CreateTab({ teacher, showToast }) {
     )
 
     return {
-      title: title || 'Manual Dictation',
-      instructions: 'Listen carefully and answer each section.',
+      title: title || `${modeConfig.label}`,
+      instructions: 'Complete each section carefully.',
       sections: cleanSections,
       generatedQuestions,
     }
@@ -193,15 +200,16 @@ export default function CreateTab({ teacher, showToast }) {
         grade: selectedGrade,
         subject: selectedSubject || 'English',
         difficulty,
+        assessmentMode,
       })
       setGenerated(result)
-      setTitle(result.title || `Dictation: ${unitReference || selectedSubject}`)
+      setTitle(result.title || `${modeConfig.label}: ${unitReference || selectedSubject}`)
       setStep(2)
-      showToast('Dictation generado por IA', 'success')
+      showToast('Assessment generado por IA', 'success')
     } catch (err) {
       console.error('generateDictation error:', err)
       logError(err, { page: 'DictationPage', action: 'generateDictation' })
-      showToast(err.message || 'Error al generar el dictation', 'error')
+      showToast(err.message || 'Error al generar el assessment', 'error')
     } finally {
       setGenerating(false)
     }
@@ -211,7 +219,7 @@ export default function CreateTab({ teacher, showToast }) {
   async function handleGenerateAudio(sourceOverride) {
     const source = sourceOverride || generated
     if (!source) {
-      showToast('No hay dictation generado para crear audio', 'warning')
+      showToast('No hay assessment generado para crear audio', 'warning')
       return
     }
     setGeneratingAudio(true)
@@ -220,54 +228,38 @@ export default function CreateTab({ teacher, showToast }) {
       const { data: { session } } = await supabase.auth.getSession()
       const edgeFnUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/dictation-tts`
 
-      // Collect all audio_text items from sections 1 & 2
-      const textsSection1 = source.sections[0].items.map(it => it.audio_text).filter(Boolean)
-      const textsSection2 = source.sections[1].items.map(it => it.audio_text).filter(Boolean)
+      // Only generate audio for sections that have audio_text
+      const audioSections = source.sections.filter(s =>
+        s.type === 'listen_type' || s.type === 'listen_identify'
+      )
 
-      // Generate section 1 audio
-      const res1 = await fetch(edgeFnUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-          texts: textsSection1,
-          voice_id: voiceId,
-          speed,
-          blueprint_id: 'preview',
-          school_id: teacher.school_id,
-          section: 'listen_type',
-        }),
-      })
-      const data1 = await res1.json()
+      const newAudioUrls = {}
 
-      // Generate section 2 audio
-      const res2 = await fetch(edgeFnUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-          texts: textsSection2,
-          voice_id: voiceId,
-          speed,
-          blueprint_id: 'preview',
-          school_id: teacher.school_id,
-          section: 'listen_identify',
-        }),
-      })
-      const data2 = await res2.json()
+      for (const sec of audioSections) {
+        const texts = sec.items.map(it => it.audio_text).filter(Boolean)
+        if (texts.length === 0) continue
 
-      if (data1.error || data2.error) {
-        throw new Error(data1.error || data2.error)
+        const res = await fetch(edgeFnUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            texts,
+            voice_id: voiceId,
+            speed,
+            blueprint_id: 'preview',
+            school_id: teacher.school_id,
+            section: sec.type,
+          }),
+        })
+        const data = await res.json()
+        if (data.error) throw new Error(data.error)
+        newAudioUrls[sec.type] = data.audio_urls || []
       }
 
-      setAudioUrls({
-        listen_type: data1.audio_urls || [],
-        listen_identify: data2.audio_urls || [],
-      })
+      setAudioUrls(newAudioUrls)
       showToast('Audio generado correctamente', 'success')
     } catch (err) {
       console.error('generateAudio error:', err)
@@ -291,7 +283,6 @@ export default function CreateTab({ teacher, showToast }) {
       const baseGrade = gradeParts[0]
       const section = gradeParts.slice(1).join(' ')
 
-      // 1. Insert blueprint
       const { data: blueprint, error: bpErr } = await supabase
         .from('dictation_blueprints')
         .insert({
@@ -304,7 +295,7 @@ export default function CreateTab({ teacher, showToast }) {
           unit_reference: unitReference,
           difficulty,
           vocabulary,
-          voice_config: { voice_id: voiceId, speed },
+          voice_config: { voice_id: voiceId, speed, assessment_mode: assessmentMode },
           sections: generated.sections,
           audio_urls: audioUrls,
           status: 'ready',
@@ -314,10 +305,8 @@ export default function CreateTab({ teacher, showToast }) {
 
       if (bpErr) throw bpErr
 
-      // 2. Generate access code prefix
       const prefix = randomPrefix()
 
-      // 3. Insert session
       const { data: session, error: sesErr } = await supabase
         .from('dictation_sessions')
         .insert({
@@ -334,7 +323,6 @@ export default function CreateTab({ teacher, showToast }) {
 
       if (sesErr) throw sesErr
 
-      // 4. Load students from roster
       const { data: students } = await supabase
         .from('school_students')
         .select('id, name, first_name, first_lastname, email, student_code, section')
@@ -343,7 +331,6 @@ export default function CreateTab({ teacher, showToast }) {
         .eq('section', section)
         .order('name')
 
-      // 5. Generate instances per student
       if (students && students.length > 0) {
         const instances = students.map(st => ({
           session_id: session.id,
@@ -363,9 +350,9 @@ export default function CreateTab({ teacher, showToast }) {
         if (instErr) throw instErr
       }
 
-      logActivity('dictation_created', 'dictation_blueprints', blueprint.id, `Dictation "${title}" created with ${vocabulary.length} words`)
+      logActivity('dictation_created', 'dictation_blueprints', blueprint.id, `${modeConfig.label} "${title}" created with ${vocabulary.length} words`)
 
-      showToast(`Dictation publicado. Código: ${session.access_code}`, 'success')
+      showToast(`${modeConfig.label} publicado. Código: ${session.access_code}`, 'success')
 
       // Reset wizard
       setStep(1)
@@ -394,10 +381,37 @@ export default function CreateTab({ teacher, showToast }) {
         ))}
       </div>
 
-      {/* ── STEP 1: Vocabulary + Config ── */}
+      {/* ── STEP 1: Config ── */}
       {step === 1 && (
         <div className="dict-step-panel">
-          <h2>Paso 1: Vocabulario y configuración</h2>
+          <h2>Paso 1: Configuración del assessment</h2>
+
+          {/* Assessment Mode Selector */}
+          <h3>Tipo de evaluación</h3>
+          <div className="dict-mode-cards">
+            {Object.values(ASSESSMENT_MODES).map(m => (
+              <button
+                key={m.key}
+                className={`dict-mode-card ${assessmentMode === m.key ? 'selected' : ''}`}
+                style={{ '--mode-color': m.color }}
+                onClick={() => setAssessmentMode(m.key)}
+              >
+                <span className="dict-mode-card-icon">{m.icon}</span>
+                <strong>{m.label}</strong>
+                <span className="dict-mode-card-desc">{m.description}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* Question counts preview */}
+          <div className="dict-counts-preview">
+            {Object.entries(questionCounts).filter(([k]) => k !== 'total').map(([type, count]) => (
+              <span key={type} className="dict-count-chip" style={{ background: SECTION_META[type]?.color || '#888' }}>
+                {SECTION_META[type]?.icon} {SECTION_META[type]?.label}: {count}
+              </span>
+            ))}
+            <span className="dict-count-chip dict-count-total">Total: {questionCounts.total}</span>
+          </div>
 
           <div className="dict-form-grid">
             <div className="dict-field">
@@ -442,9 +456,7 @@ export default function CreateTab({ teacher, showToast }) {
           {vocabulary.length > 0 && (
             <div className="dict-vocab-chips">
               {vocabulary.map(w => (
-                <span key={w} className="dict-chip">
-                  {w}
-                </span>
+                <span key={w} className="dict-chip">{w}</span>
               ))}
               <button
                 onClick={() => { setVocabulary([]); setLoadedSetName('') }}
@@ -465,47 +477,54 @@ export default function CreateTab({ teacher, showToast }) {
           {/* Difficulty selector */}
           <h3>Dificultad</h3>
           <div className="dict-difficulty-cards">
-            {Object.values(DIFFICULTY_CONFIG).map(d => (
-              <button
-                key={d.key}
-                className={`dict-diff-card ${difficulty === d.key ? 'selected' : ''}`}
-                onClick={() => setDifficulty(d.key)}
-              >
-                <span className="dict-diff-icon">{d.icon}</span>
-                <strong>{d.label}</strong>
-                <span className="dict-diff-desc">{d.description}</span>
-                <span className="dict-diff-count">{d.total} preguntas</span>
-              </button>
-            ))}
+            {Object.values(DIFFICULTY_CONFIG).map(d => {
+              const counts = getQuestionCounts(d.key, assessmentMode)
+              return (
+                <button
+                  key={d.key}
+                  className={`dict-diff-card ${difficulty === d.key ? 'selected' : ''}`}
+                  onClick={() => setDifficulty(d.key)}
+                >
+                  <span className="dict-diff-icon">{d.icon}</span>
+                  <strong>{d.label}</strong>
+                  <span className="dict-diff-desc">{d.description}</span>
+                  <span className="dict-diff-count">{counts.total} preguntas</span>
+                </button>
+              )
+            })}
           </div>
 
-          {/* Voice selector */}
-          <h3>Voz del dictado</h3>
-          <div className="dict-voice-row">
-            <select value={voiceId} onChange={e => { stopPreview(); setVoiceId(e.target.value) }}>
-              <optgroup label="English">
-                {VOICE_OPTIONS.filter(v => v.lang === 'en').map(v => (
-                  <option key={v.id} value={v.id}>{v.label}</option>
-                ))}
-              </optgroup>
-              <optgroup label="Español">
-                {VOICE_OPTIONS.filter(v => v.lang === 'es').map(v => (
-                  <option key={v.id} value={v.id}>{v.label}</option>
-                ))}
-              </optgroup>
-            </select>
-            <label className="dict-speed-label">
-              Velocidad: {speed.toFixed(1)}x
-              <input
-                type="range" min="0.5" max="1.5" step="0.1"
-                value={speed} onChange={e => setSpeed(parseFloat(e.target.value))}
-              />
-            </label>
-            {previewing
-              ? <button onClick={stopPreview} className="dict-btn-sm" style={{ background: '#C0504D', color: '#fff' }}>Stop</button>
-              : <button onClick={previewVoice} className="dict-btn-sm secondary">🔊 Preview</button>
-            }
-          </div>
+          {/* Voice selector — only for modes that require audio */}
+          {modeConfig.requiresAudio && (
+            <>
+              <h3>Voz del dictado</h3>
+              <div className="dict-voice-row">
+                <select value={voiceId} onChange={e => { stopPreview(); setVoiceId(e.target.value) }}>
+                  <optgroup label="English">
+                    {VOICE_OPTIONS.filter(v => v.lang === 'en').map(v => (
+                      <option key={v.id} value={v.id}>{v.label}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Español">
+                    {VOICE_OPTIONS.filter(v => v.lang === 'es').map(v => (
+                      <option key={v.id} value={v.id}>{v.label}</option>
+                    ))}
+                  </optgroup>
+                </select>
+                <label className="dict-speed-label">
+                  Velocidad: {speed.toFixed(1)}x
+                  <input
+                    type="range" min="0.5" max="1.5" step="0.1"
+                    value={speed} onChange={e => setSpeed(parseFloat(e.target.value))}
+                  />
+                </label>
+                {previewing
+                  ? <button onClick={stopPreview} className="dict-btn-sm" style={{ background: '#C0504D', color: '#fff' }}>Stop</button>
+                  : <button onClick={previewVoice} className="dict-btn-sm secondary">🔊 Preview</button>
+                }
+              </div>
+            </>
+          )}
 
           {/* Entry mode toggle */}
           <h3>Modo de entrada</h3>
@@ -524,7 +543,7 @@ export default function CreateTab({ teacher, showToast }) {
             </button>
           </div>
 
-          {/* Action button — at the very end after all config */}
+          {/* Action button */}
           <div className="dict-actions">
             {entryMode === 'ai' ? (
               <button
@@ -550,14 +569,14 @@ export default function CreateTab({ teacher, showToast }) {
         </div>
       )}
 
-      {/* ── STEP 2: Preview (AI) or Manual Entry ── */}
+      {/* ── STEP 2: Preview (AI) ── */}
       {step === 2 && entryMode === 'ai' && generated && (
         <div className="dict-step-panel">
-          <h2>Paso 2: Preview y Audio</h2>
+          <h2>Paso 2: Preview</h2>
 
           {generated.sections.map((sec, si) => (
-            <div key={si} className="dict-preview-section">
-              <h3>{sec.title}</h3>
+            <div key={si} className="dict-preview-section" style={{ borderLeftColor: SECTION_META[sec.type]?.color || '#888' }}>
+              <h3>{SECTION_META[sec.type]?.icon} {sec.title}</h3>
               <p className="dict-preview-instr">{sec.instructions}</p>
               <div className="dict-preview-items">
                 {sec.items.map((item, ii) => (
@@ -566,19 +585,34 @@ export default function CreateTab({ teacher, showToast }) {
                     {item.audio_text && (
                       <span className="dict-preview-audio-text">🔊 "{item.audio_text}"</span>
                     )}
+                    {item.word && (
+                      <span className="dict-preview-word"><strong>{item.word}</strong></span>
+                    )}
                     {item.sentence && (
                       <span className="dict-preview-sentence">{item.sentence}</span>
+                    )}
+                    {item.prompt && (
+                      <span className="dict-preview-prompt">✍️ {item.prompt}</span>
+                    )}
+                    {item.required_words && item.required_words.length > 0 && (
+                      <div className="dict-preview-req-words">
+                        Required: {item.required_words.map((w, wi) => (
+                          <span key={wi} className="dict-chip readonly">{w}</span>
+                        ))}
+                      </div>
                     )}
                     {item.options && (
                       <div className="dict-preview-options">
                         {item.options.map((opt, oi) => (
                           <span key={oi} className={`dict-preview-opt ${opt === item.correct_answer ? 'correct' : ''}`}>
-                            {oi + 1}. {opt}
+                            {String.fromCharCode(65 + oi)}. {opt}
                           </span>
                         ))}
                       </div>
                     )}
-                    <span className="dict-preview-answer">✓ {item.correct_answer}</span>
+                    {item.correct_answer && (
+                      <span className="dict-preview-answer">✓ {item.correct_answer}</span>
+                    )}
                     {audioUrls[sec.type]?.[ii] && (
                       <audio controls src={audioUrls[sec.type][ii]} className="dict-audio-mini" />
                     )}
@@ -588,29 +622,33 @@ export default function CreateTab({ teacher, showToast }) {
             </div>
           ))}
 
-          {/* Audio export panel */}
-          <AudioExportPanel
-            audioUrls={audioUrls}
-            sections={generated.sections}
-            title={title || generated.title}
-            showToast={showToast}
-          />
+          {/* Audio export panel — only if audio sections exist */}
+          {modeConfig.requiresAudio && (
+            <AudioExportPanel
+              audioUrls={audioUrls}
+              sections={generated.sections.filter(s => s.type === 'listen_type' || s.type === 'listen_identify')}
+              title={title || generated.title}
+              showToast={showToast}
+            />
+          )}
 
           <div className="dict-actions">
             <button onClick={() => setStep(1)} className="dict-btn secondary">← Volver</button>
-            <button
-              onClick={handleGenerateAudio}
-              disabled={generatingAudio}
-              className="dict-btn"
-              style={{ background: '#4BACC6' }}
-            >
-              {generatingAudio ? '🔊 Generando audio...' : '🔊 Generar Audio TTS'}
-            </button>
+            {modeConfig.requiresAudio && (
+              <button
+                onClick={handleGenerateAudio}
+                disabled={generatingAudio}
+                className="dict-btn"
+                style={{ background: '#4BACC6' }}
+              >
+                {generatingAudio ? '🔊 Generando audio...' : '🔊 Generar Audio TTS'}
+              </button>
+            )}
             <button
               onClick={async () => {
                 const { data: schoolData } = await supabase.from('schools').select('*').eq('id', teacher.school_id).single()
                 printDictationHtml({
-                  blueprint: { ...generated, grade: selectedGrade, subject: selectedSubject, difficulty, unit_reference: unitReference, vocabulary },
+                  blueprint: { ...generated, grade: selectedGrade, subject: selectedSubject, difficulty, unit_reference: unitReference, vocabulary, assessment_mode: assessmentMode },
                   school: schoolData,
                   teacherName: teacher.full_name || teacher.email,
                 })
@@ -631,7 +669,7 @@ export default function CreateTab({ teacher, showToast }) {
         <div className="dict-step-panel">
           <h2>Paso 2: Escribe las oraciones</h2>
           <p style={{ color: '#666', fontSize: 13, marginBottom: 16 }}>
-            Completa cada sección. El audio TTS se generará a partir del texto que ingreses.
+            Completa cada sección. {modeConfig.requiresAudio ? 'El audio TTS se generará a partir del texto que ingreses.' : 'Este assessment no incluye audio.'}
           </p>
 
           <ManualEntryForm
@@ -640,11 +678,10 @@ export default function CreateTab({ teacher, showToast }) {
             vocabulary={vocabulary}
           />
 
-          {/* Audio export panel (after TTS generation) */}
-          {Object.values(audioUrls).flat().filter(Boolean).length > 0 && (
+          {modeConfig.requiresAudio && Object.values(audioUrls).flat().filter(Boolean).length > 0 && (
             <AudioExportPanel
               audioUrls={audioUrls}
-              sections={manualSections}
+              sections={manualSections.filter(s => s.type === 'listen_type' || s.type === 'listen_identify')}
               title={title}
               showToast={showToast}
             />
@@ -652,20 +689,22 @@ export default function CreateTab({ teacher, showToast }) {
 
           <div className="dict-actions" style={{ marginTop: 20 }}>
             <button onClick={() => setStep(1)} className="dict-btn secondary">← Volver</button>
-            <button
-              onClick={() => {
-                const finalized = finalizeManualEntry()
-                if (finalized) {
-                  setGenerated(finalized)
-                  handleGenerateAudio(finalized)
-                }
-              }}
-              disabled={generatingAudio}
-              className="dict-btn"
-              style={{ background: '#4BACC6' }}
-            >
-              {generatingAudio ? '🔊 Generando audio...' : '🔊 Generar Audio TTS'}
-            </button>
+            {modeConfig.requiresAudio && (
+              <button
+                onClick={() => {
+                  const finalized = finalizeManualEntry()
+                  if (finalized) {
+                    setGenerated(finalized)
+                    handleGenerateAudio(finalized)
+                  }
+                }}
+                disabled={generatingAudio}
+                className="dict-btn"
+                style={{ background: '#4BACC6' }}
+              >
+                {generatingAudio ? '🔊 Generando audio...' : '🔊 Generar Audio TTS'}
+              </button>
+            )}
             <button
               onClick={() => {
                 const finalized = finalizeManualEntry()
@@ -689,7 +728,7 @@ export default function CreateTab({ teacher, showToast }) {
 
           <div className="dict-form-grid">
             <div className="dict-field">
-              <label>Título del dictation</label>
+              <label>Título del assessment</label>
               <input value={title} onChange={e => setTitle(e.target.value)} />
             </div>
             <div className="dict-field">
@@ -702,16 +741,15 @@ export default function CreateTab({ teacher, showToast }) {
           </div>
 
           <div className="dict-publish-summary">
+            <p><strong>Tipo:</strong> {modeConfig.icon} {modeConfig.label}</p>
             <p><strong>Grado:</strong> {selectedGrade}</p>
             <p><strong>Materia:</strong> {selectedSubject}</p>
             <p><strong>Dificultad:</strong> {DIFFICULTY_CONFIG[difficulty]?.label}</p>
             <p><strong>Vocabulario:</strong> {vocabulary.length} palabras</p>
             <p><strong>Preguntas:</strong> {generated?.generatedQuestions?.length || 0}</p>
-            <p><strong>Audio:</strong> {Object.values(audioUrls).flat().filter(Boolean).length > 0 ? '✅ Generado' : '⚠️ No generado (los estudiantes no escucharán audio)'}</p>
-          </div>
-
-          <div className="dict-email-notice">
-            <p>📧 <strong>Próximamente:</strong> envío automático de resultados al correo del alumno y del representante.</p>
+            {modeConfig.requiresAudio && (
+              <p><strong>Audio:</strong> {Object.values(audioUrls).flat().filter(Boolean).length > 0 ? '✅ Generado' : '⚠️ No generado'}</p>
+            )}
           </div>
 
           <div className="dict-actions">
@@ -721,7 +759,7 @@ export default function CreateTab({ teacher, showToast }) {
               disabled={loading || !title.trim()}
               className="dict-btn primary"
             >
-              {loading ? '📡 Publicando...' : '🚀 Publicar Dictation'}
+              {loading ? '📡 Publicando...' : `🚀 Publicar ${modeConfig.label}`}
             </button>
           </div>
         </div>

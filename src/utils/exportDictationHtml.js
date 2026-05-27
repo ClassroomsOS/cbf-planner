@@ -37,7 +37,9 @@ async function fetchBase64(url) {
 const SECTION_COLORS = {
   listen_type:     '#4BACC6',
   listen_identify: '#8064A2',
+  matching:        '#9BBB59',
   fill_blank:      '#F79646',
+  writing:         '#8064A2',
 }
 
 function renderListenTypeSection(sec, startNum) {
@@ -90,6 +92,43 @@ function renderFillBlankSection(sec, startNum) {
   return html
 }
 
+function renderMatchingSection(sec, startNum) {
+  let html = ''
+  sec.items.forEach((item, i) => {
+    html += `
+    <div style="break-inside:avoid;margin-bottom:14px;padding:8px 12px;border:1px solid #e5e7eb;border-radius:6px;border-left:3px solid ${SECTION_COLORS.matching}">
+      <div style="font-weight:600;font-size:13px;color:#1F3864;margin-bottom:8px">
+        ${startNum + i}. <strong>${esc(item.word || '')}</strong>
+      </div>
+      <div style="display:flex;gap:18px;flex-wrap:wrap">
+        ${(item.options || []).map((opt, oi) => `
+          <div style="display:flex;align-items:flex-start;gap:6px">
+            <span style="width:14px;height:14px;border:1.5px solid #555;border-radius:50%;display:inline-flex;flex-shrink:0;margin-top:2px"></span>
+            <span style="font-size:11px">${String.fromCharCode(65 + oi)}. ${esc(opt)}</span>
+          </div>`).join('')}
+      </div>
+    </div>`
+  })
+  return html
+}
+
+function renderWritingSection(sec, startNum) {
+  let html = ''
+  sec.items.forEach((item, i) => {
+    html += `
+    <div style="break-inside:avoid;margin-bottom:14px;padding:10px 12px;border:1px solid #e5e7eb;border-radius:6px;border-left:3px solid ${SECTION_COLORS.writing}">
+      <div style="font-weight:600;font-size:12px;color:#374151;margin-bottom:6px">${startNum + i}.</div>
+      <div style="font-size:13px;color:#1F3864;margin-bottom:8px">${esc(item.prompt || '')}</div>
+      ${(item.required_words && item.required_words.length > 0) ? `
+        <div style="margin-bottom:8px;font-size:11px;color:#666">
+          <strong>Required words:</strong> ${item.required_words.map(w => `<span style="background:#e5e7eb;padding:2px 6px;border-radius:3px;margin:0 2px">${esc(w)}</span>`).join(' ')}
+        </div>` : ''}
+      <div style="border:1px solid #ccc;min-height:80px;border-radius:4px;padding:4px"></div>
+    </div>`
+  })
+  return html
+}
+
 // ── Answer key renderers ─────────────────────────────────────────────────────
 
 function renderAnswerKey(sections) {
@@ -99,9 +138,19 @@ function renderAnswerKey(sections) {
     const color = SECTION_COLORS[sec.type] || '#666'
     html += `<h3 style="color:${color};font-size:14px;margin:16px 0 8px;border-bottom:2px solid ${color};padding-bottom:4px">${esc(sec.title)}</h3>`
     sec.items.forEach(item => {
-      const parts = [`<strong>${num}.</strong> ${esc(item.correct_answer)}`]
-      if (item.audio_text) parts.push(`<span style="color:#888;font-size:11px;margin-left:8px">🔊 "${esc(item.audio_text)}"</span>`)
-      if (item.sentence) parts.push(`<span style="color:#888;font-size:11px;margin-left:8px">${esc(item.sentence)}</span>`)
+      const parts = []
+      if (sec.type === 'matching') {
+        parts.push(`<strong>${num}.</strong> ${esc(item.word)} → ${esc(item.correct_answer)}`)
+      } else if (sec.type === 'writing') {
+        parts.push(`<strong>${num}.</strong> <span style="color:#888;font-style:italic">${esc(item.prompt)}</span>`)
+        if (item.required_words?.length) {
+          parts.push(`<br><span style="font-size:10px;color:#888">Required: ${item.required_words.map(w => esc(w)).join(', ')}</span>`)
+        }
+      } else {
+        parts.push(`<strong>${num}.</strong> ${esc(item.correct_answer)}`)
+        if (item.audio_text) parts.push(`<span style="color:#888;font-size:11px;margin-left:8px">🔊 "${esc(item.audio_text)}"</span>`)
+        if (item.sentence) parts.push(`<span style="color:#888;font-size:11px;margin-left:8px">${esc(item.sentence)}</span>`)
+      }
       html += `<div style="margin-bottom:4px;font-size:12px">${parts.join('')}</div>`
       num++
     })
@@ -148,7 +197,7 @@ export function buildDictationHtml({ blueprint, logoBase64, school, teacherName 
     <tr>
       <td rowspan="2" style="border:1px solid #000;padding:6px 10px;text-align:center;vertical-align:middle">
         <div style="font-weight:700;font-size:10px"><u>PROCESO</u>: GESTIÓN ACADÉMICA Y CURRICULAR</div>
-        <div style="font-weight:700;font-size:10px;margin-top:3px">LISTENING ASSESSMENT</div>
+        <div style="font-weight:700;font-size:10px;margin-top:3px">${bp.assessment_mode === 'vocab_quiz' ? 'VOCABULARY ASSESSMENT' : bp.assessment_mode === 'combined' ? 'VOCABULARY & LISTENING ASSESSMENT' : 'LISTENING ASSESSMENT'}</div>
       </td>
       <td style="border:1px solid #000;padding:5px 6px;text-align:center;vertical-align:middle">
         <div style="font-size:10px"><strong>Versión</strong> ${esc(version)}</div>
@@ -204,6 +253,10 @@ export function buildDictationHtml({ blueprint, logoBase64, school, teacherName 
       questionsHtml += renderListenTypeSection(sec, num)
     } else if (sec.type === 'listen_identify') {
       questionsHtml += renderListenIdentifySection(sec, num)
+    } else if (sec.type === 'matching') {
+      questionsHtml += renderMatchingSection(sec, num)
+    } else if (sec.type === 'writing') {
+      questionsHtml += renderWritingSection(sec, num)
     } else {
       questionsHtml += renderFillBlankSection(sec, num)
     }
