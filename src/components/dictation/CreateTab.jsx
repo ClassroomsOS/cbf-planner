@@ -84,52 +84,55 @@ export default function CreateTab({ teacher, showToast }) {
     setVocabulary(prev => prev.filter(x => x !== w))
   }
 
-  // ── Preview voice ──
+  // ── Preview voice (Azure TTS) ──
   const [previewing, setPreviewing] = useState(false)
+  const [previewAudio, setPreviewAudio] = useState(null)
 
   function stopPreview() {
-    if ('speechSynthesis' in window) window.speechSynthesis.cancel()
+    if (previewAudio) {
+      previewAudio.pause()
+      previewAudio.currentTime = 0
+    }
     setPreviewing(false)
   }
 
-  function previewVoice() {
-    if (!('speechSynthesis' in window)) {
-      showToast('Tu navegador no soporta preview de voz', 'warning')
-      return
-    }
-    window.speechSynthesis.cancel()
+  async function previewVoice() {
     const opt = VOICE_OPTIONS.find(v => v.id === voiceId)
-    // Extract BCP-47 locale from Azure voice id (e.g. "en-US-JennyNeural" → "en-US")
-    const locale = voiceId.split('-').slice(0, 2).join('-')
     const sampleText = opt?.lang === 'es'
       ? (vocabulary[0] || 'Hola, esta es una prueba de voz.')
-      : (vocabulary[0] || 'Hello, this is a voice test.')
-    const utt = new SpeechSynthesisUtterance(sampleText)
-    utt.lang = locale
-    utt.rate = speed
-
-    // Try to match browser voice by locale + gender for a closer preview
-    const voices = window.speechSynthesis.getVoices()
-    if (voices.length && opt) {
-      // Best: exact locale + gender match (e.g. en-GB female)
-      const genderHint = opt.gender === 'female' ? /female/i : /male/i
-      const exactLocale = voices.filter(v => v.lang.replace('_', '-').startsWith(locale))
-      const genderMatch = exactLocale.find(v => genderHint.test(v.name))
-      if (genderMatch) {
-        utt.voice = genderMatch
-      } else if (exactLocale.length > 0) {
-        utt.voice = exactLocale[0]
-      } else {
-        // Fallback: any voice in the same language
-        const langMatch = voices.find(v => v.lang.startsWith(opt.lang))
-        if (langMatch) utt.voice = langMatch
-      }
+      : (vocabulary[0] || 'Hello, this is a voice preview.')
+    setPreviewing(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const edgeFnUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/dictation-tts`
+      const res = await fetch(edgeFnUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          texts: [sampleText],
+          voice_id: voiceId,
+          speed,
+          blueprint_id: 'preview',
+          school_id: teacher.school_id,
+          section: 'preview',
+        }),
+      })
+      const data = await res.json()
+      if (data.error) throw new Error(data.error)
+      const url = data.audio_urls?.[0]
+      if (!url) throw new Error('No audio URL returned')
+      const audio = new Audio(url)
+      setPreviewAudio(audio)
+      audio.onended = () => setPreviewing(false)
+      audio.onerror = () => { setPreviewing(false); showToast('Error al reproducir preview', 'error') }
+      audio.play()
+    } catch (err) {
+      setPreviewing(false)
+      showToast(err.message || 'Error al generar preview de voz', 'error')
     }
-
-    utt.onstart = () => setPreviewing(true)
-    utt.onend = () => setPreviewing(false)
-    utt.onerror = () => setPreviewing(false)
-    window.speechSynthesis.speak(utt)
   }
 
   // ── Step 1 → Step 2: Manual mode ──
