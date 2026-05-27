@@ -3032,25 +3032,9 @@ input:not(:placeholder-shown):not(:focus):not([type=password]):valid {
 }
 
 /* ── StudentsPage ─────────────────────────────────────────── */
-.stu-stats {
-  display: flex; flex-wrap: wrap; gap: var(--sp-2);
-  margin-bottom: var(--sp-4); align-items: center;
-}
-.stu-stat {
-  background: var(--navy-50); border: 1px solid var(--navy-200);
-  border-radius: var(--r-md); padding: 4px 10px;
-  font-size: 12px; font-weight: 600; color: var(--navy-800);
-  display: inline-flex; align-items: center; gap: 4px;
-}
-.stu-stat-count { font-weight: 800; color: var(--navy-950); }
 .stu-stat-dot {
   width: 8px; height: 8px; border-radius: 50%;
   display: inline-block; flex-shrink: 0;
-}
-.stu-group-hdr td {
-  background: var(--navy-100); padding: 6px 10px;
-  font-weight: 700; font-size: 13px; color: var(--navy-800);
-  letter-spacing: 0.02em; border-bottom: 2px solid var(--navy-200);
 }
 .stu-expand-row td {
   background: var(--navy-50); padding: 6px 10px 6px 46px;
@@ -3067,9 +3051,94 @@ input:not(:placeholder-shown):not(:focus):not([type=password]):valid {
   border-radius: 6px; font-family: inherit; width: 100%; box-sizing: border-box;
 }
 
+/* Directory view */
+.stu-directory {
+  display: flex; flex-direction: column; gap: 16px;
+}
+.stu-grade-block {
+  background: #fff; border: 1px solid #E5E7EB; border-radius: 12px;
+  padding: 16px 20px; overflow: hidden;
+}
+.stu-grade-label {
+  font-size: 16px; font-weight: 800; color: var(--navy-950);
+  margin-bottom: 12px; letter-spacing: 0.01em;
+}
+.stu-section-cards {
+  display: flex; gap: 12px; flex-wrap: wrap;
+}
+.stu-section-card {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 4px; padding: 16px 28px; border-radius: 10px;
+  border: 2px solid var(--navy-200); background: var(--navy-50);
+  cursor: pointer; transition: all .15s; min-width: 120px;
+  font-family: inherit;
+}
+.stu-section-card:hover {
+  border-color: var(--navy-600); background: var(--navy-100);
+  transform: translateY(-2px); box-shadow: 0 4px 12px rgba(31,56,100,.12);
+}
+.stu-section-name {
+  font-size: 18px; font-weight: 800; color: var(--navy-950);
+}
+.stu-section-count {
+  font-size: 28px; font-weight: 900; color: var(--navy-700);
+  line-height: 1;
+}
+.stu-section-label {
+  font-size: 11px; color: var(--navy-500); text-transform: uppercase;
+  letter-spacing: .05em; font-weight: 600;
+}
+
+/* "Se agrega al listado" badge */
+.stu-add-badge {
+  display: inline-block; font-size: 11px; font-weight: 700;
+  color: #166534; background: #DCFCE7; border: 1px solid #BBF7D0;
+  border-radius: 6px; padding: 2px 8px; white-space: nowrap;
+}
+
+/* Group view header */
+.stu-group-header {
+  margin-bottom: 16px;
+}
+.stu-back-btn {
+  background: none; border: none; cursor: pointer;
+  color: var(--navy-600); font-size: 13px; font-weight: 600;
+  padding: 4px 0; margin-bottom: 8px; font-family: inherit;
+  transition: color .15s;
+}
+.stu-back-btn:hover { color: var(--navy-950); }
+.stu-group-title {
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+}
+.stu-group-grade {
+  font-size: 24px; font-weight: 900; color: var(--navy-950);
+}
+.stu-group-section {
+  font-size: 20px; font-weight: 700; color: var(--navy-700);
+}
+.stu-group-count {
+  font-size: 14px; color: var(--navy-500); font-weight: 600;
+}
+
+/* Group view toolbar */
+.stu-group-toolbar {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 10px; margin-bottom: 16px; flex-wrap: wrap;
+}
+.stu-search-input {
+  padding: 7px 12px; border: 1.5px solid #D1D5DB; border-radius: 8px;
+  font-size: 14px; font-family: inherit; outline: none;
+  width: 240px; max-width: 100%; box-sizing: border-box;
+}
+.stu-search-input:focus { border-color: var(--navy-400); }
+
 @media (max-width: 767px) {
-  .stu-stats { gap: 4px; }
-  .stu-stat { font-size: 11px; padding: 3px 6px; }
+  .stu-section-card { min-width: 90px; padding: 12px 16px; }
+  .stu-section-count { font-size: 22px; }
+  .stu-group-grade { font-size: 20px; }
+  .stu-group-section { font-size: 17px; }
+  .stu-group-toolbar { flex-direction: column; align-items: stretch; }
+  .stu-search-input { width: 100%; }
 }
 
 /* ── ExamCreatorPage ─────────────────────────────────────────── */

@@ -1,5 +1,6 @@
 // StudentsPage.jsx — Gestión del roster de estudiantes
 // Ruta: /students
+// UX: directorio por grado+sección → clic para ver estudiantes → agregar/importar
 
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
@@ -23,14 +24,19 @@ export default function StudentsPage({ teacher }) {
   const [students,      setStudents]      = useState([])
   const [loading,       setLoading]       = useState(true)
   const [saving,        setSaving]        = useState(false)
-  const [filterGrade,   setFilterGrade]   = useState('')
-  const [filterSection, setFilterSection] = useState('')
+
+  // Directory view: selected grade+section
+  const [selGrade,      setSelGrade]      = useState(null)
+  const [selSection,    setSelSection]    = useState(null)
+
   const [searchText,    setSearchText]    = useState('')
 
+  // Add form
   const [form,    setForm]    = useState(EMPTY_FORM)
   const [formErr, setFormErr] = useState('')
-  const [showAddForm, setShowAddForm] = useState(true)
+  const [showAddForm, setShowAddForm] = useState(false)
 
+  // Import CSV
   const [csvText,       setCsvText]       = useState('')
   const [csvParsed,     setCsvParsed]     = useState(null)
   const [csvErrors,     setCsvErrors]     = useState([])
@@ -46,7 +52,7 @@ export default function StudentsPage({ teacher }) {
   const [psyProfiles,        setPsyProfiles]        = useState({})
   const [expandedId,         setExpandedId]         = useState(null)
 
-  // ── Edit modal ──
+  // Edit modal
   const [editingStudent, setEditingStudent] = useState(null)
   const [editForm,       setEditForm]       = useState(EMPTY_FORM)
   const [editErr,        setEditErr]        = useState('')
@@ -56,11 +62,6 @@ export default function StudentsPage({ teacher }) {
     loadStudents()
     loadPsyProfiles()
   }, [])
-
-  // Collapse add form once students are loaded
-  useEffect(() => {
-    if (!loading && students.length > 0) setShowAddForm(false)
-  }, [loading])
 
   async function loadPsyProfiles() {
     const { data } = await supabase
@@ -313,454 +314,432 @@ export default function StudentsPage({ teacher }) {
   }
 
   function toggleSelectAll() {
-    if (selectedIds.size === filtered.length) {
+    if (selectedIds.size === groupStudents.length) {
       setSelectedIds(new Set())
     } else {
-      setSelectedIds(new Set(filtered.map(s => s.id)))
+      setSelectedIds(new Set(groupStudents.map(s => s.id)))
     }
     setBulkConfirm(false)
   }
 
-  // ── Filtrado y ordenamiento ───────────────────────────────────
+  // ── Sorting ───────────────────────────────────────────────────
 
   function handleSort(col) {
     if (sortCol === col) setSortAsc(a => !a)
     else { setSortCol(col); setSortAsc(true) }
   }
 
-  const filtered = students.filter(s => {
-    if (filterGrade   && s.grade !== filterGrade) return false
-    if (filterSection && s.section?.toLowerCase() !== filterSection.toLowerCase()) return false
-    if (searchText    && !s.name.toLowerCase().includes(searchText.toLowerCase()) &&
-        !displayName(s).toLowerCase().includes(searchText.toLowerCase()) &&
-        !s.student_code?.toLowerCase().includes(searchText.toLowerCase())) return false
-    return true
-  }).sort((a, b) => {
-    let va, vb
-    if (sortCol === 'name')    { va = displayName(a); vb = displayName(b) }
-    else if (sortCol === 'grade')   { va = a.grade;   vb = b.grade }
-    else if (sortCol === 'section') { va = a.section; vb = b.section }
-    else if (sortCol === 'code')    { va = a.student_code || ''; vb = b.student_code || '' }
-    else { va = ''; vb = '' }
-    return sortAsc ? va.localeCompare(vb, 'es') : vb.localeCompare(va, 'es')
-  })
+  // ── Computed ──────────────────────────────────────────────────
 
-  const grades = [...new Set(students.map(s => s.grade))].sort()
-
-  // ── Stats ─────────────────────────────────────────────────────
-
-  const gradeStats = {}
-  const sectionStats = {}
+  // Build directory: unique grade+section groups with counts
+  const directory = {}
   students.forEach(s => {
-    gradeStats[s.grade] = (gradeStats[s.grade] || 0) + 1
-    sectionStats[s.section] = (sectionStats[s.section] || 0) + 1
+    const key = `${s.grade}|${s.section}`
+    if (!directory[key]) directory[key] = { grade: s.grade, section: s.section, count: 0 }
+    directory[key].count++
   })
+  const groups = Object.values(directory).sort((a, b) =>
+    a.grade.localeCompare(b.grade, 'es') || a.section.localeCompare(b.section, 'es')
+  )
+
+  // Group grades for directory cards
+  const gradeGroups = {}
+  groups.forEach(g => {
+    if (!gradeGroups[g.grade]) gradeGroups[g.grade] = []
+    gradeGroups[g.grade].push(g)
+  })
+
+  // Is a group selected?
+  const hasSelection = selGrade !== null && selSection !== null
+
+  // Students in selected group, filtered and sorted
+  const groupStudents = hasSelection
+    ? students
+        .filter(s => s.grade === selGrade && s.section === selSection)
+        .filter(s => !searchText ||
+          displayName(s).toLowerCase().includes(searchText.toLowerCase()) ||
+          s.student_code?.toLowerCase().includes(searchText.toLowerCase())
+        )
+        .sort((a, b) => {
+          let va, vb
+          if (sortCol === 'name')    { va = displayName(a); vb = displayName(b) }
+          else if (sortCol === 'code')    { va = a.student_code || ''; vb = b.student_code || '' }
+          else { va = ''; vb = '' }
+          return sortAsc ? va.localeCompare(vb, 'es') : vb.localeCompare(va, 'es')
+        })
+    : []
+
+  const totalInGroup = hasSelection
+    ? students.filter(s => s.grade === selGrade && s.section === selSection).length
+    : 0
+
+  // Psy stats for selected group
   const psyStats = { intervention: 0, monitoring: 0, no_intervention: 0 }
-  Object.values(psyProfiles).forEach(p => {
-    if (psyStats[p.status] !== undefined) psyStats[p.status]++
-  })
+  if (hasSelection) {
+    groupStudents.forEach(s => {
+      const p = psyProfiles[s.id]
+      if (p && psyStats[p.status] !== undefined) psyStats[p.status]++
+    })
+  }
   const hasPsyData = psyStats.intervention + psyStats.monitoring + psyStats.no_intervention > 0
 
-  // ── Agrupación por grado ──────────────────────────────────────
-
-  const showGroupHeaders = !filterGrade && !searchText
-  const grouped = {}
-  if (showGroupHeaders) {
-    filtered.forEach(s => { (grouped[s.grade] ??= []).push(s) })
+  function selectGroup(grade, section) {
+    setSelGrade(grade)
+    setSelSection(section)
+    setSearchText('')
+    setSelectedIds(new Set())
+    setBulkConfirm(false)
+    setExpandedId(null)
+    setShowAddForm(false)
+    setShowImport(false)
   }
 
-  // ─────────────────────────────────────────────────────────────
+  function goBack() {
+    setSelGrade(null)
+    setSelSection(null)
+    setSelectedIds(new Set())
+    setBulkConfirm(false)
+    setExpandedId(null)
+    setSearchText('')
+  }
 
   function handleRowClick(e, student) {
     if (e.target.closest('input, button')) return
     setExpandedId(prev => prev === student.id ? null : student.id)
   }
 
+  // ─────────────────────────────────────────────────────────────
+
   return (
     <div style={{ maxWidth: 1000, margin: '0 auto', padding: '24px 16px' }}>
 
       {/* Header */}
-      <div style={{ marginBottom: 16 }}>
+      <div style={{ marginBottom: 20 }}>
         <h1 style={{ margin: '0 0 4px', fontSize: 22, color: '#1F3864' }}>
           Roster de Estudiantes
         </h1>
         <p style={{ margin: 0, color: '#6B7280', fontSize: 14 }}>
-          Registra los estudiantes del colegio para exámenes y seguimiento psicosocial.
+          {students.length > 0
+            ? `${students.length} estudiante${students.length !== 1 ? 's' : ''} registrado${students.length !== 1 ? 's' : ''} en ${groups.length} grupo${groups.length !== 1 ? 's' : ''}`
+            : 'Registra los estudiantes del colegio para exámenes y seguimiento.'}
         </p>
       </div>
 
-      {/* ── Stats bar ── */}
-      {students.length > 0 && (
-        <div className="stu-stats">
-          <span className="stu-stat" style={{ background: '#1F3864', color: '#fff', border: 'none' }}>
-            <span className="stu-stat-count" style={{ color: '#fff' }}>{students.length}</span> estudiante{students.length !== 1 ? 's' : ''}
-          </span>
-          {grades.map(g => (
-            <span key={g} className="stu-stat">
-              {g} <span className="stu-stat-count">{gradeStats[g]}</span>
-            </span>
-          ))}
-          {Object.keys(sectionStats).length > 1 && (
-            <span className="stu-stat" style={{ background: '#EFF6FF', borderColor: '#BFDBFE' }}>
-              {Object.entries(sectionStats).sort((a,b) => a[0].localeCompare(b[0])).map(([sec, count], i) => (
-                <span key={sec}>{i > 0 ? ' · ' : ''}{sec}: <span className="stu-stat-count">{count}</span></span>
+      {/* ══════════════════════════════════════════════════════════ */}
+      {/* DIRECTORY VIEW — no group selected                       */}
+      {/* ══════════════════════════════════════════════════════════ */}
+      {!hasSelection && (
+        <>
+          {/* Action buttons — always visible at top */}
+          <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
+            <button style={showAddForm ? { ...btnPrimary, background: '#374151' } : btnPrimary}
+              onClick={() => { setShowAddForm(v => !v); setShowImport(false) }}>
+              {showAddForm ? 'Cerrar formulario' : '+ Agregar estudiante'}
+            </button>
+            <button style={showImport ? { ...btnSecondary, background: '#DBEAFE', borderColor: '#93C5FD' } : btnSecondary}
+              onClick={() => { setShowImport(v => !v); setShowAddForm(false) }}>
+              {showImport ? 'Cerrar importador' : 'Importar desde Excel'}
+            </button>
+          </div>
+
+          {/* ── Add form (collapsed by default) ── */}
+          {showAddForm && (
+            <div style={card}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+                <h3 style={{ ...sectionTitle, margin: 0 }}>Agregar estudiante</h3>
+                <span className="stu-add-badge">Se agrega al listado existente</span>
+              </div>
+
+              <form onSubmit={handleAddOne}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: 10 }}>
+                  <div>
+                    <label style={lbl}>Primer nombre *</label>
+                    <input style={inp} value={form.first_name} onChange={e => setF('first_name', e.target.value)} placeholder="María" />
+                  </div>
+                  <div>
+                    <label style={lbl}>Segundo nombre</label>
+                    <input style={inp} value={form.second_name} onChange={e => setF('second_name', e.target.value)} placeholder="Alejandra" />
+                  </div>
+                  <div>
+                    <label style={lbl}>Primer apellido *</label>
+                    <input style={inp} value={form.first_lastname} onChange={e => setF('first_lastname', e.target.value)} placeholder="García" />
+                  </div>
+                  <div>
+                    <label style={lbl}>Segundo apellido</label>
+                    <input style={inp} value={form.second_lastname} onChange={e => setF('second_lastname', e.target.value)} placeholder="López" />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 12 }}>
+                  <div>
+                    <label style={lbl}>Grado *</label>
+                    <select style={inp} value={form.grade} onChange={e => setF('grade', e.target.value)}>
+                      <option value="">Grado</option>
+                      {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={lbl}>Sección *</label>
+                    <select style={inp} value={form.section} onChange={e => setF('section', e.target.value)}>
+                      <option value="">Sección</option>
+                      {SECTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={lbl}>Email estudiante</label>
+                    <input style={inp} value={form.email} onChange={e => setF('email', e.target.value)}
+                      placeholder="mariagarcia (o correo completo)" />
+                  </div>
+                  <div>
+                    <label style={lbl}>Email representante</label>
+                    <input style={inp} type="email" value={form.representative_email}
+                      onChange={e => setF('representative_email', e.target.value)}
+                      placeholder="padre@gmail.com" />
+                  </div>
+                </div>
+
+                {formErr && <p style={{ color: '#DC2626', fontSize: 13, margin: '0 0 10px' }}>{formErr}</p>}
+                <button type="submit" style={btnPrimary} disabled={saving}>
+                  {saving ? 'Agregando...' : '+ Agregar al roster'}
+                </button>
+              </form>
+            </div>
+          )}
+
+          {/* ── Import CSV (collapsed by default) ── */}
+          {showImport && <ImportCSVPanel
+            csvText={csvText} setCsvText={setCsvText}
+            csvParsed={csvParsed} setCsvParsed={setCsvParsed}
+            csvErrors={csvErrors} setCsvErrors={setCsvErrors}
+            csvWarnings={csvWarnings} setCsvWarnings={setCsvWarnings}
+            csvEditingIdx={csvEditingIdx} setCsvEditingIdx={setCsvEditingIdx}
+            handleParseCSV={handleParseCSV}
+            updateCsvRow={updateCsvRow} removeCsvRow={removeCsvRow}
+            handleImportCSV={handleImportCSV} saving={saving}
+          />}
+
+          {/* ── Directory cards ── */}
+          {loading ? (
+            <p style={{ color: '#9CA3AF', textAlign: 'center', padding: 32 }}>Cargando...</p>
+          ) : students.length === 0 ? (
+            <div style={{ ...card, textAlign: 'center', padding: 48 }}>
+              <div style={{ fontSize: 40, marginBottom: 12 }}>&#128218;</div>
+              <p style={{ color: '#6B7280', fontSize: 15, margin: '0 0 8px' }}>
+                No hay estudiantes registrados
+              </p>
+              <p style={{ color: '#9CA3AF', fontSize: 13, margin: 0 }}>
+                Usa los botones de arriba para agregar uno a uno o importar desde Excel.
+              </p>
+            </div>
+          ) : (
+            <div className="stu-directory">
+              {Object.entries(gradeGroups).sort((a, b) => a[0].localeCompare(b[0], 'es')).map(([grade, secs]) => (
+                <div key={grade} className="stu-grade-block">
+                  <div className="stu-grade-label">{grade}</div>
+                  <div className="stu-section-cards">
+                    {secs.map(g => (
+                      <button key={g.section} className="stu-section-card"
+                        onClick={() => selectGroup(g.grade, g.section)}>
+                        <span className="stu-section-name">{g.section}</span>
+                        <span className="stu-section-count">{g.count}</span>
+                        <span className="stu-section-label">estudiante{g.count !== 1 ? 's' : ''}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
               ))}
-            </span>
+            </div>
           )}
-          {hasPsyData && (
-            <span className="stu-stat" style={{ background: '#FEF2F2', borderColor: '#FECACA', gap: 6 }}>
-              {psyStats.intervention > 0 && <><span className="stu-stat-dot" style={{ background: '#ef4444' }} /><span className="stu-stat-count">{psyStats.intervention}</span></>}
-              {psyStats.monitoring > 0 && <><span className="stu-stat-dot" style={{ background: '#f59e0b' }} /><span className="stu-stat-count">{psyStats.monitoring}</span></>}
-              {psyStats.no_intervention > 0 && <><span className="stu-stat-dot" style={{ background: '#22c55e' }} /><span className="stu-stat-count">{psyStats.no_intervention}</span></>}
-            </span>
+
+          {/* Info de acceso */}
+          {students.length > 0 && (
+            <div style={{ ...card, background: '#EFF6FF', border: '1px solid #BFDBFE', marginTop: 8 }}>
+              <h3 style={{ ...sectionTitle, color: '#1E3A8A', fontSize: 13 }}>¿Cómo acceden los estudiantes a los exámenes?</h3>
+              <ol style={{ color: '#1E3A8A', fontSize: 13, lineHeight: 2, margin: 0, paddingLeft: 20 }}>
+                <li>El docente activa el examen y comparte el <strong>Código de examen</strong></li>
+                <li>El estudiante abre <strong>classroomsos.github.io/cbf-planner/eval</strong></li>
+                <li>Ingresa su correo <strong>@redboston.edu.co</strong> y el código del examen</li>
+                <li>El sistema lo autentica automáticamente y carga su versión personal</li>
+              </ol>
+            </div>
           )}
-        </div>
+        </>
       )}
 
-      {/* ── Agregar uno a uno ── */}
-      <div style={card}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
-             onClick={() => setShowAddForm(v => !v)}>
-          <h3 style={{ ...sectionTitle, margin: 0 }}>+ Agregar estudiante</h3>
-          <span style={{ fontSize: 14, color: '#9CA3AF', transition: 'transform .2s', transform: showAddForm ? 'rotate(180deg)' : 'rotate(0)' }}>&#9660;</span>
-        </div>
-
-        {showAddForm && (
-          <form onSubmit={handleAddOne} style={{ marginTop: 16 }}>
-            {/* Fila 1 — nombres */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: 10 }}>
-              <div>
-                <label style={lbl}>Primer nombre *</label>
-                <input style={inp} value={form.first_name} onChange={e => setF('first_name', e.target.value)} placeholder="María" />
-              </div>
-              <div>
-                <label style={lbl}>Segundo nombre</label>
-                <input style={inp} value={form.second_name} onChange={e => setF('second_name', e.target.value)} placeholder="Alejandra" />
-              </div>
-              <div>
-                <label style={lbl}>Primer apellido *</label>
-                <input style={inp} value={form.first_lastname} onChange={e => setF('first_lastname', e.target.value)} placeholder="García" />
-              </div>
-              <div>
-                <label style={lbl}>Segundo apellido</label>
-                <input style={inp} value={form.second_lastname} onChange={e => setF('second_lastname', e.target.value)} placeholder="López" />
-              </div>
-            </div>
-
-            {/* Fila 2 — grado, sección, emails */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 12 }}>
-              <div>
-                <label style={lbl}>Grado *</label>
-                <select style={inp} value={form.grade} onChange={e => setF('grade', e.target.value)}>
-                  <option value="">Grado</option>
-                  {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
-                </select>
-              </div>
-              <div>
-                <label style={lbl}>Sección *</label>
-                <select style={inp} value={form.section} onChange={e => setF('section', e.target.value)}>
-                  <option value="">Sección</option>
-                  {SECTIONS.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
-              <div>
-                <label style={lbl}>Email estudiante</label>
-                <input style={inp} value={form.email} onChange={e => setF('email', e.target.value)}
-                  placeholder="mariagarcia (o correo completo)" />
-              </div>
-              <div>
-                <label style={lbl}>Email representante</label>
-                <input style={inp} type="email" value={form.representative_email}
-                  onChange={e => setF('representative_email', e.target.value)}
-                  placeholder="padre@gmail.com" />
-              </div>
-            </div>
-
-            {formErr && <p style={{ color: '#DC2626', fontSize: 13, margin: '0 0 10px' }}>{formErr}</p>}
-            <button type="submit" style={btnPrimary} disabled={saving}>
-              {saving ? '...' : '+ Agregar estudiante'}
+      {/* ══════════════════════════════════════════════════════════ */}
+      {/* GROUP VIEW — grade+section selected                      */}
+      {/* ══════════════════════════════════════════════════════════ */}
+      {hasSelection && (
+        <>
+          {/* Back + group header */}
+          <div className="stu-group-header">
+            <button className="stu-back-btn" onClick={goBack} type="button">
+              &#8592; Volver al directorio
             </button>
-          </form>
-        )}
-      </div>
-
-      {/* ── Importar CSV ── */}
-      <div style={card}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3 style={{ ...sectionTitle, margin: 0 }}>Importar desde Excel / CSV</h3>
-          <button style={{ ...btnSecondary, fontSize: 13 }} onClick={() => setShowImport(v => !v)}>
-            {showImport ? 'Ocultar' : 'Importar lista'}
-          </button>
-        </div>
-
-        {showImport && (
-          <div style={{ marginTop: 16 }}>
-            {/* Instrucciones formato */}
-            <div style={{ background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: 8, padding: '12px 14px', marginBottom: 12 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#0C4A6E', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '.4px' }}>
-                Formato requerido — 8 columnas
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(80px, 1fr))', gap: 4, marginBottom: 8 }}>
-                {[
-                  { col: 'Primer Apellido', req: true },
-                  { col: 'Segundo Apellido', req: false },
-                  { col: 'Primer Nombre', req: true },
-                  { col: 'Segundo Nombre', req: false },
-                  { col: 'Grado', req: true },
-                  { col: 'Sección', req: true },
-                  { col: 'Email Estudiante', req: false },
-                  { col: 'Email Representante', req: false },
-                ].map(({ col, req }) => (
-                  <div key={col} style={{ fontSize: 10, fontWeight: 700, color: req ? '#0C4A6E' : '#60a5fa', background: req ? '#BAE6FD' : '#e0f2fe', borderRadius: 4, padding: '3px 5px', textAlign: 'center' }}>
-                    {col}{req ? ' *' : ''}
-                  </div>
-                ))}
-              </div>
-              <div style={{ fontSize: 12, color: '#0C4A6E', lineHeight: 1.7 }}>
-                · Separa con <strong>Tab</strong> (copia desde Excel), coma o punto y coma<br />
-                · Grado: <strong>8</strong>, <strong>8°</strong> o <strong>8.°</strong> — se normaliza automáticamente<br />
-                · Sección: <strong>Blue</strong> o <strong>Red</strong><br />
-                · Email: solo el usuario sin dominio (<strong>mariagarcia</strong>) o correo completo<br />
-                · Si dejas Email vacío se genera automáticamente como <em>primernombre.primerapellido@redboston.edu.co</em>
-              </div>
-            </div>
-
-            {/* Ejemplo copiable */}
-            <div style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 6, padding: '8px 12px', marginBottom: 10, fontFamily: 'monospace', fontSize: 12, color: '#374151', overflowX: 'auto', whiteSpace: 'nowrap' }}>
-              García	López	María	Alejandra	8	Blue	mariagarcia	padre@gmail.com<br />
-              Rodríguez		Pedro		9	Red	pedrorodriguez	madre@hotmail.com<br />
-              López	Martínez	Juan	Carlos	8	Blue		tutor@gmail.com
-            </div>
-
-            <textarea
-              style={{ ...inp, minHeight: 140, fontFamily: 'monospace', fontSize: 13 }}
-              value={csvText}
-              onChange={e => { setCsvText(e.target.value); setCsvParsed(null); setCsvErrors([]); setCsvWarnings([]); setCsvEditingIdx(null) }}
-              placeholder="Pega aquí tu lista desde Excel..."
-            />
-
-            {csvErrors.length > 0 && (
-              <ul style={{ color: '#DC2626', fontSize: 13, margin: '8px 0', paddingLeft: 18 }}>
-                {csvErrors.map((e, i) => <li key={i}>{e}</li>)}
-              </ul>
-            )}
-            {csvWarnings.length > 0 && (
-              <ul style={{ color: '#92400E', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 6, fontSize: 12, margin: '6px 0', padding: '8px 8px 8px 24px' }}>
-                {csvWarnings.map((w, i) => <li key={i}>{w}</li>)}
-              </ul>
-            )}
-
-            {csvParsed && csvParsed.length > 0 && (
-              <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8, padding: 12, marginTop: 8 }}>
-                <strong style={{ color: '#166534', fontSize: 13 }}>Vista previa — {csvParsed.length} estudiante{csvParsed.length !== 1 ? 's' : ''}</strong>
-                <div style={{ maxHeight: 260, overflowY: 'auto', marginTop: 8 }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-                    <thead>
-                      <tr style={{ background: '#dcfce7' }}>
-                        <th style={{ ...th, fontSize: 10, width: 30 }}></th>
-                        <th style={{ ...th, fontSize: 10 }}>Nombre completo</th>
-                        <th style={{ ...th, fontSize: 10 }}>Grado</th>
-                        <th style={{ ...th, fontSize: 10 }}>Sección</th>
-                        <th style={{ ...th, fontSize: 10 }}>Email</th>
-                        <th style={{ ...th, fontSize: 10 }}>Rep.</th>
-                        <th style={{ ...th, fontSize: 10, width: 50 }}></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {csvParsed.map((s, i) => csvEditingIdx === i ? (
-                        <tr key={i} className="stu-csv-row-edit" style={{ borderBottom: '1px solid #bbf7d0', background: '#f0fdf4' }}>
-                          <td style={{ padding: '4px 4px', textAlign: 'center' }}>
-                            <button type="button" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#DC2626', fontSize: 14 }}
-                              onClick={() => removeCsvRow(i)} title="Eliminar fila">x</button>
-                          </td>
-                          <td style={{ padding: '4px 4px' }}>
-                            <div style={{ display: 'flex', gap: 3 }}>
-                              <input value={s.first_lastname} onChange={e => updateCsvRow(i, 'first_lastname', e.target.value)} placeholder="Apellido" style={{ flex: 1 }} />
-                              <input value={s.first_name} onChange={e => updateCsvRow(i, 'first_name', e.target.value)} placeholder="Nombre" style={{ flex: 1 }} />
-                            </div>
-                          </td>
-                          <td style={{ padding: '4px 4px' }}>
-                            <select value={s.grade} onChange={e => updateCsvRow(i, 'grade', e.target.value)}>
-                              {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
-                            </select>
-                          </td>
-                          <td style={{ padding: '4px 4px' }}>
-                            <select value={s.section} onChange={e => updateCsvRow(i, 'section', e.target.value)}>
-                              {SECTIONS.map(sc => <option key={sc} value={sc}>{sc}</option>)}
-                            </select>
-                          </td>
-                          <td style={{ padding: '4px 4px' }}>
-                            <input value={s.email} onChange={e => updateCsvRow(i, 'email', e.target.value)} placeholder="email" />
-                          </td>
-                          <td style={{ padding: '4px 4px' }}>
-                            <input value={s.representative_email} onChange={e => updateCsvRow(i, 'representative_email', e.target.value)} placeholder="rep." />
-                          </td>
-                          <td style={{ padding: '4px 4px', textAlign: 'center' }}>
-                            <button type="button" style={{ background: '#166534', color: '#fff', border: 'none', borderRadius: 4, padding: '2px 8px', cursor: 'pointer', fontSize: 11 }}
-                              onClick={() => setCsvEditingIdx(null)}>OK</button>
-                          </td>
-                        </tr>
-                      ) : (
-                        <tr key={i} style={{ borderBottom: '1px solid #bbf7d0' }}>
-                          <td style={{ padding: '4px 4px', textAlign: 'center' }}>
-                            <button type="button" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#DC2626', fontSize: 13, lineHeight: 1 }}
-                              onClick={() => removeCsvRow(i)} title="Eliminar fila">x</button>
-                          </td>
-                          <td style={{ padding: '4px 8px', color: '#166534', fontWeight: 600 }}>{displayName(s)}</td>
-                          <td style={{ padding: '4px 8px', color: '#166534' }}>{s.grade}</td>
-                          <td style={{ padding: '4px 8px', color: '#166534' }}>{s.section}</td>
-                          <td style={{ padding: '4px 8px', color: '#166534', fontSize: 11 }}>{s.email}</td>
-                          <td style={{ padding: '4px 8px', color: '#166534', fontSize: 11 }}>{s.representative_email || '—'}</td>
-                          <td style={{ padding: '4px 4px', textAlign: 'center' }}>
-                            <button type="button" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6B7280', fontSize: 13 }}
-                              onClick={() => setCsvEditingIdx(i)} title="Editar fila">&#9998;</button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-
-            <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
-              <button style={btnSecondary} onClick={handleParseCSV} disabled={!csvText.trim()}>
-                Verificar lista
-              </button>
-              {csvParsed?.length > 0 && (
-                <button style={btnPrimary} onClick={handleImportCSV} disabled={saving}>
-                  {saving ? 'Importando...' : `Importar ${csvParsed.length} estudiante${csvParsed.length !== 1 ? 's' : ''}`}
-                </button>
+            <div className="stu-group-title">
+              <span className="stu-group-grade">{selGrade}</span>
+              <span className="stu-group-section">{selSection}</span>
+              <span className="stu-group-count">{totalInGroup} estudiante{totalInGroup !== 1 ? 's' : ''}</span>
+              {hasPsyData && (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginLeft: 8 }}>
+                  {psyStats.intervention > 0 && <><span className="stu-stat-dot" style={{ background: '#ef4444' }} /><span style={{ fontSize: 12, color: '#991b1b' }}>{psyStats.intervention}</span></>}
+                  {psyStats.monitoring > 0 && <><span className="stu-stat-dot" style={{ background: '#f59e0b' }} /><span style={{ fontSize: 12, color: '#92400e' }}>{psyStats.monitoring}</span></>}
+                </span>
               )}
             </div>
           </div>
-        )}
-      </div>
 
-      {/* ── Lista de estudiantes ── */}
-      <div style={card}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 16 }}>
-          <h3 style={{ ...sectionTitle, margin: 0 }}>
-            Lista ({filtered.length}{filtered.length !== students.length ? ` / ${students.length}` : ''})
-            {selectedIds.size > 0 && (
-              <span style={{ marginLeft: 10, fontSize: 13, fontWeight: 400, color: '#6B7280' }}>
-                · {selectedIds.size} seleccionado{selectedIds.size !== 1 ? 's' : ''}
-              </span>
-            )}
-          </h3>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {/* Toolbar: search + add/import */}
+          <div className="stu-group-toolbar">
             <input
-              style={{ ...inp, padding: '6px 10px', fontSize: 13, width: 180 }}
+              className="stu-search-input"
               value={searchText}
               onChange={e => setSearchText(e.target.value)}
-              placeholder="Buscar nombre o código..."
+              placeholder="Buscar por nombre o código..."
             />
-            <select style={{ ...inp, padding: '6px 10px', fontSize: 13, width: 130 }}
-              value={filterGrade} onChange={e => setFilterGrade(e.target.value)}>
-              <option value="">Todos los grados</option>
-              {grades.map(g => <option key={g} value={g}>{g}</option>)}
-            </select>
-            <select style={{ ...inp, padding: '6px 10px', fontSize: 13, width: 110 }}
-              value={filterSection} onChange={e => setFilterSection(e.target.value)}>
-              <option value="">Todas</option>
-              {SECTIONS.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-        </div>
-
-        {loading ? (
-          <p style={{ color: '#9CA3AF', textAlign: 'center', padding: 32 }}>Cargando...</p>
-        ) : filtered.length === 0 ? (
-          <p style={{ color: '#9CA3AF', textAlign: 'center', padding: 32 }}>
-            {students.length === 0
-              ? 'No hay estudiantes registrados. Agrega uno arriba o importa desde Excel.'
-              : 'Ningún estudiante coincide con los filtros.'}
-          </p>
-        ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-              <thead>
-                <tr style={{ background: '#F9FAFB' }}>
-                  <th style={{ ...th, width: 36, textAlign: 'center' }}>
-                    <input type="checkbox" title="Seleccionar todos"
-                      checked={filtered.length > 0 && selectedIds.size === filtered.length}
-                      onChange={toggleSelectAll} />
-                  </th>
-                  {[
-                    { label: 'Nombre', col: 'name' },
-                    { label: 'Grado',   col: 'grade' },
-                    { label: 'Sección', col: 'section' },
-                    { label: 'Código',  col: 'code' },
-                  ].map(({ label, col }) => (
-                    <th key={col} style={{ ...th, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}
-                      onClick={() => handleSort(col)}>
-                      {label} {sortCol === col ? (sortAsc ? '▲' : '▼') : <span style={{ opacity: 0.3 }}>▲</span>}
-                    </th>
-                  ))}
-                  <th style={{ ...th, width: 60 }}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {showGroupHeaders
-                  ? Object.entries(grouped).sort((a, b) => a[0].localeCompare(b[0], 'es')).map(([grade, grpStudents]) => (
-                    <GroupRows key={grade} grade={grade} students={grpStudents}
-                      selectedIds={selectedIds} toggleSelect={toggleSelect}
-                      expandedId={expandedId} handleRowClick={handleRowClick}
-                      openEdit={openEdit} psyProfiles={psyProfiles}
-                      confirmingDeleteId={confirmingDeleteId} setConfirmingDeleteId={setConfirmingDeleteId}
-                      handleDelete={handleDelete} />
-                  ))
-                  : filtered.map(s => (
-                    <StudentRows key={s.id} s={s}
-                      selectedIds={selectedIds} toggleSelect={toggleSelect}
-                      expandedId={expandedId} handleRowClick={handleRowClick}
-                      openEdit={openEdit} psyProfiles={psyProfiles}
-                      confirmingDeleteId={confirmingDeleteId} setConfirmingDeleteId={setConfirmingDeleteId}
-                      handleDelete={handleDelete} />
-                  ))
-                }
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {selectedIds.size > 0 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14, padding: '10px 14px', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8 }}>
-            <span style={{ fontSize: 13, color: '#991B1B', flex: 1 }}>
-              {selectedIds.size} estudiante{selectedIds.size !== 1 ? 's' : ''} seleccionado{selectedIds.size !== 1 ? 's' : ''}
-            </span>
-            <button type="button" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6B7280', fontSize: 13 }}
-              onClick={() => { setSelectedIds(new Set()); setBulkConfirm(false) }}>
-              Cancelar
-            </button>
-            {bulkConfirm ? (
-              <>
-                <span style={{ fontSize: 13, color: '#DC2626', fontWeight: 600 }}>¿Confirmar eliminación?</span>
-                <button type="button" style={{ background: '#DC2626', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
-                  onClick={handleBulkDelete} disabled={saving}>
-                  {saving ? 'Eliminando...' : 'Sí, eliminar'}
-                </button>
-              </>
-            ) : (
-              <button type="button" style={{ background: '#EF4444', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
-                onClick={handleBulkDelete} disabled={saving}>
-                Eliminar seleccionados
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button style={{ ...btnSecondary, fontSize: 13, padding: '6px 12px' }}
+                onClick={() => { setShowAddForm(v => !v); setShowImport(false); setForm(f => ({ ...f, grade: selGrade, section: selSection })) }}>
+                {showAddForm ? 'Cerrar' : '+ Agregar'}
               </button>
+              <button style={{ ...btnSecondary, fontSize: 13, padding: '6px 12px' }}
+                onClick={() => { setShowImport(v => !v); setShowAddForm(false) }}>
+                {showImport ? 'Cerrar' : 'Importar'}
+              </button>
+            </div>
+          </div>
+
+          {/* Add form inline */}
+          {showAddForm && (
+            <div style={{ ...card, borderLeft: '4px solid #22c55e' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                <h3 style={{ ...sectionTitle, margin: 0, fontSize: 14 }}>Agregar a {selGrade} {selSection}</h3>
+                <span className="stu-add-badge">Se agrega al listado existente</span>
+              </div>
+              <form onSubmit={handleAddOne}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 10 }}>
+                  <div>
+                    <label style={lbl}>Primer nombre *</label>
+                    <input style={inp} value={form.first_name} onChange={e => setF('first_name', e.target.value)} placeholder="María" />
+                  </div>
+                  <div>
+                    <label style={lbl}>Segundo nombre</label>
+                    <input style={inp} value={form.second_name} onChange={e => setF('second_name', e.target.value)} />
+                  </div>
+                  <div>
+                    <label style={lbl}>Primer apellido *</label>
+                    <input style={inp} value={form.first_lastname} onChange={e => setF('first_lastname', e.target.value)} placeholder="García" />
+                  </div>
+                  <div>
+                    <label style={lbl}>Segundo apellido</label>
+                    <input style={inp} value={form.second_lastname} onChange={e => setF('second_lastname', e.target.value)} />
+                  </div>
+                </div>
+                {/* Grade+section hidden — auto from selection */}
+                <input type="hidden" value={form.grade} />
+                <input type="hidden" value={form.section} />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                  <div>
+                    <label style={lbl}>Email estudiante</label>
+                    <input style={inp} value={form.email} onChange={e => setF('email', e.target.value)} placeholder="mariagarcia" />
+                  </div>
+                  <div>
+                    <label style={lbl}>Email representante</label>
+                    <input style={inp} type="email" value={form.representative_email}
+                      onChange={e => setF('representative_email', e.target.value)} placeholder="padre@gmail.com" />
+                  </div>
+                </div>
+                {formErr && <p style={{ color: '#DC2626', fontSize: 13, margin: '0 0 10px' }}>{formErr}</p>}
+                <button type="submit" style={btnPrimary} disabled={saving}>
+                  {saving ? 'Agregando...' : `+ Agregar a ${selGrade} ${selSection}`}
+                </button>
+              </form>
+            </div>
+          )}
+
+          {/* Import inline */}
+          {showImport && <ImportCSVPanel
+            csvText={csvText} setCsvText={setCsvText}
+            csvParsed={csvParsed} setCsvParsed={setCsvParsed}
+            csvErrors={csvErrors} setCsvErrors={setCsvErrors}
+            csvWarnings={csvWarnings} setCsvWarnings={setCsvWarnings}
+            csvEditingIdx={csvEditingIdx} setCsvEditingIdx={setCsvEditingIdx}
+            handleParseCSV={handleParseCSV}
+            updateCsvRow={updateCsvRow} removeCsvRow={removeCsvRow}
+            handleImportCSV={handleImportCSV} saving={saving}
+          />}
+
+          {/* Student table */}
+          <div style={card}>
+            {groupStudents.length === 0 ? (
+              <p style={{ color: '#9CA3AF', textAlign: 'center', padding: 24 }}>
+                {searchText ? 'Ningún estudiante coincide con la búsqueda.' : 'No hay estudiantes en este grupo.'}
+              </p>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+                  <thead>
+                    <tr style={{ background: '#F9FAFB' }}>
+                      <th style={{ ...th, width: 36, textAlign: 'center' }}>
+                        <input type="checkbox" title="Seleccionar todos"
+                          checked={groupStudents.length > 0 && selectedIds.size === groupStudents.length}
+                          onChange={toggleSelectAll} />
+                      </th>
+                      <th style={{ ...th, width: 36, textAlign: 'center' }}>#</th>
+                      {[
+                        { label: 'Nombre', col: 'name' },
+                        { label: 'Código',  col: 'code' },
+                      ].map(({ label, col }) => (
+                        <th key={col} style={{ ...th, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}
+                          onClick={() => handleSort(col)}>
+                          {label} {sortCol === col ? (sortAsc ? '▲' : '▼') : <span style={{ opacity: 0.3 }}>▲</span>}
+                        </th>
+                      ))}
+                      <th style={{ ...th, width: 60 }}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {groupStudents.map((s, idx) => (
+                      <StudentRows key={s.id} s={s} idx={idx + 1}
+                        selectedIds={selectedIds} toggleSelect={toggleSelect}
+                        expandedId={expandedId} handleRowClick={handleRowClick}
+                        openEdit={openEdit} psyProfiles={psyProfiles}
+                        confirmingDeleteId={confirmingDeleteId} setConfirmingDeleteId={setConfirmingDeleteId}
+                        handleDelete={handleDelete} />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {selectedIds.size > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14, padding: '10px 14px', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8 }}>
+                <span style={{ fontSize: 13, color: '#991B1B', flex: 1 }}>
+                  {selectedIds.size} estudiante{selectedIds.size !== 1 ? 's' : ''} seleccionado{selectedIds.size !== 1 ? 's' : ''}
+                </span>
+                <button type="button" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6B7280', fontSize: 13 }}
+                  onClick={() => { setSelectedIds(new Set()); setBulkConfirm(false) }}>
+                  Cancelar
+                </button>
+                {bulkConfirm ? (
+                  <>
+                    <span style={{ fontSize: 13, color: '#DC2626', fontWeight: 600 }}>¿Confirmar eliminación?</span>
+                    <button type="button" style={{ background: '#DC2626', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+                      onClick={handleBulkDelete} disabled={saving}>
+                      {saving ? 'Eliminando...' : 'Sí, eliminar'}
+                    </button>
+                  </>
+                ) : (
+                  <button type="button" style={{ background: '#EF4444', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+                    onClick={handleBulkDelete} disabled={saving}>
+                    Eliminar seleccionados
+                  </button>
+                )}
+              </div>
             )}
           </div>
-        )}
-      </div>
-
-      {/* Info de acceso */}
-      <div style={{ ...card, background: '#EFF6FF', border: '1px solid #BFDBFE' }}>
-        <h3 style={{ ...sectionTitle, color: '#1E3A8A' }}>¿Cómo acceden los estudiantes?</h3>
-        <ol style={{ color: '#1E3A8A', fontSize: 14, lineHeight: 2, margin: 0, paddingLeft: 20 }}>
-          <li>El docente activa el examen y comparte el <strong>Código de examen</strong> (ej. EX-2026-A1)</li>
-          <li>El estudiante abre <strong>classroomsos.github.io/cbf-planner/eval</strong></li>
-          <li>Ingresa su correo <strong>@redboston.edu.co</strong> y el código del examen</li>
-          <li>El sistema lo autentica automáticamente y carga su versión personal del examen</li>
-        </ol>
-      </div>
+        </>
+      )}
 
       {/* ── Edit Modal ── */}
       {editingStudent && (
@@ -771,7 +750,6 @@ export default function StudentsPage({ teacher }) {
               <button type="button" onClick={() => setEditingStudent(null)}>&times;</button>
             </div>
             <div className="sb-modal-body">
-              {/* Nombres */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
                 <div>
                   <label style={lbl}>Primer nombre *</label>
@@ -790,7 +768,6 @@ export default function StudentsPage({ teacher }) {
                   <input style={inp} value={editForm.second_lastname} onChange={e => setEditForm(f => ({ ...f, second_lastname: e.target.value }))} />
                 </div>
               </div>
-              {/* Grado + Sección */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
                 <div>
                   <label style={lbl}>Grado *</label>
@@ -807,7 +784,6 @@ export default function StudentsPage({ teacher }) {
                   </select>
                 </div>
               </div>
-              {/* Emails */}
               <div style={{ marginBottom: 12 }}>
                 <label style={lbl}>Email estudiante</label>
                 <input style={inp} value={editForm.email} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))} />
@@ -831,24 +807,165 @@ export default function StudentsPage({ teacher }) {
   )
 }
 
-// ── Subcomponentes de tabla ──────────────────────────────────
+// ── Import CSV Panel ──────────────────────────────────────────
 
-function GroupRows({ grade, students, ...rowProps }) {
+function ImportCSVPanel({
+  csvText, setCsvText, csvParsed, setCsvParsed,
+  csvErrors, setCsvErrors, csvWarnings, setCsvWarnings,
+  csvEditingIdx, setCsvEditingIdx,
+  handleParseCSV, updateCsvRow, removeCsvRow,
+  handleImportCSV, saving,
+}) {
   return (
-    <>
-      <tr className="stu-group-hdr">
-        <td colSpan={6}>
-          {grade} — {students.length} estudiante{students.length !== 1 ? 's' : ''}
-        </td>
-      </tr>
-      {students.map(s => (
-        <StudentRows key={s.id} s={s} {...rowProps} />
-      ))}
-    </>
+    <div style={{ ...card, borderLeft: '4px solid #3B82F6' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+        <h3 style={{ ...sectionTitle, margin: 0, fontSize: 14 }}>Importar desde Excel / CSV</h3>
+        <span className="stu-add-badge">Se agregan al listado — no reemplaza los existentes</span>
+      </div>
+
+      {/* Format instructions */}
+      <div style={{ background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: 8, padding: '12px 14px', marginBottom: 12 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: '#0C4A6E', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '.4px' }}>
+          Formato requerido — 8 columnas
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(80px, 1fr))', gap: 4, marginBottom: 8 }}>
+          {[
+            { col: 'Primer Apellido', req: true },
+            { col: 'Segundo Apellido', req: false },
+            { col: 'Primer Nombre', req: true },
+            { col: 'Segundo Nombre', req: false },
+            { col: 'Grado', req: true },
+            { col: 'Sección', req: true },
+            { col: 'Email Estudiante', req: false },
+            { col: 'Email Representante', req: false },
+          ].map(({ col, req }) => (
+            <div key={col} style={{ fontSize: 10, fontWeight: 700, color: req ? '#0C4A6E' : '#60a5fa', background: req ? '#BAE6FD' : '#e0f2fe', borderRadius: 4, padding: '3px 5px', textAlign: 'center' }}>
+              {col}{req ? ' *' : ''}
+            </div>
+          ))}
+        </div>
+        <div style={{ fontSize: 12, color: '#0C4A6E', lineHeight: 1.7 }}>
+          · Separa con <strong>Tab</strong> (copia desde Excel), coma o punto y coma<br />
+          · Grado: <strong>8</strong>, <strong>8°</strong> o <strong>8.°</strong> — se normaliza automáticamente<br />
+          · Sección: <strong>Blue</strong> o <strong>Red</strong><br />
+          · Si dejas Email vacío se genera automáticamente
+        </div>
+      </div>
+
+      {/* Example */}
+      <div style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 6, padding: '8px 12px', marginBottom: 10, fontFamily: 'monospace', fontSize: 12, color: '#374151', overflowX: 'auto', whiteSpace: 'nowrap' }}>
+        García	López	María	Alejandra	8	Blue	mariagarcia	padre@gmail.com<br />
+        Rodríguez		Pedro		9	Red	pedrorodriguez	madre@hotmail.com
+      </div>
+
+      <textarea
+        style={{ ...inp, minHeight: 140, fontFamily: 'monospace', fontSize: 13 }}
+        value={csvText}
+        onChange={e => { setCsvText(e.target.value); setCsvParsed(null); setCsvErrors([]); setCsvWarnings([]); setCsvEditingIdx(null) }}
+        placeholder="Pega aquí tu lista desde Excel..."
+      />
+
+      {csvErrors.length > 0 && (
+        <ul style={{ color: '#DC2626', fontSize: 13, margin: '8px 0', paddingLeft: 18 }}>
+          {csvErrors.map((e, i) => <li key={i}>{e}</li>)}
+        </ul>
+      )}
+      {csvWarnings.length > 0 && (
+        <ul style={{ color: '#92400E', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 6, fontSize: 12, margin: '6px 0', padding: '8px 8px 8px 24px' }}>
+          {csvWarnings.map((w, i) => <li key={i}>{w}</li>)}
+        </ul>
+      )}
+
+      {csvParsed && csvParsed.length > 0 && (
+        <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8, padding: 12, marginTop: 8 }}>
+          <strong style={{ color: '#166534', fontSize: 13 }}>Vista previa — {csvParsed.length} estudiante{csvParsed.length !== 1 ? 's' : ''} nuevos a agregar</strong>
+          <div style={{ maxHeight: 260, overflowY: 'auto', marginTop: 8 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr style={{ background: '#dcfce7' }}>
+                  <th style={{ ...th, fontSize: 10, width: 30 }}></th>
+                  <th style={{ ...th, fontSize: 10 }}>Nombre completo</th>
+                  <th style={{ ...th, fontSize: 10 }}>Grado</th>
+                  <th style={{ ...th, fontSize: 10 }}>Sección</th>
+                  <th style={{ ...th, fontSize: 10 }}>Email</th>
+                  <th style={{ ...th, fontSize: 10 }}>Rep.</th>
+                  <th style={{ ...th, fontSize: 10, width: 50 }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {csvParsed.map((s, i) => csvEditingIdx === i ? (
+                  <tr key={i} className="stu-csv-row-edit" style={{ borderBottom: '1px solid #bbf7d0', background: '#f0fdf4' }}>
+                    <td style={{ padding: '4px 4px', textAlign: 'center' }}>
+                      <button type="button" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#DC2626', fontSize: 14 }}
+                        onClick={() => removeCsvRow(i)} title="Eliminar fila">x</button>
+                    </td>
+                    <td style={{ padding: '4px 4px' }}>
+                      <div style={{ display: 'flex', gap: 3 }}>
+                        <input value={s.first_lastname} onChange={e => updateCsvRow(i, 'first_lastname', e.target.value)} placeholder="Apellido" style={{ flex: 1 }} />
+                        <input value={s.first_name} onChange={e => updateCsvRow(i, 'first_name', e.target.value)} placeholder="Nombre" style={{ flex: 1 }} />
+                      </div>
+                    </td>
+                    <td style={{ padding: '4px 4px' }}>
+                      <select value={s.grade} onChange={e => updateCsvRow(i, 'grade', e.target.value)}>
+                        {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
+                      </select>
+                    </td>
+                    <td style={{ padding: '4px 4px' }}>
+                      <select value={s.section} onChange={e => updateCsvRow(i, 'section', e.target.value)}>
+                        {SECTIONS.map(sc => <option key={sc} value={sc}>{sc}</option>)}
+                      </select>
+                    </td>
+                    <td style={{ padding: '4px 4px' }}>
+                      <input value={s.email} onChange={e => updateCsvRow(i, 'email', e.target.value)} placeholder="email" />
+                    </td>
+                    <td style={{ padding: '4px 4px' }}>
+                      <input value={s.representative_email} onChange={e => updateCsvRow(i, 'representative_email', e.target.value)} placeholder="rep." />
+                    </td>
+                    <td style={{ padding: '4px 4px', textAlign: 'center' }}>
+                      <button type="button" style={{ background: '#166534', color: '#fff', border: 'none', borderRadius: 4, padding: '2px 8px', cursor: 'pointer', fontSize: 11 }}
+                        onClick={() => setCsvEditingIdx(null)}>OK</button>
+                    </td>
+                  </tr>
+                ) : (
+                  <tr key={i} style={{ borderBottom: '1px solid #bbf7d0' }}>
+                    <td style={{ padding: '4px 4px', textAlign: 'center' }}>
+                      <button type="button" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#DC2626', fontSize: 13, lineHeight: 1 }}
+                        onClick={() => removeCsvRow(i)} title="Eliminar fila">x</button>
+                    </td>
+                    <td style={{ padding: '4px 8px', color: '#166534', fontWeight: 600 }}>{displayName(s)}</td>
+                    <td style={{ padding: '4px 8px', color: '#166534' }}>{s.grade}</td>
+                    <td style={{ padding: '4px 8px', color: '#166534' }}>{s.section}</td>
+                    <td style={{ padding: '4px 8px', color: '#166534', fontSize: 11 }}>{s.email}</td>
+                    <td style={{ padding: '4px 8px', color: '#166534', fontSize: 11 }}>{s.representative_email || '—'}</td>
+                    <td style={{ padding: '4px 4px', textAlign: 'center' }}>
+                      <button type="button" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6B7280', fontSize: 13 }}
+                        onClick={() => setCsvEditingIdx(i)} title="Editar fila">&#9998;</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+        <button style={btnSecondary} onClick={handleParseCSV} disabled={!csvText.trim()}>
+          Verificar lista
+        </button>
+        {csvParsed?.length > 0 && (
+          <button style={btnPrimary} onClick={handleImportCSV} disabled={saving}>
+            {saving ? 'Importando...' : `Agregar ${csvParsed.length} estudiante${csvParsed.length !== 1 ? 's' : ''} al roster`}
+          </button>
+        )}
+      </div>
+    </div>
   )
 }
 
-function StudentRows({ s, selectedIds, toggleSelect, expandedId, handleRowClick, openEdit, psyProfiles, confirmingDeleteId, setConfirmingDeleteId, handleDelete }) {
+// ── Student row ──────────────────────────────────────────────
+
+function StudentRows({ s, idx, selectedIds, toggleSelect, expandedId, handleRowClick, openEdit, psyProfiles, confirmingDeleteId, setConfirmingDeleteId, handleDelete }) {
   return (
     <>
       <tr style={{ borderBottom: '1px solid #F3F4F6', background: selectedIds.has(s.id) ? '#FEF2F2' : undefined, cursor: 'pointer' }}
@@ -856,6 +973,7 @@ function StudentRows({ s, selectedIds, toggleSelect, expandedId, handleRowClick,
         <td style={{ ...td, textAlign: 'center' }}>
           <input type="checkbox" checked={selectedIds.has(s.id)} onChange={() => toggleSelect(s.id)} />
         </td>
+        <td style={{ ...td, textAlign: 'center', color: '#9CA3AF', fontSize: 12 }}>{idx}</td>
         <td style={td}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span className="stu-name-link" onClick={e => { e.stopPropagation(); openEdit(s) }}>
@@ -868,8 +986,6 @@ function StudentRows({ s, selectedIds, toggleSelect, expandedId, handleRowClick,
             })()}
           </div>
         </td>
-        <td style={td}>{s.grade}</td>
-        <td style={td}>{s.section}</td>
         <td style={{ ...td, fontFamily: 'monospace', color: '#1F3864', fontSize: 12 }}>
           {s.student_code}
         </td>
@@ -889,7 +1005,7 @@ function StudentRows({ s, selectedIds, toggleSelect, expandedId, handleRowClick,
       </tr>
       {expandedId === s.id && (
         <tr className="stu-expand-row">
-          <td colSpan={6}>
+          <td colSpan={5}>
             <span style={{ marginRight: 20 }}>
               <strong style={{ color: '#374151', fontSize: 12 }}>Email:</strong>{' '}
               <span style={{ color: '#1F3864' }}>{s.email}</span>
