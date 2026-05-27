@@ -1,7 +1,7 @@
-// CBF Planner — Service Worker (Sprint 7 PWA)
+// CBF Planner — Service Worker v2
 // Strategy: cache-first for static assets, network-only for Supabase
 
-const CACHE = 'cbf-planner-v1'
+const CACHE = 'cbf-planner-v2'
 const BASE  = '/cbf-planner'
 
 // Shell files to pre-cache on install
@@ -27,7 +27,7 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url)
 
-  // Always go network for Supabase (auth, DB, functions)
+  // Always go network for Supabase (auth, DB, Edge Functions)
   if (url.hostname.includes('supabase.co')) return
 
   // Navigation requests: network first → cached shell fallback (offline support)
@@ -39,16 +39,21 @@ self.addEventListener('fetch', e => {
   }
 
   // Static assets (JS, CSS, SVG, fonts): cache first → network + update cache
+  const ext = url.pathname.split('.').pop()
+  const cacheable = ['js', 'css', 'svg', 'woff', 'woff2', 'png', 'ico'].includes(ext)
+
+  if (!cacheable) {
+    // Non-cacheable: go straight to network, don't touch the response
+    return
+  }
+
   e.respondWith(
     caches.match(e.request).then(cached => {
       if (cached) return cached
       return fetch(e.request).then(res => {
         if (!res.ok) return res
-        const ext = url.pathname.split('.').pop()
-        if (['js', 'css', 'svg', 'woff', 'woff2', 'png', 'ico'].includes(ext)) {
-          const cloned = res.clone()
-          caches.open(CACHE).then(c => c.put(e.request, cloned))
-        }
+        const toCache = res.clone()
+        caches.open(CACHE).then(c => c.put(e.request, toCache))
         return res
       })
     })
