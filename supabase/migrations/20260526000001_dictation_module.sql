@@ -116,6 +116,15 @@ CREATE POLICY "dictation_instances_teacher_read" ON dictation_instances
     )
   );
 
+-- Docente autenticado puede insertar instancias en sus sesiones
+CREATE POLICY "dictation_instances_teacher_insert" ON dictation_instances
+  FOR INSERT TO authenticated
+  WITH CHECK (
+    session_id IN (
+      SELECT id FROM dictation_sessions WHERE teacher_id = auth.uid()
+    )
+  );
+
 -- Anon puede leer/actualizar su instancia (por access_code, filtrado en RPC)
 CREATE POLICY "dictation_instances_anon_select" ON dictation_instances
   FOR SELECT TO anon USING (true);
