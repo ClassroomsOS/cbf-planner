@@ -46,7 +46,8 @@ self.addEventListener('fetch', e => {
         if (!res.ok) return res
         const ext = url.pathname.split('.').pop()
         if (['js', 'css', 'svg', 'woff', 'woff2', 'png', 'ico'].includes(ext)) {
-          caches.open(CACHE).then(c => c.put(e.request, res.clone()))
+          const cloned = res.clone()
+          caches.open(CACHE).then(c => c.put(e.request, cloned))
         }
         return res
       })
