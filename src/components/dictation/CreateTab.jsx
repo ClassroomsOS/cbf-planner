@@ -221,6 +221,7 @@ export default function CreateTab({ teacher, showToast }) {
       setStep(2)
       showToast('Dictation generado por IA', 'success')
     } catch (err) {
+      console.error('generateDictation error:', err)
       logError(err, { page: 'DictationPage', action: 'generateDictation' })
       showToast(err.message || 'Error al generar el dictation', 'error')
     } finally {
@@ -231,7 +232,10 @@ export default function CreateTab({ teacher, showToast }) {
   // ── Generate audio via TTS Edge Function ──
   async function handleGenerateAudio(sourceOverride) {
     const source = sourceOverride || generated
-    if (!source) return
+    if (!source) {
+      showToast('No hay dictation generado para crear audio', 'warning')
+      return
+    }
     setGeneratingAudio(true)
 
     try {
@@ -288,6 +292,7 @@ export default function CreateTab({ teacher, showToast }) {
       })
       showToast('Audio generado correctamente', 'success')
     } catch (err) {
+      console.error('generateAudio error:', err)
       logError(err, { page: 'DictationPage', action: 'generateAudio' })
       showToast(err.message || 'Error al generar audio', 'error')
     } finally {
