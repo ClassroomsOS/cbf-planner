@@ -1,7 +1,7 @@
 # Roadmap y Estado del Proyecto
 
 > Extraído de `CLAUDE.md` + auditoría `docs/auditoria/2026-04-04-auditoria-sistema.md`
-> Última actualización: 2026-05-17
+> Última actualización: 2026-05-26
 
 ---
 
@@ -48,6 +48,7 @@
 | **Biblioteca CBF — Fase 3c** | ✅ Completo | Fragmentos en PlannerPage: callout azul con chips de tipo/SmartBlock → pasan a `AIGeneratorModal` → `generateGuideStructure` los recibe como contexto al generar desde el Planner |
 | **Biblioteca CBF — Fase 4** | ✅ Completo | Imágenes de fragmentos fluyen como `imageBlocks` a `generateGuideStructure` (máx. 5, fragmentos prioritarios) · `analyzeTextbookPages()` acepta URLs o capturas base64 · UI "📖 Páginas" en PDF viewer: selección multi-página → renderizado offscreen → análisis Claude Vision → `PagesAnalysisPanel` con plan semanal + SmartBlock sugeridos |
 | **Biblioteca CBF — Fase 5** | ✅ Completo | Integración Syllabus: `syllabus_topics.library_doc_id + library_pages[]` (migración prod) · `SyllabusLinkPanel` en PDF viewer: asignar páginas actuales a un `syllabus_topic` · `SyllabusPage` TopicFormModal con selector PDF + páginas; TopicDetailCard chip doc/páginas · `GuideEditorPage` callout verde "Páginas del libro vinculadas al syllabus (semana N)" |
+| **Módulo Dictation** | ✅ ~90% completo | 5 tablas + 2 Edge Fns (dictation-tts, dictation-corrector) · DictationPage wizard 3 pasos · DictationPlayerPage antitrampa 5 capas · dictationAI.js + dictationUtils.js · Azure TTS 10 voces · corrección Levenshtein + Telegram · códigos por roster · monitor Realtime · Pendiente: email resultados, Azure key en secrets |
 | **Instrumento Docente** | 🔶 En desarrollo | Guión de sesión generado por IA para el docente (complemento de la Guía CBF-G AC-01) · IMS · estado del grupo · 3 opciones por fase · PREACHER CLOSE · prototipo en `theoric mark/teacher-instrument.jsx` |
 
 ---
@@ -281,6 +282,21 @@ Cuando el docente sube fotos de textbook en NewsProjectEditor:
 | Deploy directo a producción | Todas las migraciones y Edge Functions | ✅ Supabase Branch creado |
 
 ---
+
+## Completado — sesión 2026-05-26 (Módulo Dictation)
+
+- [x] Migración SQL: 5 tablas (dictation_blueprints, dictation_sessions, dictation_instances, dictation_responses, dictation_results) + RLS + RPC `get_dictation_instance_safe` + trigger + Storage bucket
+- [x] dictationUtils.js: DIFFICULTY_CONFIG, VOICE_OPTIONS (10 voces), levenshtein(), scoreTypedWord(), scoreDictation(), generateDictationCode(), QUESTION_POINTS
+- [x] dictationAI.js: generateDictation() — 4000 tokens, 3 secciones (listen_type, listen_identify, fill_blank) desde vocabulario + dificultad
+- [x] AIAssistant.js: barrel export `generateDictation` desde dictationAI.js
+- [x] Edge Function dictation-tts: Azure Cognitive Services SSML → MP3 → Supabase Storage
+- [x] Edge Function dictation-corrector: scoring server-side (Levenshtein + exact match) + upsert results + Telegram
+- [x] DictationPage.jsx: wizard 3 pasos (vocabulario → IA genera + TTS → publicar) + lista + monitor Realtime + config Telegram
+- [x] DictationPlayerPage.jsx: player público /eval/dictation, antitrampa 5 capas (reutiliza exam-integrity-alert), IndexedDB autosave, timer, resultado descargable HTML
+- [x] App.jsx: ruta /eval/dictation
+- [x] DashboardPage.jsx: lazy import DictationPage + ruta /dictations + sidebar "🎧 Dictados"
+- [x] index.css: ~280 líneas .dict-* con responsive
+- [x] DevStatusPage.jsx: entrada del módulo dictation (90%, status active)
 
 ## Completado — sesión 2026-05-01 (N.3 — Quiz/Final + Logros rediseño)
 

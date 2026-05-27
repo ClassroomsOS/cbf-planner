@@ -1,4 +1,4 @@
-# CBF PLANNER — v6.4
+# CBF PLANNER — v6.5
 ## CLAUDE.md — Documento maestro
 
 > **Principio rector:** *"Nosotros diseñamos. El docente enseña."*
@@ -250,6 +250,21 @@ question_criteria     — criterios por pregunta de examen · criterion_text · 
 correction_requests   — solicitudes de corrección humana de exam_responses
 human_overrides       — correcciones manuales de score y feedback
 
+— DICTATION MODULE —
+dictation_blueprints  — vocabulary[] · generated_questions JSONB · audio_urls · difficulty · voice_id
+                        teacher_id FK · school_id FK · grade(combined) · subject · unit_reference
+                        status(draft|ready|archived) · CHECK difficulty IN ('Basico','Intermedio','Avanzado')
+dictation_sessions    — blueprint_id FK · access_code UNIQUE · status(active|closed) · teacher_id · school_id
+                        duration_minutes · title · starts_at · ends_at
+dictation_instances   — session_id FK · student_id FK · student_name · student_section · access_code UNIQUE
+                        instance_status(pending|connected|in_progress|submitted) · violations int
+                        started_at · submitted_at · generated_questions JSONB (shuffled per student)
+dictation_responses   — instance_id FK · question_index · student_answer · is_correct · score · max_score
+dictation_results     — instance_id UNIQUE · total_score · max_score · colombian_grade · section_scores JSONB
+                        RPC: get_dictation_instance_safe(p_access_code) — strips correct_answer from questions
+                        Storage bucket: dictation-audio (público read)
+                        Trigger: set_dictation_instance_status — auto-update on response insert
+
 — MÓDULO PSICOSOCIAL —
 student_psychosocial_profiles — status · support_level · flags TEXT[]
                                 teacher_notes(visible todos) · confidential_notes(solo psico/rector/admin)
@@ -357,12 +372,17 @@ Colores, eleot® items y modelos → `src/utils/smartBlockHtml.js` · `src/compo
 | `generateTeachingStrategiesAI()` | 4000 — syllabusAI.js: estrategias pedagógicas para subunidades 'dense' (scaffolding, errores comunes, apoyos visuales, flujo de sesiones) |
 | `distributePagesByWeek()` | 2500 — syllabusAI.js: distribuye páginas según schedule + subunit_classification + teaching_strategies + start_unit → key_grammar[], key_vocabulary[], suggested_approach por día |
 | `advisorCheckSession()` | 1200 — syllabusAI.js: valida factibilidad de tiempo por sesión; skip AI si claramente factible/sobrecargado |
+| `generateDictation()` | 4000 — dictationAI.js: genera 3 secciones dictation (listen+type, listen+identify, fill_blank) desde vocabulario + dificultad → JSON con items + correct_answer + audio_text |
 
 **Reglas de comportamiento no documentadas en ai-integration.md:**
 - `generateGuideStructure` acepta `piarData?: { [category]: string[] }` — acomodaciones sin nombres de estudiantes. `GuideEditorPage` las consulta y pasa al modal; `ConversationalGuideModal` muestra aviso naranja en paso 3.
 - `generateExamQuestions` acepta `sections: [{id, name, types}]` — una llamada IA por sección; preguntas etiquetadas con `section_name` client-side. `sections` toma precedencia sobre `questionTypes` plano (legacy).
 - `AIGeneratorModal` gate: `(!activeIndicator && !achievementGoal)` — sin legacies. Ver Gotcha #4.
 - `exam-response-corrector` Edge Fn: confianza < 0.65 → `requires_human_review=true`. Fallback Claude falla → `score=0, requires_review=true` (no bloquea al estudiante).
+- `generateDictation` acepta `{ vocabulary, unitReference, grade, subject, difficulty }` — genera JSON con 3 secciones (listen_type, listen_identify, fill_blank). Items incluyen `audio_text`, `correct_answer`, `options[]` (MC), `max_score`. Dificultad controla conteo: Basico=18, Intermedio=24, Avanzado=28.
+- `dictation-tts` Edge Fn: Azure Cognitive Services SSML → MP3. Input: `{ texts[], voice_id, speed, blueprint_id, school_id, section }`. Output: `{ audio_urls[] }`. Env: `AZURE_TTS_KEY`, `AZURE_TTS_REGION`.
+- `dictation-corrector` Edge Fn: scoring determinístico (no IA). Levenshtein para typed words (exact=100%, lev≤1=50%), exact match para MC. Upsert `dictation_results` + Telegram al docente con nota colombiana + código anónimo (last-6 instance_id).
+- `DictationPlayerPage` reusa `exam-integrity-alert` Edge Fn para anti-cheat Telegram con `event_type: 'dictation_violation'`.
 
 ---
 
@@ -411,6 +431,7 @@ Helpers → `src/utils/roles.js`: `canManage · isSuperAdmin · isRector · canA
 /grades        GradebookPage            /grades/quick/:id  QuickGradePage
 /grading       GradingHubPage           /grading/session/:id GradingSessionPage
 /grading/display/:id GradingDisplayPage /grading/history    GradingHistoryPage
+/dictations    DictationPage
 
 // ROLES ESPECIALES
 /agenda        AgendaPage    /director  DirectorPage
@@ -423,7 +444,7 @@ Helpers → `src/utils/roles.js`: `canManage · isSuperAdmin · isRector · canA
 /exams/revision ExamRevisionPage   /academic-calendar AcademicCalendarPage
 
 // SOLO SUPERADMIN → /superadmin    SuperAdminPage
-// PÚBLICO (sin auth) → /eval       ExamPlayerV2Page
+// PÚBLICO (sin auth) → /eval       ExamPlayerV2Page · /eval/dictation  DictationPlayerPage
 ```
 
 ### Estado clave — ExamPlayerV2Page
@@ -433,6 +454,19 @@ violationAlert  // { title, message, isFullscreen } | null — banner rojo bloqu
 sections        // [{ name, indices[] }] — de q.section_name; hasMultipleSections
 // Telegram: código last-6 de instance_id, nunca PII
 sendTelegramNotification(eventType, extra) // sin throttle, para ciclo
+```
+
+### Estado clave — DictationPlayerPage
+```javascript
+localStorage['cbf_dict_entry'] = { code, name, section } // persiste para iOS
+phase           // 'entry' | 'instructions' | 'dictation' | 'submitted'
+violations      // int — multi-event anti-cheat detection (same 5-layer as ExamPlayerV2)
+activeSection   // 0-based index into sections (listen_type, listen_identify, fill_blank)
+answers         // { [globalIndex]: string } — IndexedDB autosave
+correctAnswersRef // useRef — correct_answer never in React state (DevTools security)
+// Telegram: reuses exam-integrity-alert Edge Fn with event_type 'dictation_*'
+// TTS: Azure Cognitive Services MP3 from Supabase Storage bucket dictation-audio
+// Scoring: Levenshtein fuzzy for typed words, exact match for MC — server verifies via dictation-corrector
 ```
 
 ### Estado clave — GuideEditorPage / PlannerPage
@@ -518,4 +552,4 @@ git add . && git commit -m "feat: ..." && git push   # deploy automático ~2 min
 ---
 
 *CBF Planner · ETA Platform · Edoardo Ortiz + Claude Sonnet · Barranquilla 2026*
-*"Nosotros diseñamos. El docente enseña." · CLAUDE.md v6.4 — Mayo 17, 2026*
+*"Nosotros diseñamos. El docente enseña." · CLAUDE.md v6.5 — Mayo 26, 2026*

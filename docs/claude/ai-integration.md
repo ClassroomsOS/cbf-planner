@@ -13,6 +13,7 @@ Client-side entry point is `src/utils/AIAssistant.js`, which exposes:
 | `generateRubric()` | Generate complete 5-level rubric (**exactly 8 criteria**) for NEWS project | 4000 |
 | `generateIndicadores()` | Generate indicators per Temática (Modelo A) or per habilidad (Modelo B) | 1500/2000 |
 | `importGuideFromDocx()` | Parse .docx text (via mammoth) into CBF lesson_plan content JSON | 8000 |
+| `generateDictation()` | Generate 3-section dictation exam from vocabulary + difficulty (dictationAI.js) | 4000 |
 
 `setAIContext({ schoolId, teacherId, monthlyLimit })` — must be called on login (DashboardPage). Enables usage logging to `ai_usage` table and monthly token limit enforcement. Pricing: input $3/MTok, output $15/MTok.
 
