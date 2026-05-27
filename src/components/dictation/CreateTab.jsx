@@ -198,6 +198,7 @@ export default function CreateTab({ teacher, showToast }) {
 
   // ── Step 1 → Step 2: Generate ──
   async function handleGenerate() {
+    console.log('handleGenerate called', { vocabLen: vocabulary.length, selectedGrade, entryMode })
     if (vocabulary.length < 3) {
       showToast('Agrega al menos 3 palabras de vocabulario', 'warning')
       return
