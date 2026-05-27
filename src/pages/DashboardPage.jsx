@@ -47,6 +47,7 @@ const StudentDetailPage        = lazy(() => import('./StudentDetailPage'))
 const QADashboardPage          = lazy(() => import('./QADashboardPage'))
 const DevStatusPage            = lazy(() => import('./DevStatusPage'))
 const InstrumentPage           = lazy(() => import('./InstrumentPage'))
+const DictationPage            = lazy(() => import('./DictationPage'))
 import ProfileModal        from '../components/ProfileModal'
 import { FeaturesProvider, useFeatures } from '../context/FeaturesContext'
 import { QAProvider }    from '../qa/QAContext'
@@ -322,6 +323,7 @@ function DashboardInner({ session, teacher, setTeacher }) {
           <Route path="/exams/review"    element={<ExamReviewPage         teacher={teacher} />} />
           <Route path="/exams/revision"  element={<ExamRevisionPage       teacher={teacher} />} />
           <Route path="/exams/:id"     element={<ExamViewPage           teacher={teacher} />} />
+          <Route path="/dictations"    element={<DictationPage           teacher={teacher} />} />
           <Route path="/students"      element={<StudentsPage            teacher={teacher} />} />
           <Route path="/player"               element={<StudentPlayerPage   teacher={teacher} />} />
           <Route path="/player/:studentId"    element={<StudentDetailPage   teacher={teacher} />} />
@@ -459,6 +461,7 @@ function SidebarNav({
         <L to="/" end dot="#2E5598">📝 Nueva Guía</L>
         <L to="/plans" dot="#9BBB59">📂 Mis Guías</L>
         <L to="/exams" dot="#C0504D">📝 Evaluaciones</L>
+        <L to="/dictations" dot="#4BACC6">🎧 Dictados</L>
         {pendingAIReview > 0 && (
           <NavLink to="/exams/review" className={({ isActive }) => isActive ? 'active' : ''} onClick={closeSidebar}>
             <span className="dot" style={{ background: '#F59E0B' }} />

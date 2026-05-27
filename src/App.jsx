@@ -9,8 +9,9 @@ import ProfileSetupPage from './pages/ProfileSetupPage'
 import PendingPage from './pages/PendingPage'
 import RejectedPage from './pages/RejectedPage'
 import SetPasswordPage from './pages/SetPasswordPage'
-import ExamPlayerPage   from './pages/ExamPlayerPage'
-import ExamPlayerV2Page from './pages/ExamPlayerV2Page'
+import ExamPlayerPage      from './pages/ExamPlayerPage'
+import ExamPlayerV2Page    from './pages/ExamPlayerV2Page'
+import DictationPlayerPage from './pages/DictationPlayerPage'
 
 export default function App() {
   const [session,    setSession]    = useState(undefined) // undefined = loading
@@ -156,6 +157,7 @@ export default function App() {
           <Route path="/exam/:code" element={<ExamPlayerPage />} />
           <Route path="/exam"       element={<ExamPlayerPage />} />
           <Route path="/eval"       element={<ExamPlayerV2Page />} />
+          <Route path="/eval/dictation" element={<DictationPlayerPage />} />
 
           {/* Not logged in → Login */}
           <Route path="/login" element={

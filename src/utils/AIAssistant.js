@@ -1,6 +1,6 @@
 // ── AIAssistant.js ────────────────────────────────────────────────────────────
 // Re-export barrel — preserves all existing import paths across the codebase.
-// Internal modules: aiClient.js · guideAI.js · examAI.js
+// Internal modules: aiClient.js · guideAI.js · examAI.js · dictationAI.js
 
 export { setAIContext } from './aiClient'
 
@@ -19,3 +19,5 @@ export {
 } from './guideAI'
 
 export { generateExamQuestions } from './examAI'
+
+export { generateDictation } from './dictationAI'

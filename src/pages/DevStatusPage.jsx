@@ -156,6 +156,33 @@ const MODULES = [
     ],
   },
   {
+    id: 'dictation',
+    name: 'Dictation Module',
+    icon: '🎧',
+    category: 'evaluation',
+    progress: 90,
+    status: 'active',
+    summary: 'Dictados con TTS automático + IA generadora + antitrampa + corrección instantánea + Telegram.',
+    works: [
+      'DictationPage: wizard 3 pasos (vocabulario → IA genera → publicar)',
+      'DictationPlayerPage: player público con antitrampa 5 capas reutilizado de ExamPlayerV2',
+      'dictationAI.js: generateDictation() — 3 secciones (listen+type, listen+identify, fill-blank)',
+      'dictation-tts Edge Function: Azure Cognitive Services TTS → MP3 → Supabase Storage',
+      'dictation-corrector Edge Function: corrección server-side + Levenshtein fuzzy + Telegram',
+      'Monitor en vivo con Supabase Realtime',
+      'Auto-corrección: escala colombiana 1.0–5.0, resultado descargable HTML',
+      '10 voces TTS (US/British/Australian/Irish, masculino/femenino, español colombiano)',
+      'Códigos por estudiante basados en roster (DICT-{prefix}-{student_code})',
+    ],
+    pending: [
+      'Envío de resultados por email a alumno y representante',
+      'Azure TTS API key — requiere configuración en Supabase secrets',
+    ],
+    history: [
+      { date: '2026-05-26', reason: 'Módulo inicial', detail: '5 tablas DB + 2 Edge Functions + DictationPage + DictationPlayerPage + dictationAI + dictationUtils + estilos.' },
+    ],
+  },
+  {
     id: 'library',
     name: 'Biblioteca CBF',
     icon: '📚',
