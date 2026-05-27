@@ -54,15 +54,19 @@ export default function CreateTab({ teacher, showToast }) {
   const gradeOptions = [...new Set(assignments.map(a => `${a.grade} ${a.section}`))]
   const subjectOptions = [...new Set(assignments.map(a => a.subject))]
 
-  // ── Add vocabulary word ──
+  // ── Add vocabulary word(s) — auto-splits if commas/semicolons/newlines detected ──
   function addWord() {
-    const w = vocabInput.trim()
-    if (!w) return
-    if (vocabulary.includes(w)) {
+    const raw = vocabInput.trim()
+    if (!raw) return
+    if (/[,;\n]/.test(raw)) {
+      pasteWords()
+      return
+    }
+    if (vocabulary.includes(raw)) {
       showToast('Esa palabra ya está en la lista', 'warning')
       return
     }
-    setVocabulary(prev => [...prev, w])
+    setVocabulary(prev => [...prev, raw])
     setVocabInput('')
   }
 

@@ -86,9 +86,16 @@ export default function VocabLibraryTab({ teacher, showToast }) {
   }
 
   function addEditWord() {
-    const w = addWordInput.trim()
-    if (!w || editWords.includes(w)) return
-    setEditWords(prev => [...prev, w])
+    const raw = addWordInput.trim()
+    if (!raw) return
+    if (/[,;\n]/.test(raw)) {
+      const words = raw.split(/[,\n;]+/).map(w => w.trim()).filter(w => w && !editWords.includes(w))
+      if (words.length) setEditWords(prev => [...prev, ...words])
+      setAddWordInput('')
+      return
+    }
+    if (editWords.includes(raw)) return
+    setEditWords(prev => [...prev, raw])
     setAddWordInput('')
   }
 
