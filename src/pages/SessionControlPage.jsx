@@ -347,17 +347,25 @@ export default function SessionControlPage({ teacher }) {
             </p>
           </div>
 
-          {/* Preview toggle */}
+          {/* Student view toggle */}
           <div className="ctrl-section">
             <button
               className={`ctrl-preview-toggle ${showPreview ? 'active' : ''}`}
               onClick={() => setShowPreview(v => !v)}
             >
-              {showPreview ? '🙈 Ocultar vista previa' : '👁 Ver examen (modo docente)'}
+              {showPreview ? '🙈 Ocultar vista del estudiante' : '👁 Vista del estudiante'}
             </button>
             {showPreview && (
-              <div className="ctrl-preview-container">
-                <DictationPreview blueprint={blueprint} sections={blueprintSections} />
+              <div className="ctrl-student-viewport">
+                <div className="ctrl-student-frame-label">Vista del estudiante (live)</div>
+                <div className="ctrl-student-frame-wrapper">
+                  <iframe
+                    src={STUDENT_URL}
+                    className="ctrl-student-iframe"
+                    title="Vista del estudiante"
+                    sandbox="allow-scripts allow-same-origin allow-forms"
+                  />
+                </div>
               </div>
             )}
           </div>

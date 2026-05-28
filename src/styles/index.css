@@ -9367,6 +9367,32 @@ button.cbf-loading {
 .ctrl-preview-toggle.active { background: #1D4ED8; color: white; border-color: #1D4ED8; }
 .ctrl-preview-container { margin-top: 12px; max-height: 400px; overflow-y: auto; border: 1px solid #E5E7EB; border-radius: 8px; }
 
+/* ── Student viewport (iframe preview) ── */
+.ctrl-student-viewport { margin-top: 12px; }
+.ctrl-student-frame-label {
+  font-size: 11px; color: #6B7280; text-align: center;
+  margin-bottom: 6px; font-style: italic;
+}
+.ctrl-student-frame-wrapper {
+  width: 100%;
+  /* iframe renders at 390px (iPhone), scaled ~0.72 to fit ~280px panel */
+  /* wrapper height = iframe height (750px) * scale (0.72) = 540px */
+  height: 540px;
+  overflow: hidden;
+  border: 2px solid #1D4ED8;
+  border-radius: 12px;
+  position: relative;
+  background: #0f172a;
+}
+.ctrl-student-iframe {
+  width: 390px;
+  height: 750px;
+  border: none;
+  transform: scale(0.72);
+  transform-origin: top left;
+  pointer-events: none;  /* read-only — teacher just observes */
+}
+
 .ctrl-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
 .ctrl-stat { background: white; border: 1px solid #E5E7EB; border-radius: 8px; padding: 10px; text-align: center; display: flex; flex-direction: column; gap: 2px; }
 .ctrl-stat-n { font-size: 1.5rem; font-weight: 800; line-height: 1; }
