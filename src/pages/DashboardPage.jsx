@@ -48,6 +48,7 @@ const QADashboardPage          = lazy(() => import('./QADashboardPage'))
 const DevStatusPage            = lazy(() => import('./DevStatusPage'))
 const InstrumentPage           = lazy(() => import('./InstrumentPage'))
 const DictationPage            = lazy(() => import('./DictationPage'))
+const SessionControlPage       = lazy(() => import('./SessionControlPage'))
 import ProfileModal        from '../components/ProfileModal'
 import { FeaturesProvider, useFeatures } from '../context/FeaturesContext'
 import { QAProvider }    from '../qa/QAContext'
@@ -324,6 +325,7 @@ function DashboardInner({ session, teacher, setTeacher }) {
           <Route path="/exams/revision"  element={<ExamRevisionPage       teacher={teacher} />} />
           <Route path="/exams/:id"     element={<ExamViewPage           teacher={teacher} />} />
           <Route path="/dictations"    element={<DictationPage           teacher={teacher} />} />
+          <Route path="/dictations/session/:sessionId" element={<SessionControlPage teacher={teacher} />} />
           <Route path="/students"      element={<StudentsPage            teacher={teacher} />} />
           <Route path="/player"               element={<StudentPlayerPage   teacher={teacher} />} />
           <Route path="/player/:studentId"    element={<StudentDetailPage   teacher={teacher} />} />

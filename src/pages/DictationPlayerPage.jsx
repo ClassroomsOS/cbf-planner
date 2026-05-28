@@ -176,9 +176,15 @@ export default function DictationPlayerPage() {
   const [submitting, setSubmitting] = useState(false)
   const [result, setResult] = useState(null)
 
+  // ── Teacher broadcast ──
+  const [teacherWarning, setTeacherWarning] = useState(null)
+  const teacherWarnTimerRef = useRef(null)
+  const ctrlChannelRef = useRef(null)
+
   // ── IDB ──
   const idbRef = useRef(null)
   const instanceRef = useRef(null)
+  const integrityEventsRef = useRef([])
 
   // Sync refs
   useEffect(() => { answersRef.current = answers }, [answers])
@@ -280,6 +286,28 @@ export default function DictationPlayerPage() {
     setPhase('dictation')
   }
 
+  // ── FORCE CLOSE (teacher-triggered) ────────────────────────────────────────
+
+  async function handleForceClose() {
+    // Exit fullscreen
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {})
+    }
+    // Stop timer
+    setTimeLeft(null)
+    // Mark in DB
+    const inst = instanceRef.current
+    if (inst) {
+      await supabase
+        .from('dictation_instances')
+        .update({ instance_status: 'force_closed' })
+        .eq('id', inst.id)
+    }
+    // Clean up local data
+    if (idbRef.current && inst) await idbClear(idbRef.current, inst.id)
+    setPhase('force_closed')
+  }
+
   // ── TIMER ───────────────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -307,6 +335,38 @@ export default function DictationPlayerPage() {
     return () => clearInterval(interval)
   }, [phase, instance])
 
+  // ── TEACHER BROADCAST CHANNEL ───────────────────────────────────────────────
+
+  useEffect(() => {
+    if (phase !== 'dictation' || !session?.id) return
+
+    const channel = supabase
+      .channel(`dictation-ctrl-${session.id}`)
+      .on('broadcast', { event: 'teacher_warning' }, ({ payload }) => {
+        // Accept if addressed to this instance or broadcast to all
+        if (!payload.instanceId || payload.instanceId === instanceRef.current?.id) {
+          setTeacherWarning(payload)
+          // Clear any existing auto-dismiss timer
+          if (teacherWarnTimerRef.current) clearTimeout(teacherWarnTimerRef.current)
+          teacherWarnTimerRef.current = setTimeout(() => setTeacherWarning(null), 10000)
+        }
+      })
+      .on('broadcast', { event: 'force_close' }, ({ payload }) => {
+        if (!payload.instanceId || payload.instanceId === instanceRef.current?.id) {
+          handleForceClose()
+        }
+      })
+      .subscribe()
+
+    ctrlChannelRef.current = channel
+
+    return () => {
+      if (teacherWarnTimerRef.current) clearTimeout(teacherWarnTimerRef.current)
+      supabase.removeChannel(channel)
+      ctrlChannelRef.current = null
+    }
+  }, [phase, session?.id])
+
   // ── ANTI-CHEAT (Layer 1: Multi-event detection) ────────────────────────────
 
   useEffect(() => {
@@ -319,6 +379,8 @@ export default function DictationPlayerPage() {
 
       // Update DB
       const inst = instanceRef.current
+      const now = new Date().toISOString()
+      integrityEventsRef.current = [...integrityEventsRef.current, { type: eventType, ts: now }]
       if (inst) {
         supabase
           .from('dictation_instances')
@@ -327,7 +389,8 @@ export default function DictationPlayerPage() {
             integrity_flags: {
               high_risk: newCount >= HIGH_RISK_THRESHOLD,
               last_event: eventType,
-              last_event_at: new Date().toISOString(),
+              last_event_at: now,
+              events: integrityEventsRef.current,
             },
           })
           .eq('id', inst.id)
@@ -346,9 +409,9 @@ export default function DictationPlayerPage() {
       setTimeout(() => setViolationAlert(null), 5000)
 
       // Throttled Telegram alert
-      const now = Date.now()
-      if (now - lastAlertRef.current > TELEGRAM_THROTTLE_MS) {
-        lastAlertRef.current = now
+      const nowMs = Date.now()
+      if (nowMs - lastAlertRef.current > TELEGRAM_THROTTLE_MS) {
+        lastAlertRef.current = nowMs
         sendTelegramNotification(eventType, { count: newCount })
       }
     }
@@ -681,6 +744,27 @@ ${result.section_scores ? Object.entries(result.section_scores).map(([type, s]) 
           </div>
         )}
 
+        {/* Teacher warning overlay (full-screen) */}
+        {teacherWarning && (
+          <div className="dict-teacher-warning-overlay">
+            <div className="dict-teacher-warning-card">
+              <div className="dict-teacher-warning-icon">⚠️</div>
+              <h2>Message from your teacher</h2>
+              <p className="dict-teacher-warning-msg">{teacherWarning.message}</p>
+              <button
+                onClick={() => {
+                  if (teacherWarnTimerRef.current) clearTimeout(teacherWarnTimerRef.current)
+                  setTeacherWarning(null)
+                }}
+                className="dict-teacher-warning-btn"
+              >
+                Understood
+              </button>
+              <p className="dict-teacher-warning-auto">This message will close automatically in 10 seconds.</p>
+            </div>
+          </div>
+        )}
+
         {/* Top bar */}
         <div className="dict-topbar">
           <span className="dict-topbar-title">🎧 {blueprint?.title || 'Dictation'}</span>
@@ -888,6 +972,24 @@ ${result.section_scores ? Object.entries(result.section_scores).map(([type, s]) 
           <div className="dict-result-verse">
             <em>"My grace is all you need, for my power is the greatest when you are weak."</em>
             <br />— 2 Corinthians 12:9
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ── FORCE CLOSED PHASE ──
+  if (phase === 'force_closed') {
+    return (
+      <div className="dict-player-force-closed">
+        <div className="dict-force-closed-card">
+          <div className="dict-force-closed-icon">🔒</div>
+          <h1>Exam Closed</h1>
+          <p>Your exam has been closed by your teacher.</p>
+          <p className="dict-force-closed-sub">Please wait for further instructions from your teacher.</p>
+          <div className="dict-force-closed-info">
+            <span>{instance?.student_name}</span>
+            <span>{blueprint?.title || 'Dictation'}</span>
           </div>
         </div>
       </div>

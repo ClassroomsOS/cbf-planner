@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../supabase'
 import { printDictationHtml } from '../../utils/exportDictationHtml'
 import { randomPrefix, generateDictationCode, DIFFICULTY_CONFIG } from '../../utils/dictationUtils'
 import { logError, logActivity } from '../../utils/logger'
 
 export default function ListTab({ teacher, showToast }) {
+  const navigate = useNavigate()
   const [blueprints, setBlueprints] = useState([])
   const [sessions, setSessions] = useState([])
   const [loading, setLoading] = useState(true)
@@ -287,9 +289,18 @@ export default function ListTab({ teacher, showToast }) {
                             <span>👥 {submitted}/{insts.length}</span>
                             <span>{new Date(ses.created_at).toLocaleDateString('es-CO')}</span>
                             {ses.status !== 'closed' && (
-                              <button onClick={() => closeSession(ses.id)} className="dict-btn-sm secondary" style={{ fontSize: 11, padding: '2px 8px' }}>
-                                🔒 Cerrar
-                              </button>
+                              <>
+                                <button
+                                  onClick={() => navigate(`/dictations/session/${ses.id}`)}
+                                  className="dict-btn-sm"
+                                  style={{ fontSize: 11, padding: '2px 8px', background: '#1F3864', color: 'white', border: 'none' }}
+                                >
+                                  🎛️ Sala
+                                </button>
+                                <button onClick={() => closeSession(ses.id)} className="dict-btn-sm secondary" style={{ fontSize: 11, padding: '2px 8px' }}>
+                                  🔒 Cerrar
+                                </button>
+                              </>
                             )}
                           </div>
                         )

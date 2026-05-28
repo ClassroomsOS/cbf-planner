@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../supabase'
 import { generateDictation } from '../../utils/AIAssistant'
 import {
@@ -13,6 +14,7 @@ import ManualEntryForm from './ManualEntryForm'
 import AudioExportPanel from './AudioExportPanel'
 
 export default function CreateTab({ teacher, showToast }) {
+  const navigate = useNavigate()
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [generating, setGenerating] = useState(false)
@@ -41,6 +43,7 @@ export default function CreateTab({ teacher, showToast }) {
   // Step 3 — Publish
   const [title, setTitle] = useState('')
   const [duration, setDuration] = useState(30)
+  const [publishedSession, setPublishedSession] = useState(null) // { id, access_code }
 
   // Load teacher assignments
   useEffect(() => {
@@ -354,13 +357,8 @@ export default function CreateTab({ teacher, showToast }) {
 
       showToast(`${modeConfig.label} publicado. Código: ${session.access_code}`, 'success')
 
-      // Reset wizard
-      setStep(1)
-      setGenerated(null)
-      setAudioUrls({})
-      setVocabulary([])
-      setLoadedSetName('')
-      setTitle('')
+      // Show post-publish panel
+      setPublishedSession({ id: session.id, access_code: session.access_code })
     } catch (err) {
       logError(err, { page: 'DictationPage', action: 'publishDictation' })
       showToast(err.message || 'Error al publicar', 'error')
@@ -372,6 +370,54 @@ export default function CreateTab({ teacher, showToast }) {
   // ── Render ──
   return (
     <div className="dict-create">
+
+      {/* ── POST-PUBLISH PANEL ── */}
+      {publishedSession && (
+        <div className="dict-postpublish-panel">
+          <div className="dict-postpublish-icon">🎉</div>
+          <h2>¡Dictado publicado!</h2>
+          <p className="dict-postpublish-sub">Los estudiantes pueden ingresar ahora con su código personal.</p>
+
+          <div className="dict-postpublish-link-box">
+            <label>URL del estudiante</label>
+            <div className="dict-postpublish-link-row">
+              <span className="dict-postpublish-url">{`${window.location.origin}${import.meta.env.BASE_URL}#/eval/dictation`}</span>
+              <button
+                className="dict-postpublish-copy"
+                onClick={() => navigator.clipboard.writeText(`${window.location.origin}${import.meta.env.BASE_URL}#/eval/dictation`).then(() => showToast('URL copiada', 'success'))}
+              >
+                Copiar
+              </button>
+            </div>
+            <p className="dict-postpublish-note">Cada estudiante usa su código individual generado automáticamente del roster.</p>
+          </div>
+
+          <div className="dict-postpublish-actions">
+            <button
+              className="dict-postpublish-btn primary"
+              onClick={() => navigate(`/dictations/session/${publishedSession.id}`)}
+            >
+              🎛️ Abrir Sala de Control
+            </button>
+            <button
+              className="dict-postpublish-btn secondary"
+              onClick={() => {
+                setPublishedSession(null)
+                setStep(1)
+                setGenerated(null)
+                setAudioUrls({})
+                setVocabulary([])
+                setLoadedSetName('')
+                setTitle('')
+              }}
+            >
+              ＋ Crear otro dictado
+            </button>
+          </div>
+        </div>
+      )}
+
+      {!publishedSession && (<>
       {/* Step indicators */}
       <div className="dict-steps">
         {[1, 2, 3].map(s => (
@@ -764,6 +810,7 @@ export default function CreateTab({ teacher, showToast }) {
           </div>
         </div>
       )}
+      </>)}
     </div>
   )
 }

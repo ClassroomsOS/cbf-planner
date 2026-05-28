@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../supabase'
 import { gradeColor } from '../../utils/dictationUtils'
 
 export default function MonitorTab({ teacher }) {
+  const navigate = useNavigate()
   const [sessions, setSessions] = useState([])
   const [selectedSession, setSelectedSession] = useState(null)
   const [instances, setInstances] = useState([])
@@ -83,6 +85,14 @@ export default function MonitorTab({ teacher }) {
             <option key={s.id} value={s.id}>{s.title || s.access_code} ({s.status})</option>
           ))}
         </select>
+        {selectedSession && (
+          <button
+            className="dict-btn-sala"
+            onClick={() => navigate(`/dictations/session/${selectedSession}`)}
+          >
+            🎛️ Sala de Control
+          </button>
+        )}
         <span className="dict-monitor-live">📡 En vivo</span>
       </div>
 
