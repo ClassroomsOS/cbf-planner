@@ -8880,6 +8880,12 @@ button.cbf-loading {
 .dict-btn.secondary:hover { background: #d1d5db; }
 .dict-btn-sm { padding: 6px 14px; border: 1px solid #d1d5db; border-radius: 8px; background: white; cursor: pointer; font-size: 13px; }
 .dict-btn-sm.secondary { background: #f3f4f6; }
+.dict-btn-sm.dict-btn-delete { border-color: #FECACA; color: #DC2626; background: #FFF5F5; }
+.dict-btn-sm.dict-btn-delete:hover { background: #FEE2E2; border-color: #FCA5A5; }
+.dict-delete-confirm-inline { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: #DC2626; font-weight: 600; flex-wrap: wrap; }
+.dict-delete-confirm-yes { padding: 2px 10px; background: #DC2626; color: white; border: none; border-radius: 5px; font-size: 11px; cursor: pointer; font-weight: 700; }
+.dict-delete-confirm-yes:hover { background: #B91C1C; }
+.dict-delete-confirm-no  { padding: 2px 8px; background: white; color: #6B7280; border: 1px solid #D1D5DB; border-radius: 5px; font-size: 11px; cursor: pointer; }
 
 /* ── Preview section ── */
 .dict-preview-section { margin-bottom: 20px; border: 1px solid #e5e7eb; border-radius: 10px; padding: 16px; }

@@ -21,6 +21,11 @@ export default function ListTab({ teacher, showToast }) {
   const [reusing, setReusing] = useState(null) // blueprint id being reused
   const [reuseDuration, setReuseDuration] = useState(30)
 
+  // Delete
+  const [confirmDeleteSession, setConfirmDeleteSession] = useState(null) // session id
+  const [confirmDeleteBp, setConfirmDeleteBp]           = useState(null) // blueprint id
+  const [deleting, setDeleting] = useState(null) // id being deleted
+
   useEffect(() => {
     loadData()
   }, [teacher])
@@ -152,6 +157,77 @@ export default function ListTab({ teacher, showToast }) {
   async function handlePrintPdf(bp) {
     const { data: schoolData } = await supabase.from('schools').select('*').eq('id', teacher.school_id).single()
     printDictationHtml({ blueprint: bp, school: schoolData, teacherName: teacher.full_name || teacher.email })
+  }
+
+  async function handleDeleteSession(sessionId) {
+    setDeleting(sessionId)
+    try {
+      // Get instance IDs first
+      const { data: insts } = await supabase
+        .from('dictation_instances')
+        .select('id')
+        .eq('session_id', sessionId)
+
+      const instIds = (insts || []).map(i => i.id)
+
+      if (instIds.length > 0) {
+        await supabase.from('dictation_responses').delete().in('instance_id', instIds)
+        await supabase.from('dictation_results').delete().in('instance_id', instIds)
+        await supabase.from('dictation_instances').delete().eq('session_id', sessionId)
+      }
+
+      const { error } = await supabase.from('dictation_sessions').delete().eq('id', sessionId)
+      if (error) throw error
+
+      logActivity('dictation_session_deleted', 'dictation_sessions', sessionId, 'Session deleted by teacher')
+      showToast('Sesión eliminada', 'success')
+      setConfirmDeleteSession(null)
+      loadData()
+    } catch (err) {
+      logError(err, { page: 'DictationPage', action: 'deleteSession' })
+      showToast(err.message || 'Error al eliminar sesión', 'error')
+    } finally {
+      setDeleting(null)
+    }
+  }
+
+  async function handleDeleteBlueprint(bpId) {
+    setDeleting(bpId)
+    try {
+      // Get all session IDs for this blueprint
+      const { data: bpSessions } = await supabase
+        .from('dictation_sessions')
+        .select('id')
+        .eq('blueprint_id', bpId)
+
+      for (const ses of (bpSessions || [])) {
+        const { data: insts } = await supabase
+          .from('dictation_instances')
+          .select('id')
+          .eq('session_id', ses.id)
+
+        const instIds = (insts || []).map(i => i.id)
+        if (instIds.length > 0) {
+          await supabase.from('dictation_responses').delete().in('instance_id', instIds)
+          await supabase.from('dictation_results').delete().in('instance_id', instIds)
+          await supabase.from('dictation_instances').delete().eq('session_id', ses.id)
+        }
+        await supabase.from('dictation_sessions').delete().eq('id', ses.id)
+      }
+
+      const { error } = await supabase.from('dictation_blueprints').delete().eq('id', bpId)
+      if (error) throw error
+
+      logActivity('dictation_blueprint_deleted', 'dictation_blueprints', bpId, 'Blueprint deleted by teacher')
+      showToast('Dictado eliminado', 'success')
+      setConfirmDeleteBp(null)
+      loadData()
+    } catch (err) {
+      logError(err, { page: 'DictationPage', action: 'deleteBlueprint' })
+      showToast(err.message || 'Error al eliminar dictado', 'error')
+    } finally {
+      setDeleting(null)
+    }
   }
 
   if (loading) return <div className="dict-loading">Cargando...</div>
@@ -302,6 +378,32 @@ export default function ListTab({ teacher, showToast }) {
                                 </button>
                               </>
                             )}
+                            {confirmDeleteSession === ses.id ? (
+                              <span className="dict-delete-confirm-inline">
+                                ¿Eliminar?
+                                <button
+                                  className="dict-delete-confirm-yes"
+                                  disabled={deleting === ses.id}
+                                  onClick={() => handleDeleteSession(ses.id)}
+                                >
+                                  {deleting === ses.id ? '...' : 'Sí'}
+                                </button>
+                                <button
+                                  className="dict-delete-confirm-no"
+                                  onClick={() => setConfirmDeleteSession(null)}
+                                >
+                                  No
+                                </button>
+                              </span>
+                            ) : (
+                              <button
+                                className="dict-btn-sm dict-btn-delete"
+                                onClick={() => setConfirmDeleteSession(ses.id)}
+                                title="Eliminar sesión"
+                              >
+                                🗑️
+                              </button>
+                            )}
                           </div>
                         )
                       })}
@@ -314,6 +416,32 @@ export default function ListTab({ teacher, showToast }) {
                     <button onClick={() => toggleArchive(bp)} className="dict-btn-sm secondary">
                       {bp.status === 'archived' ? '📂 Restaurar' : '📦 Archivar'}
                     </button>
+                    {confirmDeleteBp === bp.id ? (
+                      <span className="dict-delete-confirm-inline">
+                        ¿Eliminar dictado y todas sus sesiones?
+                        <button
+                          className="dict-delete-confirm-yes"
+                          disabled={deleting === bp.id}
+                          onClick={() => handleDeleteBlueprint(bp.id)}
+                        >
+                          {deleting === bp.id ? '...' : 'Sí, eliminar'}
+                        </button>
+                        <button
+                          className="dict-delete-confirm-no"
+                          onClick={() => setConfirmDeleteBp(null)}
+                        >
+                          Cancelar
+                        </button>
+                      </span>
+                    ) : (
+                      <button
+                        className="dict-btn-sm dict-btn-delete"
+                        onClick={() => setConfirmDeleteBp(bp.id)}
+                        title="Eliminar dictado completo"
+                      >
+                        🗑️ Eliminar
+                      </button>
+                    )}
                     <div className="dict-reuse-row">
                       <input
                         type="number" min={5} max={90}
