@@ -9166,6 +9166,7 @@ button.cbf-loading {
   font-weight: 700; font-size: 15px; cursor: pointer;
 }
 .dict-submit-btn:disabled { background: #9CA3AF; cursor: not-allowed; }
+.dict-submit-error { color: #DC2626; font-size: 13px; font-weight: 600; margin: 0; }
 
 /* ── Teacher warning overlay ── */
 .dict-teacher-warning-overlay {

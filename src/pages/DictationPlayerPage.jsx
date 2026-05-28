@@ -514,13 +514,13 @@ export default function DictationPlayerPage() {
       const startedAt = inst?.started_at ? new Date(inst.started_at) : new Date()
       const timeSpent = Math.round((Date.now() - startedAt.getTime()) / 1000)
 
-      // 1. Insert responses (without correct_answer — we don't have it on client)
+      // 1. Insert responses
       const responses = questions.map((q, i) => ({
         instance_id: inst.id,
         question_index: i,
         question_type: q.question_type,
         answer: currentAnswers[i] || '',
-        correct_answer: '', // will be filled by server
+        correct_answer: '',
         is_correct: null,
         score: 0,
         max_score: q.max_score || 1,
@@ -532,8 +532,8 @@ export default function DictationPlayerPage() {
 
       if (respErr) throw respErr
 
-      // 2. Update instance
-      await supabase
+      // 2. Update instance status
+      const { error: instErr } = await supabase
         .from('dictation_instances')
         .update({
           instance_status: 'submitted',
@@ -543,43 +543,69 @@ export default function DictationPlayerPage() {
         })
         .eq('id', inst.id)
 
-      // 3. Call server-side corrector
+      if (instErr) throw instErr
+
+      // 3. Exit fullscreen + clean up immediately
+      if (document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {})
+      }
+      if (idbRef.current) await idbClear(idbRef.current, inst.id)
+      localStorage.removeItem('cbf_dictation_entry')
+
+      // 4. Transition to submitted — result arrives via Realtime subscription below
+      setPhase('submitted')
+
+      // 5. Fire corrector in background (non-blocking)
       const edgeFnUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/dictation-corrector`
-      const correctorRes = await fetch(edgeFnUrl, {
+      fetch(edgeFnUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ instance_id: inst.id }),
       })
-      const correctorData = await correctorRes.json()
+        .then(r => r.json())
+        .then(data => {
+          sendTelegramNotification('dictation_submitted', {
+            score_info: data.ok
+              ? `${data.colombian_grade}/5.0 (${data.grade_level})`
+              : 'Correction pending',
+          })
+          // If Realtime hasn't delivered the result yet, set it directly
+          if (data.ok) setResult(prev => prev || data)
+        })
+        .catch(() => {})
 
-      if (correctorData.ok) {
-        setResult(correctorData)
-      } else {
-        setResult({ total_score: 0, max_score: 1, colombian_grade: 1.0, grade_level: 'Bajo' })
-      }
-
-      // 4. Send Telegram: submitted
-      sendTelegramNotification('dictation_submitted', {
-        score_info: correctorData.ok
-          ? `${correctorData.colombian_grade}/5.0 (${correctorData.grade_level})`
-          : 'Pending correction',
-      })
-
-      // 5. Clean up
-      if (idbRef.current) await idbClear(idbRef.current, inst.id)
-      localStorage.removeItem('cbf_dictation_entry')
-
-      // Exit fullscreen
-      if (document.fullscreenElement) {
-        document.exitFullscreen().catch(() => {})
-      }
-
-      setPhase('submitted')
     } catch (err) {
       logError(err, { page: 'DictationPlayerPage', action: 'submit' })
       setSubmitting(false)
+      setError('Could not submit your exam. Please try again or ask your teacher for help.')
     }
   }
+
+  // ── Realtime: listen for correction result ──────────────────────────────────
+  useEffect(() => {
+    if (phase !== 'submitted' || !instance?.id) return
+
+    const channel = supabase
+      .channel(`dictation-result-${instance.id}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'dictation_results',
+        filter: `instance_id=eq.${instance.id}`,
+      }, ({ new: row }) => {
+        setResult({
+          ok: true,
+          colombian_grade: row.colombian_grade,
+          grade_level: row.grade_level,
+          total_score: row.total_score,
+          max_score: row.max_score,
+          section_scores: row.section_scores,
+        })
+      })
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [phase, instance?.id])
 
   // ── Group questions by section ──────────────────────────────────────────────
 
@@ -914,12 +940,15 @@ ${result.section_scores ? Object.entries(result.section_scores).map(([type, s]) 
           <span className="dict-progress">
             {Object.keys(answers).length}/{questions.length} answered
           </span>
+          {error && (
+            <p className="dict-submit-error">⚠️ {error}</p>
+          )}
           <button
             onClick={handleSubmit}
             disabled={submitting}
             className="dict-submit-btn"
           >
-            {submitting ? '📡 Submitting...' : '✅ Submit Dictation'}
+            {submitting ? '📡 Sending...' : '✅ Submit Dictation'}
           </button>
         </div>
       </div>
