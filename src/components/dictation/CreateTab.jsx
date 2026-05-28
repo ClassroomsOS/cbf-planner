@@ -229,7 +229,7 @@ export default function CreateTab({ teacher, showToast }) {
       const edgeFnUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/dictation-tts`
 
       // Only generate audio for sections that have audio_text
-      const audioSections = source.sections.filter(s =>
+      const audioSections = (source.sections || []).filter(s =>
         s.type === 'listen_type' || s.type === 'listen_identify'
       )
 
@@ -626,7 +626,7 @@ export default function CreateTab({ teacher, showToast }) {
           {modeConfig.requiresAudio && (
             <AudioExportPanel
               audioUrls={audioUrls}
-              sections={generated.sections.filter(s => s.type === 'listen_type' || s.type === 'listen_identify')}
+              sections={(generated.sections || []).filter(s => s.type === 'listen_type' || s.type === 'listen_identify')}
               title={title || generated.title}
               showToast={showToast}
             />
@@ -681,7 +681,7 @@ export default function CreateTab({ teacher, showToast }) {
           {modeConfig.requiresAudio && Object.values(audioUrls).flat().filter(Boolean).length > 0 && (
             <AudioExportPanel
               audioUrls={audioUrls}
-              sections={manualSections.filter(s => s.type === 'listen_type' || s.type === 'listen_identify')}
+              sections={(manualSections || []).filter(s => s.type === 'listen_type' || s.type === 'listen_identify')}
               title={title}
               showToast={showToast}
             />
