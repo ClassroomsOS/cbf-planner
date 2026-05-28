@@ -20,7 +20,7 @@ const STATUS_ICON = {
   force_closed:{ icon: '🔴', label: 'Cerrado',     color: '#DC2626' },
 }
 
-const STUDENT_URL = `${window.location.origin}${import.meta.env.BASE_URL}#/eval/dictation`
+const STUDENT_URL = `${window.location.origin}${import.meta.env.BASE_URL}eval/dictation`
 
 function fmt(s) {
   if (s == null) return '—'
