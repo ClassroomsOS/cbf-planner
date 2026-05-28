@@ -96,11 +96,16 @@ function buildTestEmailHtml(params: {
             </div>
 
             <!-- CTA button -->
-            <div style="text-align:center;margin-bottom:28px;">
+            <div style="text-align:center;margin-bottom:12px;">
               <a href="${PLAYER_URL}"
                 style="display:inline-block;background:linear-gradient(135deg,#1F3864,#2E5598);color:#fff;text-decoration:none;padding:14px 36px;border-radius:10px;font-size:15px;font-weight:700;letter-spacing:0.02em;">
                 🎧 Ingresar a la evaluación →
               </a>
+            </div>
+            <!-- Visible URL for copy-paste -->
+            <div style="text-align:center;margin-bottom:28px;">
+              <p style="margin:0 0 4px;font-size:11px;color:#9CA3AF;">O copia y pega este enlace en tu navegador:</p>
+              <a href="${PLAYER_URL}" style="font-size:13px;color:#2563EB;word-break:break-all;">${PLAYER_URL}</a>
             </div>
 
             <!-- Info -->
