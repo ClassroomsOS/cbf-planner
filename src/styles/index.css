@@ -9477,6 +9477,19 @@ button.cbf-loading {
 .ctrl-td-name { font-weight: 600; }
 .ctrl-violations-badge { background: #DC2626; color: white; padding: 2px 7px; border-radius: 20px; font-size: 11px; font-weight: 700; }
 
+/* Blinking badge — unacknowledged violation */
+@keyframes ctrl-badge-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 0 rgba(220,38,38,0.5); }
+  50%       { opacity: 0.85; transform: scale(1.18); box-shadow: 0 0 0 5px rgba(220,38,38,0); }
+}
+.ctrl-violations-badge--alert {
+  animation: ctrl-badge-pulse 0.75s ease-in-out infinite;
+}
+/* Row highlight for unacknowledged violation */
+.ctrl-row--alert { border-left: 3px solid #DC2626 !important; background: rgba(220,38,38,0.04) !important; }
+.ctrl-row--alert:hover { background: rgba(220,38,38,0.08) !important; }
+.ctrl-row--alert.selected { background: rgba(220,38,38,0.06) !important; }
+
 /* ── Right panel — detail ── */
 .ctrl-detail-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: 12px; color: #9CA3AF; text-align: center; padding: 40px 20px; }
 .ctrl-detail-empty span { font-size: 2.5rem; }

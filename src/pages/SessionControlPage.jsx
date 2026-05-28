@@ -71,6 +71,17 @@ export default function SessionControlPage({ teacher }) {
   const [emailSent, setEmailSent]     = useState(new Set())   // Set of instance IDs
   const [emailLoading, setEmailLoading] = useState(null)      // instance ID being sent
 
+  // ── Violation acknowledgment ──
+  // Tracks how many tab_switches were known at the teacher's last action per student.
+  // Badge blinks while tab_switches > acknowledgedViolations[id].
+  const [acknowledgedViolations, setAcknowledgedViolations] = useState({})
+
+  function acknowledgeViolations(instanceId) {
+    const inst = instances.find(i => i.id === instanceId)
+    if (!inst) return
+    setAcknowledgedViolations(prev => ({ ...prev, [instanceId]: inst.tab_switches || 0 }))
+  }
+
   // ── Load session + blueprint ──────────────────────────────────────────────
 
   useEffect(() => {
@@ -165,6 +176,8 @@ export default function SessionControlPage({ teacher }) {
       : { instanceId: warningTarget.instanceId, message, severity }
 
     await ch.send({ type: 'broadcast', event: 'teacher_warning', payload })
+    // Acknowledge violations for the targeted student (warning = teacher took action)
+    if (warningTarget !== 'all') acknowledgeViolations(warningTarget.instanceId)
     showAction('⚠️ Advertencia enviada')
   }
 
@@ -183,6 +196,7 @@ export default function SessionControlPage({ teacher }) {
       .update({ instance_status: 'force_closed' })
       .eq('id', inst.id)
 
+    acknowledgeViolations(inst.id)
     setActionLoading(false)
     setConfirmClose(null)
     showAction('🔒 Examen cerrado')
@@ -398,11 +412,17 @@ export default function SessionControlPage({ teacher }) {
                   const st = STATUS_ICON[inst.instance_status] || STATUS_ICON.ready
                   const res = results[inst.id]
                   const isSelected = inst.id === selectedId
+                  const violations = inst.tab_switches || 0
+                  const acked = acknowledgedViolations[inst.id] ?? 0
+                  const hasUnacked = violations > acked
                   return (
                     <tr
                       key={inst.id}
-                      className={`ctrl-row ${inst.instance_status} ${isSelected ? 'selected' : ''}`}
-                      onClick={() => setSelectedId(isSelected ? null : inst.id)}
+                      className={`ctrl-row ${inst.instance_status} ${isSelected ? 'selected' : ''} ${hasUnacked ? 'ctrl-row--alert' : ''}`}
+                      onClick={() => {
+                        setSelectedId(isSelected ? null : inst.id)
+                        if (!isSelected) acknowledgeViolations(inst.id)
+                      }}
                     >
                       <td title={st.label}>
                         <span style={{ fontSize: '1.1rem' }}>{st.icon}</span>
@@ -412,8 +432,10 @@ export default function SessionControlPage({ teacher }) {
                       <td>{fmtTime(inst.started_at)}</td>
                       <td>{fmtTime(inst.submitted_at)}</td>
                       <td>
-                        {inst.tab_switches > 0 ? (
-                          <span className="ctrl-violations-badge">{inst.tab_switches}</span>
+                        {violations > 0 ? (
+                          <span className={`ctrl-violations-badge${hasUnacked ? ' ctrl-violations-badge--alert' : ''}`}>
+                            {violations}
+                          </span>
                         ) : (
                           <span style={{ color: '#9CA3AF' }}>0</span>
                         )}
