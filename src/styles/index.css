@@ -9457,6 +9457,15 @@ button.cbf-loading {
 .ctrl-action-warn:hover { background: #FDE68A; }
 .ctrl-action-close { background: #FEE2E2; color: #DC2626; border: 1px solid #FECACA; }
 .ctrl-action-close:hover { background: #FECACA; }
+/* Access code display */
+.ctrl-access-code-box { background: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 8px; padding: 10px 14px; margin-bottom: 10px; }
+.ctrl-access-code-label { font-size: 11px; color: #15803D; font-weight: 600; display: block; margin-bottom: 4px; }
+.ctrl-access-code-row { display: flex; align-items: center; gap: 8px; }
+.ctrl-access-code { font-family: monospace; font-size: 14px; font-weight: 700; color: #15803D; letter-spacing: 0.5px; flex: 1; }
+.ctrl-access-code-copy { background: none; border: none; cursor: pointer; font-size: 16px; padding: 2px 4px; border-radius: 4px; }
+.ctrl-access-code-copy:hover { background: #DCFCE7; }
+.ctrl-td-code { font-family: monospace; font-size: 11px; color: #374151; white-space: nowrap; }
+
 .ctrl-action-corrected { background: #EFF6FF; color: #1D4ED8; border: 1px solid #BFDBFE; }
 .ctrl-action-corrected:hover { background: #DBEAFE; }
 .ctrl-action-email { background: #F0FDF4; color: #15803D; border: 1px solid #BBF7D0; }

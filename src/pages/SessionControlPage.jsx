@@ -419,13 +419,11 @@ export default function SessionControlPage({ teacher }) {
                 <tr>
                   <th></th>
                   <th>Nombre</th>
-                  <th>Sección</th>
+                  <th>Código acceso</th>
                   <th>Entrada</th>
                   <th>Entrega</th>
                   <th>Trampas</th>
-                  <th>Tiempo</th>
                   <th>Nota</th>
-                  <th>Nivel</th>
                 </tr>
               </thead>
               <tbody>
@@ -443,7 +441,7 @@ export default function SessionControlPage({ teacher }) {
                         <span style={{ fontSize: '1.1rem' }}>{st.icon}</span>
                       </td>
                       <td className="ctrl-td-name">{inst.student_name || '—'}</td>
-                      <td>{inst.student_section || '—'}</td>
+                      <td className="ctrl-td-code">{inst.access_code || '—'}</td>
                       <td>{fmtTime(inst.started_at)}</td>
                       <td>{fmtTime(inst.submitted_at)}</td>
                       <td>
@@ -453,11 +451,9 @@ export default function SessionControlPage({ teacher }) {
                           <span style={{ color: '#9CA3AF' }}>0</span>
                         )}
                       </td>
-                      <td>{inst.time_spent_seconds ? fmt(inst.time_spent_seconds) : '—'}</td>
                       <td style={{ fontWeight: 700, color: res ? gradeColor(parseFloat(res.colombian_grade)) : '#9CA3AF' }}>
                         {res ? `${res.colombian_grade}/5.0` : '—'}
                       </td>
-                      <td>{res?.grade_level || '—'}</td>
                     </tr>
                   )
                 })}
@@ -480,9 +476,24 @@ export default function SessionControlPage({ teacher }) {
                 <div className="ctrl-detail-status" title={STATUS_ICON[selectedInst.instance_status]?.label}>
                   {STATUS_ICON[selectedInst.instance_status]?.icon}
                 </div>
-                <div>
+                <div style={{ flex: 1 }}>
                   <h3 className="ctrl-detail-name">{selectedInst.student_name}</h3>
-                  <p className="ctrl-detail-meta">{selectedInst.student_section} · Código: {selectedInst.student_code || '—'}</p>
+                  <p className="ctrl-detail-meta">{selectedInst.student_section}</p>
+                </div>
+              </div>
+
+              {/* Access code box */}
+              <div className="ctrl-access-code-box">
+                <span className="ctrl-access-code-label">Código de acceso</span>
+                <div className="ctrl-access-code-row">
+                  <code className="ctrl-access-code">{selectedInst.access_code}</code>
+                  <button
+                    className="ctrl-access-code-copy"
+                    onClick={() => navigator.clipboard.writeText(selectedInst.access_code)}
+                    title="Copiar código"
+                  >
+                    📋
+                  </button>
                 </div>
               </div>
 
