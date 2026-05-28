@@ -9060,11 +9060,11 @@ button.cbf-loading {
 .dict-player-entry > p { opacity: 0.8; margin: 0 0 24px; }
 .dict-entry-form { display: flex; gap: 8px; width: 100%; max-width: 440px; }
 .dict-entry-input {
-  flex: 1; padding: 14px 16px; border: 2px solid rgba(255,255,255,0.3); border-radius: 12px;
-  background: rgba(255,255,255,0.1); color: white; font-size: 16px; font-weight: 700;
+  flex: 1; padding: 14px 16px; border: 2px solid rgba(255,255,255,0.4); border-radius: 12px;
+  background: white; color: #1F3864; font-size: 16px; font-weight: 700;
   text-align: center; letter-spacing: 2px;
 }
-.dict-entry-input::placeholder { color: rgba(255,255,255,0.5); letter-spacing: 0; font-weight: 400; }
+.dict-entry-input::placeholder { color: #9CA3AF; letter-spacing: 0; font-weight: 400; }
 .dict-entry-btn {
   padding: 14px 24px; background: white; color: #1F3864; border: none; border-radius: 12px;
   font-weight: 700; font-size: 14px; cursor: pointer; white-space: nowrap;
