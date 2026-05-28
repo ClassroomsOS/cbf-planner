@@ -257,7 +257,7 @@ Deno.serve(async (req: Request) => {
           student_name: TEST_NAME,
           student_section: 'TEST',
           access_code: accessCode,
-          instance_status: 'pending',
+          instance_status: 'ready',
           generated_questions: generatedQuestions,
         })
 

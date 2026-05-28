@@ -538,9 +538,9 @@ export default function CreateTab({ teacher, showToast }) {
                   ? <span className="dict-ppr-sent">✅ Enviado a: {testEmailState.sent_to?.join(', ')}</span>
                   : <div className="dict-ppr-err-block">
                       <span className="dict-ppr-err">❌ Error al enviar</span>
-                      {testEmailState.errors?.[0] && (
-                        <code className="dict-ppr-err-detail">{testEmailState.errors[0]}</code>
-                      )}
+                      <code className="dict-ppr-err-detail">
+                        {testEmailState.error || testEmailState.errors?.[0] || JSON.stringify(testEmailState)}
+                      </code>
                     </div>
                 }
                 {testEmailState.access_code && (
