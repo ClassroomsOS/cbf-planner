@@ -90,6 +90,9 @@ function cyclicPlaceCorrect(options, correctAnswer, questionIndex) {
 
 function AudioQuestion({ audioUrl, qIndex, replays, maxReplays, onReplay }) {
   const audioRef = useRef(null)
+  // Web Audio API refs — allow volume control on iOS where element.volume is read-only
+  const ctxRef   = useRef(null)   // AudioContext (created on first play, requires user gesture)
+  const gainRef  = useRef(null)   // GainNode connected to destination
   const [playing, setPlaying] = useState(false)
   const [progress, setProgress] = useState(0)
   const [duration, setDuration] = useState(0)
@@ -106,12 +109,31 @@ function AudioQuestion({ audioUrl, qIndex, replays, maxReplays, onReplay }) {
     )
   }
 
+  // Must be called inside a user-gesture handler (onClick) — creates ctx once
+  function ensureCtx() {
+    if (ctxRef.current || !audioRef.current) return
+    try {
+      const ctx  = new (window.AudioContext || window.webkitAudioContext)()
+      const gain = ctx.createGain()
+      gain.gain.value = volume
+      ctx.createMediaElementSource(audioRef.current).connect(gain)
+      gain.connect(ctx.destination)
+      ctxRef.current  = ctx
+      gainRef.current = gain
+    } catch {
+      // Fallback: element.volume (non-iOS desktop)
+    }
+  }
+
   function handlePlay() {
     if (exhausted) return
     onReplay(qIndex, audioUrl)
     const audio = audioRef.current
     if (!audio) return
-    audio.volume = volume
+    ensureCtx()
+    if (ctxRef.current?.state === 'suspended') ctxRef.current.resume()
+    // Only set element.volume if GainNode is unavailable (desktop fallback)
+    if (!gainRef.current) audio.volume = volume
     audio.currentTime = 0
     audio.play().catch(() => {})
   }
@@ -119,7 +141,11 @@ function AudioQuestion({ audioUrl, qIndex, replays, maxReplays, onReplay }) {
   function handleVolumeChange(e) {
     const v = Number(e.target.value)
     setVolume(v)
-    if (audioRef.current) audioRef.current.volume = v
+    if (gainRef.current) {
+      gainRef.current.gain.value = v   // Works on iOS + all browsers
+    } else if (audioRef.current) {
+      audioRef.current.volume = v      // Desktop fallback (ignored on iOS)
+    }
   }
 
   const volumeIcon = volume === 0 ? '🔇' : volume < 0.4 ? '🔈' : volume < 0.75 ? '🔉' : '🔊'
@@ -136,7 +162,7 @@ function AudioQuestion({ audioUrl, qIndex, replays, maxReplays, onReplay }) {
         }}
         onLoadedMetadata={() => {
           setDuration(audioRef.current?.duration || 0)
-          if (audioRef.current) audioRef.current.volume = volume
+          // Don't set element.volume here — GainNode handles it after first play
         }}
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}

@@ -9755,6 +9755,13 @@ button.cbf-loading {
 .dict-ppr-sent    { font-size: 13px; font-weight: 700; color: #15803D; }
 .dict-ppr-skipped { font-size: 13px; font-weight: 600; color: #D97706; }
 .dict-ppr-err     { font-size: 13px; font-weight: 600; color: #DC2626; }
+.dict-ppr-err-block { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; width: 100%; }
+.dict-ppr-err-detail {
+  font-size: 11px; font-family: 'Courier New', monospace; color: #7F1D1D;
+  background: #FEF2F2; border: 1px solid #FCA5A5; border-radius: 4px;
+  padding: 4px 8px; word-break: break-all; max-width: 100%;
+}
+.dict-ppr-err-more { font-size: 11px; color: #9CA3AF; font-style: italic; }
 .dict-ppr-retry   { font-size: 12px; background: none; border: 1px solid #D1D5DB; border-radius: 6px; padding: 3px 10px; cursor: pointer; color: #6B7280; }
 
 /* Test email */

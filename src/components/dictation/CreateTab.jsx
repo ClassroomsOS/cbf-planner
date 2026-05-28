@@ -479,7 +479,13 @@ export default function CreateTab({ teacher, showToast }) {
                   <span className="dict-ppr-skipped">⚠️ {sendCodesState.skipped} sin email registrado</span>
                 )}
                 {sendCodesState.errors.length > 0 && (
-                  <span className="dict-ppr-err">❌ {sendCodesState.errors.length} fallos</span>
+                  <div className="dict-ppr-err-block">
+                    <span className="dict-ppr-err">❌ {sendCodesState.errors.length} fallos — primer error:</span>
+                    <code className="dict-ppr-err-detail">{sendCodesState.errors[0]}</code>
+                    {sendCodesState.errors.length > 1 && (
+                      <span className="dict-ppr-err-more">...y {sendCodesState.errors.length - 1} más con el mismo error</span>
+                    )}
+                  </div>
                 )}
                 <button className="dict-ppr-retry" onClick={() => setSendCodesState(null)}>Reenviar</button>
               </div>
@@ -530,7 +536,12 @@ export default function CreateTab({ teacher, showToast }) {
               <div className="dict-postpublish-test-result">
                 {testEmailState.ok
                   ? <span className="dict-ppr-sent">✅ Enviado a: {testEmailState.sent_to?.join(', ')}</span>
-                  : <span className="dict-ppr-err">❌ Error al enviar</span>
+                  : <div className="dict-ppr-err-block">
+                      <span className="dict-ppr-err">❌ Error al enviar</span>
+                      {testEmailState.errors?.[0] && (
+                        <code className="dict-ppr-err-detail">{testEmailState.errors[0]}</code>
+                      )}
+                    </div>
                 }
                 {testEmailState.access_code && (
                   <span className="dict-postpublish-test-code">
