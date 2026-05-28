@@ -1,7 +1,7 @@
 # Roadmap y Estado del Proyecto
 
 > Extraído de `CLAUDE.md` + auditoría `docs/auditoria/2026-04-04-auditoria-sistema.md`
-> Última actualización: 2026-05-27
+> Última actualización: 2026-05-28
 
 ---
 
@@ -282,6 +282,26 @@ Cuando el docente sube fotos de textbook en NewsProjectEditor:
 | Deploy directo a producción | Todas las migraciones y Edge Functions | ✅ Supabase Branch creado |
 
 ---
+
+## Completado — sesión 2026-05-28d (Dictation — email fix + volume Web Audio API + test email en Sala de Control)
+
+- [x] `dictation-send-codes` Edge Fn: cambio FROM `noreply@redboston.edu.co` → `onboarding@resend.dev` — dominio pre-verificado Resend; resuelve 21/21 emails fallando por dominio no verificado
+- [x] `dictation-send-test` Edge Fn: fix `instance_status: 'pending'` → `'ready'` — 'pending' no existe en CHECK constraint (`ready|started|submitted|force_closed`); causaba fallo silencioso en INSERT
+- [x] `dictation-send-test` Edge Fn: cambio FROM a `onboarding@resend.dev` (mismo fix que send-codes)
+- [x] `DictationPlayerPage` — `AudioQuestion`: Web Audio API GainNode para control de volumen real
+  - `ctxRef` + `gainRef` (useRef antes del early return — hooks-compliant)
+  - `ensureCtx()`: crea `AudioContext` → `GainNode` → `createMediaElementSource(audioRef)` → destination; idempotente
+  - `<audio crossOrigin="anonymous">` obligatorio — sin esto `createMediaElementSource()` lanza SecurityError cross-origin en silencio
+  - iOS: `element.volume` siempre = 1 (read-only); GainNode es la única vía efectiva
+- [x] `CreateTab`: error detail expandido — muestra texto real del error Resend (no solo contador)
+- [x] `SessionControlPage`: sección "🧪 Probar envío a mis correos" en panel izquierdo
+  - `testEmailState` + `testExtraEmail` state; mismo localStorage key que CreateTab
+  - Llama `dictation-send-test` con `session_id` + `extra_email` opcional
+  - Muestra email del docente, input correo extra, resultado con `access_code`, errores en detalle
+  - `sendCodesState` mejorado con error detail (primer error Resend)
+- [x] CSS: `.ctrl-test-email-section`, `.ctrl-test-email-row`, `.ctrl-test-email-primary`, `.ctrl-test-email-input`, `.ctrl-btn-test`, `.ctrl-test-email-result`, `.ctrl-test-email-code`, `.dict-ppr-err-block`, `.dict-ppr-err-detail`, `.dict-ppr-err-more`
+- [x] CLAUDE.md: corregido `instance_status` dictation_instances (pending→ready), notas Web Audio API + crossOrigin, FROM address, SessionControlPage test email
+- [x] DevStatusPage + roadmap actualizados
 
 ## Completado — sesión 2026-05-28c (Dictation — hardening anti-trampa + UX mejoras)
 
