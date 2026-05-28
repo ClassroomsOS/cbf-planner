@@ -385,10 +385,12 @@ Colores, eleot® items y modelos → `src/utils/smartBlockHtml.js` · `src/compo
 - `generateDictation` acepta `{ vocabulary, unitReference, grade, subject, difficulty, assessmentMode }` — genera JSON según modo: dictation (3 audio), vocab_quiz (matching+fill+writing), combined (5 tipos). Items incluyen `audio_text`, `correct_answer`, `options[]` (MC), `required_words[]` (writing), `max_score`. Conteo por ITEM_COUNTS[mode][difficulty].
 - `dictation-tts` Edge Fn: Azure Cognitive Services SSML → MP3. Input: `{ texts[], voice_id, speed, blueprint_id, school_id, section }`. Output: `{ audio_urls[] }`. Env: `AZURE_TTS_KEY`, `AZURE_TTS_REGION`.
 - `dictation-corrector` Edge Fn: scoring determinístico (no IA). Levenshtein para typed words (exact=100%, lev≤1=50%), exact match para MC. Upsert `dictation_results` + Telegram al docente con nota colombiana + código anónimo (last-6 instance_id).
+- `dictation-notify` Edge Fn: email al representante vía Resend. Input: `{ instance_id }`. Consulta `school_students.representative_email` → genera email HTML institucional con nota, nivel y desglose por sección. Requiere `RESEND_API_KEY`. Retorna `{ ok, message }` o `{ error }` (422 si no hay representative_email).
 - `DictationPlayerPage` reusa `exam-integrity-alert` Edge Fn para anti-cheat Telegram con `event_type: 'dictation_violation'`.
 - `buildManualSectionsScaffold(difficulty, assessmentMode)` en `dictationUtils.js`: scaffold vacío mode-aware. Soporta 5 tipos: listen_type, listen_identify, matching (word→4 defs), fill_blank, writing (prompt+required_words). Retorna secciones según ASSESSMENT_MODES[mode].types filtrado por ITEM_COUNTS.
 - `dictationUtils.js` exports adicionales: `ASSESSMENT_MODES` (3 modos), `ITEM_COUNTS` (matrix modo×dificultad×tipo), `SECTION_META` (icon/label/color por tipo), `getQuestionCounts(difficulty, assessmentMode)`, `scoreWriting(answer, requiredWords, maxScore)`, `QUESTION_POINTS` (listen_type=2, writing=5, resto=1).
 - `exportDictationHtml.js`: `buildDictationHtml({ blueprint, logoBase64, school, teacherName })` + `printDictationHtml()`. Header dinámico por assessmentMode: "LISTENING ASSESSMENT" | "VOCABULARY ASSESSMENT" | "LANGUAGE ASSESSMENT". Renderers para 5 tipos incluyendo matching (tabla word→answer) y writing (prompt+word bank). Answer key en página separada. Colores: listen_type=#4BACC6, listen_identify=#8064A2, matching=#9BBB59, fill_blank=#F79646, writing=#8064A2.
+- `exportDictationHtml.js`: `buildCorrectedHtml({ blueprint, instance, responses, result, logoBase64, school, teacherName })` + `printCorrectedHtml()`. PDF corregido CBF-G AC-01. Fila de resultado (nota/nivel/puntos). Preguntas agrupadas por tipo desde `instance.generated_questions`. Cada ítem: contexto (audio_text/sentence/options) + respuesta del estudiante (verde=correcto, rojo=incorrecto) + respuesta correcta si falló.
 
 ---
 
@@ -477,6 +479,11 @@ sendTelegramNotification(eventType, extra) // sin throttle, para ciclo
 // MonitorTab.jsx: monitor Realtime extraído
 // ConfigTab.jsx: configuración Telegram extraída
 // exportDictationHtml.js: header dinámico por assessmentMode + renderers 5 tipos + answer key
+// SessionControlPage.jsx: /dictations/session/:sessionId — 3 paneles RT
+//   - correctedView state: { inst, responses } — abre con openCorrectedView(inst)
+//   - handlePrintCorrected(): fetch school → printCorrectedHtml()
+//   - sendRepresentativeEmail(inst): POST dictation-notify · emailSent Set para evitar doble envío
+//   - CorrectedExamView modal (createPortal): preguntas agrupadas por tipo, verde/rojo por respuesta
 ```
 
 ### Estado clave — DictationPlayerPage
