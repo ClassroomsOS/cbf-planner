@@ -44,6 +44,7 @@ export default function CreateTab({ teacher, showToast }) {
   const [title, setTitle] = useState('')
   const [duration, setDuration] = useState(30)
   const [publishedSession, setPublishedSession] = useState(null) // { id, access_code }
+  const [sendCodesState, setSendCodesState]     = useState(null) // null | 'sending' | { sent, skipped, errors[] }
 
   // Load teacher assignments
   useEffect(() => {
@@ -411,6 +412,47 @@ export default function CreateTab({ teacher, showToast }) {
               </button>
             </div>
             <p className="dict-postpublish-note">Cada estudiante usa su código individual generado automáticamente del roster.</p>
+          </div>
+
+          {/* Send codes by email */}
+          <div className="dict-postpublish-email-box">
+            {!sendCodesState && (
+              <button
+                className="dict-postpublish-btn dict-postpublish-btn-email"
+                onClick={async () => {
+                  setSendCodesState('sending')
+                  try {
+                    const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/dictation-send-codes`
+                    const res = await fetch(url, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ session_id: publishedSession.id }),
+                    })
+                    const data = await res.json()
+                    setSendCodesState({ sent: data.sent ?? 0, skipped: data.skipped ?? 0, errors: data.errors || [] })
+                  } catch {
+                    setSendCodesState({ sent: 0, skipped: 0, errors: ['Error de red'] })
+                  }
+                }}
+              >
+                📧 Enviar código a cada estudiante por email
+              </button>
+            )}
+            {sendCodesState === 'sending' && (
+              <p className="dict-postpublish-email-status sending">📡 Enviando correos...</p>
+            )}
+            {sendCodesState && typeof sendCodesState === 'object' && (
+              <div className="dict-postpublish-email-result">
+                <span className="dict-ppr-sent">✅ {sendCodesState.sent} correos enviados</span>
+                {sendCodesState.skipped > 0 && (
+                  <span className="dict-ppr-skipped">⚠️ {sendCodesState.skipped} sin email registrado</span>
+                )}
+                {sendCodesState.errors.length > 0 && (
+                  <span className="dict-ppr-err">❌ {sendCodesState.errors.length} fallos</span>
+                )}
+                <button className="dict-ppr-retry" onClick={() => setSendCodesState(null)}>Reenviar</button>
+              </div>
+            )}
           </div>
 
           <div className="dict-postpublish-actions">

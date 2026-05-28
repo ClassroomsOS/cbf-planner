@@ -9713,6 +9713,15 @@ button.cbf-loading {
 .dict-postpublish-btn.primary:hover { background: #152a4e; }
 .dict-postpublish-btn.secondary { background: white; color: #374151; border: 1px solid #D1D5DB; }
 .dict-postpublish-btn.secondary:hover { background: #F9FAFB; }
+.dict-postpublish-email-box { margin: 4px 0 16px; text-align: center; }
+.dict-postpublish-btn-email { width: 100%; background: #EFF6FF; color: #1D4ED8; border: 1.5px solid #BFDBFE !important; padding: 12px 20px; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; }
+.dict-postpublish-btn-email:hover { background: #DBEAFE; }
+.dict-postpublish-email-status { font-size: 13px; color: #6B7280; margin: 8px 0; }
+.dict-postpublish-email-result { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px; padding: 10px 0; }
+.dict-ppr-sent    { font-size: 13px; font-weight: 700; color: #15803D; }
+.dict-ppr-skipped { font-size: 13px; font-weight: 600; color: #D97706; }
+.dict-ppr-err     { font-size: 13px; font-weight: 600; color: #DC2626; }
+.dict-ppr-retry   { font-size: 12px; background: none; border: 1px solid #D1D5DB; border-radius: 6px; padding: 3px 10px; cursor: pointer; color: #6B7280; }
 
 /* ── MonitorTab: Sala button ── */
 .dict-btn-sala {
