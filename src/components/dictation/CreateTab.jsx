@@ -27,7 +27,7 @@ export default function CreateTab({ teacher, showToast }) {
   const [unitReference, setUnitReference] = useState('')
   const [difficulty, setDifficulty] = useState('Intermedio')
   const [vocabulary, setVocabulary] = useState([])
-  const [voiceId, setVoiceId] = useState('en-US-JennyNeural')
+  const [voices, setVoices] = useState(['en-US-JennyNeural'])
   const [speed, setSpeed] = useState(0.9)
   const [loadedSetName, setLoadedSetName] = useState('')
   const [assessmentMode, setAssessmentMode] = useState('dictation')
@@ -68,7 +68,7 @@ export default function CreateTab({ teacher, showToast }) {
   const questionCounts = getQuestionCounts(difficulty, assessmentMode)
 
   // ── Preview voice (Azure TTS) ──
-  const [previewing, setPreviewing] = useState(false)
+  const [previewing, setPreviewing] = useState(null) // null | voiceIndex
   const [previewAudio, setPreviewAudio] = useState(null)
 
   function stopPreview() {
@@ -76,15 +76,17 @@ export default function CreateTab({ teacher, showToast }) {
       previewAudio.pause()
       previewAudio.currentTime = 0
     }
-    setPreviewing(false)
+    setPreviewing(null)
   }
 
-  async function previewVoice() {
-    const opt = VOICE_OPTIONS.find(v => v.id === voiceId)
+  async function previewVoice(slotIndex) {
+    stopPreview()
+    const vId = voices[slotIndex] || voices[0]
+    const opt = VOICE_OPTIONS.find(v => v.id === vId)
     const sampleText = opt?.lang === 'es'
       ? (vocabulary[0] || 'Hola, esta es una prueba de voz.')
       : (vocabulary[0] || 'Hello, this is a voice preview.')
-    setPreviewing(true)
+    setPreviewing(slotIndex)
     try {
       const { data: { session } } = await supabase.auth.getSession()
       const edgeFnUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/dictation-tts`
@@ -96,7 +98,7 @@ export default function CreateTab({ teacher, showToast }) {
         },
         body: JSON.stringify({
           texts: [sampleText],
-          voice_id: voiceId,
+          voice_id: vId,
           speed,
           blueprint_id: 'preview',
           school_id: teacher.school_id,
@@ -109,13 +111,32 @@ export default function CreateTab({ teacher, showToast }) {
       if (!url) throw new Error('No audio URL returned')
       const audio = new Audio(url + '?t=' + Date.now())
       setPreviewAudio(audio)
-      audio.onended = () => setPreviewing(false)
-      audio.onerror = () => { setPreviewing(false); showToast('Error al reproducir preview', 'error') }
+      audio.onended = () => setPreviewing(null)
+      audio.onerror = () => { setPreviewing(null); showToast('Error al reproducir preview', 'error') }
       audio.play()
     } catch (err) {
-      setPreviewing(false)
+      setPreviewing(null)
       showToast(err.message || 'Error al generar preview de voz', 'error')
     }
+  }
+
+  function updateVoice(index, newVoiceId) {
+    if (previewing === index) stopPreview()
+    setVoices(prev => prev.map((v, i) => i === index ? newVoiceId : v))
+  }
+
+  function addVoice() {
+    if (voices.length >= 4) return
+    // Default to a different voice than the last selected
+    const used = new Set(voices)
+    const next = VOICE_OPTIONS.filter(v => v.lang === 'en' && !used.has(v.id))[0]?.id || 'en-US-GuyNeural'
+    setVoices(prev => [...prev, next])
+  }
+
+  function removeVoice(index) {
+    if (index === 0) return // can't remove the first voice
+    if (previewing === index) stopPreview()
+    setVoices(prev => prev.filter((_, i) => i !== index))
   }
 
   // ── Step 1 → Step 2: Manual mode ──
@@ -231,9 +252,9 @@ export default function CreateTab({ teacher, showToast }) {
       const { data: { session } } = await supabase.auth.getSession()
       const edgeFnUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/dictation-tts`
 
-      // Only generate audio for sections that have audio_text
+      // Generate audio for all sections that have audio_text
       const audioSections = (source.sections || []).filter(s =>
-        s.type === 'listen_type' || s.type === 'listen_identify'
+        s.type === 'listen_type' || s.type === 'listen_identify' || s.type === 'listen_comprehension'
       )
 
       const newAudioUrls = {}
@@ -250,7 +271,7 @@ export default function CreateTab({ teacher, showToast }) {
           },
           body: JSON.stringify({
             texts,
-            voice_id: voiceId,
+            voice_ids: voices,
             speed,
             blueprint_id: 'preview',
             school_id: teacher.school_id,
@@ -298,7 +319,7 @@ export default function CreateTab({ teacher, showToast }) {
           unit_reference: unitReference,
           difficulty,
           vocabulary,
-          voice_config: { voice_id: voiceId, speed, assessment_mode: assessmentMode },
+          voice_config: { voices, speed, assessment_mode: assessmentMode },
           sections: generated.sections,
           audio_urls: audioUrls,
           status: 'ready',
@@ -540,35 +561,63 @@ export default function CreateTab({ teacher, showToast }) {
             })}
           </div>
 
-          {/* Voice selector — only for modes that require audio */}
+          {/* Multi-voice selector — only for modes that require audio */}
           {modeConfig.requiresAudio && (
             <>
-              <h3>Voz del dictado</h3>
-              <div className="dict-voice-row">
-                <select value={voiceId} onChange={e => { stopPreview(); setVoiceId(e.target.value) }}>
-                  <optgroup label="English">
-                    {VOICE_OPTIONS.filter(v => v.lang === 'en').map(v => (
-                      <option key={v.id} value={v.id}>{v.label}</option>
-                    ))}
-                  </optgroup>
-                  <optgroup label="Español">
-                    {VOICE_OPTIONS.filter(v => v.lang === 'es').map(v => (
-                      <option key={v.id} value={v.id}>{v.label}</option>
-                    ))}
-                  </optgroup>
-                </select>
-                <label className="dict-speed-label">
-                  Velocidad: {speed.toFixed(1)}x
-                  <input
-                    type="range" min="0.5" max="1.5" step="0.1"
-                    value={speed} onChange={e => setSpeed(parseFloat(e.target.value))}
-                  />
-                </label>
-                {previewing
-                  ? <button onClick={stopPreview} className="dict-btn-sm" style={{ background: '#C0504D', color: '#fff' }}>Stop</button>
-                  : <button onClick={previewVoice} className="dict-btn-sm secondary">🔊 Preview</button>
-                }
+              <h3>Voces del assessment</h3>
+              <p className="dict-voice-hint-text">
+                Las preguntas de audio rotan entre las voces seleccionadas.
+                {voices.length >= 2 ? ' Las conversaciones de comprensión usarán Voz 1 (Speaker A) y Voz 2 (Speaker B).' : ' Agrega una segunda voz para que las conversaciones suenen más naturales.'}
+              </p>
+
+              <div className="dict-voice-slots">
+                {voices.map((vId, i) => (
+                  <div key={i} className="dict-voice-slot">
+                    <span className="dict-voice-slot-num">
+                      {i === 0 ? '🎤 Voz 1' : i === 1 ? '🎤 Voz 2' : i === 2 ? '🎤 Voz 3' : '🎤 Voz 4'}
+                      {i === 0 && <span className="dict-voice-slot-role">· Speaker A</span>}
+                      {i === 1 && <span className="dict-voice-slot-role">· Speaker B</span>}
+                    </span>
+                    <select
+                      value={vId}
+                      onChange={e => updateVoice(i, e.target.value)}
+                      className="dict-voice-select"
+                    >
+                      <optgroup label="English">
+                        {VOICE_OPTIONS.filter(v => v.lang === 'en').map(v => (
+                          <option key={v.id} value={v.id}>{v.label}</option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="Español">
+                        {VOICE_OPTIONS.filter(v => v.lang === 'es').map(v => (
+                          <option key={v.id} value={v.id}>{v.label}</option>
+                        ))}
+                      </optgroup>
+                    </select>
+                    {previewing === i
+                      ? <button onClick={stopPreview} className="dict-btn-sm" style={{ background: '#C0504D', color: '#fff' }}>⏹ Stop</button>
+                      : <button onClick={() => previewVoice(i)} disabled={previewing !== null} className="dict-btn-sm secondary">🔊</button>
+                    }
+                    {i > 0 && (
+                      <button onClick={() => removeVoice(i)} className="dict-btn-sm" style={{ background: '#fee2e2', color: '#DC2626', padding: '4px 8px' }} title="Quitar voz">✕</button>
+                    )}
+                  </div>
+                ))}
               </div>
+
+              {voices.length < 4 && (
+                <button onClick={addVoice} className="dict-btn-sm secondary" style={{ marginTop: 8 }}>
+                  + Agregar voz ({voices.length}/4)
+                </button>
+              )}
+
+              <label className="dict-speed-label" style={{ marginTop: 12 }}>
+                Velocidad: {speed.toFixed(1)}x
+                <input
+                  type="range" min="0.5" max="1.5" step="0.1"
+                  value={speed} onChange={e => setSpeed(parseFloat(e.target.value))}
+                />
+              </label>
             </>
           )}
 
@@ -672,7 +721,7 @@ export default function CreateTab({ teacher, showToast }) {
           {modeConfig.requiresAudio && (
             <AudioExportPanel
               audioUrls={audioUrls}
-              sections={(generated.sections || []).filter(s => s.type === 'listen_type' || s.type === 'listen_identify')}
+              sections={(generated.sections || []).filter(s => s.type === 'listen_type' || s.type === 'listen_identify' || s.type === 'listen_comprehension')}
               title={title || generated.title}
               showToast={showToast}
             />
@@ -727,7 +776,7 @@ export default function CreateTab({ teacher, showToast }) {
           {modeConfig.requiresAudio && Object.values(audioUrls).flat().filter(Boolean).length > 0 && (
             <AudioExportPanel
               audioUrls={audioUrls}
-              sections={(manualSections || []).filter(s => s.type === 'listen_type' || s.type === 'listen_identify')}
+              sections={(manualSections || []).filter(s => s.type === 'listen_type' || s.type === 'listen_identify' || s.type === 'listen_comprehension')}
               title={title}
               showToast={showToast}
             />

@@ -9,10 +9,18 @@ import { saveAs } from 'file-saver'
 export default function AudioExportPanel({ audioUrls, sections, title, showToast }) {
   const [downloading, setDownloading] = useState(false)
 
-  const sectionMap = {
-    listen_type: { label: 'S1_ListenType', items: sections?.[0]?.items || [] },
-    listen_identify: { label: 'S2_ListenIdentify', items: sections?.[1]?.items || [] },
+  // Build sectionMap dynamically from sections prop (handles any audio-type sections)
+  const sectionMap = {}
+  const SECTION_LABELS = {
+    listen_type: 'S1_ListenType',
+    listen_identify: 'S2_ListenIdentify',
+    listen_comprehension: 'S3_Comprehension',
   }
+  ;(sections || []).forEach(sec => {
+    if (SECTION_LABELS[sec.type]) {
+      sectionMap[sec.type] = { label: SECTION_LABELS[sec.type], items: sec.items || [] }
+    }
+  })
 
   const allUrls = []
   Object.entries(audioUrls).forEach(([type, urls]) => {

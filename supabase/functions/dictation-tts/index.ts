@@ -31,23 +31,27 @@ function getCorsOrigin(req: Request): string {
 
 const BUCKET = "dictation-audio";
 
-// ── Azure TTS — synthesize text to MP3 ────────────────────────────────────
+function escapeXml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+function prosodyRate(speed: number): string {
+  return `${speed >= 1 ? "+" : ""}${Math.round((speed - 1) * 100)}%`;
+}
+
+// ── Azure TTS — single-voice SSML ────────────────────────────────────────────
 async function synthesize(
   text: string,
   voiceId: string,
   speed: number = 1.0
 ): Promise<Uint8Array> {
   const endpoint = `https://${AZURE_TTS_REGION}.tts.speech.microsoft.com/cognitiveservices/v1`;
-
-  // SSML with prosody for speed control
-  const ssml = `
-<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>
-  <voice name='${voiceId}'>
-    <prosody rate='${speed >= 1 ? "+" : ""}${Math.round((speed - 1) * 100)}%'>
-      ${escapeXml(text)}
-    </prosody>
-  </voice>
-</speak>`.trim();
+  const ssml = `<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'><voice name='${voiceId}'><prosody rate='${prosodyRate(speed)}'>${escapeXml(text)}</prosody></voice></speak>`;
 
   const res = await fetch(endpoint, {
     method: "POST",
@@ -68,13 +72,73 @@ async function synthesize(
   return new Uint8Array(buffer);
 }
 
-function escapeXml(str: string): string {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
+// ── Azure TTS — multi-speaker SSML (for listen_comprehension dialogues) ──────
+// Parses "Speaker A: ... Speaker B: ..." format and generates a single MP3
+// with voice A for Speaker A lines and voice B for Speaker B lines.
+function parseDialogue(text: string): Array<{ speaker: string; line: string }> {
+  const segments: Array<{ speaker: string; line: string }> = [];
+  const regex = /Speaker ([AB]):\s*/g;
+  let lastIndex = 0;
+  let lastSpeaker: string | null = null;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(text)) !== null) {
+    if (lastSpeaker !== null) {
+      const line = text.slice(lastIndex, match.index).trim();
+      if (line) segments.push({ speaker: lastSpeaker, line });
+    }
+    lastSpeaker = match[1];
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastSpeaker !== null) {
+    const line = text.slice(lastIndex).trim();
+    if (line) segments.push({ speaker: lastSpeaker, line });
+  }
+
+  return segments;
+}
+
+async function synthesizeMultiSpeaker(
+  text: string,
+  voiceA: string,
+  voiceB: string,
+  speed: number
+): Promise<Uint8Array> {
+  const segments = parseDialogue(text);
+
+  // If no Speaker A/B markers found, fall back to single voice
+  if (segments.length === 0) {
+    return synthesize(text, voiceA, speed);
+  }
+
+  const endpoint = `https://${AZURE_TTS_REGION}.tts.speech.microsoft.com/cognitiveservices/v1`;
+  const rate = prosodyRate(speed);
+
+  const voiceParts = segments.map(seg => {
+    const voice = seg.speaker === "B" ? voiceB : voiceA;
+    return `<voice name='${voice}'><prosody rate='${rate}'>${escapeXml(seg.line)}</prosody></voice>`;
+  }).join("\n  ");
+
+  const ssml = `<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>\n  ${voiceParts}\n</speak>`;
+
+  const res = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Ocp-Apim-Subscription-Key": AZURE_TTS_KEY,
+      "Content-Type": "application/ssml+xml",
+      "X-Microsoft-OutputFormat": "audio-16khz-128kbitrate-mono-mp3",
+    },
+    body: ssml,
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Azure TTS multi-speaker error ${res.status}: ${errText}`);
+  }
+
+  const buffer = await res.arrayBuffer();
+  return new Uint8Array(buffer);
 }
 
 // ── Main handler ──────────────────────────────────────────────────────────
@@ -94,12 +158,19 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const {
       texts,
-      voice_id = "en-US-JennyNeural",
+      // Accept voice_ids[] (new) or legacy voice_id (single string)
+      voice_ids: rawVoiceIds,
+      voice_id: legacyVoiceId = "en-US-JennyNeural",
       speed = 1.0,
       blueprint_id,
       school_id,
       section = "audio",
     } = body;
+
+    // Normalize to array; fall back to legacy single voice
+    const voiceIds: string[] = Array.isArray(rawVoiceIds) && rawVoiceIds.length > 0
+      ? rawVoiceIds
+      : [legacyVoiceId];
 
     if (!texts || !Array.isArray(texts) || texts.length === 0) {
       return new Response(
@@ -130,8 +201,16 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Synthesize audio
-      const audioBytes = await synthesize(text, voice_id, speed);
+      // Round-robin voice assignment across selected voices
+      const voiceForItem = voiceIds[i % voiceIds.length];
+
+      // listen_comprehension with 2+ voices → multi-speaker SSML (Speaker A / Speaker B)
+      let audioBytes: Uint8Array;
+      if (section === "listen_comprehension" && voiceIds.length >= 2) {
+        audioBytes = await synthesizeMultiSpeaker(text, voiceIds[0], voiceIds[1], speed);
+      } else {
+        audioBytes = await synthesize(text, voiceForItem, speed);
+      }
 
       // Upload to Storage
       const path = `${school_id}/${blueprint_id}/${section}_${String(i).padStart(3, "0")}.mp3`;

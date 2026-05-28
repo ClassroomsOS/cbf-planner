@@ -9323,6 +9323,19 @@ button.cbf-loading {
 .dict-q-textarea:focus { border-color: #8064A2; outline: none; }
 .dict-q-word-count { font-size: 12px; color: #888; text-align: right; }
 
+/* ── Multi-voice selector ── */
+.dict-voice-hint-text { font-size: 13px; color: #666; margin: 0 0 12px; line-height: 1.5; }
+.dict-voice-slots { display: flex; flex-direction: column; gap: 8px; }
+.dict-voice-slot {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 8px 12px; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 8px;
+}
+.dict-voice-slot-num {
+  font-size: 13px; font-weight: 700; color: #1F3864; white-space: nowrap; min-width: 60px;
+}
+.dict-voice-slot-role { font-size: 11px; color: #4BACC6; font-weight: 600; margin-left: 4px; }
+.dict-voice-select { flex: 1; min-width: 180px; font-size: 13px; }
+
 /* ── Listening comprehension question ── */
 .dict-q-comprehension-question {
   font-size: 15px; font-weight: 700; color: #1F3864;
