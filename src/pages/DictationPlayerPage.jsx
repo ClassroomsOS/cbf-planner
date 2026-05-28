@@ -536,13 +536,26 @@ export default function DictationPlayerPage() {
     const onBlur = () => registerViolation('window_blur')
     const onFsChange = () => { if (!document.fullscreenElement) registerViolation('fullscreen_exit') }
     const onContext = (e) => { e.preventDefault(); registerViolation('context_menu') }
-    const onCopy = (e) => { e.preventDefault(); registerViolation('copy_attempt') }
+    const onCopy  = (e) => { e.preventDefault(); registerViolation('copy_attempt') }
+    const onPaste = (e) => { e.preventDefault(); registerViolation('paste_attempt') }
     const onKeyDown = (e) => {
       if (e.key === 'F12' || (e.ctrlKey && e.key === 'u') || (e.ctrlKey && e.shiftKey && e.key === 'I')) {
         e.preventDefault()
         registerViolation('blocked_key')
       }
     }
+
+    // Block browser translation for the duration of the exam
+    document.documentElement.setAttribute('translate', 'no')
+    document.documentElement.classList.add('notranslate')
+    let translateMeta = document.querySelector('meta[name="google"]')
+    const metaWasNew = !translateMeta
+    if (!translateMeta) {
+      translateMeta = document.createElement('meta')
+      translateMeta.setAttribute('name', 'google')
+      document.head.appendChild(translateMeta)
+    }
+    translateMeta.setAttribute('content', 'notranslate')
     const onBeforeUnload = (e) => {
       e.preventDefault()
       e.returnValue = ''
@@ -555,6 +568,7 @@ export default function DictationPlayerPage() {
     document.addEventListener('contextmenu', onContext)
     document.addEventListener('copy', onCopy)
     document.addEventListener('cut', onCopy)
+    document.addEventListener('paste', onPaste)
     document.addEventListener('keydown', onKeyDown)
     window.addEventListener('beforeunload', onBeforeUnload)
 
@@ -565,7 +579,11 @@ export default function DictationPlayerPage() {
       document.removeEventListener('contextmenu', onContext)
       document.removeEventListener('copy', onCopy)
       document.removeEventListener('cut', onCopy)
+      document.removeEventListener('paste', onPaste)
       document.removeEventListener('keydown', onKeyDown)
+      document.documentElement.removeAttribute('translate')
+      document.documentElement.classList.remove('notranslate')
+      if (metaWasNew && translateMeta?.parentNode) translateMeta.parentNode.removeChild(translateMeta)
       window.removeEventListener('beforeunload', onBeforeUnload)
     }
   }, [phase])
@@ -923,7 +941,13 @@ ${result.section_scores ? Object.entries(result.section_scores).map(([type, s]) 
     const currentSection = sections[activeSection]
 
     return (
-      <div className="dict-player-exam" onCopy={e => e.preventDefault()} onCut={e => e.preventDefault()}>
+      <div
+        className="dict-player-exam"
+        translate="no"
+        onCopy={e => e.preventDefault()}
+        onCut={e => e.preventDefault()}
+        onPaste={e => e.preventDefault()}
+      >
         {/* Watermark */}
         <WatermarkCanvas text={`${instance?.student_name || '?'} · ${new Date().toLocaleTimeString('es-CO')}`} />
 
@@ -1046,19 +1070,29 @@ ${result.section_scores ? Object.entries(result.section_scores).map(([type, s]) 
                   <input
                     value={answers[idx] || ''}
                     onChange={e => updateAnswer(idx, e.target.value.toUpperCase())}
+                    onPaste={e => e.preventDefault()}
                     placeholder="TYPE YOUR ANSWER"
                     className="dict-q-input"
                     autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="off"
                     spellCheck={false}
+                    data-form-type="other"
                   />
                 ) : qType === 'writing' ? (
                   <div className="dict-q-writing-area">
                     <textarea
                       value={answers[idx] || ''}
                       onChange={e => updateAnswer(idx, e.target.value)}
+                      onPaste={e => e.preventDefault()}
                       placeholder="Write your paragraph here..."
                       className="dict-q-textarea"
                       rows={5}
+                      autoComplete="off"
+                      autoCorrect="off"
+                      autoCapitalize="off"
+                      spellCheck={false}
+                      data-form-type="other"
                     />
                     <div className="dict-q-word-count">
                       {(answers[idx] || '').trim().split(/\s+/).filter(Boolean).length} words
