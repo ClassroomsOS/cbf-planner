@@ -58,7 +58,6 @@ export default function SessionControlPage({ teacher }) {
 
   // ── UI state ──
   const [selectedId, setSelectedId]   = useState(null)
-  const [showPreview, setShowPreview] = useState(false)
   const [copied, setCopied]           = useState(false)
   const [warningTarget, setWarningTarget] = useState(null) // { instanceId, studentName } | 'all'
   const [confirmClose, setConfirmClose]   = useState(null) // instance | null
@@ -347,27 +346,14 @@ export default function SessionControlPage({ teacher }) {
             </p>
           </div>
 
-          {/* Student view toggle */}
+          {/* Student view */}
           <div className="ctrl-section">
             <button
-              className={`ctrl-preview-toggle ${showPreview ? 'active' : ''}`}
-              onClick={() => setShowPreview(v => !v)}
+              className="ctrl-preview-toggle"
+              onClick={() => window.open(STUDENT_URL, '_blank')}
             >
-              {showPreview ? '🙈 Ocultar vista del estudiante' : '👁 Vista del estudiante'}
+              👁 Vista del estudiante ↗
             </button>
-            {showPreview && (
-              <div className="ctrl-student-viewport">
-                <div className="ctrl-student-frame-label">Vista del estudiante (live)</div>
-                <div className="ctrl-student-frame-wrapper">
-                  <iframe
-                    src={STUDENT_URL}
-                    className="ctrl-student-iframe"
-                    title="Vista del estudiante"
-                    sandbox="allow-scripts allow-same-origin allow-forms"
-                  />
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Stats */}
