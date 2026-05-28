@@ -49,6 +49,8 @@ export default function CreateTab({ teacher, showToast }) {
   const [duration, setDuration] = useState(30)
   const [publishedSession, setPublishedSession] = useState(null) // { id, access_code }
   const [sendCodesState, setSendCodesState]     = useState(null) // null | 'sending' | { sent, skipped, errors[] }
+  const [testEmailState, setTestEmailState]     = useState(null) // null | 'sending' | { ok, access_code, sent_to[], errors[] }
+  const [testExtraEmail, setTestExtraEmail]     = useState(() => localStorage.getItem('cbf_test_extra_email') || '')
 
   // Load teacher assignments
   useEffect(() => {
@@ -480,6 +482,62 @@ export default function CreateTab({ teacher, showToast }) {
                   <span className="dict-ppr-err">❌ {sendCodesState.errors.length} fallos</span>
                 )}
                 <button className="dict-ppr-retry" onClick={() => setSendCodesState(null)}>Reenviar</button>
+              </div>
+            )}
+          </div>
+
+          {/* Test email — send to teacher's own addresses */}
+          <div className="dict-postpublish-test-box">
+            <p className="dict-postpublish-test-label">🧪 Probar envío a mis correos</p>
+            <div className="dict-postpublish-test-row">
+              <span className="dict-postpublish-test-primary">{teacher.email}</span>
+              <input
+                className="dict-postpublish-test-input"
+                type="email"
+                placeholder="Correo adicional (opcional)"
+                value={testExtraEmail}
+                onChange={e => {
+                  setTestExtraEmail(e.target.value)
+                  localStorage.setItem('cbf_test_extra_email', e.target.value)
+                }}
+              />
+              <button
+                className="dict-postpublish-btn dict-postpublish-btn-test"
+                disabled={testEmailState === 'sending'}
+                onClick={async () => {
+                  setTestEmailState('sending')
+                  try {
+                    const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/dictation-send-test`
+                    const res = await fetch(url, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        session_id: publishedSession.id,
+                        extra_email: testExtraEmail.trim() || undefined,
+                      }),
+                    })
+                    const data = await res.json()
+                    setTestEmailState(data)
+                  } catch {
+                    setTestEmailState({ ok: false, errors: ['Error de red'], sent_to: [] })
+                  }
+                }}
+              >
+                {testEmailState === 'sending' ? '📡 Enviando...' : '📨 Enviar prueba'}
+              </button>
+            </div>
+            {testEmailState && typeof testEmailState === 'object' && (
+              <div className="dict-postpublish-test-result">
+                {testEmailState.ok
+                  ? <span className="dict-ppr-sent">✅ Enviado a: {testEmailState.sent_to?.join(', ')}</span>
+                  : <span className="dict-ppr-err">❌ Error al enviar</span>
+                }
+                {testEmailState.access_code && (
+                  <span className="dict-postpublish-test-code">
+                    Código de prueba: <strong>{testEmailState.access_code}</strong>
+                  </span>
+                )}
+                <button className="dict-ppr-retry" onClick={() => setTestEmailState(null)}>Reenviar</button>
               </div>
             )}
           </div>

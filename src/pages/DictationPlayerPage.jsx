@@ -93,6 +93,7 @@ function AudioQuestion({ audioUrl, qIndex, replays, maxReplays, onReplay }) {
   const [playing, setPlaying] = useState(false)
   const [progress, setProgress] = useState(0)
   const [duration, setDuration] = useState(0)
+  const [volume, setVolume] = useState(0.8)
   const used = replays[qIndex] || 0
   const remaining = maxReplays - used
   const exhausted = used >= maxReplays
@@ -110,9 +111,18 @@ function AudioQuestion({ audioUrl, qIndex, replays, maxReplays, onReplay }) {
     onReplay(qIndex, audioUrl)
     const audio = audioRef.current
     if (!audio) return
+    audio.volume = volume
     audio.currentTime = 0
     audio.play().catch(() => {})
   }
+
+  function handleVolumeChange(e) {
+    const v = Number(e.target.value)
+    setVolume(v)
+    if (audioRef.current) audioRef.current.volume = v
+  }
+
+  const volumeIcon = volume === 0 ? '🔇' : volume < 0.4 ? '🔈' : volume < 0.75 ? '🔉' : '🔊'
 
   return (
     <div className="dict-q-audio">
@@ -124,7 +134,10 @@ function AudioQuestion({ audioUrl, qIndex, replays, maxReplays, onReplay }) {
           const a = audioRef.current
           if (a && a.duration) setProgress(a.currentTime / a.duration)
         }}
-        onLoadedMetadata={() => setDuration(audioRef.current?.duration || 0)}
+        onLoadedMetadata={() => {
+          setDuration(audioRef.current?.duration || 0)
+          if (audioRef.current) audioRef.current.volume = volume
+        }}
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}
         onEnded={() => { setPlaying(false); setProgress(0) }}
@@ -147,6 +160,18 @@ function AudioQuestion({ audioUrl, qIndex, replays, maxReplays, onReplay }) {
         <span className={`dict-audio-replays ${exhausted ? 'exhausted' : ''}`}>
           {exhausted ? '🔒 No more replays' : `🔄 ${remaining} replay${remaining !== 1 ? 's' : ''} left`}
         </span>
+      </div>
+      <div className="dict-audio-volume">
+        <span className="dict-audio-vol-icon">{volumeIcon}</span>
+        <input
+          type="range"
+          className="dict-audio-vol-slider"
+          min="0" max="1" step="0.05"
+          value={volume}
+          onChange={handleVolumeChange}
+          title={`Volume: ${Math.round(volume * 100)}%`}
+        />
+        <span className="dict-audio-vol-pct">{Math.round(volume * 100)}%</span>
       </div>
     </div>
   )

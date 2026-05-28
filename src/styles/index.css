@@ -9174,6 +9174,24 @@ button.cbf-loading {
 .dict-audio-duration { font-size: 12px; color: #666; white-space: nowrap; }
 .dict-audio-replays { font-size: 12px; color: #15803D; font-weight: 600; white-space: nowrap; }
 .dict-audio-replays.exhausted { color: #DC2626; }
+/* Volume control */
+.dict-audio-volume {
+  display: flex; align-items: center; gap: 6px; margin-top: 6px;
+  padding: 4px 8px; background: #f8f9fa; border-radius: 8px; width: fit-content;
+}
+.dict-audio-vol-icon { font-size: 14px; user-select: none; }
+.dict-audio-vol-slider {
+  -webkit-appearance: none; appearance: none;
+  width: 90px; height: 4px; background: #d1d5db; border-radius: 2px; outline: none; cursor: pointer;
+}
+.dict-audio-vol-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 14px; height: 14px;
+  border-radius: 50%; background: #4BACC6; cursor: pointer;
+}
+.dict-audio-vol-slider::-moz-range-thumb {
+  width: 14px; height: 14px; border-radius: 50%; background: #4BACC6; cursor: pointer; border: none;
+}
+.dict-audio-vol-pct { font-size: 11px; color: #6B7280; width: 28px; text-align: right; }
 .dict-q-sentence { font-size: 16px; color: #1F3864; margin-bottom: 10px; line-height: 1.6; }
 .dict-q-input {
   width: 100%; padding: 12px 16px; border: 2px solid #d1d5db; border-radius: 10px;
@@ -9738,6 +9756,37 @@ button.cbf-loading {
 .dict-ppr-skipped { font-size: 13px; font-weight: 600; color: #D97706; }
 .dict-ppr-err     { font-size: 13px; font-weight: 600; color: #DC2626; }
 .dict-ppr-retry   { font-size: 12px; background: none; border: 1px solid #D1D5DB; border-radius: 6px; padding: 3px 10px; cursor: pointer; color: #6B7280; }
+
+/* Test email */
+.dict-postpublish-test-box {
+  margin: 0 0 16px; padding: 12px 16px;
+  background: #FFFBEB; border: 1.5px dashed #FCD34D; border-radius: 10px;
+}
+.dict-postpublish-test-label { font-size: 12px; font-weight: 700; color: #92400E; margin: 0 0 8px; }
+.dict-postpublish-test-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.dict-postpublish-test-primary {
+  font-size: 12px; color: #374151; background: #f3f4f6; padding: 4px 8px;
+  border-radius: 6px; white-space: nowrap;
+}
+.dict-postpublish-test-input {
+  flex: 1; min-width: 160px; padding: 7px 10px; border: 1.5px solid #FCD34D;
+  border-radius: 8px; font-size: 13px; color: #374151; background: white; outline: none;
+}
+.dict-postpublish-test-input:focus { border-color: #D97706; }
+.dict-postpublish-btn-test {
+  background: #D97706 !important; color: white; border: none !important;
+  padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap;
+}
+.dict-postpublish-btn-test:disabled { opacity: 0.6; cursor: not-allowed; }
+.dict-postpublish-btn-test:hover:not(:disabled) { background: #B45309 !important; }
+.dict-postpublish-test-result {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+  margin-top: 8px; font-size: 13px;
+}
+.dict-postpublish-test-code {
+  font-size: 12px; color: #374151; background: white;
+  padding: 3px 8px; border-radius: 6px; border: 1px solid #FCD34D;
+}
 
 /* ── MonitorTab: Sala button ── */
 .dict-btn-sala {
