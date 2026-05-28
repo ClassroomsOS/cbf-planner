@@ -9713,6 +9713,19 @@ button.cbf-loading {
 .dict-postpublish-btn.primary:hover { background: #152a4e; }
 .dict-postpublish-btn.secondary { background: white; color: #374151; border: 1px solid #D1D5DB; }
 .dict-postpublish-btn.secondary:hover { background: #F9FAFB; }
+/* ── Progress bars ── */
+@keyframes dict-progress-slide {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+.dict-progress-box { margin-top: 16px; background: #F0F9FF; border: 1px solid #BAE6FD; border-radius: 10px; padding: 14px 16px; }
+.dict-progress-label { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-size: 13px; color: #1F3864; font-weight: 600; }
+.dict-progress-icon { margin-right: 6px; }
+.dict-progress-count { font-size: 12px; color: #6B7280; font-weight: 400; }
+.dict-progress-track { height: 10px; background: #E0F2FE; border-radius: 99px; overflow: hidden; }
+.dict-progress-bar { height: 100%; background: linear-gradient(90deg, #2563EB, #4BACC6); border-radius: 99px; transition: width 0.4s ease; }
+.dict-progress-bar--indeterminate { width: 40% !important; animation: dict-progress-slide 1.4s ease-in-out infinite; }
+
 .dict-postpublish-email-box { margin: 4px 0 16px; text-align: center; }
 .dict-postpublish-btn-email { width: 100%; background: #EFF6FF; color: #1D4ED8; border: 1.5px solid #BFDBFE !important; padding: 12px 20px; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; }
 .dict-postpublish-btn-email:hover { background: #DBEAFE; }

@@ -40,6 +40,10 @@ export default function CreateTab({ teacher, showToast }) {
   const [generated, setGenerated] = useState(null)
   const [audioUrls, setAudioUrls] = useState({})
 
+  // Progress
+  const [aiMessage, setAiMessage]         = useState('')
+  const [audioProgress, setAudioProgress] = useState(null) // null | { current, total, label }
+
   // Step 3 — Publish
   const [title, setTitle] = useState('')
   const [duration, setDuration] = useState(30)
@@ -218,6 +222,19 @@ export default function CreateTab({ teacher, showToast }) {
     }
 
     setGenerating(true)
+    const AI_MESSAGES = [
+      'Analizando vocabulario...',
+      'Construyendo preguntas...',
+      'Ajustando nivel de dificultad...',
+      'Revisando estructura del assessment...',
+      'Finalizando con IA...',
+    ]
+    let msgIdx = 0
+    setAiMessage(AI_MESSAGES[0])
+    const msgTimer = setInterval(() => {
+      msgIdx = (msgIdx + 1) % AI_MESSAGES.length
+      setAiMessage(AI_MESSAGES[msgIdx])
+    }, 2200)
     try {
       const result = await generateDictation({
         vocabulary,
@@ -236,7 +253,9 @@ export default function CreateTab({ teacher, showToast }) {
       logError(err, { page: 'DictationPage', action: 'generateDictation' })
       showToast(err.message || 'Error al generar el assessment', 'error')
     } finally {
+      clearInterval(msgTimer)
       setGenerating(false)
+      setAiMessage('')
     }
   }
 
@@ -259,10 +278,17 @@ export default function CreateTab({ teacher, showToast }) {
       )
 
       const newAudioUrls = {}
+      const totalItems = audioSections.reduce((sum, s) => sum + s.items.filter(it => it.audio_text).length, 0)
+      let doneItems = 0
+      setAudioProgress({ current: 0, total: totalItems, label: '' })
 
-      for (const sec of audioSections) {
+      for (let sIdx = 0; sIdx < audioSections.length; sIdx++) {
+        const sec = audioSections[sIdx]
         const texts = sec.items.map(it => it.audio_text).filter(Boolean)
         if (texts.length === 0) continue
+
+        const sectionLabel = SECTION_META[sec.type]?.label || sec.type
+        setAudioProgress({ current: doneItems, total: totalItems, label: `${SECTION_META[sec.type]?.icon || '🔊'} ${sectionLabel}` })
 
         const res = await fetch(edgeFnUrl, {
           method: 'POST',
@@ -282,6 +308,8 @@ export default function CreateTab({ teacher, showToast }) {
         const data = await res.json()
         if (data.error) throw new Error(data.error)
         newAudioUrls[sec.type] = data.audio_urls || []
+        doneItems += texts.length
+        setAudioProgress({ current: doneItems, total: totalItems, label: `${SECTION_META[sec.type]?.icon || '🔊'} ${sectionLabel}` })
       }
 
       setAudioUrls(newAudioUrls)
@@ -292,6 +320,7 @@ export default function CreateTab({ teacher, showToast }) {
       showToast(err.message || 'Error al generar audio', 'error')
     } finally {
       setGeneratingAudio(false)
+      setAudioProgress(null)
     }
   }
 
@@ -699,10 +728,23 @@ export default function CreateTab({ teacher, showToast }) {
                 ✍️ Continuar a edición manual
               </button>
             )}
-            {vocabulary.length < 3 && entryMode === 'ai' && (
+            {vocabulary.length < 3 && entryMode === 'ai' && !generating && (
               <p style={{ color: '#C0504D', fontSize: 12, marginTop: 6 }}>Necesitas al menos 3 palabras en el vocabulario para generar</p>
             )}
           </div>
+
+          {/* AI generation progress */}
+          {generating && (
+            <div className="dict-progress-box">
+              <div className="dict-progress-label">
+                <span className="dict-progress-icon">🤖</span>
+                <span>{aiMessage}</span>
+              </div>
+              <div className="dict-progress-track">
+                <div className="dict-progress-bar dict-progress-bar--indeterminate" />
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -798,6 +840,22 @@ export default function CreateTab({ teacher, showToast }) {
               Continuar →
             </button>
           </div>
+
+          {/* Audio generation progress */}
+          {generatingAudio && audioProgress && (
+            <div className="dict-progress-box">
+              <div className="dict-progress-label">
+                <span>{audioProgress.label || '🔊 Generando audio...'}</span>
+                <span className="dict-progress-count">{audioProgress.current}/{audioProgress.total} audios</span>
+              </div>
+              <div className="dict-progress-track">
+                <div
+                  className="dict-progress-bar"
+                  style={{ width: audioProgress.total > 0 ? `${(audioProgress.current / audioProgress.total) * 100}%` : '0%' }}
+                />
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -855,6 +913,22 @@ export default function CreateTab({ teacher, showToast }) {
               Continuar →
             </button>
           </div>
+
+          {/* Audio generation progress */}
+          {generatingAudio && audioProgress && (
+            <div className="dict-progress-box">
+              <div className="dict-progress-label">
+                <span>{audioProgress.label || '🔊 Generando audio...'}</span>
+                <span className="dict-progress-count">{audioProgress.current}/{audioProgress.total} audios</span>
+              </div>
+              <div className="dict-progress-track">
+                <div
+                  className="dict-progress-bar"
+                  style={{ width: audioProgress.total > 0 ? `${(audioProgress.current / audioProgress.total) * 100}%` : '0%' }}
+                />
+              </div>
+            </div>
+          )}
         </div>
       )}
 
