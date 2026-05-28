@@ -31,7 +31,7 @@ export default function MonitorTab({ teacher }) {
 
     loadInstances()
 
-    // Realtime subscription
+    // Realtime: instances (status changes) + results (grades arrive after correction)
     const channel = supabase
       .channel(`dictation-monitor-${selectedSession}`)
       .on('postgres_changes', {
@@ -39,6 +39,11 @@ export default function MonitorTab({ teacher }) {
         schema: 'public',
         table: 'dictation_instances',
         filter: `session_id=eq.${selectedSession}`,
+      }, () => loadInstances())
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'dictation_results',
       }, () => loadInstances())
       .subscribe()
 
