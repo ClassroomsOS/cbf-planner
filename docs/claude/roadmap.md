@@ -48,7 +48,7 @@
 | **Biblioteca CBF — Fase 3c** | ✅ Completo | Fragmentos en PlannerPage: callout azul con chips de tipo/SmartBlock → pasan a `AIGeneratorModal` → `generateGuideStructure` los recibe como contexto al generar desde el Planner |
 | **Biblioteca CBF — Fase 4** | ✅ Completo | Imágenes de fragmentos fluyen como `imageBlocks` a `generateGuideStructure` (máx. 5, fragmentos prioritarios) · `analyzeTextbookPages()` acepta URLs o capturas base64 · UI "📖 Páginas" en PDF viewer: selección multi-página → renderizado offscreen → análisis Claude Vision → `PagesAnalysisPanel` con plan semanal + SmartBlock sugeridos |
 | **Biblioteca CBF — Fase 5** | ✅ Completo | Integración Syllabus: `syllabus_topics.library_doc_id + library_pages[]` (migración prod) · `SyllabusLinkPanel` en PDF viewer: asignar páginas actuales a un `syllabus_topic` · `SyllabusPage` TopicFormModal con selector PDF + páginas; TopicDetailCard chip doc/páginas · `GuideEditorPage` callout verde "Páginas del libro vinculadas al syllabus (semana N)" |
-| **Módulo Dictation** | ✅ ~97% completo | 6 tablas (+ dictation_vocab_sets) + 2 Edge Fns · DictationPage extraído a 8 componentes · 3 modos de evaluación (Dictation/Vocabulary Quiz/Combined) · 5 tipos de pregunta (listen_type, listen_identify, matching, fill_blank, writing) · ASSESSMENT_MODES + ITEM_COUNTS matrix · Modo manual + modo IA · Biblioteca vocabulario por período · Export PDF dinámico por modo · Export audio ZIP · Archivo dictados con filtros/reuse/archive · DictationPlayerPage antitrampa 5 capas · Azure TTS 10 voces · corrección Levenshtein + scoreWriting + Telegram · Pendiente: email resultados, Azure key en secrets, panel post-publish con link copiable |
+| **Módulo Dictation** | ✅ ~99% completo | 6 tablas (+ dictation_vocab_sets) + 2 Edge Fns · DictationPage extraído a 8 componentes · 3 modos de evaluación · 5 tipos de pregunta · Sala de Control (SessionControlPage) con 3 paneles RT · teacher_warning broadcast overlay · force_close remoto · events[] timeline · DictationPreview teacher-side · WarningModal · post-publish panel con link y Sala de Control · Pendiente: CorrectedExamView + PDF corregido + email representante |
 | **Instrumento Docente** | 🔶 En desarrollo | Guión de sesión generado por IA para el docente (complemento de la Guía CBF-G AC-01) · IMS · estado del grupo · 3 opciones por fase · PREACHER CLOSE · prototipo en `theoric mark/teacher-instrument.jsx` |
 
 ---
@@ -282,6 +282,28 @@ Cuando el docente sube fotos de textbook en NewsProjectEditor:
 | Deploy directo a producción | Todas las migraciones y Edge Functions | ✅ Supabase Branch creado |
 
 ---
+
+## Completado — sesión 2026-05-27c (Sala de Control de Dictados)
+
+- [x] Migración DB: `force_closed` en CHECK constraint de `dictation_instances.instance_status`
+- [x] `DictationPlayerPage`: Supabase Realtime Broadcast listener (`dictation-ctrl-{sessionId}`)
+- [x] `DictationPlayerPage`: `teacher_warning` event → full-screen warning overlay (10s auto-dismiss + "Understood")
+- [x] `DictationPlayerPage`: `force_close` event → exit fullscreen + DB update + `force_closed` phase render
+- [x] `DictationPlayerPage`: `registerViolation()` enriquecida con `events[]` array en `integrity_flags`
+- [x] `SessionControlPage.jsx` (nuevo): 3 paneles RT — link/preview/stats | tabla estudiantes | detalle+acciones
+- [x] `SessionControlPage`: Realtime en `dictation_instances` + `dictation_results` (postgres_changes)
+- [x] `SessionControlPage`: Broadcast channel para enviar `teacher_warning` y `force_close`
+- [x] `SessionControlPage`: Timeline de violaciones desde `integrity_flags.events[]`
+- [x] `SessionControlPage`: Resumen de secciones para estudiantes entregados
+- [x] `SessionControlPage`: Confirm modal antes de force-close
+- [x] `WarningModal.jsx` (nuevo): severity selector + mensajes rápidos + textarea + `createPortal`
+- [x] `DictationPreview.jsx` (nuevo): vista previa read-only del blueprint por tipo de pregunta con correct_answers
+- [x] `DashboardPage`: lazy import + ruta `/dictations/session/:sessionId`
+- [x] `MonitorTab`: botón "🎛️ Sala de Control" para la sesión activa seleccionada
+- [x] `ListTab`: botón "Sala" por sesión ready/active en el acordeón de cada blueprint
+- [x] `CreateTab`: panel post-publish con URL copiable + "Abrir Sala de Control" (en lugar de reset inmediato)
+- [x] CSS: ~250 líneas nuevas `ctrl-*` (layout 3 paneles) + `dict-modal-*` + `dict-postpublish-*` + `dict-btn-sala`
+- [x] Build limpio · migración aplicada a producción
 
 ## Completado — sesión 2026-05-27b (Dictation — 3 modos de evaluación + fixes)
 
