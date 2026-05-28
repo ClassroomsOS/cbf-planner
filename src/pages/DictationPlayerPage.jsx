@@ -152,17 +152,17 @@ function AudioQuestion({ audioUrl, qIndex, replays, maxReplays, onReplay }) {
 
   return (
     <div className="dict-q-audio">
-      {/* Hidden audio element — no controls attribute */}
+      {/* Hidden audio element — crossOrigin required for Web Audio API GainNode */}
       <audio
         ref={audioRef}
         src={audioUrl}
+        crossOrigin="anonymous"
         onTimeUpdate={() => {
           const a = audioRef.current
           if (a && a.duration) setProgress(a.currentTime / a.duration)
         }}
         onLoadedMetadata={() => {
           setDuration(audioRef.current?.duration || 0)
-          // Don't set element.volume here — GainNode handles it after first play
         }}
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}

@@ -234,7 +234,7 @@ Deno.serve(async (req: Request) => {
         method: 'POST',
         headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          from:    'CBF Planner <noreply@redboston.edu.co>',
+          from:    'CBF Planner <onboarding@resend.dev>',
           to:      [studentEmail],
           subject: `🎧 Código de acceso — ${session.title || 'Evaluación de Escucha'}`,
           html,
