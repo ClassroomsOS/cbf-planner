@@ -83,6 +83,75 @@ function seededShuffleArray(arr, seed) {
   return out
 }
 
+// ── AudioQuestion — controlled player, enforces replay limit ─────────────────
+// Native <audio controls> lets the student bypass the replay limit by clicking
+// the browser's built-in play button. This component hides the native controls
+// and manages playback exclusively through the custom button.
+
+function AudioQuestion({ audioUrl, qIndex, replays, maxReplays, onReplay }) {
+  const audioRef = useRef(null)
+  const [playing, setPlaying] = useState(false)
+  const [progress, setProgress] = useState(0)
+  const [duration, setDuration] = useState(0)
+  const used = replays[qIndex] || 0
+  const remaining = maxReplays - used
+  const exhausted = used >= maxReplays
+
+  if (!audioUrl) {
+    return (
+      <div className="dict-q-audio">
+        <span className="dict-no-audio">🔇 Audio not available — ask your teacher</span>
+      </div>
+    )
+  }
+
+  function handlePlay() {
+    if (exhausted) return
+    onReplay(qIndex, audioUrl)
+    const audio = audioRef.current
+    if (!audio) return
+    audio.currentTime = 0
+    audio.play().catch(() => {})
+  }
+
+  return (
+    <div className="dict-q-audio">
+      {/* Hidden audio element — no controls attribute */}
+      <audio
+        ref={audioRef}
+        src={audioUrl}
+        onTimeUpdate={() => {
+          const a = audioRef.current
+          if (a && a.duration) setProgress(a.currentTime / a.duration)
+        }}
+        onLoadedMetadata={() => setDuration(audioRef.current?.duration || 0)}
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onEnded={() => { setPlaying(false); setProgress(0) }}
+      />
+      <div className="dict-audio-ctrl">
+        <button
+          className={`dict-audio-play-btn ${exhausted ? 'exhausted' : ''}`}
+          onClick={handlePlay}
+          disabled={exhausted}
+          title={exhausted ? 'No more replays allowed' : `Play (${remaining} remaining)`}
+        >
+          {playing ? '⏸' : '▶'}
+        </button>
+        <div className="dict-audio-progress-track">
+          <div className="dict-audio-progress-fill" style={{ width: `${progress * 100}%` }} />
+        </div>
+        <span className="dict-audio-duration">
+          {duration ? `${Math.ceil(duration)}s` : '—'}
+        </span>
+        <span className={`dict-audio-replays ${exhausted ? 'exhausted' : ''}`}>
+          {exhausted ? '🔒 No more replays' : `🔄 ${remaining} replay${remaining !== 1 ? 's' : ''} left`}
+        </span>
+      </div>
+    </div>
+  )
+}
+
 // ── Watermark canvas ──────────────────────────────────────────────────────────
 
 function WatermarkCanvas({ text }) {
@@ -102,7 +171,7 @@ function WatermarkCanvas({ text }) {
       ctx.font = 'bold 22px Arial'
       ctx.translate(canvas.width / 2, canvas.height / 2)
       ctx.rotate(-Math.PI / 6)
-      const stepX = 320, stepY = 120
+      const stepX = 520, stepY = 200
       const cols = Math.ceil(canvas.width / stepX) + 2
       const rows = Math.ceil(canvas.height / stepY) + 2
       for (let r = -rows; r <= rows; r++) {
@@ -854,28 +923,13 @@ ${result.section_scores ? Object.entries(result.section_scores).map(([type, s]) 
 
                 {/* Audio for listen_type and listen_identify */}
                 {(qType === 'listen_type' || qType === 'listen_identify') && (
-                  <div className="dict-q-audio">
-                    {blueprint?.audio_urls?.[qType]?.[
-                      currentSection.items.indexOf(q)
-                    ] ? (
-                      <>
-                        <audio
-                          controls
-                          src={blueprint.audio_urls[qType][currentSection.items.indexOf(q)]}
-                          className="dict-audio-player"
-                        />
-                        <button
-                          onClick={() => handleReplay(idx, blueprint.audio_urls[qType][currentSection.items.indexOf(q)])}
-                          disabled={getReplayCount(idx) >= MAX_REPLAYS}
-                          className="dict-replay-btn"
-                        >
-                          🔄 Replay ({MAX_REPLAYS - getReplayCount(idx)} left)
-                        </button>
-                      </>
-                    ) : (
-                      <span className="dict-no-audio">🔇 Audio not available — ask your teacher</span>
-                    )}
-                  </div>
+                  <AudioQuestion
+                    audioUrl={blueprint?.audio_urls?.[qType]?.[currentSection.items.indexOf(q)]}
+                    qIndex={idx}
+                    replays={replays}
+                    maxReplays={MAX_REPLAYS}
+                    onReplay={handleReplay}
+                  />
                 )}
 
                 {/* Word for matching */}
@@ -1015,8 +1069,8 @@ ${result.section_scores ? Object.entries(result.section_scores).map(([type, s]) 
             <p className="dict-result-violations">⚠️ {violations} integrity violation(s) recorded</p>
           )}
 
-          <button onClick={downloadResult} className="dict-download-btn">
-            📥 Download Result
+          <button onClick={() => window.print()} className="dict-download-btn">
+            🖨️ Imprimir / Guardar PDF
           </button>
 
           <div className="dict-result-verse">

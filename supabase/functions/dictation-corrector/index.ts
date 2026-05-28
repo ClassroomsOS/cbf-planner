@@ -177,15 +177,20 @@ Deno.serve(async (req) => {
       let score = 0;
       let isCorrect = false;
       let isPartial = false;
+      const correctAnswer = (q.correct_answer || "").trim();
 
-      if (type === "listen_type") {
-        const result = scoreTypedWord(resp.answer || "", q.correct_answer, maxPts);
+      // Explicit blank answer guard — blank is always wrong
+      const studentAnswer = (resp.answer || "").trim();
+      if (!studentAnswer) {
+        // score=0, isCorrect=false already; fall through to update
+      } else if (type === "listen_type") {
+        const result = scoreTypedWord(studentAnswer, correctAnswer, maxPts);
         score = result.score;
         isCorrect = result.isCorrect;
         isPartial = result.isPartial;
       } else {
-        // MC: exact match (case-insensitive)
-        isCorrect = (resp.answer || "").trim().toLowerCase() === q.correct_answer.trim().toLowerCase();
+        // MC/matching/fill_blank/writing: exact match (case-insensitive)
+        isCorrect = studentAnswer.toLowerCase() === correctAnswer.toLowerCase();
         score = isCorrect ? maxPts : 0;
       }
 
@@ -193,10 +198,10 @@ Deno.serve(async (req) => {
       if (isCorrect) sectionScores[type].correct += 1;
       totalScore += score;
 
-      // Update response with server-verified score
+      // Update response: score + is_correct + write back correct_answer for teacher view
       await supabase
         .from("dictation_responses")
-        .update({ score, is_correct: isCorrect || isPartial })
+        .update({ score, is_correct: isCorrect || isPartial, correct_answer: correctAnswer })
         .eq("id", resp.id);
     }
 
