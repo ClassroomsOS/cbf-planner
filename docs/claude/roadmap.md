@@ -48,7 +48,7 @@
 | **Biblioteca CBF — Fase 3c** | ✅ Completo | Fragmentos en PlannerPage: callout azul con chips de tipo/SmartBlock → pasan a `AIGeneratorModal` → `generateGuideStructure` los recibe como contexto al generar desde el Planner |
 | **Biblioteca CBF — Fase 4** | ✅ Completo | Imágenes de fragmentos fluyen como `imageBlocks` a `generateGuideStructure` (máx. 5, fragmentos prioritarios) · `analyzeTextbookPages()` acepta URLs o capturas base64 · UI "📖 Páginas" en PDF viewer: selección multi-página → renderizado offscreen → análisis Claude Vision → `PagesAnalysisPanel` con plan semanal + SmartBlock sugeridos |
 | **Biblioteca CBF — Fase 5** | ✅ Completo | Integración Syllabus: `syllabus_topics.library_doc_id + library_pages[]` (migración prod) · `SyllabusLinkPanel` en PDF viewer: asignar páginas actuales a un `syllabus_topic` · `SyllabusPage` TopicFormModal con selector PDF + páginas; TopicDetailCard chip doc/páginas · `GuideEditorPage` callout verde "Páginas del libro vinculadas al syllabus (semana N)" |
-| **Módulo Dictation** | ✅ Completo | 6 tablas (+ dictation_vocab_sets) + 3 Edge Fns · DictationPage extraído a 8 componentes · 3 modos de evaluación · 5 tipos de pregunta · Sala de Control (SessionControlPage) con 3 paneles RT · teacher_warning broadcast overlay · force_close remoto · events[] timeline · DictationPreview · CorrectedExamView modal (respuestas verde/rojo) · buildCorrectedHtml/printCorrectedHtml (PDF corregido CBF-G AC-01) · dictation-notify Edge Fn (email representante vía Resend) |
+| **Módulo Dictation** | ✅ Completo | 6 tablas (+ dictation_vocab_sets) + 4 Edge Fns (+ dictation-send-test) · DictationPage 8 componentes · 3 modos · 6 tipos de pregunta · Sala de Control 3 paneles RT · Volume control por pregunta · Anti-trampa: paste bloqueado + traducción deshabilitada + autoComplete/autoCorrect/spellCheck off · dictation-send-codes (URL visible) · dictation-send-test (prueba a correos del docente) · corrector robusto (0-responses → 1.0) |
 | **Instrumento Docente** | 🔶 En desarrollo | Guión de sesión generado por IA para el docente (complemento de la Guía CBF-G AC-01) · IMS · estado del grupo · 3 opciones por fase · PREACHER CLOSE · prototipo en `theoric mark/teacher-instrument.jsx` |
 
 ---
@@ -282,6 +282,24 @@ Cuando el docente sube fotos de textbook en NewsProjectEditor:
 | Deploy directo a producción | Todas las migraciones y Edge Functions | ✅ Supabase Branch creado |
 
 ---
+
+## Completado — sesión 2026-05-28c (Dictation — hardening anti-trampa + UX mejoras)
+
+- [x] `DictationPlayerPage`: control de volumen por pregunta de audio — slider range + icono dinámico (🔇/🔈/🔉/🔊) + % — cada pregunta tiene su propio volumen independiente
+- [x] `DictationPlayerPage`: bloqueo de paste a nivel `document` (registra violación, mismo patrón que copy/cut)
+- [x] `DictationPlayerPage`: `translate="no"` en container del examen + `notranslate` class en `<html>` + `<meta name="google" content="notranslate">` inyectado on-mount — bloquea Google Translate y prompts de traducción del navegador; se limpia al salir
+- [x] `DictationPlayerPage`: inputs con `autoCorrect="off"` `autoCapitalize="off"` `data-form-type="other"` — desactiva corrector iOS, autocapitalización Android y autofill de gestores de contraseñas
+- [x] `DictationPlayerPage`: `onPaste={e.preventDefault()}` también en container, listen_type input y writing textarea (capa React adicional)
+- [x] `dictation-corrector` Edge Fn: handle 0-responses (blank submission) → calcula grade 1.0 + upsert result en vez de devolver 404
+- [x] `DictationPlayerPage`: fallback chain en corrector fetch — `.then()` y `.catch()` siempre llaman `setResult` (con fallback 1.0 si error); timeout 12s fetch directo a DB; spinner en submitted phase; `grade != null` en lugar de `grade ?`
+- [x] `dictation-send-codes` Edge Fn: URL del player visible como texto plano bajo el botón CTA (para copy-paste si el botón no funciona)
+- [x] `dictation-send-test` Edge Fn (nueva): crea instancia TEST-XXXXXX real para el docente, envía email de prueba con banner ámbar a `teacher.email` + `extra_email` opcional; código devuelto en UI para test E2E
+- [x] `CreateTab`: botón "🧪 Probar envío a mis correos" en panel post-publish — input extra_email persiste en localStorage
+- [x] `ListTab`: botones 🗑️ para eliminar sesiones y blueprints con confirmación inline + cascade delete (responses → results → instances → sessions → blueprint)
+- [x] `CreateTab`: progreso visual para generación IA (mensajes rotatorios animados) y para generación TTS (barra determinada por item)
+- [x] `DictationPlayerPage`: opciones MC con placement cíclico correcto (A→B→C→D en preguntas sucesivas) — previene inducción por patrón
+- [x] `SessionControlPage`: badge de violaciones titila hasta que el docente reconoce; fila del estudiante resaltada en rojo hasta reconocer
+- [x] CSS: `.dict-audio-volume`, `.dict-audio-vol-slider`, `.dict-postpublish-test-box`, `.dict-result-loading`, `.dict-result-spinner`, `@keyframes dict-spin`
 
 ## Completado — sesión 2026-05-28 (Dictation — CorrectedExamView + PDF corregido + email representante)
 

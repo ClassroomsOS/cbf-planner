@@ -384,8 +384,10 @@ Colores, eleot® items y modelos → `src/utils/smartBlockHtml.js` · `src/compo
 - `exam-response-corrector` Edge Fn: confianza < 0.65 → `requires_human_review=true`. Fallback Claude falla → `score=0, requires_review=true` (no bloquea al estudiante).
 - `generateDictation` acepta `{ vocabulary, unitReference, grade, subject, difficulty, assessmentMode }` — genera JSON según modo: dictation (3 audio), vocab_quiz (matching+fill+writing), combined (5 tipos). Items incluyen `audio_text`, `correct_answer`, `options[]` (MC), `required_words[]` (writing), `max_score`. Conteo por ITEM_COUNTS[mode][difficulty].
 - `dictation-tts` Edge Fn: Azure Cognitive Services SSML → MP3. Input: `{ texts[], voice_id, speed, blueprint_id, school_id, section }`. Output: `{ audio_urls[] }`. Env: `AZURE_TTS_KEY`, `AZURE_TTS_REGION`.
-- `dictation-corrector` Edge Fn: scoring determinístico (no IA). Levenshtein para typed words (exact=100%, lev≤1=50%), exact match para MC. Upsert `dictation_results` + Telegram al docente con nota colombiana + código anónimo (last-6 instance_id).
+- `dictation-corrector` Edge Fn: scoring determinístico (no IA). Levenshtein para typed words (exact=100%, lev≤1=50%), exact match para MC. Upsert `dictation_results` + Telegram al docente con nota colombiana + código anónimo (last-6 instance_id). Si 0 respuestas (blank submission) → calcula grade 1.0 desde `generated_questions.max_score` + upsert en vez de 404.
 - `dictation-notify` Edge Fn: email al representante vía Resend. Input: `{ instance_id }`. Consulta `school_students.representative_email` → genera email HTML institucional con nota, nivel y desglose por sección. Requiere `RESEND_API_KEY`. Retorna `{ ok, message }` o `{ error }` (422 si no hay representative_email).
+- `dictation-send-codes` Edge Fn: envía a cada estudiante su código personal. Email incluye botón CTA + URL visible en texto plano para copy-paste.
+- `dictation-send-test` Edge Fn: prueba de envío para el docente. Input: `{ session_id, extra_email? }`. Crea (o reutiliza) instancia `TEST-XXXXXX` real para el docente. Envía email de prueba con banner ámbar a `teacher.email` + `extra_email`. Retorna `{ ok, access_code, sent_to[] }`. El código generado es funcional — el docente puede usarlo para probar el player E2E.
 - `DictationPlayerPage` reusa `exam-integrity-alert` Edge Fn para anti-cheat Telegram con `event_type: 'dictation_violation'`.
 - `buildManualSectionsScaffold(difficulty, assessmentMode)` en `dictationUtils.js`: scaffold vacío mode-aware. Soporta 5 tipos: listen_type, listen_identify, matching (word→4 defs), fill_blank, writing (prompt+required_words). Retorna secciones según ASSESSMENT_MODES[mode].types filtrado por ITEM_COUNTS.
 - `dictationUtils.js` exports adicionales: `ASSESSMENT_MODES` (3 modos), `ITEM_COUNTS` (matrix modo×dificultad×tipo), `SECTION_META` (icon/label/color por tipo), `getQuestionCounts(difficulty, assessmentMode)`, `scoreWriting(answer, requiredWords, maxScore)`, `QUESTION_POINTS` (listen_type=2, writing=5, resto=1).
@@ -474,7 +476,13 @@ sendTelegramNotification(eventType, extra) // sin throttle, para ciclo
 //   - AudioExportPanel integrado en Step 2
 //   - handleGenerateAudio(sourceOverride) — acepta override para evitar async setState race
 //   - loadedSetName state — muestra nombre del set cargado
+//   - aiMessage state: mensajes rotatorios durante generación IA ("Analizando vocabulario...", etc.)
+//   - audioProgress state { current, total, label }: barra determinada por item durante TTS
+//   - Panel post-publish: link copiable + botón "📧 Enviar código a estudiantes" + "🧪 Probar email"
+//   - testExtraEmail: input con extra_email para prueba, persiste en localStorage
 // ListTab.jsx: biblioteca de dictados — filtros, detalle expandible, reusar sesión, archivar
+//   - Botones 🗑️ con confirmación inline para eliminar sesiones y blueprints
+//   - Cascade delete: responses → results → instances → sessions → blueprint
 // VocabLibraryTab.jsx: CRUD de dictation_vocab_sets (5° tab "📚 Vocabulario")
 // MonitorTab.jsx: monitor Realtime extraído
 // ConfigTab.jsx: configuración Telegram extraída
@@ -489,14 +497,22 @@ sendTelegramNotification(eventType, extra) // sin throttle, para ciclo
 ### Estado clave — DictationPlayerPage
 ```javascript
 localStorage['cbf_dict_entry'] = { code, name, section } // persiste para iOS
-phase           // 'entry' | 'instructions' | 'dictation' | 'submitted'
+phase           // 'entry' | 'instructions' | 'dictation' | 'submitted' | 'force_closed'
 violations      // int — multi-event anti-cheat detection (same 5-layer as ExamPlayerV2)
 activeSection   // 0-based index into sections (listen_type, listen_identify, fill_blank)
 answers         // { [globalIndex]: string } — IndexedDB autosave
 correctAnswersRef // useRef — correct_answer never in React state (DevTools security)
+result          // null | { ok, colombian_grade, grade_level, total_score, max_score, section_scores }
 // Telegram: reuses exam-integrity-alert Edge Fn with event_type 'dictation_*'
 // TTS: Azure Cognitive Services MP3 from Supabase Storage bucket dictation-audio
 // Scoring: Levenshtein fuzzy for typed words, exact match for MC — server verifies via dictation-corrector
+// MC options: cyclicPlaceCorrect() — coloca la respuesta correcta rotando A→B→C→D por pregunta
+// AudioQuestion: volume slider por pregunta (range 0–1, default 0.8, icono dinámico)
+// Anti-trampa dictation phase: copy+cut+paste bloqueados a nivel document + registran violación
+//   translate="no" + notranslate class + <meta name="google" content="notranslate"> on mount
+//   autoComplete/autoCorrect/autoCapitalize/spellCheck off en todos los inputs
+// Submitted phase: fallback chain — corrector .then()/.catch() siempre setResult; timeout 12s fetch DB
+//   spinner mientras llega; grade != null guard (no falsy check)
 ```
 
 ### Estado clave — GuideEditorPage / PlannerPage
