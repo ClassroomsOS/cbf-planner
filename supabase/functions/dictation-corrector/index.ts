@@ -148,14 +148,26 @@ Deno.serve(async (req) => {
       .eq("instance_id", instance_id)
       .order("question_index");
 
+    const questions = instance.generated_questions || [];
+
     if (!responses || responses.length === 0) {
+      // Student submitted without answering — score is 0, grade is 1.0
+      const maxScore = questions.reduce((sum: number, q: { max_score?: number }) => sum + (q.max_score || 1), 0);
+      const grade = maxScore > 0 ? 1.0 : null;
+      const level = grade ? "Bajo" : "N/A";
+      await supabase.from("dictation_results").upsert({
+        instance_id,
+        total_score: 0,
+        max_score: maxScore,
+        colombian_grade: grade,
+        grade_level: level,
+        section_scores: {},
+      }, { onConflict: "instance_id" });
       return new Response(
-        JSON.stringify({ error: "No responses found" }),
-        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ ok: true, total_score: 0, max_score: maxScore, colombian_grade: grade, grade_level: level, section_scores: {} }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-
-    const questions = instance.generated_questions || [];
 
     // 3. Score each response
     let totalScore = 0;

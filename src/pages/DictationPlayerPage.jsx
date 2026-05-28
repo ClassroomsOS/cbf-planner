@@ -648,6 +648,14 @@ export default function DictationPlayerPage() {
 
       // 5. Fire corrector in background (non-blocking)
       const edgeFnUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/dictation-corrector`
+      const zeroResult = {
+        ok: true,
+        colombian_grade: 1.0,
+        grade_level: 'Bajo',
+        total_score: 0,
+        max_score: responses.length,
+        section_scores: {},
+      }
       fetch(edgeFnUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -660,10 +668,13 @@ export default function DictationPlayerPage() {
               ? `${data.colombian_grade}/5.0 (${data.grade_level})`
               : 'Correction pending',
           })
-          // If Realtime hasn't delivered the result yet, set it directly
-          if (data.ok) setResult(prev => prev || data)
+          // Always set result — use server data if ok, otherwise show 1.0 fallback
+          setResult(prev => prev || (data.ok ? data : zeroResult))
         })
-        .catch(() => {})
+        .catch(() => {
+          // Network error — show 1.0 fallback so page is never blank
+          setResult(prev => prev || zeroResult)
+        })
 
     } catch (err) {
       logError(err, { page: 'DictationPlayerPage', action: 'submit' })
@@ -695,7 +706,43 @@ export default function DictationPlayerPage() {
       })
       .subscribe()
 
-    return () => { supabase.removeChannel(channel) }
+    // Fallback: if result still not set after 12s, fetch it from DB directly
+    const fallbackTimer = setTimeout(async () => {
+      setResult(prev => {
+        if (prev) return prev  // already got it
+        return null  // will trigger the DB fetch below
+      })
+      const { data: row } = await supabase
+        .from('dictation_results')
+        .select('*')
+        .eq('instance_id', instance.id)
+        .maybeSingle()
+      if (row) {
+        setResult(prev => prev || {
+          ok: true,
+          colombian_grade: row.colombian_grade,
+          grade_level: row.grade_level,
+          total_score: row.total_score,
+          max_score: row.max_score,
+          section_scores: row.section_scores,
+        })
+      } else {
+        // No result in DB either — show 1.0 so the page is never blank
+        setResult(prev => prev || {
+          ok: true,
+          colombian_grade: 1.0,
+          grade_level: 'Bajo',
+          total_score: 0,
+          max_score: questions.length,
+          section_scores: {},
+        })
+      }
+    }, 12000)
+
+    return () => {
+      supabase.removeChannel(channel)
+      clearTimeout(fallbackTimer)
+    }
   }, [phase, instance?.id])
 
   // ── Group questions by section ──────────────────────────────────────────────
@@ -1042,19 +1089,26 @@ ${result.section_scores ? Object.entries(result.section_scores).map(([type, s]) 
     const grade = result?.colombian_grade
     const level = result?.grade_level
     const color = gradeColor(grade)
+    const hasResult = result != null
 
     return (
       <div className="dict-player-submitted">
         <div className="dict-result-card">
           <h1>🎧 Dictation Complete</h1>
+          {!hasResult && (
+            <div className="dict-result-loading">
+              <div className="dict-result-spinner" />
+              <p>Calculando resultado...</p>
+            </div>
+          )}
           <div className="dict-result-grade" style={{ color }}>
-            {grade ? `${grade}/5.0` : 'Calculating...'}
+            {grade != null ? `${grade}/5.0` : hasResult ? '1.0/5.0' : ''}
           </div>
           <div className="dict-result-level" style={{ color }}>
-            {level || '...'}
+            {level || (hasResult ? 'Bajo' : '')}
           </div>
           <p className="dict-result-score">
-            Score: {result?.total_score || 0}/{result?.max_score || 0}
+            Score: {result?.total_score ?? 0}/{result?.max_score ?? 0}
           </p>
 
           {result?.section_scores && (

@@ -9255,8 +9255,11 @@ button.cbf-loading {
   text-align: center; box-shadow: 0 8px 40px rgba(0,0,0,0.1);
 }
 .dict-result-card h1 { color: #1F3864; margin-bottom: 20px; }
-.dict-result-grade { font-size: 3em; font-weight: 900; margin: 16px 0 4px; }
-.dict-result-level { font-size: 1.5em; font-weight: 700; margin-bottom: 12px; }
+.dict-result-loading { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 16px 0; color: #6B7280; font-size: 14px; }
+.dict-result-spinner { width: 32px; height: 32px; border: 3px solid #e5e7eb; border-top-color: #4BACC6; border-radius: 50%; animation: dict-spin 0.8s linear infinite; }
+@keyframes dict-spin { to { transform: rotate(360deg); } }
+.dict-result-grade { font-size: 3em; font-weight: 900; margin: 16px 0 4px; min-height: 1.2em; }
+.dict-result-level { font-size: 1.5em; font-weight: 700; margin-bottom: 12px; min-height: 1.2em; }
 .dict-result-score { color: #666; font-size: 14px; }
 .dict-result-sections { margin: 20px 0; text-align: left; }
 .dict-result-section {
