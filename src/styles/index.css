@@ -8937,6 +8937,15 @@ button.cbf-loading {
 .dict-code { font-family: monospace; font-size: 12px; color: #666; }
 
 .dict-monitor-stats { display: flex; gap: 20px; margin-top: 16px; padding: 12px; background: #f8f9fa; border-radius: 8px; font-size: 13px; }
+.dict-monitor-pdf-btn {
+  padding: 4px 10px; background: #1F3864; color: white; border: none; border-radius: 6px;
+  font-size: 14px; cursor: pointer;
+}
+.dict-monitor-pdf-btn:disabled { background: #9CA3AF; cursor: not-allowed; }
+.dict-monitor-action-msg {
+  padding: 8px 14px; background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px;
+  color: #15803D; font-size: 13px; font-weight: 600; margin-bottom: 8px;
+}
 
 /* ── Config tab ── */
 .dict-config { max-width: 600px; }

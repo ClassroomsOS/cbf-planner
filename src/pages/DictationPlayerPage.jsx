@@ -68,6 +68,21 @@ async function idbClear(db, instanceId) {
   }
 }
 
+// ── Seeded shuffle (LCG) ──────────────────────────────────────────────────────
+// Deterministic Fisher-Yates using a linear congruential generator seed.
+// Same seed always produces the same permutation — stable across re-renders.
+
+function seededShuffleArray(arr, seed) {
+  const out = [...arr]
+  let s = seed
+  for (let i = out.length - 1; i > 0; i--) {
+    s = Math.imul(s, 1664525) + 1013904223 | 0
+    const j = Math.abs(s) % (i + 1);
+    [out[i], out[j]] = [out[j], out[i]]
+  }
+  return out
+}
+
 // ── Watermark canvas ──────────────────────────────────────────────────────────
 
 function WatermarkCanvas({ text }) {
@@ -227,7 +242,13 @@ export default function DictationPlayerPage() {
       setInstance(inst)
       setSession(ses)
       setBlueprint(bp)
-      setQuestions(inst.generated_questions || [])
+      // Shuffle MC options so the correct answer isn't always option A.
+      // Scoring is text-based server-side, so shuffling display order is safe.
+      const shuffled = (inst.generated_questions || []).map((q, i) => {
+        if (!q.options || q.options.length < 2) return q
+        return { ...q, options: seededShuffleArray(q.options, i + 1) }
+      })
+      setQuestions(shuffled)
 
       // Group questions into sections for tab display
       // questions already have question_type and section_title
