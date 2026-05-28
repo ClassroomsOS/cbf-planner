@@ -9505,6 +9505,25 @@ button.cbf-loading {
 .ctrl-send-codes-err    { font-size: 12px; font-weight: 600; color: #DC2626; }
 .ctrl-send-codes-retry  { margin-left: auto; font-size: 11px; background: none; border: 1px solid #D1D5DB; border-radius: 5px; padding: 2px 8px; cursor: pointer; color: #6B7280; }
 
+/* Test email in SessionControlPage */
+.ctrl-test-email-section { border-top: 1px dashed #E5E7EB; margin-top: 4px; }
+.ctrl-test-email-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 6px; }
+.ctrl-test-email-primary { font-size: 12px; color: #374151; font-weight: 600; flex-shrink: 0; }
+.ctrl-test-email-input {
+  flex: 1; min-width: 130px; font-size: 12px; padding: 4px 8px;
+  border: 1px solid #D1D5DB; border-radius: 6px; outline: none;
+}
+.ctrl-test-email-input:focus { border-color: #4BACC6; }
+.ctrl-btn-test {
+  font-size: 12px; padding: 5px 10px; border-radius: 6px; cursor: pointer; border: none;
+  background: #F3F4F6; color: #374151; font-weight: 600; white-space: nowrap;
+  transition: background .15s;
+}
+.ctrl-btn-test:hover:not(:disabled) { background: #E5E7EB; }
+.ctrl-btn-test:disabled { opacity: 0.6; cursor: default; }
+.ctrl-test-email-result { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; }
+.ctrl-test-email-code { font-size: 12px; color: #1D4ED8; }
+
 /* ── Center panel — table ── */
 .ctrl-center-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
 .ctrl-center-header h4 { margin: 0; font-size: 14px; color: #374151; }

@@ -74,6 +74,10 @@ export default function SessionControlPage({ teacher }) {
   // ── Send-codes state ──
   const [sendCodesState, setSendCodesState] = useState(null)  // null | 'confirm' | 'sending' | { sent, skipped, errors }
 
+  // ── Test email state ──
+  const [testEmailState, setTestEmailState]   = useState(null)  // null | 'sending' | result object
+  const [testExtraEmail, setTestExtraEmail]   = useState(() => localStorage.getItem('cbf_test_extra_email') || '')
+
 
   // ── Violation acknowledgment ──
   // Tracks how many tab_switches were known at the teacher's last action per student.
@@ -435,12 +439,77 @@ export default function SessionControlPage({ teacher }) {
                     <span className="ctrl-send-codes-skipped">⚠️ {sendCodesState.skipped} sin email</span>
                   )}
                   {sendCodesState.errors.length > 0 && (
-                    <span className="ctrl-send-codes-err">❌ {sendCodesState.errors.length} fallos</span>
+                    <div className="dict-ppr-err-block">
+                      <span className="ctrl-send-codes-err">❌ {sendCodesState.errors.length} fallos:</span>
+                      <code className="dict-ppr-err-detail">{sendCodesState.errors[0]}</code>
+                    </div>
                   )}
                   <button className="ctrl-send-codes-retry" onClick={() => setSendCodesState(null)}>Reenviar</button>
                 </div>
               )}
             </div>
+
+            {/* Test email */}
+            <div className="ctrl-section ctrl-test-email-section">
+              <h4 className="ctrl-section-title">🧪 Probar envío a mis correos</h4>
+              <div className="ctrl-test-email-row">
+                <span className="ctrl-test-email-primary">{teacher?.email}</span>
+                <input
+                  className="ctrl-test-email-input"
+                  type="email"
+                  placeholder="Correo adicional (opcional)"
+                  value={testExtraEmail}
+                  onChange={e => {
+                    setTestExtraEmail(e.target.value)
+                    localStorage.setItem('cbf_test_extra_email', e.target.value)
+                  }}
+                />
+                <button
+                  className="ctrl-btn ctrl-btn-test"
+                  disabled={testEmailState === 'sending'}
+                  onClick={async () => {
+                    setTestEmailState('sending')
+                    try {
+                      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/dictation-send-test`
+                      const res = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          session_id: sessionId,
+                          extra_email: testExtraEmail.trim() || undefined,
+                        }),
+                      })
+                      const data = await res.json()
+                      setTestEmailState(data)
+                    } catch {
+                      setTestEmailState({ ok: false, error: 'Error de red', sent_to: [] })
+                    }
+                  }}
+                >
+                  {testEmailState === 'sending' ? '📡...' : '📨 Enviar prueba'}
+                </button>
+              </div>
+              {testEmailState && typeof testEmailState === 'object' && (
+                <div className="ctrl-test-email-result">
+                  {testEmailState.ok
+                    ? <span className="ctrl-send-codes-sent">✅ Enviado a: {testEmailState.sent_to?.join(', ')}</span>
+                    : <div className="dict-ppr-err-block">
+                        <span className="ctrl-send-codes-err">❌ Error</span>
+                        <code className="dict-ppr-err-detail">
+                          {testEmailState.error || testEmailState.errors?.[0] || JSON.stringify(testEmailState)}
+                        </code>
+                      </div>
+                  }
+                  {testEmailState.access_code && (
+                    <span className="ctrl-test-email-code">
+                      Código de prueba: <strong>{testEmailState.access_code}</strong>
+                    </span>
+                  )}
+                  <button className="ctrl-send-codes-retry" onClick={() => setTestEmailState(null)}>Reenviar</button>
+                </div>
+              )}
+            </div>
+
           </div>
         </div>
 
