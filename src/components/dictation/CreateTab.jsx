@@ -402,10 +402,10 @@ export default function CreateTab({ teacher, showToast }) {
           <div className="dict-postpublish-link-box">
             <label>URL del estudiante</label>
             <div className="dict-postpublish-link-row">
-              <span className="dict-postpublish-url">{`${window.location.origin}${import.meta.env.BASE_URL}#/eval/dictation`}</span>
+              <span className="dict-postpublish-url">{`${window.location.origin}${import.meta.env.BASE_URL}eval/dictation`}</span>
               <button
                 className="dict-postpublish-copy"
-                onClick={() => navigator.clipboard.writeText(`${window.location.origin}${import.meta.env.BASE_URL}#/eval/dictation`).then(() => showToast('URL copiada', 'success'))}
+                onClick={() => navigator.clipboard.writeText(`${window.location.origin}${import.meta.env.BASE_URL}eval/dictation`).then(() => showToast('URL copiada', 'success'))}
               >
                 Copiar
               </button>
