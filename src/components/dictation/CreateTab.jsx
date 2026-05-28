@@ -636,7 +636,7 @@ export default function CreateTab({ teacher, showToast }) {
             <button onClick={() => setStep(1)} className="dict-btn secondary">← Volver</button>
             {modeConfig.requiresAudio && (
               <button
-                onClick={handleGenerateAudio}
+                onClick={() => handleGenerateAudio()}
                 disabled={generatingAudio}
                 className="dict-btn"
                 style={{ background: '#4BACC6' }}
