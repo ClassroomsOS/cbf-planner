@@ -1,4 +1,4 @@
-# CBF PLANNER — v6.5
+# CBF PLANNER — v6.6
 ## CLAUDE.md — Documento maestro
 
 > **Principio rector:** *"Nosotros diseñamos. El docente enseña."*
@@ -375,19 +375,20 @@ Colores, eleot® items y modelos → `src/utils/smartBlockHtml.js` · `src/compo
 | `generateTeachingStrategiesAI()` | 4000 — syllabusAI.js: estrategias pedagógicas para subunidades 'dense' (scaffolding, errores comunes, apoyos visuales, flujo de sesiones) |
 | `distributePagesByWeek()` | 2500 — syllabusAI.js: distribuye páginas según schedule + subunit_classification + teaching_strategies + start_unit → key_grammar[], key_vocabulary[], suggested_approach por día |
 | `advisorCheckSession()` | 1200 — syllabusAI.js: valida factibilidad de tiempo por sesión; skip AI si claramente factible/sobrecargado |
-| `generateDictation()` | 4000 — dictationAI.js: genera 3 secciones dictation (listen+type, listen+identify, fill_blank) desde vocabulario + dificultad → JSON con items + correct_answer + audio_text |
+| `generateDictation()` | 4000 — dictationAI.js: genera secciones según assessmentMode (dictation/vocab_quiz/combined) — hasta 5 tipos (listen_type, listen_identify, matching, fill_blank, writing) → JSON con items + correct_answer + audio_text |
 
 **Reglas de comportamiento no documentadas en ai-integration.md:**
 - `generateGuideStructure` acepta `piarData?: { [category]: string[] }` — acomodaciones sin nombres de estudiantes. `GuideEditorPage` las consulta y pasa al modal; `ConversationalGuideModal` muestra aviso naranja en paso 3.
 - `generateExamQuestions` acepta `sections: [{id, name, types}]` — una llamada IA por sección; preguntas etiquetadas con `section_name` client-side. `sections` toma precedencia sobre `questionTypes` plano (legacy).
 - `AIGeneratorModal` gate: `(!activeIndicator && !achievementGoal)` — sin legacies. Ver Gotcha #4.
 - `exam-response-corrector` Edge Fn: confianza < 0.65 → `requires_human_review=true`. Fallback Claude falla → `score=0, requires_review=true` (no bloquea al estudiante).
-- `generateDictation` acepta `{ vocabulary, unitReference, grade, subject, difficulty }` — genera JSON con 3 secciones (listen_type, listen_identify, fill_blank). Items incluyen `audio_text`, `correct_answer`, `options[]` (MC), `max_score`. Dificultad controla conteo: Basico=18, Intermedio=24, Avanzado=28.
+- `generateDictation` acepta `{ vocabulary, unitReference, grade, subject, difficulty, assessmentMode }` — genera JSON según modo: dictation (3 audio), vocab_quiz (matching+fill+writing), combined (5 tipos). Items incluyen `audio_text`, `correct_answer`, `options[]` (MC), `required_words[]` (writing), `max_score`. Conteo por ITEM_COUNTS[mode][difficulty].
 - `dictation-tts` Edge Fn: Azure Cognitive Services SSML → MP3. Input: `{ texts[], voice_id, speed, blueprint_id, school_id, section }`. Output: `{ audio_urls[] }`. Env: `AZURE_TTS_KEY`, `AZURE_TTS_REGION`.
 - `dictation-corrector` Edge Fn: scoring determinístico (no IA). Levenshtein para typed words (exact=100%, lev≤1=50%), exact match para MC. Upsert `dictation_results` + Telegram al docente con nota colombiana + código anónimo (last-6 instance_id).
 - `DictationPlayerPage` reusa `exam-integrity-alert` Edge Fn para anti-cheat Telegram con `event_type: 'dictation_violation'`.
-- `buildManualSectionsScaffold(difficulty)` en `dictationUtils.js`: scaffold vacío según DIFFICULTY_CONFIG para modo manual. Retorna 3 secciones con items vacíos listos para llenar.
-- `exportDictationHtml.js`: `buildDictationHtml({ blueprint, logoBase64, school, teacherName })` + `printDictationHtml()`. Header CBF-G AC-01 "LISTENING ASSESSMENT". Answer key en página separada. Colores: listen_type=#4BACC6, listen_identify=#8064A2, fill_blank=#F79646.
+- `buildManualSectionsScaffold(difficulty, assessmentMode)` en `dictationUtils.js`: scaffold vacío mode-aware. Soporta 5 tipos: listen_type, listen_identify, matching (word→4 defs), fill_blank, writing (prompt+required_words). Retorna secciones según ASSESSMENT_MODES[mode].types filtrado por ITEM_COUNTS.
+- `dictationUtils.js` exports adicionales: `ASSESSMENT_MODES` (3 modos), `ITEM_COUNTS` (matrix modo×dificultad×tipo), `SECTION_META` (icon/label/color por tipo), `getQuestionCounts(difficulty, assessmentMode)`, `scoreWriting(answer, requiredWords, maxScore)`, `QUESTION_POINTS` (listen_type=2, writing=5, resto=1).
+- `exportDictationHtml.js`: `buildDictationHtml({ blueprint, logoBase64, school, teacherName })` + `printDictationHtml()`. Header dinámico por assessmentMode: "LISTENING ASSESSMENT" | "VOCABULARY ASSESSMENT" | "LANGUAGE ASSESSMENT". Renderers para 5 tipos incluyendo matching (tabla word→answer) y writing (prompt+word bank). Answer key en página separada. Colores: listen_type=#4BACC6, listen_identify=#8064A2, matching=#9BBB59, fill_blank=#F79646, writing=#8064A2.
 
 ---
 
@@ -464,16 +465,18 @@ sendTelegramNotification(eventType, extra) // sin throttle, para ciclo
 ### Estado clave — DictationPage (shell + componentes)
 ```javascript
 // DictationPage.jsx: shell ~50 líneas con 5 tabs → componentes en src/components/dictation/
-// CreateTab.jsx: wizard 3 pasos con entryMode ('ai' | 'manual')
-//   - manualSections state para modo manual (ManualEntryForm.jsx)
-//   - VocabSetPicker integrado en Step 1
+// CreateTab.jsx: wizard 3 pasos con entryMode ('ai' | 'manual') + assessmentMode ('dictation' | 'vocab_quiz' | 'combined')
+//   - assessmentMode selector en Step 1 (3 modos con icono, label, descripción)
+//   - manualSections state para modo manual (ManualEntryForm.jsx — 5 tipos de sección)
+//   - VocabSetPicker integrado en Step 1 + normalizeVocab auto-split comas/espacios
 //   - AudioExportPanel integrado en Step 2
 //   - handleGenerateAudio(sourceOverride) — acepta override para evitar async setState race
+//   - loadedSetName state — muestra nombre del set cargado
 // ListTab.jsx: biblioteca de dictados — filtros, detalle expandible, reusar sesión, archivar
 // VocabLibraryTab.jsx: CRUD de dictation_vocab_sets (5° tab "📚 Vocabulario")
 // MonitorTab.jsx: monitor Realtime extraído
 // ConfigTab.jsx: configuración Telegram extraída
-// exportDictationHtml.js: buildDictationHtml + printDictationHtml (header LISTENING ASSESSMENT)
+// exportDictationHtml.js: header dinámico por assessmentMode + renderers 5 tipos + answer key
 ```
 
 ### Estado clave — DictationPlayerPage
@@ -572,4 +575,4 @@ git add . && git commit -m "feat: ..." && git push   # deploy automático ~2 min
 ---
 
 *CBF Planner · ETA Platform · Edoardo Ortiz + Claude Sonnet · Barranquilla 2026*
-*"Nosotros diseñamos. El docente enseña." · CLAUDE.md v6.5 — Mayo 27, 2026*
+*"Nosotros diseñamos. El docente enseña." · CLAUDE.md v6.6 — Mayo 27, 2026*

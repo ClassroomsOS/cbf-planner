@@ -1,7 +1,7 @@
 # Roadmap y Estado del Proyecto
 
 > Extraído de `CLAUDE.md` + auditoría `docs/auditoria/2026-04-04-auditoria-sistema.md`
-> Última actualización: 2026-05-26
+> Última actualización: 2026-05-27
 
 ---
 
@@ -48,7 +48,7 @@
 | **Biblioteca CBF — Fase 3c** | ✅ Completo | Fragmentos en PlannerPage: callout azul con chips de tipo/SmartBlock → pasan a `AIGeneratorModal` → `generateGuideStructure` los recibe como contexto al generar desde el Planner |
 | **Biblioteca CBF — Fase 4** | ✅ Completo | Imágenes de fragmentos fluyen como `imageBlocks` a `generateGuideStructure` (máx. 5, fragmentos prioritarios) · `analyzeTextbookPages()` acepta URLs o capturas base64 · UI "📖 Páginas" en PDF viewer: selección multi-página → renderizado offscreen → análisis Claude Vision → `PagesAnalysisPanel` con plan semanal + SmartBlock sugeridos |
 | **Biblioteca CBF — Fase 5** | ✅ Completo | Integración Syllabus: `syllabus_topics.library_doc_id + library_pages[]` (migración prod) · `SyllabusLinkPanel` en PDF viewer: asignar páginas actuales a un `syllabus_topic` · `SyllabusPage` TopicFormModal con selector PDF + páginas; TopicDetailCard chip doc/páginas · `GuideEditorPage` callout verde "Páginas del libro vinculadas al syllabus (semana N)" |
-| **Módulo Dictation** | ✅ ~95% completo | 6 tablas (+ dictation_vocab_sets) + 2 Edge Fns · DictationPage extraído a 6 componentes (CreateTab, ListTab, MonitorTab, ConfigTab, ManualEntryForm, VocabSetPicker, VocabLibraryTab, AudioExportPanel) · Modo manual + modo IA · Biblioteca vocabulario por período · Export PDF (LISTENING ASSESSMENT, header CBF-G AC-01) · Export audio ZIP · Archivo dictados con filtros/reuse/archive · DictationPlayerPage antitrampa 5 capas · Azure TTS 10 voces · corrección Levenshtein + Telegram · Pendiente: email resultados, Azure key en secrets |
+| **Módulo Dictation** | ✅ ~97% completo | 6 tablas (+ dictation_vocab_sets) + 2 Edge Fns · DictationPage extraído a 8 componentes · 3 modos de evaluación (Dictation/Vocabulary Quiz/Combined) · 5 tipos de pregunta (listen_type, listen_identify, matching, fill_blank, writing) · ASSESSMENT_MODES + ITEM_COUNTS matrix · Modo manual + modo IA · Biblioteca vocabulario por período · Export PDF dinámico por modo · Export audio ZIP · Archivo dictados con filtros/reuse/archive · DictationPlayerPage antitrampa 5 capas · Azure TTS 10 voces · corrección Levenshtein + scoreWriting + Telegram · Pendiente: email resultados, Azure key en secrets, panel post-publish con link copiable |
 | **Instrumento Docente** | 🔶 En desarrollo | Guión de sesión generado por IA para el docente (complemento de la Guía CBF-G AC-01) · IMS · estado del grupo · 3 opciones por fase · PREACHER CLOSE · prototipo en `theoric mark/teacher-instrument.jsx` |
 
 ---
@@ -282,6 +282,25 @@ Cuando el docente sube fotos de textbook en NewsProjectEditor:
 | Deploy directo a producción | Todas las migraciones y Edge Functions | ✅ Supabase Branch creado |
 
 ---
+
+## Completado — sesión 2026-05-27b (Dictation — 3 modos de evaluación + fixes)
+
+- [x] ASSESSMENT_MODES: 3 modos (dictation, vocab_quiz, combined) con tipos, colores, requiresAudio flag
+- [x] ITEM_COUNTS: matriz de conteo por modo × dificultad × tipo de pregunta
+- [x] SECTION_META: icon, label, color por cada uno de los 5 tipos de pregunta
+- [x] getQuestionCounts(difficulty, assessmentMode): retorna conteo + total
+- [x] scoreWriting(): auto-scoring de writing por conteo de palabras requeridas en la respuesta
+- [x] scoreDictation(): enhanced — soporta 5 tipos incluyendo matching y writing
+- [x] ManualEntryForm: nuevas secciones matching (word → 4 definiciones) y writing (prompt + required_words)
+- [x] buildManualSectionsScaffold(difficulty, assessmentMode): ahora mode-aware con scaffolds matching/writing
+- [x] exportDictationHtml: nuevos renderers matching/writing + header dinámico por assessmentMode
+- [x] dictationAI.js: prompt dinámico basado en assessmentMode — genera los 5 tipos de pregunta
+- [x] CreateTab: selector de assessmentMode en Step 1 + normalizeVocab auto-split comas/espacios + loadedSetName
+- [x] VocabSetPicker/VocabLibraryTab: separación limpia + auto-sanitize commas en input
+- [x] Fix INSERT policy dictation_instances para teacher_insert (migración remota 07c48ba)
+- [x] Fix Service Worker v2: non-cacheable requests bypass SW, cache bump v1→v2
+- [x] Fix voice preview: Azure TTS Edge Function + cache-buster ?t=Date.now()
+- [x] Fix UX layout: vocabulario primero en Step 1, botón con word count + red hint
 
 ## Completado — sesión 2026-05-27 (Dictation — 5 mejoras + extracción)
 
