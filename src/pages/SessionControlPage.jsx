@@ -71,6 +71,10 @@ export default function SessionControlPage({ teacher }) {
   const [emailSent, setEmailSent]     = useState(new Set())   // Set of instance IDs
   const [emailLoading, setEmailLoading] = useState(null)      // instance ID being sent
 
+  // ── Send-codes state ──
+  const [sendCodesState, setSendCodesState] = useState(null)  // null | 'confirm' | 'sending' | { sent, skipped, errors }
+
+
   // ── Violation acknowledgment ──
   // Tracks how many tab_switches were known at the teacher's last action per student.
   // Badge blinks while tab_switches > acknowledgedViolations[id].
@@ -264,6 +268,26 @@ export default function SessionControlPage({ teacher }) {
     }
   }
 
+  async function sendCodes() {
+    setSendCodesState('sending')
+    try {
+      const edgeFnUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/dictation-send-codes`
+      const res = await fetch(edgeFnUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sessionId }),
+      })
+      const data = await res.json()
+      if (data.ok || data.sent != null) {
+        setSendCodesState({ sent: data.sent, skipped: data.skipped, errors: data.errors || [] })
+      } else {
+        setSendCodesState({ sent: 0, skipped: 0, errors: [data.error || 'Error desconocido'] })
+      }
+    } catch {
+      setSendCodesState({ sent: 0, skipped: 0, errors: ['Error de red'] })
+    }
+  }
+
   // ── Derived state ─────────────────────────────────────────────────────────
 
   const selectedInst = instances.find(i => i.id === selectedId) || null
@@ -379,6 +403,44 @@ export default function SessionControlPage({ teacher }) {
             >
               ⚠️ Enviar advertencia a todos
             </button>
+
+            {/* Send codes */}
+            <div className="ctrl-send-codes">
+              {!sendCodesState && (
+                <button
+                  className="ctrl-send-codes-btn"
+                  onClick={() => setSendCodesState('confirm')}
+                  disabled={instances.length === 0}
+                >
+                  📧 Enviar códigos por email
+                </button>
+              )}
+              {sendCodesState === 'confirm' && (
+                <div className="ctrl-send-codes-confirm">
+                  <p>¿Enviar el código individual a cada estudiante?</p>
+                  <p className="ctrl-send-codes-sub">{instances.length} estudiante{instances.length !== 1 ? 's' : ''} · Solo quienes tienen email registrado</p>
+                  <div className="ctrl-send-codes-actions">
+                    <button className="ctrl-send-codes-cancel" onClick={() => setSendCodesState(null)}>Cancelar</button>
+                    <button className="ctrl-send-codes-go" onClick={sendCodes}>Enviar ahora</button>
+                  </div>
+                </div>
+              )}
+              {sendCodesState === 'sending' && (
+                <div className="ctrl-send-codes-sending">📡 Enviando correos...</div>
+              )}
+              {sendCodesState && typeof sendCodesState === 'object' && (
+                <div className="ctrl-send-codes-result">
+                  <span className="ctrl-send-codes-sent">✅ {sendCodesState.sent} enviados</span>
+                  {sendCodesState.skipped > 0 && (
+                    <span className="ctrl-send-codes-skipped">⚠️ {sendCodesState.skipped} sin email</span>
+                  )}
+                  {sendCodesState.errors.length > 0 && (
+                    <span className="ctrl-send-codes-err">❌ {sendCodesState.errors.length} fallos</span>
+                  )}
+                  <button className="ctrl-send-codes-retry" onClick={() => setSendCodesState(null)}>Reenviar</button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
