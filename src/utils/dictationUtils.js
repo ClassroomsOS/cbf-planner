@@ -24,18 +24,18 @@ export const ASSESSMENT_MODES = {
     key: 'vocab_quiz',
     label: 'Vocabulary Quiz',
     icon: '📝',
-    description: 'Linguaskill-style: matching + fill + writing',
+    description: 'Linguaskill-style: matching + fill + writing + listening comprehension',
     color: '#9BBB59',
-    types: ['matching', 'fill_blank', 'writing'],
-    requiresAudio: false,
+    types: ['matching', 'fill_blank', 'writing', 'listen_comprehension'],
+    requiresAudio: true,
   },
   combined: {
     key: 'combined',
     label: 'Combined',
     icon: '🎧📝',
-    description: 'Full assessment: listening + vocabulary + writing',
+    description: 'Full assessment: listening + vocabulary + writing + comprehension',
     color: '#8064A2',
-    types: ['listen_type', 'listen_identify', 'matching', 'fill_blank', 'writing'],
+    types: ['listen_type', 'listen_identify', 'matching', 'fill_blank', 'writing', 'listen_comprehension'],
     requiresAudio: true,
   },
 }
@@ -49,14 +49,14 @@ export const ITEM_COUNTS = {
     Avanzado:   { listen_type: 12, listen_identify: 8, fill_blank: 8 },
   },
   vocab_quiz: {
-    Basico:     { matching: 6,  fill_blank: 5, writing: 1 },
-    Intermedio: { matching: 8,  fill_blank: 7, writing: 1 },
-    Avanzado:   { matching: 10, fill_blank: 8, writing: 1 },
+    Basico:     { matching: 6,  fill_blank: 5, writing: 1, listen_comprehension: 3 },
+    Intermedio: { matching: 8,  fill_blank: 7, writing: 1, listen_comprehension: 3 },
+    Avanzado:   { matching: 10, fill_blank: 8, writing: 1, listen_comprehension: 3 },
   },
   combined: {
-    Basico:     { listen_type: 6, listen_identify: 4, matching: 5, fill_blank: 4, writing: 1 },
-    Intermedio: { listen_type: 7, listen_identify: 5, matching: 6, fill_blank: 5, writing: 1 },
-    Avanzado:   { listen_type: 8, listen_identify: 6, matching: 7, fill_blank: 6, writing: 1 },
+    Basico:     { listen_type: 6, listen_identify: 4, matching: 5, fill_blank: 4, writing: 1, listen_comprehension: 3 },
+    Intermedio: { listen_type: 7, listen_identify: 5, matching: 6, fill_blank: 5, writing: 1, listen_comprehension: 3 },
+    Avanzado:   { listen_type: 8, listen_identify: 6, matching: 7, fill_blank: 6, writing: 1, listen_comprehension: 3 },
   },
 }
 
@@ -134,11 +134,12 @@ export const VOICE_OPTIONS = [
 // ── Section labels & colors ─────────────────────────────────────────────────
 
 export const SECTION_META = {
-  listen_type:     { label: 'Listen & Type',     icon: '🎧', color: '#4BACC6' },
-  listen_identify: { label: 'Listen & Identify', icon: '🔊', color: '#4BACC6' },
-  matching:        { label: 'Matching',           icon: '🔗', color: '#9BBB59' },
-  fill_blank:      { label: 'Fill the Blank',     icon: '📝', color: '#F79646' },
-  writing:         { label: 'Writing',            icon: '✍️', color: '#8064A2' },
+  listen_type:          { label: 'Listen & Type',          icon: '🎧', color: '#4BACC6' },
+  listen_identify:      { label: 'Listen & Identify',      icon: '🔊', color: '#4BACC6' },
+  matching:             { label: 'Matching',               icon: '🔗', color: '#9BBB59' },
+  fill_blank:           { label: 'Fill the Blank',         icon: '📝', color: '#F79646' },
+  writing:              { label: 'Writing',                icon: '✍️', color: '#8064A2' },
+  listen_comprehension: { label: 'Listening Comprehension',icon: '🎙️', color: '#2563EB' },
 }
 
 // ── Levenshtein distance ─────────────────────────────────────────────────────
@@ -252,7 +253,7 @@ export function scoreDictation(questions, answers) {
       return { ...result, questionIndex: i, type }
     }
 
-    // MC questions (listen_identify, matching, fill_blank): exact match
+    // MC questions (listen_identify, matching, fill_blank, listen_comprehension): exact match
     const isCorrect = answer.trim().toLowerCase() === q.correct_answer.trim().toLowerCase()
     const score = isCorrect ? maxPts : 0
     perSection[type].score += score
@@ -293,11 +294,12 @@ export function randomPrefix() {
 // ── Puntos por tipo de pregunta ──────────────────────────────────────────────
 
 export const QUESTION_POINTS = {
-  listen_type: 2,      // escribir la palabra correcta vale más
-  listen_identify: 1,  // identificar en oración (MC)
-  matching: 1,         // conectar palabra con definición (MC)
-  fill_blank: 1,       // fill the blank (MC)
-  writing: 5,          // composición escrita (auto-score por vocab usage)
+  listen_type: 2,           // escribir la palabra correcta vale más
+  listen_identify: 1,       // identificar en oración (MC)
+  matching: 1,              // conectar palabra con definición (MC)
+  fill_blank: 1,            // fill the blank (MC)
+  writing: 5,               // composición escrita (auto-score por vocab usage)
+  listen_comprehension: 3,  // comprensión de audio ~30s (4 opciones MC)
 }
 
 // ── Manual entry scaffold ────────────────────────────────────────────────────
@@ -322,6 +324,9 @@ export function buildManualSectionsScaffold(difficulty, assessmentMode = 'dictat
     }
     if (type === 'writing') {
       return { ...base, prompt: '', required_words: [], correct_answer: '' }
+    }
+    if (type === 'listen_comprehension') {
+      return { ...base, audio_text: '', options: ['', '', '', ''], correct_answer: '' }
     }
     // fill_blank
     return { ...base, sentence: '', options: ['', '', ''], correct_answer: '' }
@@ -352,6 +357,11 @@ export function buildManualSectionsScaffold(difficulty, assessmentMode = 'dictat
       type: 'writing',
       title: 'Part C: Writing Composition',
       instructions: 'Write a short paragraph using the required vocabulary words.',
+    },
+    listen_comprehension: {
+      type: 'listen_comprehension',
+      title: 'Section: Listening Comprehension',
+      instructions: 'Listen to the audio and choose the best answer to the question.',
     },
   }
 

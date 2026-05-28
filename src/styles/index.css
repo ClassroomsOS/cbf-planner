@@ -9323,6 +9323,14 @@ button.cbf-loading {
 .dict-q-textarea:focus { border-color: #8064A2; outline: none; }
 .dict-q-word-count { font-size: 12px; color: #888; text-align: right; }
 
+/* ── Listening comprehension question ── */
+.dict-q-comprehension-question {
+  font-size: 15px; font-weight: 700; color: #1F3864;
+  margin: 8px 0 10px; padding: 8px 12px;
+  background: #eff6ff; border-radius: 6px;
+  border-left: 4px solid #2563EB;
+}
+
 /* ── Preview section border ── */
 .dict-preview-section { border-left: 4px solid #4BACC6; }
 .dict-preview-word { font-size: 16px; font-weight: 700; color: #1F3864; }

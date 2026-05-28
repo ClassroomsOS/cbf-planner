@@ -803,16 +803,17 @@ ${result.section_scores ? Object.entries(result.section_scores).map(([type, s]) 
 
   // ── Detect which question types are present ──
   const presentTypes = [...new Set(questions.map(q => q.question_type))]
-  const hasAudioSections = presentTypes.some(t => t === 'listen_type' || t === 'listen_identify')
+  const hasAudioSections = presentTypes.some(t => t === 'listen_type' || t === 'listen_identify' || t === 'listen_comprehension')
 
   // ── INSTRUCTIONS PHASE ──
   if (phase === 'instructions') {
     const INSTR_MAP = {
-      listen_type:     'Escucharás palabras. Escríbelas en MAYÚSCULAS.',
-      listen_identify: 'Escucharás oraciones. Identifica qué palabra de vocabulario se usó.',
-      matching:        'Conecta cada palabra con su definición correcta.',
-      fill_blank:      'Completa las oraciones eligiendo la palabra correcta.',
-      writing:         'Escribe un párrafo corto usando las palabras de vocabulario indicadas.',
+      listen_type:          'Escucharás palabras. Escríbelas en MAYÚSCULAS.',
+      listen_identify:      'Escucharás oraciones. Identifica qué palabra de vocabulario se usó.',
+      matching:             'Conecta cada palabra con su definición correcta.',
+      fill_blank:           'Completa las oraciones eligiendo la palabra correcta.',
+      writing:              'Escribe un párrafo corto usando las palabras de vocabulario indicadas.',
+      listen_comprehension: 'Escucharás una conversación corta (~30 seg). Elige la respuesta correcta entre 4 opciones.',
     }
 
     return (
@@ -921,8 +922,8 @@ ${result.section_scores ? Object.entries(result.section_scores).map(([type, s]) 
               <div key={idx} className="dict-question">
                 <div className="dict-q-num">{idx + 1})</div>
 
-                {/* Audio for listen_type and listen_identify */}
-                {(qType === 'listen_type' || qType === 'listen_identify') && (
+                {/* Audio for listen_type, listen_identify, listen_comprehension */}
+                {(qType === 'listen_type' || qType === 'listen_identify' || qType === 'listen_comprehension') && (
                   <AudioQuestion
                     audioUrl={blueprint?.audio_urls?.[qType]?.[currentSection.items.indexOf(q)]}
                     qIndex={idx}
@@ -930,6 +931,11 @@ ${result.section_scores ? Object.entries(result.section_scores).map(([type, s]) 
                     maxReplays={MAX_REPLAYS}
                     onReplay={handleReplay}
                   />
+                )}
+
+                {/* Comprehension question text */}
+                {qType === 'listen_comprehension' && q.question && (
+                  <p className="dict-q-comprehension-question">{q.question}</p>
                 )}
 
                 {/* Word for matching */}

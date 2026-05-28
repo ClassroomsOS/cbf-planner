@@ -35,11 +35,12 @@ async function fetchBase64(url) {
 // ── Section renderers ────────────────────────────────────────────────────────
 
 const SECTION_COLORS = {
-  listen_type:     '#4BACC6',
-  listen_identify: '#8064A2',
-  matching:        '#9BBB59',
-  fill_blank:      '#F79646',
-  writing:         '#8064A2',
+  listen_type:          '#4BACC6',
+  listen_identify:      '#8064A2',
+  matching:             '#9BBB59',
+  fill_blank:           '#F79646',
+  writing:              '#8064A2',
+  listen_comprehension: '#2563EB',
 }
 
 function renderListenTypeSection(sec, startNum) {
@@ -124,6 +125,27 @@ function renderWritingSection(sec, startNum) {
           <strong>Required words:</strong> ${item.required_words.map(w => `<span style="background:#e5e7eb;padding:2px 6px;border-radius:3px;margin:0 2px">${esc(w)}</span>`).join(' ')}
         </div>` : ''}
       <div style="border:1px solid #ccc;min-height:80px;border-radius:4px;padding:4px"></div>
+    </div>`
+  })
+  return html
+}
+
+function renderListenComprehensionSection(sec, startNum) {
+  let html = ''
+  sec.items.forEach((item, i) => {
+    html += `
+    <div style="break-inside:avoid;margin-bottom:14px;padding:8px 12px;border:1px solid #e5e7eb;border-radius:6px;border-left:3px solid ${SECTION_COLORS.listen_comprehension}">
+      <div style="font-weight:600;font-size:12px;color:${SECTION_COLORS.listen_comprehension};margin-bottom:6px">
+        ${startNum + i}. 🎙️ <em>Listen to the audio recording</em>
+      </div>
+      ${item.question ? `<div style="font-size:13px;font-weight:600;color:#1F3864;margin-bottom:8px">${esc(item.question)}</div>` : ''}
+      <div style="display:flex;flex-direction:column;gap:6px">
+        ${(item.options || []).map((opt, oi) => `
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="width:14px;height:14px;border:1.5px solid #555;border-radius:50%;display:inline-flex;flex-shrink:0"></span>
+            <span style="font-size:12px">${String.fromCharCode(65 + oi)}. ${esc(opt)}</span>
+          </div>`).join('')}
+      </div>
     </div>`
   })
   return html
@@ -257,6 +279,8 @@ export function buildDictationHtml({ blueprint, logoBase64, school, teacherName 
       questionsHtml += renderMatchingSection(sec, num)
     } else if (sec.type === 'writing') {
       questionsHtml += renderWritingSection(sec, num)
+    } else if (sec.type === 'listen_comprehension') {
+      questionsHtml += renderListenComprehensionSection(sec, num)
     } else {
       questionsHtml += renderFillBlankSection(sec, num)
     }

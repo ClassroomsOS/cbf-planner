@@ -91,6 +91,25 @@ IMPORTANT for writing:
     sectionNum++
   }
 
+  if (counts.listen_comprehension > 0) {
+    sectionPrompts.push(`SECTION ${sectionNum} — LISTENING COMPREHENSION (${counts.listen_comprehension} items)
+The student listens to a short conversation (~65-80 words, ~30 seconds) and answers ONE multiple-choice question about its content.
+For each item generate:
+- "audio_text": a natural dialogue or monologue of 65-80 words using the vocabulary. Write dialogues as "Speaker A: ... Speaker B: ..." for natural TTS flow. The audio must contain the answer clues naturally — not read the answer directly.
+- "question": a comprehension question about the audio (e.g. "What is the main topic of the conversation?")
+- "options": array of exactly 4 choices (one correct, three plausible distractors)
+- "correct_answer": the correct option (must match one of the options exactly)
+- "max_score": ${QUESTION_POINTS.listen_comprehension}
+
+IMPORTANT for listen_comprehension:
+- Audio text must be 65-80 words — long enough for ~30 seconds at normal speaking pace
+- Conversations should feel natural and use the vocabulary in context
+- Distractors must be plausible (about related topics) but clearly wrong based on the audio
+- The question must be answerable purely from listening — no reading required
+- Use ONLY words from the provided vocabulary list as key content words`)
+    sectionNum++
+  }
+
   const message = `Generate a vocabulary assessment with the following sections.
 
 VOCABULARY (${vocabulary.length} words/phrases):
@@ -162,6 +181,14 @@ RESPOND WITH THIS EXACT JSON STRUCTURE:
         { "prompt": "Write 3-5 sentences about your dream job using at least 5 of these words: salary, trade, commission, benefits, overtime.", "required_words": ["salary", "trade", "commission", "benefits", "overtime"], "correct_answer": "", "max_score": ${QUESTION_POINTS.writing} }
       ]
     }`
+      if (t === 'listen_comprehension') return `{
+      "type": "listen_comprehension",
+      "title": "Section: Listening Comprehension",
+      "instructions": "Listen to the audio and choose the best answer.",
+      "items": [
+        { "audio_text": "Speaker A: Have you thought about negotiating your salary at the new job? Speaker B: Yes, I plan to ask about overtime pay and commission on top of the base wage. Speaker A: Smart move. Benefits like healthcare and paid leave matter just as much as the salary. Speaker B: Absolutely. I don't want to trade good benefits for a higher salary. Quality of life is the priority.", "question": "What is the main topic of the conversation?", "options": ["How to apply for a new job", "Negotiating pay and benefits", "Healthcare costs", "Working overtime shifts"], "correct_answer": "Negotiating pay and benefits", "max_score": ${QUESTION_POINTS.listen_comprehension} }
+      ]
+    }`
       return ''
     }).join(',\n    ')}
   ]
@@ -207,6 +234,7 @@ RESPOND WITH THIS EXACT JSON STRUCTURE:
         sentence: item.sentence || null,
         word: item.word || null,
         prompt: item.prompt || null,
+        question: item.question || null,
         required_words: item.required_words || null,
         options: item.options || null,
         correct_answer: item.correct_answer,
