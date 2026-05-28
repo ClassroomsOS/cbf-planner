@@ -323,3 +323,187 @@ export async function printDictationHtml({ blueprint, school, teacherName }) {
   win.document.close()
   win.onload = () => setTimeout(() => win.print(), 400)
 }
+
+// ── Corrected exam HTML ───────────────────────────────────────────────────────
+// Builds a printable corrected dictation showing student answers (green/red).
+//
+// Parameters:
+//   blueprint  — dictation_blueprints row (title, grade, subject, difficulty, assessment_mode)
+//   instance   — dictation_instances row (student_name, student_section, student_code, generated_questions)
+//   responses  — dictation_responses rows ordered by question_index
+//   result     — dictation_results row (colombian_grade, grade_level, total_score, max_score, section_scores)
+//   school     — schools row (name, dane, resolution, logo_url, doc_version)
+//   teacherName— string
+
+export function buildCorrectedHtml({ blueprint, instance, responses, result, logoBase64, school, teacherName }) {
+  const s   = school    || {}
+  const bp  = blueprint || {}
+  const inst = instance  || {}
+  const res  = result    || {}
+  const resps = responses || []
+
+  const logoSrc = logoBase64 || s.logo_url || ''
+  const version = s.doc_version || s.plan_version || '02 — 2022'
+  const dane    = s.dane       || '308001800455'
+  const resol   = s.resolution || '09685 DE 2019'
+
+  // Build sections from instance.generated_questions (student's order)
+  const questions = inst.generated_questions || []
+  const sectionsMap = {}
+  const sectionOrder = []
+  questions.forEach((q, idx) => {
+    const type = q.question_type || 'unknown'
+    if (!sectionsMap[type]) {
+      sectionsMap[type] = { type, title: q.section_title || type, items: [] }
+      sectionOrder.push(type)
+    }
+    const resp = resps.find(r => r.question_index === idx) || {}
+    sectionsMap[type].items.push({ ...q, globalIndex: idx, resp })
+  })
+  const sections = sectionOrder.map(t => sectionsMap[t])
+
+  const grade     = res.colombian_grade ?? '—'
+  const level     = res.grade_level     ?? '—'
+  const totalPts  = res.total_score     ?? 0
+  const maxPts    = res.max_score       ?? 0
+  const gradeNum  = parseFloat(grade)
+  const gradeHex  = gradeNum >= 4.5 ? '#15803D' : gradeNum >= 4.0 ? '#1D4ED8' : gradeNum >= 3.5 ? '#D97706' : '#DC2626'
+
+  // Institutional header
+  const institutionalHeader = `
+<table style="width:100%;border-collapse:collapse;border:1px solid #000;font-family:Arial,sans-serif">
+  <colgroup><col style="width:15.3%"><col style="width:61%"><col style="width:23.7%"></colgroup>
+  <tbody>
+    <tr>
+      <td rowspan="3" style="border:1px solid #000;padding:6px;text-align:center;vertical-align:middle">
+        ${logoSrc ? `<img src="${logoSrc}" style="max-height:70px;max-width:90px;width:auto;height:auto;object-fit:contain">` : '<div style="color:#aaa;font-size:10px">LOGO</div>'}
+      </td>
+      <td style="border:1px solid #000;padding:6px 10px;text-align:center;vertical-align:middle;background:#DBE5F1">
+        <div style="font-weight:700;font-size:15px">${esc(s.name || 'COLEGIO BOSTON FLEXIBLE')}</div>
+        <div style="font-size:10px;margin-top:3px">DANE: ${esc(dane)} - RESOLUCIÓN ${esc(resol)}</div>
+      </td>
+      <td style="border:1px solid #000;padding:6px;text-align:center;vertical-align:middle">
+        <div style="font-weight:700;font-size:10px">CÓD: CBF - G AC - 01</div>
+      </td>
+    </tr>
+    <tr>
+      <td rowspan="2" style="border:1px solid #000;padding:6px 10px;text-align:center;vertical-align:middle">
+        <div style="font-weight:700;font-size:10px"><u>PROCESO</u>: GESTIÓN ACADÉMICA Y CURRICULAR</div>
+        <div style="font-weight:700;font-size:10px;margin-top:3px">EVALUACIÓN CORREGIDA — ${bp.assessment_mode === 'vocab_quiz' ? 'VOCABULARY' : bp.assessment_mode === 'combined' ? 'VOCABULARY & LISTENING' : 'LISTENING'}</div>
+      </td>
+      <td style="border:1px solid #000;padding:5px 6px;text-align:center;vertical-align:middle">
+        <div style="font-size:10px"><strong>Versión</strong> ${esc(version)}</div>
+      </td>
+    </tr>
+    <tr>
+      <td style="border:1px solid #000;padding:5px 6px;text-align:center;vertical-align:middle">
+        <div style="font-size:10px">Fecha: ${new Date().toLocaleDateString('es-CO')}</div>
+      </td>
+    </tr>
+  </tbody>
+</table>`
+
+  // Student + result row
+  const studentRow = `
+<table style="width:100%;border:1px solid #000;border-top:none;border-collapse:collapse;font-family:Arial,sans-serif">
+  <tr style="background:#DBE5F1">
+    <td style="padding:4px 10px;font-size:11px;border:1px solid #000"><strong>Estudiante:</strong> ${esc(inst.student_name || '—')}</td>
+    <td style="padding:4px 10px;font-size:11px;border:1px solid #000"><strong>Sección:</strong> ${esc(inst.student_section || '—')}</td>
+    <td style="padding:4px 10px;font-size:11px;border:1px solid #000"><strong>Código:</strong> ${esc(inst.student_code || '—')}</td>
+  </tr>
+  <tr style="background:#DBE5F1">
+    <td style="padding:4px 10px;font-size:11px;border:1px solid #000"><strong>Grado:</strong> ${esc(bp.grade)}</td>
+    <td style="padding:4px 10px;font-size:11px;border:1px solid #000"><strong>Asignatura:</strong> ${esc(bp.subject)}</td>
+    <td style="padding:4px 10px;font-size:11px;border:1px solid #000"><strong>Docente:</strong> ${esc(teacherName)}</td>
+  </tr>
+  <tr>
+    <td colspan="2" style="padding:6px 10px;font-size:13px;border:1px solid #000">
+      <strong>Puntos:</strong> ${totalPts}/${maxPts}
+    </td>
+    <td style="padding:6px 10px;font-size:14px;font-weight:700;color:${gradeHex};border:1px solid #000;text-align:center">
+      ${grade}/5.0 — ${esc(level)}
+    </td>
+  </tr>
+</table>`
+
+  // Render corrected questions
+  let questionsHtml = ''
+  let num = 1
+  sections.forEach(sec => {
+    const color = SECTION_COLORS[sec.type] || '#666'
+    const correctCount = sec.items.filter(it => it.resp?.is_correct).length
+    questionsHtml += `
+    <div style="margin-top:20px">
+      <div style="background:${color};color:white;padding:8px 14px;border-radius:6px 6px 0 0;font-weight:700;font-size:13px;display:flex;justify-content:space-between">
+        <span>${esc(sec.title)}</span>
+        <span style="font-weight:400;font-size:11px;opacity:.9">${correctCount}/${sec.items.length} correctas</span>
+      </div>
+      <div style="padding:8px 0">`
+
+    sec.items.forEach(item => {
+      const resp        = item.resp || {}
+      const isCorrect   = resp.is_correct
+      const border      = isCorrect ? '#15803D' : '#DC2626'
+      const bg          = isCorrect ? '#F0FDF4' : '#FEF2F2'
+      const answerColor = isCorrect ? '#15803D' : '#DC2626'
+
+      questionsHtml += `
+      <div style="break-inside:avoid;margin-bottom:8px;padding:8px 12px;border:1px solid ${border};border-left:3px solid ${border};border-radius:6px;background:${bg}">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+          <div style="flex:1">`
+
+      questionsHtml += `<div style="font-weight:700;font-size:11px;color:#374151;margin-bottom:4px">${num}. ${isCorrect ? '✓ Correcto' : '✗ Incorrecto'}</div>`
+
+      if (item.audio_text) questionsHtml += `<div style="font-size:10px;color:#6B7280;margin-bottom:3px">🔊 "${esc(item.audio_text)}"</div>`
+      if (item.sentence)   questionsHtml += `<div style="font-size:11px;color:#374151;margin-bottom:3px">${esc(item.sentence)}</div>`
+      if (item.options && item.options.length > 0) {
+        questionsHtml += `<div style="font-size:10px;color:#6B7280;margin-bottom:3px">${item.options.map(o => `[${esc(o)}]`).join('  ')}</div>`
+      }
+
+      questionsHtml += `<div style="margin-top:3px"><span style="font-size:10px;color:#6B7280">Respuesta: </span><span style="font-weight:700;font-size:12px;color:${answerColor}">${esc(resp.answer || '(en blanco)')}</span></div>`
+
+      if (!isCorrect && resp.correct_answer) {
+        questionsHtml += `<div style="margin-top:2px"><span style="font-size:10px;color:#6B7280">Correcta: </span><span style="font-weight:700;font-size:12px;color:#15803D">${esc(resp.correct_answer)}</span></div>`
+      }
+
+      questionsHtml += `</div>
+          <div style="font-size:12px;font-weight:700;color:${answerColor};white-space:nowrap;padding-top:2px">${resp.score ?? 0}/${resp.max_score ?? 1}</div>
+        </div>
+      </div>`
+      num++
+    })
+
+    questionsHtml += '</div></div>'
+  })
+
+  return `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Corregido — ${esc(inst.student_name || '')} — ${esc(bp.title || '')}</title>
+<style>
+  @page { margin: 15mm 12mm; size: letter; }
+  body { font-family: Arial, sans-serif; margin: 0; padding: 20px; color: #1F3864; }
+  @media print { .no-print { display: none !important; } body { padding: 0; } }
+</style>
+</head>
+<body>
+<div class="no-print" style="position:fixed;bottom:24px;right:24px;z-index:9999">
+  <button onclick="window.print()" style="background:linear-gradient(135deg,#DC2626,#B91C1C);color:white;border:none;border-radius:50%;width:56px;height:56px;font-size:22px;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.3)">🖨️</button>
+</div>
+${institutionalHeader}
+${studentRow}
+${questionsHtml}
+</body>
+</html>`
+}
+
+export async function printCorrectedHtml({ blueprint, instance, responses, result, school, teacherName }) {
+  const logoBase64 = school?.logo_url ? await fetchBase64(school.logo_url) : ''
+  const html = buildCorrectedHtml({ blueprint, instance, responses, result, logoBase64, school, teacherName })
+  const win = window.open('', '_blank')
+  if (!win) return
+  win.document.write(html)
+  win.document.close()
+  win.onload = () => setTimeout(() => win.print(), 400)
+}

@@ -9431,7 +9431,74 @@ button.cbf-loading {
 .ctrl-action-warn:hover { background: #FDE68A; }
 .ctrl-action-close { background: #FEE2E2; color: #DC2626; border: 1px solid #FECACA; }
 .ctrl-action-close:hover { background: #FECACA; }
+.ctrl-action-corrected { background: #EFF6FF; color: #1D4ED8; border: 1px solid #BFDBFE; }
+.ctrl-action-corrected:hover { background: #DBEAFE; }
+.ctrl-action-email { background: #F0FDF4; color: #15803D; border: 1px solid #BBF7D0; }
+.ctrl-action-email:hover { background: #DCFCE7; }
 .ctrl-action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Corrected exam view modal ── */
+.ctrl-corrected-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 10000;
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+}
+.ctrl-corrected-modal {
+  background: white; border-radius: 16px; width: 100%; max-width: 680px;
+  max-height: 90vh; display: flex; flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+}
+.ctrl-corrected-header {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+  padding: 20px 24px 16px; border-bottom: 1px solid #e5e7eb;
+}
+.ctrl-corrected-title { margin: 0; font-size: 17px; color: #1F3864; font-weight: 700; }
+.ctrl-corrected-meta { margin: 4px 0 0; font-size: 13px; color: #6B7280; }
+.ctrl-corrected-actions-top { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.ctrl-corrected-print-btn {
+  padding: 7px 13px; border: none; border-radius: 8px; background: #DC2626; color: white;
+  font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.ctrl-corrected-print-btn:hover { background: #B91C1C; }
+.ctrl-corrected-email-btn {
+  padding: 7px 13px; border: none; border-radius: 8px; background: #15803D; color: white;
+  font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.ctrl-corrected-email-btn:hover { background: #166534; }
+.ctrl-corrected-email-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.ctrl-corrected-close {
+  padding: 6px 10px; border: 1px solid #e5e7eb; border-radius: 8px; background: white;
+  font-size: 14px; cursor: pointer; color: #6B7280; flex-shrink: 0;
+}
+.ctrl-corrected-close:hover { background: #f3f4f6; }
+.ctrl-corrected-result-bar {
+  display: flex; align-items: center; gap: 16px; padding: 10px 24px;
+  border-bottom: 1px solid #e5e7eb; border-left: 4px solid transparent;
+  background: #f8fafc;
+}
+.ctrl-corrected-grade { font-size: 22px; font-weight: 800; }
+.ctrl-corrected-level { font-size: 14px; font-weight: 600; }
+.ctrl-corrected-pts   { font-size: 13px; color: #6B7280; margin-left: auto; }
+.ctrl-corrected-body  { flex: 1; overflow-y: auto; padding: 16px 24px; }
+.ctrl-corrected-empty { text-align: center; color: #9CA3AF; font-size: 14px; padding: 24px 0; }
+.ctrl-corrected-section { margin-bottom: 20px; }
+.ctrl-corrected-sec-header {
+  color: white; padding: 8px 14px; border-radius: 6px 6px 0 0;
+  font-weight: 700; font-size: 13px; display: flex; justify-content: space-between; align-items: center;
+}
+.ctrl-corrected-sec-score { font-weight: 400; font-size: 11px; opacity: .9; }
+.ctrl-corrected-q {
+  display: flex; gap: 10px; padding: 8px 12px; margin-bottom: 6px;
+  border-radius: 6px; border: 1px solid; border-left-width: 3px;
+}
+.ctrl-corrected-q-ok    { background: #F0FDF4; border-color: #86EFAC; border-left-color: #15803D; }
+.ctrl-corrected-q-wrong { background: #FEF2F2; border-color: #FECACA; border-left-color: #DC2626; }
+.ctrl-corrected-q-num   { font-weight: 700; font-size: 12px; color: #374151; flex-shrink: 0; min-width: 32px; padding-top: 2px; }
+.ctrl-corrected-q-body  { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.ctrl-corrected-q-ctx   { font-size: 11px; color: #6B7280; }
+.ctrl-corrected-q-opts  { font-size: 11px; color: #6B7280; }
+.ctrl-corrected-q-answer{ font-size: 13px; font-weight: 700; }
+.ctrl-corrected-q-label { font-weight: 400; font-size: 11px; color: #6B7280; margin-right: 6px; }
+.ctrl-corrected-q-pts   { font-weight: 700; font-size: 13px; flex-shrink: 0; align-self: flex-start; padding-top: 2px; }
 
 /* ── Confirm modal ── */
 .ctrl-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 9000; display: flex; align-items: center; justify-content: center; }

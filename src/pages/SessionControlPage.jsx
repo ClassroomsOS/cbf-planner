@@ -3,9 +3,11 @@
 // Docente: link compartible · monitor RT · advertencias · force-close · resultados
 
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { gradeColor, SECTION_META } from '../utils/dictationUtils'
+import { printCorrectedHtml } from '../utils/exportDictationHtml'
 import WarningModal from '../components/dictation/WarningModal'
 import DictationPreview from '../components/dictation/DictationPreview'
 
@@ -62,6 +64,14 @@ export default function SessionControlPage({ teacher }) {
   const [confirmClose, setConfirmClose]   = useState(null) // instance | null
   const [actionLoading, setActionLoading] = useState(false)
   const [actionMsg, setActionMsg]         = useState(null)
+
+  // ── Corrected view ──
+  const [correctedView, setCorrectedView]   = useState(null)  // { inst, responses } | null
+  const [correctedLoading, setCorrectedLoading] = useState(false)
+
+  // ── Email state ──
+  const [emailSent, setEmailSent]     = useState(new Set())   // Set of instance IDs
+  const [emailLoading, setEmailLoading] = useState(null)      // instance ID being sent
 
   // ── Load session + blueprint ──────────────────────────────────────────────
 
@@ -194,6 +204,70 @@ export default function SessionControlPage({ teacher }) {
   function showAction(msg) {
     setActionMsg(msg)
     setTimeout(() => setActionMsg(null), 3000)
+  }
+
+  async function openCorrectedView(inst) {
+    setCorrectedLoading(true)
+    try {
+      // Fetch full instance (with generated_questions for context)
+      const { data: fullInst } = await supabase
+        .from('dictation_instances')
+        .select('id, student_name, student_section, student_code, generated_questions')
+        .eq('id', inst.id)
+        .single()
+
+      // Fetch corrected responses
+      const { data: resps } = await supabase
+        .from('dictation_responses')
+        .select('question_index, question_type, answer, correct_answer, is_correct, score, max_score')
+        .eq('instance_id', inst.id)
+        .order('question_index')
+
+      setCorrectedView({ inst: fullInst || inst, responses: resps || [] })
+    } finally {
+      setCorrectedLoading(false)
+    }
+  }
+
+  async function handlePrintCorrected() {
+    if (!correctedView || !blueprint) return
+    const { data: schoolData } = await supabase
+      .from('schools')
+      .select('*')
+      .eq('id', teacher.school_id)
+      .single()
+    const result = results[correctedView.inst.id] || null
+    printCorrectedHtml({
+      blueprint,
+      instance:  correctedView.inst,
+      responses: correctedView.responses,
+      result,
+      school:    schoolData,
+      teacherName: teacher.full_name || teacher.email,
+    })
+  }
+
+  async function sendRepresentativeEmail(inst) {
+    setEmailLoading(inst.id)
+    try {
+      const edgeFnUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/dictation-notify`
+      const res = await fetch(edgeFnUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ instance_id: inst.id }),
+      })
+      const data = await res.json()
+      if (data.ok) {
+        setEmailSent(prev => new Set([...prev, inst.id]))
+        showAction('📧 Email enviado al representante')
+      } else {
+        showAction(`❌ ${data.error || 'Error al enviar email'}`)
+      }
+    } catch {
+      showAction('❌ Error de red al enviar email')
+    } finally {
+      setEmailLoading(null)
+    }
   }
 
   // ── Derived state ─────────────────────────────────────────────────────────
@@ -461,6 +535,30 @@ export default function SessionControlPage({ teacher }) {
 
               {/* Actions */}
               <div className="ctrl-actions">
+                {/* Submitted actions */}
+                {selectedInst.instance_status === 'submitted' && (
+                  <>
+                    <button
+                      className="ctrl-action-btn ctrl-action-corrected"
+                      onClick={() => openCorrectedView(selectedInst)}
+                      disabled={correctedLoading}
+                    >
+                      {correctedLoading ? '⏳ Cargando...' : '📋 Ver respuestas corregidas'}
+                    </button>
+                    <button
+                      className="ctrl-action-btn ctrl-action-email"
+                      onClick={() => sendRepresentativeEmail(selectedInst)}
+                      disabled={emailLoading === selectedInst.id || emailSent.has(selectedInst.id)}
+                    >
+                      {emailLoading === selectedInst.id
+                        ? '📡 Enviando...'
+                        : emailSent.has(selectedInst.id)
+                        ? '✅ Email enviado'
+                        : '📧 Enviar al representante'}
+                    </button>
+                  </>
+                )}
+
                 {/* Warn — only for active students */}
                 {(selectedInst.instance_status === 'started' || selectedInst.instance_status === 'ready') && (
                   <button
@@ -519,6 +617,126 @@ export default function SessionControlPage({ teacher }) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── Corrected Exam View Modal ── */}
+      {correctedView && createPortal(
+        <div className="ctrl-corrected-overlay" onClick={() => setCorrectedView(null)}>
+          <div className="ctrl-corrected-modal" onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="ctrl-corrected-header">
+              <div>
+                <h3 className="ctrl-corrected-title">📋 Respuestas Corregidas</h3>
+                <p className="ctrl-corrected-meta">
+                  {correctedView.inst.student_name} · {correctedView.inst.student_section}
+                  {correctedView.inst.student_code && ` · ${correctedView.inst.student_code}`}
+                </p>
+              </div>
+              <div className="ctrl-corrected-actions-top">
+                <button className="ctrl-corrected-print-btn" onClick={handlePrintCorrected}>
+                  🖨️ PDF corregido
+                </button>
+                <button
+                  className="ctrl-corrected-email-btn"
+                  onClick={() => sendRepresentativeEmail(correctedView.inst)}
+                  disabled={emailLoading === correctedView.inst.id || emailSent.has(correctedView.inst.id)}
+                >
+                  {emailLoading === correctedView.inst.id
+                    ? '📡 Enviando...'
+                    : emailSent.has(correctedView.inst.id)
+                    ? '✅ Email enviado'
+                    : '📧 Representante'}
+                </button>
+                <button className="ctrl-corrected-close" onClick={() => setCorrectedView(null)}>✕</button>
+              </div>
+            </div>
+
+            {/* Result summary bar */}
+            {results[correctedView.inst.id] && (() => {
+              const r = results[correctedView.inst.id]
+              const g = parseFloat(r.colombian_grade)
+              return (
+                <div className="ctrl-corrected-result-bar" style={{ borderLeftColor: gradeColor(g) }}>
+                  <span className="ctrl-corrected-grade" style={{ color: gradeColor(g) }}>
+                    {r.colombian_grade}/5.0
+                  </span>
+                  <span className="ctrl-corrected-level" style={{ color: gradeColor(g) }}>
+                    {r.grade_level}
+                  </span>
+                  <span className="ctrl-corrected-pts">
+                    {r.total_score}/{r.max_score} pts
+                  </span>
+                </div>
+              )
+            })()}
+
+            {/* Questions */}
+            <div className="ctrl-corrected-body">
+              {correctedView.responses.length === 0 ? (
+                <p className="ctrl-corrected-empty">No hay respuestas registradas aún.</p>
+              ) : (() => {
+                // Group by question_type in order of first appearance
+                const questions = correctedView.inst.generated_questions || []
+                const secMap = {}
+                const secOrder = []
+                questions.forEach((q, idx) => {
+                  const type = q.question_type || 'unknown'
+                  if (!secMap[type]) { secMap[type] = { type, title: q.section_title || type, items: [] }; secOrder.push(type) }
+                  const resp = correctedView.responses.find(r => r.question_index === idx) || {}
+                  secMap[type].items.push({ ...q, globalIndex: idx, resp })
+                })
+                let num = 1
+                return secOrder.map(type => {
+                  const sec = secMap[type]
+                  const meta = SECTION_META[type] || {}
+                  const correctCount = sec.items.filter(it => it.resp?.is_correct).length
+                  return (
+                    <div key={type} className="ctrl-corrected-section">
+                      <div className="ctrl-corrected-sec-header" style={{ background: meta.color || '#666' }}>
+                        <span>{meta.icon} {sec.title}</span>
+                        <span className="ctrl-corrected-sec-score">{correctCount}/{sec.items.length}</span>
+                      </div>
+                      {sec.items.map(item => {
+                        const isOk = item.resp?.is_correct
+                        const n = num++
+                        return (
+                          <div key={item.globalIndex} className={`ctrl-corrected-q ${isOk ? 'ctrl-corrected-q-ok' : 'ctrl-corrected-q-wrong'}`}>
+                            <div className="ctrl-corrected-q-num">{n}. {isOk ? '✓' : '✗'}</div>
+                            <div className="ctrl-corrected-q-body">
+                              {item.audio_text && (
+                                <div className="ctrl-corrected-q-ctx">🔊 "{item.audio_text}"</div>
+                              )}
+                              {item.sentence && (
+                                <div className="ctrl-corrected-q-ctx">{item.sentence}</div>
+                              )}
+                              {item.options?.length > 0 && (
+                                <div className="ctrl-corrected-q-opts">{item.options.join('  ·  ')}</div>
+                              )}
+                              <div className="ctrl-corrected-q-answer" style={{ color: isOk ? '#15803D' : '#DC2626' }}>
+                                <span className="ctrl-corrected-q-label">Respuesta:</span>
+                                {item.resp?.answer || '(en blanco)'}
+                              </div>
+                              {!isOk && item.resp?.correct_answer && (
+                                <div className="ctrl-corrected-q-answer" style={{ color: '#15803D' }}>
+                                  <span className="ctrl-corrected-q-label">Correcta:</span>
+                                  {item.resp.correct_answer}
+                                </div>
+                              )}
+                            </div>
+                            <div className="ctrl-corrected-q-pts" style={{ color: isOk ? '#15803D' : '#DC2626' }}>
+                              {item.resp?.score ?? 0}/{item.resp?.max_score ?? 1}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )
+                })
+              })()}
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   )
