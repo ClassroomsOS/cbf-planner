@@ -258,7 +258,7 @@ Deno.serve(async (req: Request) => {
           student_section: 'TEST',
           access_code: accessCode,
           instance_status: 'ready',
-          generated_questions: generatedQuestions,
+          generated_questions: generatedQuestions ?? [],
         })
 
       if (insErr) {
