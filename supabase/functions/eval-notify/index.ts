@@ -277,8 +277,14 @@ Deno.serve(async (req: Request) => {
       representativeEmail = student?.representative_email || null
     }
 
-    if (!representativeEmail) {
-      return new Response(JSON.stringify({ error: 'No hay correo de representante registrado para este estudiante' }), {
+    // Build recipient list: student + representative (deduplicated, no nulls)
+    const toSet = new Set<string>()
+    if (inst.student_email) toSet.add(inst.student_email)
+    if (representativeEmail) toSet.add(representativeEmail)
+    const toAddresses = [...toSet]
+
+    if (toAddresses.length === 0) {
+      return new Response(JSON.stringify({ error: 'No hay correos registrados para este estudiante ni su representante' }), {
         status: 422, headers: { ...corsH, 'Content-Type': 'application/json' },
       })
     }
@@ -344,7 +350,7 @@ Deno.serve(async (req: Request) => {
       headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         from:    'CBF Eval <onboarding@resend.dev>',
-        to:      [representativeEmail],
+        to:      toAddresses,
         subject: `📋 Examen corregido — ${inst.student_name || 'Estudiante'} — ${session?.title || 'Examen'}`,
         html,
       }),
@@ -358,7 +364,8 @@ Deno.serve(async (req: Request) => {
       })
     }
 
-    return new Response(JSON.stringify({ ok: true, message: `Email enviado a ${representativeEmail}` }), {
+    const noRepNote = !representativeEmail ? ' (sin correo de representante registrado)' : ''
+    return new Response(JSON.stringify({ ok: true, message: `Resultado enviado a: ${toAddresses.join(', ')}${noRepNote}` }), {
       headers: { ...corsH, 'Content-Type': 'application/json' },
     })
 
