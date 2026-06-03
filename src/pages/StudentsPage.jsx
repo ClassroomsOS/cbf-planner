@@ -52,12 +52,6 @@ export default function StudentsPage({ teacher }) {
   const [psyProfiles,        setPsyProfiles]        = useState({})
   const [expandedId,         setExpandedId]         = useState(null)
 
-  // Email roster view
-  const [viewMode,       setViewMode]       = useState('roster')   // 'roster' | 'emails'
-  const [editingEmailId, setEditingEmailId] = useState(null)
-  const [emailForm,      setEmailForm]      = useState({ email: '', representative_email: '' })
-  const [emailSaving,    setEmailSaving]    = useState(false)
-
   // Edit modal
   const [editingStudent, setEditingStudent] = useState(null)
   const [editForm,       setEditForm]       = useState(EMPTY_FORM)
@@ -310,29 +304,6 @@ export default function StudentsPage({ teacher }) {
     loadStudents()
   }
 
-  async function handleEmailSave(studentId) {
-    setEmailSaving(true)
-    let email = emailForm.email.trim().toLowerCase()
-    if (email && !email.includes('@')) email = email + DOMAIN
-
-    const { error } = await supabase.from('school_students').update({
-      email:               email || null,
-      representative_email: emailForm.representative_email.trim() || null,
-    }).eq('id', studentId)
-
-    if (error) {
-      logError(error, { page: 'StudentsPage', action: 'saveEmail', entityId: studentId })
-      if (error.code === '23505') showToast('Este correo ya está registrado.', 'error')
-      else showToast('Error al guardar: ' + error.message, 'error')
-    } else {
-      logActivity('update', 'school_students', studentId, 'Correos actualizados inline')
-      showToast('Correos guardados', 'success')
-      setEditingEmailId(null)
-      loadStudents()
-    }
-    setEmailSaving(false)
-  }
-
   function toggleSelect(id) {
     setSelectedIds(prev => {
       const next = new Set(prev)
@@ -421,8 +392,6 @@ export default function StudentsPage({ teacher }) {
     setExpandedId(null)
     setShowAddForm(false)
     setShowImport(false)
-    setViewMode('roster')
-    setEditingEmailId(null)
   }
 
   function goBack() {
@@ -432,8 +401,6 @@ export default function StudentsPage({ teacher }) {
     setBulkConfirm(false)
     setExpandedId(null)
     setSearchText('')
-    setViewMode('roster')
-    setEditingEmailId(null)
   }
 
   function handleRowClick(e, student) {
@@ -622,7 +589,7 @@ export default function StudentsPage({ teacher }) {
             </div>
           </div>
 
-          {/* Toolbar: search + view toggle + add/import */}
+          {/* Toolbar: search + add/import */}
           <div className="stu-group-toolbar">
             <input
               className="stu-search-input"
@@ -631,23 +598,6 @@ export default function StudentsPage({ teacher }) {
               placeholder="Buscar por nombre o código..."
             />
             <div style={{ display: 'flex', gap: 8 }}>
-              {/* View toggle */}
-              <div style={{ display: 'flex', border: '1px solid #D1D5DB', borderRadius: 8, overflow: 'hidden' }}>
-                <button type="button"
-                  style={{ padding: '6px 12px', fontSize: 13, fontWeight: 600, cursor: 'pointer', border: 'none',
-                    background: viewMode === 'roster' ? '#1F3864' : '#F3F4F6',
-                    color: viewMode === 'roster' ? '#fff' : '#374151' }}
-                  onClick={() => { setViewMode('roster'); setEditingEmailId(null) }}>
-                  Roster
-                </button>
-                <button type="button"
-                  style={{ padding: '6px 12px', fontSize: 13, fontWeight: 600, cursor: 'pointer', border: 'none',
-                    background: viewMode === 'emails' ? '#1F3864' : '#F3F4F6',
-                    color: viewMode === 'emails' ? '#fff' : '#374151' }}
-                  onClick={() => { setViewMode('emails'); setExpandedId(null) }}>
-                  ✉️ Correos
-                </button>
-              </div>
               <button style={{ ...btnSecondary, fontSize: 13, padding: '6px 12px' }}
                 onClick={() => { setShowAddForm(v => !v); setShowImport(false); setForm(f => ({ ...f, grade: selGrade, section: selSection })) }}>
                 {showAddForm ? 'Cerrar' : '+ Agregar'}
@@ -719,195 +669,75 @@ export default function StudentsPage({ teacher }) {
             handleImportCSV={handleImportCSV} saving={saving}
           />}
 
-          {/* ── ROSTER VIEW ─────────────────────────────────── */}
-          {viewMode === 'roster' && (
-            <div style={card}>
-              {groupStudents.length === 0 ? (
-                <p style={{ color: '#9CA3AF', textAlign: 'center', padding: 24 }}>
-                  {searchText ? 'Ningún estudiante coincide con la búsqueda.' : 'No hay estudiantes en este grupo.'}
-                </p>
-              ) : (
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-                    <thead>
-                      <tr style={{ background: '#F9FAFB' }}>
-                        <th style={{ ...th, width: 36, textAlign: 'center' }}>
-                          <input type="checkbox" title="Seleccionar todos"
-                            checked={groupStudents.length > 0 && selectedIds.size === groupStudents.length}
-                            onChange={toggleSelectAll} />
+          {/* Student table */}
+          <div style={card}>
+            {groupStudents.length === 0 ? (
+              <p style={{ color: '#9CA3AF', textAlign: 'center', padding: 24 }}>
+                {searchText ? 'Ningún estudiante coincide con la búsqueda.' : 'No hay estudiantes en este grupo.'}
+              </p>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+                  <thead>
+                    <tr style={{ background: '#F9FAFB' }}>
+                      <th style={{ ...th, width: 36, textAlign: 'center' }}>
+                        <input type="checkbox" title="Seleccionar todos"
+                          checked={groupStudents.length > 0 && selectedIds.size === groupStudents.length}
+                          onChange={toggleSelectAll} />
+                      </th>
+                      <th style={{ ...th, width: 36, textAlign: 'center' }}>#</th>
+                      {[
+                        { label: 'Nombre', col: 'name' },
+                        { label: 'Código',  col: 'code' },
+                      ].map(({ label, col }) => (
+                        <th key={col} style={{ ...th, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}
+                          onClick={() => handleSort(col)}>
+                          {label} {sortCol === col ? (sortAsc ? '▲' : '▼') : <span style={{ opacity: 0.3 }}>▲</span>}
                         </th>
-                        <th style={{ ...th, width: 36, textAlign: 'center' }}>#</th>
-                        {[
-                          { label: 'Nombre', col: 'name' },
-                          { label: 'Código',  col: 'code' },
-                        ].map(({ label, col }) => (
-                          <th key={col} style={{ ...th, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}
-                            onClick={() => handleSort(col)}>
-                            {label} {sortCol === col ? (sortAsc ? '▲' : '▼') : <span style={{ opacity: 0.3 }}>▲</span>}
-                          </th>
-                        ))}
-                        <th style={{ ...th, width: 60 }}></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {groupStudents.map((s, idx) => (
-                        <StudentRows key={s.id} s={s} idx={idx + 1}
-                          selectedIds={selectedIds} toggleSelect={toggleSelect}
-                          expandedId={expandedId} handleRowClick={handleRowClick}
-                          openEdit={openEdit} psyProfiles={psyProfiles}
-                          confirmingDeleteId={confirmingDeleteId} setConfirmingDeleteId={setConfirmingDeleteId}
-                          handleDelete={handleDelete} />
                       ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+                      <th style={{ ...th, width: 60 }}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {groupStudents.map((s, idx) => (
+                      <StudentRows key={s.id} s={s} idx={idx + 1}
+                        selectedIds={selectedIds} toggleSelect={toggleSelect}
+                        expandedId={expandedId} handleRowClick={handleRowClick}
+                        openEdit={openEdit} psyProfiles={psyProfiles}
+                        confirmingDeleteId={confirmingDeleteId} setConfirmingDeleteId={setConfirmingDeleteId}
+                        handleDelete={handleDelete} />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
 
-              {selectedIds.size > 0 && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14, padding: '10px 14px', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8 }}>
-                  <span style={{ fontSize: 13, color: '#991B1B', flex: 1 }}>
-                    {selectedIds.size} estudiante{selectedIds.size !== 1 ? 's' : ''} seleccionado{selectedIds.size !== 1 ? 's' : ''}
-                  </span>
-                  <button type="button" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6B7280', fontSize: 13 }}
-                    onClick={() => { setSelectedIds(new Set()); setBulkConfirm(false) }}>
-                    Cancelar
-                  </button>
-                  {bulkConfirm ? (
-                    <>
-                      <span style={{ fontSize: 13, color: '#DC2626', fontWeight: 600 }}>¿Confirmar eliminación?</span>
-                      <button type="button" style={{ background: '#DC2626', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
-                        onClick={handleBulkDelete} disabled={saving}>
-                        {saving ? 'Eliminando...' : 'Sí, eliminar'}
-                      </button>
-                    </>
-                  ) : (
-                    <button type="button" style={{ background: '#EF4444', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+            {selectedIds.size > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14, padding: '10px 14px', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8 }}>
+                <span style={{ fontSize: 13, color: '#991B1B', flex: 1 }}>
+                  {selectedIds.size} estudiante{selectedIds.size !== 1 ? 's' : ''} seleccionado{selectedIds.size !== 1 ? 's' : ''}
+                </span>
+                <button type="button" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6B7280', fontSize: 13 }}
+                  onClick={() => { setSelectedIds(new Set()); setBulkConfirm(false) }}>
+                  Cancelar
+                </button>
+                {bulkConfirm ? (
+                  <>
+                    <span style={{ fontSize: 13, color: '#DC2626', fontWeight: 600 }}>¿Confirmar eliminación?</span>
+                    <button type="button" style={{ background: '#DC2626', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
                       onClick={handleBulkDelete} disabled={saving}>
-                      Eliminar seleccionados
+                      {saving ? 'Eliminando...' : 'Sí, eliminar'}
                     </button>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ── EMAIL VIEW ──────────────────────────────────── */}
-          {viewMode === 'emails' && (() => {
-            const missingStudent = groupStudents.filter(s => !s.email).length
-            const missingRep     = groupStudents.filter(s => !s.representative_email).length
-            return (
-              <div style={card}>
-                {/* Summary banner */}
-                {(missingStudent > 0 || missingRep > 0) && (
-                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
-                    {missingStudent > 0 && (
-                      <div style={{ background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 8, padding: '8px 14px', fontSize: 13, color: '#9A3412' }}>
-                        ⚠ <strong>{missingStudent}</strong> estudiante{missingStudent !== 1 ? 's' : ''} sin correo institucional
-                      </div>
-                    )}
-                    {missingRep > 0 && (
-                      <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: '8px 14px', fontSize: 13, color: '#92400E' }}>
-                        ⚠ <strong>{missingRep}</strong> estudiante{missingRep !== 1 ? 's' : ''} sin correo de representante
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {groupStudents.length === 0 ? (
-                  <p style={{ color: '#9CA3AF', textAlign: 'center', padding: 24 }}>
-                    {searchText ? 'Ningún estudiante coincide con la búsqueda.' : 'No hay estudiantes en este grupo.'}
-                  </p>
+                  </>
                 ) : (
-                  <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-                      <thead>
-                        <tr style={{ background: '#F9FAFB' }}>
-                          <th style={{ ...th, width: 36, textAlign: 'center' }}>#</th>
-                          <th style={th}>Nombre</th>
-                          <th style={th}>Correo estudiante</th>
-                          <th style={th}>Correo representante</th>
-                          <th style={{ ...th, width: 50 }}></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {groupStudents.map((s, idx) => {
-                          const isEditing = editingEmailId === s.id
-                          return (
-                            <tr key={s.id} style={{ borderBottom: '1px solid #F3F4F6', background: isEditing ? '#F0F9FF' : undefined }}>
-                              <td style={{ ...td, textAlign: 'center', color: '#9CA3AF', fontSize: 12 }}>{idx + 1}</td>
-                              <td style={{ ...td, fontWeight: 600, color: '#1F3864' }}>{displayName(s)}</td>
-
-                              {isEditing ? (
-                                <>
-                                  <td style={td}>
-                                    <input
-                                      style={{ ...inp, fontSize: 13, padding: '5px 8px' }}
-                                      value={emailForm.email}
-                                      onChange={e => setEmailForm(f => ({ ...f, email: e.target.value }))}
-                                      placeholder={`usuario${DOMAIN}`}
-                                      autoFocus
-                                    />
-                                  </td>
-                                  <td style={td}>
-                                    <input
-                                      style={{ ...inp, fontSize: 13, padding: '5px 8px' }}
-                                      type="email"
-                                      value={emailForm.representative_email}
-                                      onChange={e => setEmailForm(f => ({ ...f, representative_email: e.target.value }))}
-                                      placeholder="padre@gmail.com"
-                                    />
-                                  </td>
-                                  <td style={{ ...td, whiteSpace: 'nowrap' }}>
-                                    <div style={{ display: 'flex', gap: 4 }}>
-                                      <button type="button" disabled={emailSaving}
-                                        style={{ background: '#1F3864', color: '#fff', border: 'none', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
-                                        onClick={() => handleEmailSave(s.id)}>
-                                        {emailSaving ? '…' : '✓'}
-                                      </button>
-                                      <button type="button"
-                                        style={{ background: 'none', border: '1px solid #D1D5DB', borderRadius: 6, padding: '4px 8px', cursor: 'pointer', fontSize: 12, color: '#6B7280' }}
-                                        onClick={() => setEditingEmailId(null)}>
-                                        ✕
-                                      </button>
-                                    </div>
-                                  </td>
-                                </>
-                              ) : (
-                                <>
-                                  <td style={td}>
-                                    {s.email
-                                      ? <span style={{ fontFamily: 'monospace', fontSize: 13 }}>{s.email}</span>
-                                      : <span style={{ color: '#F97316', fontSize: 13, fontWeight: 600 }}>⚠ Sin correo</span>
-                                    }
-                                  </td>
-                                  <td style={td}>
-                                    {s.representative_email
-                                      ? <span style={{ fontSize: 13, color: '#6B7280' }}>{s.representative_email}</span>
-                                      : <span style={{ color: '#D97706', fontSize: 12 }}>⚠ Sin correo</span>
-                                    }
-                                  </td>
-                                  <td style={td}>
-                                    <button type="button" title="Editar correos"
-                                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6B7280', fontSize: 16, padding: '2px 4px' }}
-                                      onClick={() => {
-                                        setEditingEmailId(s.id)
-                                        setEmailForm({ email: s.email || '', representative_email: s.representative_email || '' })
-                                      }}>
-                                      ✏️
-                                    </button>
-                                  </td>
-                                </>
-                              )}
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                  <button type="button" style={{ background: '#EF4444', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+                    onClick={handleBulkDelete} disabled={saving}>
+                    Eliminar seleccionados
+                  </button>
                 )}
               </div>
-            )
-          })()}
+            )}
+          </div>
         </>
       )}
 
