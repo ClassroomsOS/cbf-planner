@@ -984,9 +984,11 @@ function StatTile({ value, sub, color }) {
 }
 
 function ExamResultsDashboard({ exam, teacher, onClose }) {
-  const [instances, setInstances] = useState([])
-  const [loading,   setLoading]   = useState(true)
-  const [tab,       setTab]       = useState('submitted')   // 'submitted' | 'pending'
+  const [instances,         setInstances]         = useState([])
+  const [loading,           setLoading]           = useState(true)
+  const [tab,               setTab]               = useState('submitted')   // 'submitted' | 'pending'
+  const [reviewingInstance, setReviewingInstance] = useState(null)
+  const [reloadKey,         setReloadKey]         = useState(0)
 
   useEffect(() => {
     async function load() {
@@ -1052,7 +1054,7 @@ function ExamResultsDashboard({ exam, teacher, onClose }) {
       setLoading(false)
     }
     load()
-  }, [exam.id, teacher.id])
+  }, [exam.id, teacher.id, reloadKey])
 
   const submitted = instances.filter(r => r.instance_status === 'submitted')
   const pending   = instances.filter(r => r.instance_status !== 'submitted')
@@ -1068,6 +1070,7 @@ function ExamResultsDashboard({ exam, teacher, onClose }) {
   const displayed = tab === 'submitted' ? submitted : pending
 
   return createPortal(
+    <>
     <div className="lt-modal-overlay" style={{ zIndex: 9998 }}>
       <div style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 760, maxHeight: '88vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 12px 40px rgba(0,0,0,.2)' }}>
 
@@ -1125,7 +1128,7 @@ function ExamResultsDashboard({ exam, teacher, onClose }) {
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                     <thead>
                       <tr style={{ background: '#F8FAFC' }}>
-                        {['Nombre', 'Sección', 'Versión', 'Nota', 'Nivel', 'Integridad', tab === 'submitted' ? 'Tiempo' : 'Estado'].map(h => (
+                        {['Nombre', 'Sección', 'Versión', 'Nota', 'Nivel', 'Integridad', tab === 'submitted' ? 'Tiempo' : 'Estado', ''].map(h => (
                           <th key={h} style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 700, color: '#64748B', fontSize: 11, borderBottom: '1px solid #E2E8F0', whiteSpace: 'nowrap' }}>{h}</th>
                         ))}
                       </tr>
@@ -1179,6 +1182,15 @@ function ExamResultsDashboard({ exam, teacher, onClose }) {
                                     </span>
                                 }
                               </td>
+                              <td style={{ padding: '9px 10px' }}>
+                                {tab === 'submitted' && (
+                                  <button type="button" onClick={() => setReviewingInstance(r)}
+                                    style={{ padding: '4px 12px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                                      background: '#EFF6FF', color: '#1D4ED8', border: '1px solid #BFDBFE' }}>
+                                    Revisar
+                                  </button>
+                                )}
+                              </td>
                             </tr>
                           )
                         })
@@ -1195,6 +1207,255 @@ function ExamResultsDashboard({ exam, teacher, onClose }) {
               )}
             </>
           )}
+        </div>
+      </div>
+    </div>
+    {reviewingInstance && (
+      <StudentResponseReviewModal
+        instance={reviewingInstance}
+        exam={exam}
+        teacher={teacher}
+        onClose={(wasUpdated) => {
+          setReviewingInstance(null)
+          if (wasUpdated) setReloadKey(k => k + 1)
+        }}
+      />
+    )}
+    </>,
+    document.body
+  )
+}
+
+// ── STUDENT RESPONSE REVIEW MODAL ─────────────────────────────────────────────
+function StudentResponseReviewModal({ instance, exam, teacher, onClose }) {
+  const { showToast } = useToast()
+  const [responses,  setResponses]  = useState([])
+  const [loading,    setLoading]    = useState(true)
+  const [scoreEdits, setScoreEdits] = useState({})  // responseId → newScore string
+  const [saving,     setSaving]     = useState(false)
+  const [wasSaved,   setWasSaved]   = useState(false)
+  const [savedResult,setSavedResult]= useState(null)  // exam_results row after last save
+
+  // Load responses for this instance
+  useEffect(() => {
+    async function load() {
+      const { data } = await supabase
+        .from('exam_responses')
+        .select('id, question_id, answer, ai_score, human_score, ai_feedback, needs_human_review, points_possible')
+        .eq('instance_id', instance.id)
+        .order('created_at', { ascending: true })
+      setResponses(data || [])
+      setLoading(false)
+    }
+    load()
+  }, [instance.id])
+
+  // Build question map from instance.generated_questions
+  const questionMap = useMemo(() => {
+    const map = {}
+    ;(instance.generated_questions || []).forEach(q => { map[q.id] = q })
+    return map
+  }, [instance.generated_questions])
+
+  // Live total (respects edits)
+  const { earned, possible } = useMemo(() => {
+    let e = 0, p = 0
+    responses.forEach(r => {
+      const edited = scoreEdits[r.id]
+      const score = edited !== undefined ? parseFloat(edited) : (r.human_score ?? r.ai_score ?? 0)
+      e += isNaN(score) ? 0 : score
+      p += parseFloat(r.points_possible) || 0
+    })
+    return { earned: e, possible: p }
+  }, [responses, scoreEdits])
+
+  const liveGrade = possible > 0
+    ? Math.min(5.0, Math.max(1.0, (earned / possible) * 4 + 1)).toFixed(1)
+    : null
+
+  const hasEdits = Object.keys(scoreEdits).length > 0
+
+  // Display grade: saved result > instance grade > live calc
+  const displayGrade = savedResult?.colombian_grade ?? instance.colombian_grade
+
+  async function handleSave() {
+    if (!hasEdits) { onClose(false); return }
+    setSaving(true)
+    let anyError = false
+
+    for (const [responseId, newScore] of Object.entries(scoreEdits)) {
+      const score = parseFloat(newScore)
+      if (isNaN(score) || score < 0) continue
+      const resp = responses.find(r => r.id === responseId)
+      const max = parseFloat(resp?.points_possible) || 999
+      const { error } = await supabase
+        .from('exam_responses')
+        .update({
+          human_score: Math.min(score, max),
+          human_reviewer_id: teacher.id,
+          needs_human_review: false,
+          reviewed_at: new Date().toISOString(),
+        })
+        .eq('id', responseId)
+      if (error) { anyError = true; showToast('Error: ' + error.message, 'error') }
+    }
+
+    if (!anyError) {
+      // Apply edits to local state
+      setResponses(prev => prev.map(r => {
+        const edited = scoreEdits[r.id]
+        if (edited === undefined) return r
+        return { ...r, human_score: Math.min(parseFloat(edited), parseFloat(r.points_possible) || 999), needs_human_review: false }
+      }))
+      setScoreEdits({})
+      setWasSaved(true)
+      // Fetch updated result (trigger has fired by now)
+      const { data: res } = await supabase
+        .from('exam_results')
+        .select('colombian_grade, total_score, max_score')
+        .eq('instance_id', instance.id)
+        .maybeSingle()
+      if (res) setSavedResult(res)
+      showToast('Correcciones guardadas. Nota actualizada ✓', 'success')
+    }
+    setSaving(false)
+  }
+
+  return createPortal(
+    <div className="lt-modal-overlay" style={{ zIndex: 9999 }}>
+      <div style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 720, maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 16px 48px rgba(0,0,0,.28)' }}>
+
+        {/* Header */}
+        <div style={{ padding: '14px 20px', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(135deg, #1F3864, #2E5598)', borderRadius: '14px 14px 0 0', gap: 12 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <h3 style={{ margin: 0, fontSize: 14, color: '#fff', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              ✏️ Revisar — {instance.student_name}
+            </h3>
+            <p style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,.7)' }}>{exam.title} · {instance.version_label || 'Versión única'}</p>
+          </div>
+          {/* Live grade pill */}
+          <div style={{ background: 'rgba(255,255,255,.15)', borderRadius: 10, padding: '8px 14px', textAlign: 'center', flexShrink: 0 }}>
+            <div style={{ fontSize: 10, color: 'rgba(255,255,255,.7)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 2 }}>
+              {hasEdits ? 'Nota (sin guardar)' : 'Nota'}
+            </div>
+            <div style={{ fontSize: 22, fontWeight: 900, color: hasEdits ? '#FCD34D' : '#fff' }}>
+              {hasEdits ? liveGrade : (displayGrade?.toFixed(1) ?? liveGrade ?? '—')}
+            </div>
+            {possible > 0 && (
+              <div style={{ fontSize: 9, color: 'rgba(255,255,255,.6)' }}>{earned.toFixed(1)}/{possible.toFixed(1)} pts</div>
+            )}
+          </div>
+        </div>
+
+        {/* Responses list */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {loading ? (
+            <p style={{ color: '#9CA3AF', textAlign: 'center', padding: 40 }}>Cargando respuestas…</p>
+          ) : responses.length === 0 ? (
+            <p style={{ color: '#9CA3AF', textAlign: 'center', padding: 40 }}>No hay respuestas registradas para este estudiante.</p>
+          ) : responses.map((r, i) => {
+            const q = questionMap[r.question_id] || {}
+            const answerText = typeof r.answer?.text === 'string'
+              ? r.answer.text
+              : (r.answer ? JSON.stringify(r.answer) : '')
+            const currentScore = scoreEdits[r.id] !== undefined
+              ? scoreEdits[r.id]
+              : String(r.human_score ?? r.ai_score ?? 0)
+            const maxPts = parseFloat(r.points_possible) || 0
+            const isEdited = scoreEdits[r.id] !== undefined
+
+            return (
+              <div key={r.id} style={{
+                border: `1.5px solid ${isEdited ? '#FCD34D' : r.needs_human_review ? '#FCA5A5' : '#E2E8F0'}`,
+                borderRadius: 10, overflow: 'hidden',
+              }}>
+                {/* Q header */}
+                <div style={{ padding: '8px 14px', background: '#F8FAFC', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #E2E8F0', flexWrap: 'wrap', gap: 6 }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>Pregunta {i + 1}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {r.needs_human_review && (
+                      <span style={{ fontSize: 10, background: '#FEE2E2', color: '#DC2626', borderRadius: 4, padding: '2px 7px', fontWeight: 700 }}>Revisión pendiente</span>
+                    )}
+                    {r.human_score != null && !r.needs_human_review && (
+                      <span style={{ fontSize: 10, background: '#DCFCE7', color: '#15803D', borderRadius: 4, padding: '2px 7px', fontWeight: 700 }}>Corregido manualmente</span>
+                    )}
+                    <span style={{ fontSize: 11, color: '#6B7280' }}>{maxPts} pt{maxPts !== 1 ? 's' : ''}</span>
+                  </div>
+                </div>
+
+                <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {/* Stem */}
+                  {q.stem && (
+                    <p style={{ margin: 0, fontSize: 13, color: '#1F3864', lineHeight: 1.6, fontWeight: 500 }}>{q.stem}</p>
+                  )}
+
+                  {/* Student answer */}
+                  <div style={{ background: '#EFF6FF', borderRadius: 7, padding: '8px 12px', border: '1px solid #BFDBFE' }}>
+                    <p style={{ margin: '0 0 3px', fontSize: 10, fontWeight: 700, color: '#1D4ED8', textTransform: 'uppercase', letterSpacing: .3 }}>Respuesta del estudiante</p>
+                    <p style={{ margin: 0, fontSize: 13, color: '#1F3864', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                      {answerText || <em style={{ color: '#9CA3AF' }}>Sin respuesta</em>}
+                    </p>
+                  </div>
+
+                  {/* AI feedback */}
+                  {r.ai_feedback && (
+                    <div style={{ background: '#F0FDF4', borderRadius: 7, padding: '8px 12px', border: '1px solid #A7F3D0' }}>
+                      <p style={{ margin: '0 0 3px', fontSize: 10, fontWeight: 700, color: '#15803D', textTransform: 'uppercase', letterSpacing: .3 }}>Retroalimentación IA</p>
+                      <p style={{ margin: 0, fontSize: 12, color: '#374151', lineHeight: 1.5 }}>{r.ai_feedback}</p>
+                    </div>
+                  )}
+
+                  {/* Score editor */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 12, color: '#64748B', fontWeight: 600 }}>Puntaje:</span>
+                    <span style={{ fontSize: 12, color: '#9CA3AF' }}>IA: {r.ai_score ?? '—'}</span>
+                    <span style={{ color: '#CBD5E1' }}>→</span>
+                    <input
+                      type="number" min={0} max={maxPts} step={0.5}
+                      value={currentScore}
+                      onChange={e => setScoreEdits(prev => ({ ...prev, [r.id]: e.target.value }))}
+                      style={{
+                        width: 70, padding: '5px 8px', borderRadius: 6,
+                        border: `1.5px solid ${isEdited ? '#FCD34D' : '#D1D5DB'}`,
+                        fontSize: 13, fontWeight: 700, fontFamily: 'monospace', outline: 'none',
+                        background: isEdited ? '#FFFBEB' : '#fff',
+                      }}
+                    />
+                    <span style={{ fontSize: 11, color: '#9CA3AF' }}>/ {maxPts}</span>
+                    {isEdited && (
+                      <button type="button"
+                        onClick={() => setScoreEdits(prev => { const n = { ...prev }; delete n[r.id]; return n })}
+                        style={{ fontSize: 11, color: '#9CA3AF', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>
+                        ↩ deshacer
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding: '14px 20px', borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#F8FAFC', borderRadius: '0 0 14px 14px', gap: 10 }}>
+          <button type="button" onClick={() => onClose(wasSaved)}
+            style={{ padding: '9px 18px', borderRadius: 8, background: '#E2E8F0', color: '#374151', border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+            ← Volver a resultados
+          </button>
+          {savedResult && (
+            <span style={{ fontSize: 13, color: gradeColor(savedResult.colombian_grade), fontWeight: 700 }}>
+              Nota guardada: {savedResult.colombian_grade?.toFixed(1)}
+            </span>
+          )}
+          <button type="button" onClick={handleSave} disabled={saving || !hasEdits}
+            style={{
+              padding: '10px 24px', borderRadius: 8, fontSize: 13, fontWeight: 700,
+              cursor: (saving || !hasEdits) ? 'default' : 'pointer',
+              background: (saving || !hasEdits) ? '#9CA3AF' : 'linear-gradient(135deg, #059669, #047857)',
+              color: '#fff', border: 'none', opacity: !hasEdits ? 0.5 : 1,
+            }}>
+            {saving ? <><span className="cbf-spin-inline"/>Guardando…</> : '💾 Guardar correcciones'}
+          </button>
         </div>
       </div>
     </div>,

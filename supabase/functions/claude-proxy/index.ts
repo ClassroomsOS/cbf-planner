@@ -2,6 +2,8 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY')
+const GEMINI_API_KEY    = Deno.env.get('GEMINI_API_KEY')
+const GEMINI_MODEL      = Deno.env.get('GEMINI_MODEL') || 'gemini-2.5-flash'
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
@@ -53,6 +55,79 @@ async function logEvent(opts: {
   }
 }
 
+// ── Gemini provider (used when body.provider === 'gemini') ────────────────────
+// Maps the Anthropic-style request (system + messages/text) to the Gemini
+// generateContent API. Response is normalized to { text, finish_reason, usage }
+// so callers see the same shape regardless of provider.
+
+function toGeminiParts(blocks: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(blocks)) return [{ text: String(blocks ?? '') }]
+  return blocks.map((b) => {
+    const block = b as Record<string, unknown>
+    if (block.type === 'image') {
+      const src = (block.source ?? {}) as Record<string, string>
+      return { inline_data: { mime_type: src.media_type ?? 'image/png', data: src.data ?? '' } }
+    }
+    return { text: String(block.text ?? '') }
+  })
+}
+
+async function callGemini(
+  system: string | undefined,
+  message: string | undefined,
+  messages: unknown[] | undefined,
+  maxTokens: number
+): Promise<{ text: string; finish_reason: string; usage: { input_tokens: number; output_tokens: number } }> {
+  const contents: Record<string, unknown>[] = []
+
+  if (messages?.length) {
+    contents.push(...(messages as Record<string, unknown>[]).map((m) => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: toGeminiParts(m.content as unknown),
+    })))
+  } else {
+    contents.push({ role: 'user', parts: [{ text: message || '' }] })
+  }
+
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        system_instruction: system ? { parts: [{ text: system }] } : undefined,
+        contents,
+        generationConfig: { maxOutputTokens: maxTokens },
+      }),
+    }
+  )
+
+  const data = await response.json()
+
+  if (!response.ok) {
+    throw new Error((data.error?.message as string) || `Gemini API error ${response.status}`)
+  }
+
+  const candidate = (data.candidates ?? [])[0]
+  const parts = candidate?.content?.parts ?? []
+  const text = parts
+    .filter((p: { text?: string }) => p.text)
+    .map((p: { text: string }) => p.text)
+    .join('\n') || ''
+
+  const finishReason = candidate?.finishReason ?? ''
+  const finish_reason = finishReason === 'MAX_TOKENS' ? 'max_tokens' : String(finishReason || 'stop').toLowerCase()
+
+  return {
+    text,
+    finish_reason,
+    usage: {
+      input_tokens: data.usageMetadata?.promptTokenCount ?? 0,
+      output_tokens: data.usageMetadata?.candidatesTokenCount ?? 0,
+    },
+  }
+}
+
 serve(async (req) => {
   const corsHeaders = getCorsHeaders(req)
 
@@ -65,60 +140,79 @@ serve(async (req) => {
   let schoolId: string | undefined
 
   try {
-    if (!ANTHROPIC_API_KEY) {
-      throw new Error('ANTHROPIC_API_KEY not configured')
-    }
-
     body = await req.json()
     schoolId = body.school_id as string | undefined
 
-    // Build messages array
-    const messages = []
-    if (body.messages) {
-      messages.push(...(body.messages as unknown[]))
+    const provider  = body.provider === 'gemini' ? 'gemini' : 'anthropic'
+    const maxTokens = (body.max_tokens as number) || 4000
+    const system    = body.system as string | undefined
+
+    let text = ''
+    let finish_reason = ''
+    let usage: { input_tokens?: number; output_tokens?: number } | undefined
+
+    if (provider === 'gemini') {
+      if (!GEMINI_API_KEY) {
+        throw new Error('GEMINI_API_KEY not configured')
+      }
+      const result = await callGemini(system, body.message as string | undefined, body.messages as unknown[] | undefined, maxTokens)
+      text = result.text
+      finish_reason = result.finish_reason
+      usage = result.usage
     } else {
-      messages.push({ role: 'user', content: body.message || '' })
-    }
+      if (!ANTHROPIC_API_KEY) {
+        throw new Error('ANTHROPIC_API_KEY not configured')
+      }
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: (body.max_tokens as number) || 4000,
-        system: body.system as string | undefined,
-        messages,
-      }),
-    })
+      // Build messages array
+      const messages = []
+      if (body.messages) {
+        messages.push(...(body.messages as unknown[]))
+      } else {
+        messages.push({ role: 'user', content: body.message || '' })
+      }
 
-    const data = await response.json()
-
-    if (!response.ok) {
-      const errMsg = (data.error?.message as string) || `Claude API error ${response.status}`
-      await logEvent({
-        severity: 'error',
-        message: errMsg,
-        error_code: 'CBF-AI-ERR-001',
-        school_id: schoolId,
-        step: 'anthropic_call',
-        duration_ms: Date.now() - startMs,
-        payload_in: { max_tokens: body.max_tokens, has_system: !!body.system },
-        payload_out: { status: response.status, error: data.error },
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': ANTHROPIC_API_KEY,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: maxTokens,
+          system,
+          messages,
+        }),
       })
-      throw new Error(errMsg)
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        const errMsg = (data.error?.message as string) || `Claude API error ${response.status}`
+        await logEvent({
+          severity: 'error',
+          message: errMsg,
+          error_code: 'CBF-AI-ERR-001',
+          school_id: schoolId,
+          step: 'anthropic_call',
+          duration_ms: Date.now() - startMs,
+          payload_in: { max_tokens: body.max_tokens, has_system: !!body.system },
+          payload_out: { status: response.status, error: data.error },
+        })
+        throw new Error(errMsg)
+      }
+
+      text = data.content
+        ?.filter((block: { type: string }) => block.type === 'text')
+        ?.map((block: { text: string }) => block.text)
+        ?.join('\n') || ''
+
+      finish_reason = data.stop_reason || ''
+      usage = data.usage as { input_tokens?: number; output_tokens?: number } | undefined
     }
 
-    const text = data.content
-      ?.filter((block: { type: string }) => block.type === 'text')
-      ?.map((block: { text: string }) => block.text)
-      ?.join('\n') || ''
-
-    const finish_reason = data.stop_reason || ''
-    const usage = data.usage as { input_tokens?: number; output_tokens?: number } | undefined
     const durationMs = Date.now() - startMs
 
     // Log successful call — info level, non-blocking

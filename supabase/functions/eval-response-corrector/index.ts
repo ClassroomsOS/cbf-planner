@@ -52,7 +52,20 @@ interface Criteria {
   bloom_level?:   string | null
 }
 
-function buildPrompt(stem: string, maxPoints: number, criteria: Criteria | null, studentAnswer: string): string {
+interface ExamContext {
+  subject?:    string | null
+  grade?:      string | null
+  difficulty?: string | null
+}
+
+const CEFR_MAP: Record<string, string> = {
+  easy:   'A1+–A2 (beginner — basic vocabulary, simple structures)',
+  medium: 'A2+–B1 (intermediate — contextual use, some complexity)',
+  hard:   'B1+–B2 (upper-intermediate — analysis, inference, academic vocabulary)',
+  mixed:  'A1+–B2 (mixed levels)',
+}
+
+function buildPrompt(stem: string, maxPoints: number, criteria: Criteria | null, studentAnswer: string, examCtx: ExamContext): string {
   const rigorMap: Record<string, string> = {
     strict:     'Rigor alto — el estudiante debe mencionar términos y conceptos exactos.',
     flexible:   'Rigor medio — acepta paráfrasis que demuestren comprensión real.',
@@ -68,14 +81,35 @@ function buildPrompt(stem: string, maxPoints: number, criteria: Criteria | null,
     ? 'Evalúa comparando con la respuesta modelo y los conceptos clave proporcionados.'
     : 'No hay respuesta modelo. Evalúa si la respuesta demuestra comprensión correcta del tema basándote en tu conocimiento. Sé justo pero exigente.'
 
+  // Build exam context section
+  const ctxLines: string[] = []
+  if (examCtx.subject) ctxLines.push(`MATERIA: ${examCtx.subject}`)
+  if (examCtx.grade)   ctxLines.push(`GRADO: ${examCtx.grade}`)
+  if (examCtx.difficulty && CEFR_MAP[examCtx.difficulty]) {
+    ctxLines.push(`NIVEL ESPERADO (CEFR): ${CEFR_MAP[examCtx.difficulty]}`)
+  }
+  const ctxBlock = ctxLines.length > 0 ? ctxLines.join('\n') + '\n' : ''
+
+  // Language-specific grading instructions
+  const isLanguageExam = /english|ingl[eé]s|language|lengua/i.test(examCtx.subject || '')
+  const langInstructions = isLanguageExam
+    ? `\nINSTRUCCIONES PARA EXAMEN DE IDIOMAS:
+- Evalúa gramática, ortografía y estructura además del contenido.
+- Errores gramaticales que cambien el significado: penalizar significativamente.
+- Errores menores (artículos, preposiciones) que no afecten comprensión: penalización leve.
+- La respuesta DEBE estar en el idioma solicitado por la pregunta. Si la pregunta es en inglés, la respuesta debe ser en inglés.
+- Si el estudiante responde en español a una pregunta en inglés: máximo 30% del puntaje (demuestra comprensión pero no competencia lingüística).
+- Evalúa según el nivel CEFR indicado: no exijas perfección de un A2, pero sí precisión razonable para el nivel.\n`
+    : ''
+
   return `Eres un corrector académico experto. Evalúa esta respuesta de forma justa y pedagógica.
 
-PREGUNTA: ${stem}
+${ctxBlock}PREGUNTA: ${stem}
 PUNTAJE MÁXIMO: ${maxPoints} puntos
 ${bloom}${modelAnswer}${keyConcepts}
 ESTRATEGIA DE EVALUACIÓN: ${evalStrategy}
 CRITERIO DE RIGOR: ${rigor}
-
+${langInstructions}
 RESPUESTA DEL ESTUDIANTE:
 ${studentAnswer || '(sin respuesta)'}
 
@@ -158,6 +192,30 @@ serve(async (req: Request) => {
       return new Response(JSON.stringify({ error: 'Instancia no encontrada' }), { status: 404, headers: { ...cors, 'Content-Type': 'application/json' } })
     }
 
+    // ── 1b. Load exam context (subject, grade, difficulty) ─────
+    let examCtx: ExamContext = {}
+    try {
+      const { data: session } = await supabase
+        .from('eval_sessions')
+        .select('blueprint_id, grade')
+        .eq('id', instance.session_id)
+        .single()
+      if (session?.blueprint_id) {
+        const { data: bp } = await supabase
+          .from('eval_blueprints')
+          .select('subject, difficulty')
+          .eq('id', session.blueprint_id)
+          .single()
+        examCtx = {
+          subject:    bp?.subject || null,
+          grade:      session?.grade || null,
+          difficulty: bp?.difficulty || null,
+        }
+      }
+    } catch (e) {
+      console.error('[eval-response-corrector] Could not load exam context (non-fatal):', e)
+    }
+
     // ── 2. Pending open responses ───────────────────────────────
     const { data: responses, error: respErr } = await supabase
       .from('eval_responses')
@@ -181,34 +239,79 @@ serve(async (req: Request) => {
     // ── 4. Correct each response ────────────────────────────────
     const feedbacks: { response_id: string; question_id: string; feedback: string; score: number; max: number; confidence: number; requires_review: boolean }[] = []
 
-    for (const resp of responses) {
+    for (let i = 0; i < responses.length; i++) {
+      const resp = responses[i]
       const qData = questionMap[resp.question_id]
-      if (!qData) continue
+      if (!qData) {
+        // Question not found in blueprint — mark as done with 0 score to prevent permanent pending
+        console.error(`[eval-response-corrector] question_id ${resp.question_id} not found in blueprint for response ${resp.id}`)
+        await supabase.from('eval_responses').update({
+          ai_score: 0,
+          ai_feedback: 'Pregunta no encontrada en el examen. El docente revisará esta respuesta.',
+          ai_confidence: 0.1,
+          requires_human_review: true,
+          ai_correction_status: 'done',
+        }).eq('id', resp.id)
+        feedbacks.push({ response_id: resp.id, question_id: resp.question_id, feedback: 'Pregunta no encontrada', score: 0, max: 0, confidence: 0.1, requires_review: true })
+        continue
+      }
 
       const studentAnswer = typeof resp.answer?.text === 'string' ? resp.answer.text.trim() : JSON.stringify(resp.answer)
       const maxPts        = resp.points_possible || qData.points || 0
       const criteria      = qData.criteria || null
 
-      const prompt   = buildPrompt(qData.stem, maxPts, criteria, studentAnswer)
-      const aiResult = await callClaude(prompt, maxPts)
+      const prompt   = buildPrompt(qData.stem, maxPts, criteria, studentAnswer, examCtx)
 
-      await supabase.from('eval_responses').update({
-        ai_score:              aiResult.score,
-        ai_feedback:           aiResult.feedback,
-        ai_confidence:         aiResult.confidence,
-        requires_human_review: aiResult.requires_review,
-        ai_correction_status:  'done',
-      }).eq('id', resp.id)
+      try {
+        const aiResult = await callClaude(prompt, maxPts)
 
-      feedbacks.push({
-        response_id:     resp.id,
-        question_id:     resp.question_id,
-        feedback:        aiResult.feedback,
-        score:           aiResult.score,
-        max:             maxPts,
-        confidence:      aiResult.confidence,
-        requires_review: aiResult.requires_review,
-      })
+        // Only mark as 'done' if callClaude succeeded (non-zero confidence)
+        if (aiResult.confidence > 0) {
+          await supabase.from('eval_responses').update({
+            ai_score:              aiResult.score,
+            ai_feedback:           aiResult.feedback,
+            ai_confidence:         aiResult.confidence,
+            requires_human_review: aiResult.requires_review,
+            ai_correction_status:  'done',
+          }).eq('id', resp.id)
+
+          feedbacks.push({
+            response_id:     resp.id,
+            question_id:     resp.question_id,
+            feedback:        aiResult.feedback,
+            score:           aiResult.score,
+            max:             maxPts,
+            confidence:      aiResult.confidence,
+            requires_review: aiResult.requires_review,
+          })
+        } else {
+          // AI call failed — mark as done with 0 score to prevent permanent pending
+          console.error(`[eval-response-corrector] AI failed for response ${resp.id}, marking as done for human review`)
+          await supabase.from('eval_responses').update({
+            ai_score: 0,
+            ai_feedback: 'La corrección automática no pudo completarse. El docente revisará esta respuesta.',
+            ai_confidence: 0,
+            requires_human_review: true,
+            ai_correction_status: 'done',
+          }).eq('id', resp.id)
+          feedbacks.push({ response_id: resp.id, question_id: resp.question_id, feedback: 'AI failed', score: 0, max: maxPts, confidence: 0, requires_review: true })
+        }
+      } catch (err) {
+        console.error(`[eval-response-corrector] Error correcting ${resp.id}:`, err)
+        await supabase.from('eval_responses').update({
+          ai_score: 0,
+          ai_feedback: 'Error durante la corrección. El docente revisará esta respuesta.',
+          ai_confidence: 0,
+          requires_human_review: true,
+          ai_correction_status: 'done',
+        }).eq('id', resp.id)
+        feedbacks.push({ response_id: resp.id, question_id: resp.question_id, feedback: 'Error', score: 0, max: resp.points_possible || 0, confidence: 0, requires_review: true })
+      }
+
+      // Rate-limit delay between Claude calls (skip after last)
+      if (i < responses.length - 1) {
+        await new Promise(r => setTimeout(r, 500))
+      }
     }
 
     // ── 5. Recalculate total grade ──────────────────────────────
@@ -265,11 +368,18 @@ serve(async (req: Request) => {
             .single()
 
           if (teacher?.telegram_chat_id) {
+            // Fetch school name for multi-school context
+            const { data: schoolRow } = await supabase
+              .from('schools').select('short_name, name')
+              .eq('id', instance.school_id).single()
+            const schoolLabel = schoolRow?.short_name || schoolRow?.name || ''
+            const schoolLine  = schoolLabel ? `\n🏫 *${schoolLabel}*` : ''
+
             const grade      = colombianGrade
             const levelLabel = grade >= 4.5 ? 'Superior' : grade >= 4.0 ? 'Alto' : grade >= 3.5 ? 'Básico' : 'Bajo'
             const levelEmoji = grade >= 4.5 ? '⭐' : grade >= 4.0 ? '✅' : grade >= 3.5 ? '📘' : '❗'
             const reviewNote = requiresReview ? '\n⚠️ _Requiere revisión humana_' : ''
-            const msg = `✅ *${instance.student_name || 'Estudiante'}* entregó el examen\n📋 *${session.title || 'Examen'}*\n\n📊 Nota: *${grade.toFixed(1)} — ${levelLabel}* ${levelEmoji}\n📝 Puntaje: ${Math.round(totalScore * 10) / 10}/${Math.round(maxScore * 10) / 10} pts${reviewNote}`
+            const msg = `✅ *${instance.student_name || 'Estudiante'}* entregó el examen${schoolLine}\n📋 *${session.title || 'Examen'}*\n\n📊 Nota: *${grade.toFixed(1)} — ${levelLabel}* ${levelEmoji}\n📝 Puntaje: ${Math.round(totalScore * 10) / 10}/${Math.round(maxScore * 10) / 10} pts${reviewNote}`
             await sendTelegram(teacher.telegram_chat_id, msg)
           }
         }

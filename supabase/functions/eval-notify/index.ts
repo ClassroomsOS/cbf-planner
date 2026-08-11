@@ -1,5 +1,6 @@
 // ── eval-notify ───────────────────────────────────────────────────────────────
-// Sends a corrected exam result email to the student's representative via Resend.
+// Sends the corrected exam (institutional CBF-G AC-01 format) to the student's
+// email and/or the representative via Resend.
 //
 // Input:  POST { instance_id: string }
 // Output: { ok, message } | { error }
@@ -49,11 +50,15 @@ function gradeLevel(g: number): { label: string; emoji: string } {
 }
 
 const TYPE_LABELS: Record<string, string> = {
-  multiple_choice: 'Selección múltiple',
-  true_false:      'Verdadero / Falso',
-  fill_blank:      'Completar',
-  short_answer:    'Respuesta corta',
-  development:     'Desarrollo',
+  multiple_choice:  'Selección múltiple',
+  true_false:       'Verdadero / Falso',
+  fill_blank:       'Completar',
+  short_answer:     'Respuesta corta',
+  development:      'Desarrollo',
+  vocab_match:      'Vocabulario: Emparejar',
+  vocab_image:      'Vocabulario: Imagen',
+  vocab_cloze:      'Vocabulario: Completar',
+  vocab_listening:  'Vocabulario: Dictado',
 }
 
 interface Question {
@@ -68,7 +73,7 @@ interface Question {
 interface Response {
   question_id: string
   question_type: string
-  answer: { text?: string; selected?: string } | null
+  answer: { text?: string; selected?: string } | string | null
   auto_score: number | null
   ai_score: number | null
   ai_feedback: string | null
@@ -84,137 +89,191 @@ function buildQuestionsHtml(questions: Question[], responses: Response[]): strin
     const r = respMap[String(q.id)]
     if (!r) return ''
 
-    const isOpen  = q.question_type === 'short_answer' || q.question_type === 'development'
-    const score   = isOpen ? r.ai_score : r.auto_score
-    const maxPts  = r.points_possible || q.points || 0
-    const correct = !isOpen && score === maxPts
-    const wrong   = !isOpen && score === 0 && r.auto_score != null
-    const ansText = r.answer !== null && typeof r.answer === 'object'
-      ? (r.answer.text || r.answer.selected || '')
-      : String(r.answer || '')
+    const isOpen    = q.question_type === 'short_answer' || q.question_type === 'development'
+    const score     = isOpen ? r.ai_score : r.auto_score
+    const maxPts    = r.points_possible || q.points || 0
+    const correct   = !isOpen && score === maxPts && maxPts > 0
+    const wrong     = !isOpen && score === 0 && r.auto_score != null
+    const ansObj    = r.answer !== null && typeof r.answer === 'object'
+      ? r.answer as { text?: string; selected?: string }
+      : null
+    const ansText   = ansObj ? (ansObj.text || ansObj.selected || '') : String(r.answer || '')
 
-    const rowBg   = isOpen ? '#FAFAFA' : correct ? '#F0FDF4' : wrong ? '#FFF1F2' : '#FAFAFA'
-    const mark    = isOpen ? '' : correct ? '✅ ' : wrong ? '❌ ' : ''
-    const scoreStr = score != null ? `${score}/${maxPts}` : `?/${maxPts}`
+    const cardBg    = correct ? '#F0FDF4' : wrong ? '#FFF1F2' : '#FAFAFA'
+    const border    = correct ? '#16A34A' : wrong ? '#DC2626' : '#E5E7EB'
+    const mark      = !isOpen ? (correct ? '✅ ' : wrong ? '❌ ' : '') : ''
+    const scoreStr  = score != null ? `${score}/${maxPts}` : `?/${maxPts}`
+    const typeLabel = TYPE_LABELS[q.question_type] || q.question_type
 
-    // MC options
-    const optionsHtml = q.options ? q.options.map(opt => {
-      const letter    = opt.charAt(0)
-      const isCorrect = letter === q.correct_answer
-      const isPickd   = ansText === letter || ansText === opt
-      const bg = isCorrect ? '#DCFCE7' : (isPickd && !isCorrect) ? '#FEE2E2' : 'transparent'
-      return `<div style="padding:3px 8px;border-radius:4px;margin:2px 0;font-size:12px;background:${bg};">${isPickd ? '● ' : '○ '}${esc(opt)}${isCorrect ? ' ✓' : ''}</div>`
-    }).join('') : ''
+    let optionsHtml = ''
+    let ansBox = ''
 
-    // Answer box for open-ended
-    const ansBox = !q.options ? `
-      <div style="margin-top:6px;background:#F3F4F6;border-radius:4px;padding:7px 10px;font-size:12px;color:#374151;">
+    if (q.question_type === 'vocab_match') {
+      // Render vocab_match as word-pair table
+      const criteria = (q as any).criteria || {}
+      const words: string[] = criteria.words || []
+      const defs: string[] = criteria.definitions || []
+      const correctLetters = (q.correct_answer || '').split(',').map((l: string) => l.trim().toUpperCase())
+      const studentLetters = ansText.split(',').map((l: string) => l.trim().toUpperCase())
+      const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+      optionsHtml = words.map((w: string, wi: number) => {
+        const isMatch = studentLetters[wi] === correctLetters[wi]
+        const bg = isMatch ? '#DCFCE7' : '#FEE2E2'
+        const studentDef = studentLetters[wi] ? defs[letters.indexOf(studentLetters[wi])] || '?' : '—'
+        return `<div style="padding:3px 8px;border-radius:4px;margin:2px 0;font-size:12pt;background:${bg};">
+          <strong>${esc(w)}</strong> → ${esc(studentDef)} ${isMatch ? '✓' : '✗'}
+        </div>`
+      }).join('')
+    } else if (q.options && q.options.length > 0) {
+      // Standard MC / T-F / vocab_image / vocab_listening options
+      optionsHtml = q.options.map(opt => {
+        const letter    = opt.charAt(0)
+        const isCorrect = letter === q.correct_answer
+        const isPicked  = ansText === letter || ansText === opt
+        const bg = isCorrect ? '#DCFCE7' : (isPicked && !isCorrect) ? '#FEE2E2' : 'transparent'
+        return `<div style="padding:3px 8px;border-radius:4px;margin:2px 0;font-size:12pt;background:${bg};">${isPicked ? '● ' : '○ '}${esc(opt)}${isCorrect ? ' ✓' : ''}</div>`
+      }).join('')
+    } else {
+      // Open-ended / fill_blank / vocab_cloze
+      ansBox = `
+      <div style="margin-top:6px;background:#F3F4F6;border-radius:4px;padding:7px 10px;font-size:12pt;color:#374151;">
         ${esc(ansText) || '<em style="color:#9CA3AF">Sin respuesta</em>'}
-      </div>` : ''
+      </div>`
+    }
 
-    // AI feedback
     const feedbackHtml = r.ai_feedback ? `
-      <div style="margin-top:8px;padding:8px 10px;background:#EDE9FE;border-left:3px solid #8B5CF6;border-radius:0 4px 4px 0;font-size:11px;color:#4C1D95;">
-        <strong>Retroalimentación IA:</strong> ${esc(r.ai_feedback)}
+      <div style="margin-top:8px;padding:8px 10px;background:#EDE9FE;border-left:3px solid #8B5CF6;border-radius:0 4px 4px 0;font-size:11pt;color:#4C1D95;">
+        <strong>Retroalimentación:</strong> ${esc(r.ai_feedback)}
       </div>` : ''
 
     return `
-<div style="margin-bottom:12px;padding:12px 14px;border:1px solid #E5E7EB;border-radius:6px;background:${rowBg};">
-  <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px;flex-wrap:wrap;">
-    <span style="font-weight:700;color:#1F3864;font-size:13px;">${mark}${i + 1}.</span>
-    <span style="font-size:11px;background:#E5E7EB;color:#374151;padding:1px 7px;border-radius:10px;">${esc(TYPE_LABELS[q.question_type] || q.question_type)}</span>
-    <span style="font-size:11px;color:#6B7280;margin-left:auto;">${scoreStr} pts</span>
+<div style="border:1px solid ${border};border-radius:8px;padding:14px 16px;margin-bottom:12px;background:${cardBg};">
+  <div style="margin-bottom:8px;">
+    <span style="font-weight:700;color:#1F3864;font-size:14px;">${mark}${i + 1}.</span>
+    <span style="font-size:11px;background:#E5E7EB;color:#374151;padding:2px 8px;border-radius:10px;margin-left:6px;">${esc(typeLabel)}</span>
+    <span style="font-size:12px;color:#6B7280;float:right;font-weight:600;">${scoreStr} pts</span>
   </div>
-  <div style="font-size:12px;color:#111;line-height:1.5;margin-bottom:6px;">${esc(q.stem)}</div>
-  ${optionsHtml}
-  ${ansBox}
-  ${feedbackHtml}
+  <div style="font-size:12pt;color:#111;line-height:1.5;margin-bottom:8px;clear:both;">${esc(q.stem)}</div>
+  ${optionsHtml}${ansBox}${feedbackHtml}
 </div>`
   }).join('')
 }
 
 function buildEmailHtml(params: {
-  studentName: string
-  studentSection: string
-  examTitle: string
-  grade: number
-  totalScore: number
-  maxScore: number
-  questions: Question[]
-  responses: Response[]
-  schoolName: string
-  teacherName: string
-  date: string
+  studentName: string; studentSection: string; examTitle: string; subject: string
+  grade: number; totalScore: number; maxScore: number
+  questions: Question[]; responses: Response[]
+  schoolName: string; shortName: string; dane: string; nit: string; isBest: boolean
+  logoUrl: string; teacherName: string; submittedAt: string; date: string
 }): string {
-  const { studentName, studentSection, examTitle, grade, totalScore, maxScore, questions, responses, schoolName, teacherName, date } = params
+  const { studentName, studentSection, examTitle, subject, grade, totalScore, maxScore,
+          questions, responses, schoolName, shortName, dane, nit, isBest,
+          logoUrl, teacherName, submittedAt, date } = params
+
   const color = gradeColor(grade)
   const level = gradeLevel(grade)
-  const firstName = studentName.split(' ')[0] || studentName
-
   const questionsHtml = buildQuestionsHtml(questions, responses)
+  const logoHtml = logoUrl
+    ? `<img src="${esc(logoUrl)}" style="max-height:60px;max-width:80px;object-fit:contain;" />`
+    : '📋'
 
   return `<!DOCTYPE html>
 <html lang="es">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#f4f6fb;font-family:'Segoe UI',Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6fb;padding:40px 0;">
+<body style="margin:0;padding:0;background:#F4F6FB;font-family:Arial,'Segoe UI',sans-serif;font-size:12pt;line-height:1.5;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F4F6FB;padding:32px 0;">
     <tr><td align="center">
-      <table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08);">
+      <table width="640" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08);">
 
-        <!-- Header -->
+        <!-- Institutional header -->
         <tr>
-          <td style="background:linear-gradient(135deg,#1F3864,#2E5598);padding:28px 40px;text-align:center;">
-            <div style="font-size:28px;margin-bottom:6px;">📋</div>
-            <h1 style="color:#fff;margin:0;font-size:20px;font-weight:700;">Examen Corregido</h1>
-            <p style="color:rgba(255,255,255,.75);margin:4px 0 0;font-size:12px;">${esc(schoolName)}</p>
+          <td style="padding:24px 32px 0;">
+            ${isBest ? `
+            <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:2px solid #1B3A5C;">
+              <tr>
+                <td rowspan="2" width="80" style="border:1px solid #1B3A5C;text-align:center;padding:8px;vertical-align:middle;">
+                  ${logoHtml}
+                </td>
+                <td style="border:1px solid #1B3A5C;padding:10px;text-align:center;font-weight:bold;font-size:14px;color:#1B3A5C;">
+                  B.E.S.T.<br>BOSTON INTERNATIONAL SCHOOL<br>
+                  <span style="font-size:12px;">SATURDAY ENGLISH COURSES</span>
+                </td>
+              </tr>
+              <tr>
+                <td style="border:1px solid #1B3A5C;padding:8px;text-align:center;font-size:12px;color:#1B3A5C;">
+                  NIT: ${esc(nit)} &mdash; EVALUACIÓN CORREGIDA &mdash; ${esc(date)}
+                </td>
+              </tr>
+            </table>
+            ` : `
+            <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:2px solid #1F3864;">
+              <tr>
+                <td rowspan="3" width="80" style="border:1px solid #1F3864;text-align:center;padding:8px;vertical-align:middle;">
+                  ${logoHtml}
+                </td>
+                <td style="border:1px solid #1F3864;padding:8px;text-align:center;font-weight:bold;font-size:12px;color:#1F3864;">
+                  ${esc(schoolName.toUpperCase())}${dane ? ' &mdash; DANE: ' + esc(dane) : ''}
+                </td>
+                <td width="130" style="border:1px solid #1F3864;padding:8px;text-align:center;font-size:11px;font-weight:bold;">CBF-G AC-01</td>
+              </tr>
+              <tr>
+                <td style="border:1px solid #1F3864;padding:6px 8px;text-align:center;font-size:11px;">PROCESO DE GESTIÓN ACADÉMICA</td>
+                <td style="border:1px solid #1F3864;padding:6px 8px;text-align:center;font-size:11px;">Versión: 1</td>
+              </tr>
+              <tr>
+                <td style="border:1px solid #1F3864;padding:6px 8px;text-align:center;font-size:11px;font-weight:bold;">EVALUACIÓN CORREGIDA</td>
+                <td style="border:1px solid #1F3864;padding:6px 8px;text-align:center;font-size:11px;">Fecha: ${esc(date)}</td>
+              </tr>
+            </table>
+            `}
           </td>
         </tr>
 
         <!-- Body -->
         <tr>
-          <td style="padding:32px 40px;">
-            <p style="font-size:15px;color:#1F3864;font-weight:600;margin:0 0 6px;">Estimado representante,</p>
-            <p style="font-size:13px;color:#444;line-height:1.6;margin:0 0 24px;">
-              Le compartimos el resultado corregido del examen de <strong>${esc(firstName)}</strong>: <em>${esc(examTitle)}</em>.
-            </p>
+          <td style="padding:24px 32px;">
 
-            <!-- Grade card -->
-            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:20px 24px;text-align:center;margin-bottom:24px;">
-              <div style="font-size:48px;font-weight:800;color:${color};line-height:1;">${grade.toFixed(1)}/5.0</div>
-              <div style="font-size:16px;font-weight:600;color:${color};margin:4px 0 8px;">${level.emoji} ${esc(level.label)}</div>
-              <div style="font-size:12px;color:#6B7280;">${totalScore} / ${maxScore} puntos</div>
-            </div>
-
-            <!-- Info -->
-            <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
-              <tr>
-                <td style="padding:4px 0;font-size:12px;color:#6B7280;width:120px;">Estudiante</td>
-                <td style="padding:4px 0;font-size:12px;color:#374151;font-weight:600;">${esc(studentName)}${studentSection ? ' · ' + esc(studentSection) : ''}</td>
+            <!-- Student / exam info -->
+            <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:1px solid #E5E7EB;margin-bottom:20px;font-size:12px;">
+              <tr style="background:#F8FAFC;">
+                <td style="padding:7px 10px;color:#6B7280;width:110px;border:1px solid #E5E7EB;">Estudiante</td>
+                <td style="padding:7px 10px;font-weight:600;border:1px solid #E5E7EB;">${esc(studentName)}${studentSection ? ' · Sección ' + esc(studentSection) : ''}</td>
+                <td style="padding:7px 10px;color:#6B7280;width:90px;border:1px solid #E5E7EB;">Materia</td>
+                <td style="padding:7px 10px;border:1px solid #E5E7EB;">${esc(subject)}</td>
               </tr>
               <tr>
-                <td style="padding:4px 0;font-size:12px;color:#6B7280;">Docente</td>
-                <td style="padding:4px 0;font-size:12px;color:#374151;">${esc(teacherName)}</td>
+                <td style="padding:7px 10px;color:#6B7280;border:1px solid #E5E7EB;">Examen</td>
+                <td style="padding:7px 10px;border:1px solid #E5E7EB;">${esc(examTitle)}</td>
+                <td style="padding:7px 10px;color:#6B7280;border:1px solid #E5E7EB;">Docente</td>
+                <td style="padding:7px 10px;border:1px solid #E5E7EB;">${esc(teacherName)}</td>
               </tr>
-              <tr>
-                <td style="padding:4px 0;font-size:12px;color:#6B7280;">Fecha</td>
-                <td style="padding:4px 0;font-size:12px;color:#374151;">${esc(date)}</td>
+              <tr style="background:#F8FAFC;">
+                <td style="padding:7px 10px;color:#6B7280;border:1px solid #E5E7EB;">Entregado</td>
+                <td colspan="3" style="padding:7px 10px;border:1px solid #E5E7EB;">${esc(submittedAt)}</td>
               </tr>
             </table>
 
-            <!-- Questions -->
-            <p style="font-size:13px;font-weight:600;color:#374151;margin:0 0 12px;">Detalle por pregunta:</p>
+            <!-- Grade card -->
+            <div style="background:#F8FAFC;border:2px solid ${color};border-radius:12px;padding:20px;text-align:center;margin-bottom:20px;">
+              <div style="font-size:48px;font-weight:800;color:${color};line-height:1;">${grade.toFixed(1)}/5.0</div>
+              <div style="font-size:16px;font-weight:600;color:${color};margin:6px 0 8px;">${level.emoji} ${esc(level.label)}</div>
+              <div style="font-size:12px;color:#6B7280;">${totalScore} / ${maxScore} puntos</div>
+            </div>
+
+            <!-- Questions detail -->
+            <p style="font-size:12px;font-weight:700;color:#374151;margin:0 0 12px;text-transform:uppercase;letter-spacing:.5px;">Detalle por pregunta</p>
             ${questionsHtml}
 
-            <p style="font-size:12px;color:#9CA3AF;margin:16px 0 0;">
-              Este mensaje fue generado automáticamente por CBF Eval. Por favor no responda a este correo.
+            <p style="font-size:11px;color:#9CA3AF;margin:16px 0 0;text-align:center;">
+              Este mensaje fue generado automáticamente por ${isBest ? 'BEST' : 'CBF'} Eval · ${esc(schoolName)}
             </p>
           </td>
         </tr>
 
         <!-- Footer -->
         <tr>
-          <td style="background:#f8fafc;padding:16px 40px;text-align:center;border-top:1px solid #e5e7eb;">
-            <p style="margin:0;font-size:11px;color:#9CA3AF;">CBF Eval · ${esc(schoolName)} · Barranquilla, Colombia</p>
+          <td style="background:#F8FAFC;padding:14px 32px;text-align:center;border-top:1px solid #E5E7EB;">
+            <p style="margin:0;font-size:11px;color:#9CA3AF;">${isBest ? 'BEST' : 'CBF'} Eval · ${esc(schoolName)} · Barranquilla, Colombia</p>
           </td>
         </tr>
       </table>
@@ -245,15 +304,15 @@ Deno.serve(async (req: Request) => {
       })
     }
 
-    const supabase = createClient(
+    const db = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     )
 
     // 1. Load instance with session + blueprint
-    const { data: inst, error: instErr } = await supabase
+    const { data: inst, error: instErr } = await db
       .from('eval_instances')
-      .select('id, student_name, student_section, student_email, session_id, school_id, generated_questions, eval_sessions(title, teacher_id, blueprint_id)')
+      .select('id, student_name, student_section, student_email, session_id, school_id, submitted_at, generated_questions, eval_sessions(title, teacher_id, blueprint_id, eval_blueprints(title, subject))')
       .eq('id', instance_id)
       .single()
 
@@ -263,12 +322,15 @@ Deno.serve(async (req: Request) => {
       })
     }
 
-    const session = inst.eval_sessions as { title: string; teacher_id: string; blueprint_id: string } | null
+    const sessionData = inst.eval_sessions as {
+      title: string; teacher_id: string; blueprint_id: string;
+      eval_blueprints?: { title: string; subject: string } | null
+    } | null
 
-    // 2. Get representative_email from school_students via student_email
+    // 2. Representative email
     let representativeEmail: string | null = null
     if (inst.student_email) {
-      const { data: student } = await supabase
+      const { data: student } = await db
         .from('school_students')
         .select('representative_email')
         .eq('email', inst.student_email)
@@ -277,10 +339,9 @@ Deno.serve(async (req: Request) => {
       representativeEmail = student?.representative_email || null
     }
 
-    // Build recipient list: student + representative (deduplicated, no nulls)
     const toSet = new Set<string>()
     if (inst.student_email) toSet.add(inst.student_email)
-    if (representativeEmail) toSet.add(representativeEmail)
+    if (representativeEmail)  toSet.add(representativeEmail)
     const toAddresses = [...toSet]
 
     if (toAddresses.length === 0) {
@@ -290,58 +351,80 @@ Deno.serve(async (req: Request) => {
     }
 
     // 3. Load result
-    const { data: result } = await supabase
+    const { data: result } = await db
       .from('eval_results')
       .select('colombian_grade, total_score, max_score, correction_status')
       .eq('instance_id', instance_id)
       .single()
 
     if (!result || result.correction_status !== 'complete') {
-      return new Response(JSON.stringify({ error: 'Corrección no completada aún' }), {
+      return new Response(JSON.stringify({ error: 'Corrección no completada aún. Revisa el examen antes de enviar.' }), {
         status: 409, headers: { ...corsH, 'Content-Type': 'application/json' },
       })
     }
 
-    // 4. Load responses
-    const { data: responses } = await supabase
+    // 4. Responses
+    const { data: responses } = await db
       .from('eval_responses')
       .select('question_id, question_type, answer, auto_score, ai_score, ai_feedback, ai_correction_status, points_possible')
       .eq('instance_id', instance_id)
       .order('created_at', { ascending: true })
 
-    // 5. Question list with correct_answer (from blueprint, for teacher reference)
-    const questions: Question[] = (inst.generated_questions || []).map((q: Question) => ({
-      id:            q.id,
-      stem:          q.stem,
-      question_type: q.question_type,
-      points:        q.points,
-      options:       q.options,
-      correct_answer: q.correct_answer,
-    }))
+    // 5. Questions with correct_answer from blueprint
+    const blueprintId = sessionData?.blueprint_id
+    let blueprintQuestions: Question[] = []
+    if (blueprintId) {
+      const { data: bp } = await db
+        .from('eval_blueprints')
+        .select('generated_questions')
+        .eq('id', blueprintId)
+        .single()
+      blueprintQuestions = (bp?.generated_questions || []) as Question[]
+    }
+    const questions: Question[] = blueprintQuestions.length > 0
+      ? blueprintQuestions
+      : (inst.generated_questions || []) as Question[]
 
-    // 6. Teacher name + school name
-    const teacherId = session?.teacher_id
-    const [{ data: teacher }, { data: teacherSchool }] = await Promise.all([
-      supabase.from('teachers').select('full_name, email').eq('id', teacherId!).single(),
-      supabase.from('teachers').select('schools(name)').eq('id', teacherId!).single(),
+    // 6. Teacher + school
+    const teacherId = sessionData?.teacher_id
+    const [{ data: teacherRow }, { data: schoolRow }] = await Promise.all([
+      db.from('teachers').select('full_name, email').eq('id', teacherId!).single(),
+      db.from('schools').select('name, short_name, logo_url, dane, features').eq('id', inst.school_id).single(),
     ])
 
-    const teacherName = teacher?.full_name || teacher?.email || 'Docente'
-    const schoolName  = (teacherSchool?.schools as { name?: string } | null)?.name || 'Colegio Boston Flexible'
+    const teacherName = teacherRow?.full_name || teacherRow?.email || 'Docente'
+    const schoolName  = schoolRow?.name       || 'Institución Educativa'
+    const shortName   = schoolRow?.short_name || ''
+    const logoUrl     = schoolRow?.logo_url   || ''
+    const dane        = schoolRow?.dane       || ''
+    const nit         = (schoolRow?.features as any)?.nit || ''
+    const isBest      = shortName === 'BEST'
+    const subject     = sessionData?.eval_blueprints?.subject || ''
+    const examTitle   = sessionData?.eval_blueprints?.title || sessionData?.title || 'Examen'
+    const submittedAt = inst.submitted_at
+      ? new Date(inst.submitted_at).toLocaleString('es-CO', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+      : '—'
 
-    // 7. Build + send email
-    const grade    = parseFloat(String(result.colombian_grade))
-    const html     = buildEmailHtml({
+    // 7. Build + send
+    const grade = parseFloat(String(result.colombian_grade))
+    const html  = buildEmailHtml({
       studentName:    inst.student_name    || 'Estudiante',
       studentSection: inst.student_section || '',
-      examTitle:      session?.title        || 'Examen',
+      examTitle,
+      subject,
       grade,
       totalScore:     result.total_score,
       maxScore:       result.max_score,
       questions,
       responses:      (responses || []) as Response[],
       schoolName,
+      shortName,
+      dane,
+      nit,
+      isBest,
+      logoUrl,
       teacherName,
+      submittedAt,
       date: new Date().toLocaleDateString('es-CO', { year: 'numeric', month: 'long', day: 'numeric' }),
     })
 
@@ -349,9 +432,9 @@ Deno.serve(async (req: Request) => {
       method:  'POST',
       headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        from:    'CBF Eval <onboarding@resend.dev>',
+        from:    `${isBest ? 'BEST' : 'CBF'} Eval <onboarding@resend.dev>`,
         to:      toAddresses,
-        subject: `📋 Examen corregido — ${inst.student_name || 'Estudiante'} — ${session?.title || 'Examen'}`,
+        subject: `📋 Examen corregido — ${inst.student_name || 'Estudiante'} — ${examTitle}`,
         html,
       }),
     })
@@ -365,9 +448,10 @@ Deno.serve(async (req: Request) => {
     }
 
     const noRepNote = !representativeEmail ? ' (sin correo de representante registrado)' : ''
-    return new Response(JSON.stringify({ ok: true, message: `Resultado enviado a: ${toAddresses.join(', ')}${noRepNote}` }), {
-      headers: { ...corsH, 'Content-Type': 'application/json' },
-    })
+    return new Response(JSON.stringify({
+      ok:      true,
+      message: `Examen corregido enviado a: ${toAddresses.join(', ')}${noRepNote}`,
+    }), { headers: { ...corsH, 'Content-Type': 'application/json' } })
 
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
