@@ -4,6 +4,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY')
 const GEMINI_API_KEY    = Deno.env.get('GEMINI_API_KEY')
 const GEMINI_MODEL      = Deno.env.get('GEMINI_MODEL') || 'gemini-3.6-flash'
+const DEEPSEEK_API_KEY  = Deno.env.get('DEEPSEEK_API_KEY')
+const DEEPSEEK_MODEL    = Deno.env.get('DEEPSEEK_MODEL') || 'deepseek-v4-flash'
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
@@ -128,6 +130,68 @@ async function callGemini(
   }
 }
 
+// ── DeepSeek provider (used when body.provider === 'deepseek') ─────────────────
+// OpenAI-compatible Chat Completions. JSON mode guarantees valid JSON output
+// (kills the truncation/parse errors on long exam generations); thinking is
+// disabled so reasoning tokens never eat the output budget.
+
+async function callDeepSeek(
+  system: string | undefined,
+  message: string | undefined,
+  messages: unknown[] | undefined,
+  maxTokens: number
+): Promise<{ text: string; finish_reason: string; usage: { input_tokens: number; output_tokens: number } }> {
+  const msgs: { role: string; content: string }[] = []
+  if (system) msgs.push({ role: 'system', content: system })
+
+  if (messages?.length) {
+    for (const m of messages as Record<string, unknown>[]) {
+      const role = m.role === 'assistant' ? 'assistant' : 'user'
+      const content = m.content
+      msgs.push({ role, content: typeof content === 'string' ? content : JSON.stringify(content) })
+    }
+  } else {
+    msgs.push({ role: 'user', content: message || '' })
+  }
+
+  const response = await fetch('https://api.deepseek.com/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${DEEPSEEK_API_KEY}` },
+    body: JSON.stringify({
+      model: DEEPSEEK_MODEL,
+      messages: msgs,
+      max_tokens: maxTokens,
+      response_format: { type: 'json_object' },
+      thinking: { type: 'disabled' },
+      stream: false,
+    }),
+  })
+
+  const data = await response.json()
+
+  if (!response.ok) {
+    throw new Error((data.error?.message as string) || `DeepSeek API error ${response.status}`)
+  }
+
+  const choice  = (data.choices ?? [])[0] ?? {}
+  const content = choice.message?.content
+  const text = Array.isArray(content)
+    ? content.filter((c: { text?: string }) => c.text).map((c: { text: string }) => c.text).join('\n')
+    : String(content || '')
+
+  const finishReason = choice.finish_reason ?? ''
+  const finish_reason = finishReason === 'length' ? 'max_tokens' : String(finishReason || 'stop').toLowerCase()
+
+  return {
+    text,
+    finish_reason,
+    usage: {
+      input_tokens: data.usage?.prompt_tokens ?? 0,
+      output_tokens: data.usage?.completion_tokens ?? 0,
+    },
+  }
+}
+
 serve(async (req) => {
   const corsHeaders = getCorsHeaders(req)
 
@@ -143,7 +207,7 @@ serve(async (req) => {
     body = await req.json()
     schoolId = body.school_id as string | undefined
 
-    const provider  = body.provider === 'gemini' ? 'gemini' : 'anthropic'
+    const provider  = body.provider === 'deepseek' ? 'deepseek' : body.provider === 'gemini' ? 'gemini' : 'anthropic'
     const maxTokens = (body.max_tokens as number) || 4000
     const system    = body.system as string | undefined
 
@@ -156,6 +220,14 @@ serve(async (req) => {
         throw new Error('GEMINI_API_KEY not configured')
       }
       const result = await callGemini(system, body.message as string | undefined, body.messages as unknown[] | undefined, maxTokens)
+      text = result.text
+      finish_reason = result.finish_reason
+      usage = result.usage
+    } else if (provider === 'deepseek') {
+      if (!DEEPSEEK_API_KEY) {
+        throw new Error('DEEPSEEK_API_KEY not configured')
+      }
+      const result = await callDeepSeek(system, body.message as string | undefined, body.messages as unknown[] | undefined, maxTokens)
       text = result.text
       finish_reason = result.finish_reason
       usage = result.usage
